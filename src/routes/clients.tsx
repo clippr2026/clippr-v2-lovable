@@ -190,7 +190,7 @@ function ClientsPage() {
     let list = allClients.filter(
       (c) =>
         (filter === "todos" || c.status === filter) &&
-        c.name.toLowerCase().includes(query.toLowerCase())
+        (c.full_name ?? c.name ?? "").toLowerCase().includes(query.toLowerCase())
     );
     if (sort === "gasto") list = [...list].sort((a, b) => b.spent - a.spent);
     if (sort === "nombre") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
@@ -404,7 +404,7 @@ function ClientsPage() {
                         avatarTints[i % avatarTints.length]
                       )}
                     >
-                      {c.name[0]?.toUpperCase()}
+                      {(c.full_name ?? c.name ?? "")[0]?.toUpperCase()}
                     </div>
                     {c.status === "vip" && (
                       <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-gradient-to-br from-sky-300 to-violet-500 grid place-items-center ring-2 ring-background">
@@ -414,7 +414,7 @@ function ClientsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium truncate">{c.name}</div>
+                      <div className="font-medium truncate">{c.full_name ?? c.name}</div>
                       <div className="text-sm font-semibold tabular-nums text-foreground/90">
                         ${c.spent.toLocaleString("es-AR")}
                       </div>
