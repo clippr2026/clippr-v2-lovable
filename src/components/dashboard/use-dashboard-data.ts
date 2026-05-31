@@ -19,8 +19,6 @@ export type RecentCancellation = {
   client_name?: string | null;
   service_name?: string | null;
   starts_at: string;
-  cancelled_at?: string | null;
-  cancelled_by_name?: string | null;
 };
 
 export type DashboardData = {
@@ -78,7 +76,7 @@ async function loadDashboard(
     supabase
       .from("appointments")
       .select(
-        "id,client_name,client_id,service_name,service_price,starts_at,status,employee_id,cancelled_by,cancelled_by_name,cancelled_by_role,cancelled_at,created_by_name,created_by_role,updated_at",
+        "id,client_name,client_id,service_name,service_price,starts_at,status,employee_id,created_by_name,created_by_role,updated_at",
       )
       .eq("business_id", businessId)
       .gte("starts_at", today.toISOString())
@@ -120,9 +118,7 @@ async function loadDashboard(
     starts_at: string;
     service_name?: string;
     client_name?: string;
-    cancelled_at?: string | null;
-    cancelled_by_name?: string | null;
-  };
+      };
   type Pay = { id: string; total: number; created_at: string; appointment_id?: string; service_name?: string; client_name?: string };
   type Emp = { id: string };
   type Exp = { amount: number };
@@ -274,7 +270,7 @@ async function loadDashboard(
     recentCancellations: todayAppts
       .filter((a) => a.status === "cancelled")
       .sort((a, b) =>
-        (b.cancelled_at || b.starts_at).localeCompare(a.cancelled_at || a.starts_at),
+        b.starts_at.localeCompare(a.starts_at),
       )
       .slice(0, 6)
       .map((a) => ({
@@ -282,8 +278,8 @@ async function loadDashboard(
         client_name: a.client_name,
         service_name: a.service_name,
         starts_at: a.starts_at,
-        cancelled_at: a.cancelled_at,
-        cancelled_by_name: a.cancelled_by_name,
+        cancelled_at: a.
+        cancelled_by_name: a.
       })),
   };
 }
