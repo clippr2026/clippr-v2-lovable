@@ -417,7 +417,6 @@ function DayView({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
 }) {
-  const { supabase } = await import("@/integrations/supabase/client").catch(() => ({ supabase: null }));
   const employees = data.employees.length
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
@@ -433,7 +432,7 @@ function DayView({
     const dur = Number(appt.duration_min ?? 30);
     const newEnd = new Date(newStart.getTime() + dur * 60000);
     try {
-      const sb = (await import("@/integrations/supabase/client")).supabase;
+      const sb = supabase;
       await sb.from("appointments").update({
         starts_at: newStart.toISOString(),
         ends_at: newEnd.toISOString(),
