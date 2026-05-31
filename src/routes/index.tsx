@@ -619,22 +619,25 @@ function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
 
   return (
     <div className="glass rounded-2xl p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="h-8 w-8 rounded-lg grid place-items-center bg-destructive/15 ring-1 ring-destructive/30">
-          <XCircle className="h-4 w-4 text-destructive" />
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg grid place-items-center bg-destructive/15 ring-1 ring-destructive/30">
+            <XCircle className="h-4 w-4 text-destructive" />
+          </div>
+          <h3 className="font-display text-base font-semibold">Cancelaciones</h3>
         </div>
-        <h3 className="font-display text-base font-semibold">Cancelaciones</h3>
-      </div>
-
-      {/* Stats row */}
-      <div className="flex gap-3 mb-4">
-        <div className="rounded-xl bg-destructive/10 ring-1 ring-destructive/20 p-3">
-          <div className="text-xs text-muted-foreground mb-1">❌ Cancelaciones</div>
-          <div className="font-display text-2xl font-semibold text-destructive">{count}</div>
-        </div>
-        <div className="rounded-xl bg-destructive/10 ring-1 ring-destructive/20 p-3">
-          <div className="text-xs text-muted-foreground mb-1">💸 Pérdida estimada</div>
-          <div className="font-display text-2xl font-semibold text-destructive">{fmtAR(perdida)}</div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">❌</span>
+            <span className="font-display text-lg font-semibold text-destructive">{count}</span>
+            <span className="text-xs text-muted-foreground">cancelaciones</span>
+          </div>
+          <div className="h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">💸</span>
+            <span className="font-display text-lg font-semibold text-destructive">{fmtAR(perdida)}</span>
+            <span className="text-xs text-muted-foreground">pérdida est.</span>
+          </div>
         </div>
       </div>
 

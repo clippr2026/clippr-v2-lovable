@@ -233,47 +233,52 @@ function AgendaPage() {
   return (
     <AppShell>
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-3 mb-5 animate-fade-up">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 animate-fade-up">
         <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Agenda</h1>
-        <div className="inline-flex items-center gap-2 glass rounded-xl px-3.5 h-10 text-sm">
-          <CalendarIcon className="h-4 w-4 text-primary" />
-          <span className="capitalize">{headerLabel}</span>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center gap-1 glass rounded-xl p-1">
-            {(["day", "week", "month"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-lg text-xs font-medium transition",
-                  view === v
-                    ? "text-white shadow-[0_8px_24px_-10px_oklch(0.65_0.28_290/0.7)]"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                style={
-                  view === v
-                    ? {
-                        background:
-                          "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
-                      }
-                    : undefined
-                }
-              >
-                {v === "day" ? "Día" : v === "week" ? "Semana" : "Mes"}
-              </button>
-            ))}
+
+        {/* All nav controls grouped together */}
+        <div className="flex items-center gap-1.5 glass rounded-2xl px-2 py-1.5">
+          {/* Date label */}
+          <div className="inline-flex items-center gap-1.5 px-2 text-sm">
+            <CalendarIcon className="h-3.5 w-3.5 text-primary" />
+            <span className="capitalize text-sm font-medium">{headerLabel}</span>
           </div>
-          <Button size="icon" variant="ghost" onClick={() => move(-1)}>
-            <ChevronLeft className="h-4 w-4" />
+          <div className="h-4 w-px bg-white/10 mx-1" />
+          {/* View selector */}
+          {(["day", "week", "month"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-medium transition",
+                view === v
+                  ? "text-white shadow-[0_4px_16px_-6px_oklch(0.65_0.28_290/0.7)]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+              )}
+              style={view === v ? { background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))" } : undefined}
+            >
+              {v === "day" ? "Día" : v === "week" ? "Semana" : "Mes"}
+            </button>
+          ))}
+          <div className="h-4 w-px bg-white/10 mx-1" />
+          {/* Hoy + arrows */}
+          <button
+            onClick={() => setCursor(startOfDay(new Date()))}
+            className="px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition"
+          >
+            Hoy
+          </button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => move(-1)}>
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => move(1)}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button onClick={() => openNew(null, cursor)}>
-            <Plus className="h-4 w-4 mr-1" /> Nuevo turno
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => move(1)}>
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
+
+        <Button onClick={() => openNew(null, cursor)}>
+          <Plus className="h-4 w-4 mr-1" /> Nuevo turno
+        </Button>
       </div>
 
       {/* Quick stats */}
@@ -587,13 +592,22 @@ function ApptCard({
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
-      <div className="text-[10px] font-semibold" style={{ color: meta.dot }}>
-        {fmtTime(start)}{a.duration_min ? ` - ${fmtTime(new Date(start.getTime() + Number(a.duration_min)*60000))}` : ""} · {meta.label}
+      {/* Time + status */}
+      <div className="flex items-center justify-between gap-1 mb-0.5">
+        <span className="text-[10px] font-bold tabular-nums" style={{ color: meta.dot }}>
+          {fmtTime(start)}{a.duration_min ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min)*60000))}` : ""}
+        </span>
+        <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
+          {meta.label}
+        </span>
       </div>
-      <div className="text-xs font-semibold truncate">{a.client_name || "Sin nombre"}</div>
-      <div className="text-[10px] text-foreground/70 truncate">{a.service_name}</div>
+      {/* Client */}
+      <div className="text-[11px] font-semibold leading-tight truncate">{a.client_name || "Sin nombre"}</div>
+      {/* Service */}
+      {a.service_name && <div className="text-[10px] text-foreground/65 truncate mt-0.5">{a.service_name}</div>}
+      {/* Price */}
       {a.service_price ? (
-        <div className="text-[10px] text-foreground/60">
+        <div className="text-[10px] font-semibold mt-0.5" style={{ color: meta.dot }}>
           ${Math.round(Number(a.service_price)).toLocaleString("es-AR")}
         </div>
       ) : null}
