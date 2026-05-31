@@ -305,7 +305,6 @@ function EquipoSection() {
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
     const { data: inserted, error } = await supabase.from("employees").insert({
       business_id: businessId,
-      name,
       full_name: name,
       is_active: true,
       commission_pct: commission,
@@ -772,9 +771,25 @@ function ServiciosSection() {
 
 // ─────────── Caja ───────────
 function CajaSection() {
-  const [mode, setMode] = useState<"auto" | "manual">("auto");
+  const { businessId } = useAuth();
+  const [mode, setMode] = useState<"auto" | "manual" | "disabled">("auto");
   const [methods, setMethods] = useState({ efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false });
   const [autoChange, setAutoChange] = useState(true);
+
+  // Load approval_mode from Supabase
+  useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("approval_mode").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => { if (data?.approval_mode) setMode(data.approval_mode as typeof mode); });
+  }, [businessId]);
+
+  async function saveMode(m: typeof mode) {
+    setMode(m);
+    if (!businessId) return;
+    const { error } = await supabase.from("business_settings")
+      .upsert({ business_id: businessId, approval_mode: m }, { onConflict: "business_id" });
+    if (error) console.warn("[CajaSection] saveMode:", error.message);
+  }
 
   const M = [
     { id: "efectivo", icon: Banknote, label: "Efectivo", tint: "text-[oklch(0.82_0.14_75)]" },
@@ -803,7 +818,7 @@ function CajaSection() {
             return (
               <button
                 key={opt.id}
-                onClick={() => setMode(opt.id)}
+                onClick={() => saveMode(opt.id)}
                 className={cn(
                   "text-left glass rounded-2xl p-5 ring-1 transition-all",
                   active
