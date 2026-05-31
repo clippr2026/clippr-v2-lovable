@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
  * Mantiene los nombres de columnas usados por la app vanilla (app.js):
  *   appointments: id, business_id, client_id, client_name, service_name,
  *     service_price, starts_at, ends_at?, duration_min?, status, employee_id,
- *     notes, cancelled_by, cancelled_by_name, cancelled_by_role, cancelled_at,
+ *     notes,    
  *     created_by_name, created_by_role, updated_at
  *   status ∈ pending | confirmed | completed | cancelled | charged | blocked
  */
@@ -35,16 +35,12 @@ export type Appointment = {
   status: ApptStatus;
   employee_id: string | null;
   notes: string | null;
-  cancelled_by: string | null;
-  cancelled_by_name: string | null;
-  cancelled_by_role: string | null;
-  cancelled_at: string | null;
   created_by_name: string | null;
   created_by_role: string | null;
   updated_at: string | null;
 };
 
-export type Employee = { id: string; name: string; sort_order: number | null };
+export type Employee = { id: string; full_name: string; name?: string };
 export type Service = {
   id: string;
   name: string;
@@ -75,7 +71,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,cancelled_by,cancelled_by_name,cancelled_by_role,cancelled_at,created_by_name,created_by_role,updated_at",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -83,9 +79,9 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("starts_at"),
       supabase
         .from("employees")
-        .select("id,name,sort_order")
+        .select("id,full_name")
         .eq("business_id", businessId)
-        .order("sort_order"),
+        .order("full_name", { ascending: true }),
       supabase
         .from("services")
         .select("id,name,price,duration,is_active")
@@ -193,7 +189,6 @@ export async function setAppointmentStatus(id: string, status: ApptStatus) {
     status,
     updated_at: new Date().toISOString(),
   };
-  if (status === "cancelled") patch.cancelled_at = new Date().toISOString();
   const { error } = await supabase.from("appointments").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
 }
@@ -206,10 +201,6 @@ export async function cancelAppointment(
     .from("appointments")
     .update({
       status: "cancelled",
-      cancelled_at: new Date().toISOString(),
-      cancelled_by: by.userId ?? null,
-      cancelled_by_name: by.name ?? null,
-      cancelled_by_role: by.role ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
