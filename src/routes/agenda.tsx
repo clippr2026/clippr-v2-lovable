@@ -396,7 +396,7 @@ function DayView({
             const inSvc = dayAppts.filter(
               (a) => a.employee_id === e.id && (a.status === "completed" || a.status === "confirmed"),
             ).length;
-            const initials = (e.name || "?")
+            const initials = (e.full_name || e.name || "?")
               .split(/\s+/)
               .map((s) => s[0])
               .slice(0, 2)
@@ -417,7 +417,7 @@ function DayView({
                   {initials || "?"}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold truncate">{e.name}</div>
+                  <div className="text-sm font-semibold truncate">{e.full_name ?? e.name}</div>
                   <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                     <span
                       className="h-1.5 w-1.5 rounded-full"
@@ -495,7 +495,7 @@ function ApptCard({
   const top = (startH - HOUR_START) * ROW_PX + 2;
   const height = dur * ROW_PX - 4;
   if (top < 0 || top > (HOUR_END - HOUR_START) * ROW_PX) return null;
-  const meta = STATUS_META[a.status];
+  const meta = STATUS_META[a.status] ?? STATUS_META.pending;
 
   return (
     <div
@@ -667,7 +667,7 @@ function WeekView({
                   const top = (startH - HOUR_START) * ROW_PX + 2;
                   const height = dur * ROW_PX - 4;
                   if (top < 0) return null;
-                  const meta = STATUS_META[a.status];
+                  const meta = STATUS_META[a.status] ?? STATUS_META.pending;
                   return (
                     <div
                       key={a.id}
@@ -774,7 +774,7 @@ function MonthView({
               </div>
               <div className="mt-1 space-y-1">
                 {items.slice(0, 2).map((a) => {
-                  const meta = STATUS_META[a.status];
+                  const meta = STATUS_META[a.status] ?? STATUS_META.pending;
                   return (
                     <div
                       key={a.id}
