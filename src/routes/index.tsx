@@ -397,23 +397,34 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
   fromStr: string;
   toStr: string;
 }) {
+  const isSingleDay = fromStr === toStr;
+
   const metricConfig: Record<string, { label: string; values: number[]; fmt: (v: number) => string; total?: number }> = {
-    ingresos:  { label: "Ingresos",        values: data.revByDay,    fmt: fmtAR,                      total: data.revHoy },
-    gastos:    { label: "Gastos",          values: data.gastosByDay ?? data.revByDay.map(() => 0), fmt: fmtAR, total: data.totalGastos },
-    utilidad:  { label: "Utilidad",        values: data.revByDay.map((v, i) => Math.max(0, v - (data.gastosByDay?.[i] ?? 0))), fmt: fmtAR, total: Math.max(0, data.utilidad) },
-    clientes:  { label: "Clientes",        values: data.doneByDay,   fmt: (v) => String(Math.round(v)), total: data.clientsCount },
-    ticket:    { label: "Ticket promedio", values: data.tickByDay,   fmt: fmtAR,                      total: data.ticket },
-    ocupacion: { label: "Ocupación",       values: data.occByDay,    fmt: (v) => `${Math.round(v)}%`,  total: data.occ },
+    ingresos:  { label: "Ingresos",        values: isSingleDay ? data.hoursValues : data.revByDay,    fmt: fmtAR,                          total: data.revHoy },
+    gastos:    { label: "Gastos",          values: isSingleDay ? data.hoursValues.map(() => 0) : (data.gastosByDay ?? data.revByDay.map(() => 0)), fmt: fmtAR, total: data.totalGastos },
+    utilidad:  { label: "Utilidad",        values: isSingleDay ? data.hoursValues.map((v) => Math.max(0, v)) : data.revByDay.map((v, i) => Math.max(0, v - (data.gastosByDay?.[i] ?? 0))), fmt: fmtAR, total: Math.max(0, data.utilidad) },
+    clientes:  { label: "Clientes",        values: isSingleDay ? data.hoursValues.map(() => 0) : data.doneByDay, fmt: (v) => String(Math.round(v)), total: data.clientsCount },
+    ticket:    { label: "Ticket promedio", values: isSingleDay ? data.hoursValues.map(() => 0) : data.tickByDay, fmt: fmtAR,                        total: data.ticket },
+    ocupacion: { label: "Ocupación",       values: isSingleDay ? data.hoursValues.map(() => 0) : data.occByDay,  fmt: (v) => `${Math.round(v)}%`,    total: data.occ },
   };
   const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
-  const chart = data.days7.map((d, i) => ({
-    day: new Date(d + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
-    rev: cfg.values[i] ?? 0,
-  }));
+
+  // Build chart data: hourly if single day, daily if range
+  const chart = isSingleDay
+    ? data.hoursLabels.filter((_, i) => i % 3 === 0).map((h, i) => ({
+        day: h,
+        rev: data.hoursValues.filter((_, j) => j % 3 === 0)[i] ?? 0,
+      }))
+    : data.days7.map((d, i) => ({
+        // Use only dates within range — no off-by-one
+        day: new Date(d + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
+        rev: cfg.values[i] ?? 0,
+      }));
+
   const total = cfg.total !== undefined ? cfg.total : cfg.values.reduce((s, v) => s + v, 0);
 
-  const rangeLabel = fromStr === toStr
-    ? "Hoy"
+  const rangeLabel = isSingleDay
+    ? `Hoy · ${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}`
     : `${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} al ${new Date(toStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
 
   return (
@@ -571,7 +582,7 @@ function ActivityPanel({ items }: { items: RecentPayment[] }) {
         <div className="h-8 w-8 rounded-lg grid place-items-center bg-primary/15 ring-1 ring-primary/30">
           <Clock className="h-4 w-4 text-primary" />
         </div>
-        <h3 className="font-display text-base font-semibold">Actividad reciente</h3>
+        <h3 className="font-display text-base font-semibold">Actividades</h3>
       </div>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin actividad reciente.</p>
@@ -603,16 +614,32 @@ function ActivityPanel({ items }: { items: RecentPayment[] }) {
 }
 
 function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
+  const count = items.length;
+  const perdida = items.reduce((s, a) => s + Number(a.service_price ?? 0), 0);
+
   return (
     <div className="glass rounded-2xl p-5">
       <div className="flex items-center gap-2 mb-4">
         <div className="h-8 w-8 rounded-lg grid place-items-center bg-destructive/15 ring-1 ring-destructive/30">
           <XCircle className="h-4 w-4 text-destructive" />
         </div>
-        <h3 className="font-display text-base font-semibold">Cancelaciones recientes</h3>
+        <h3 className="font-display text-base font-semibold">Cancelaciones</h3>
       </div>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sin cancelaciones hoy.</p>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="rounded-xl bg-destructive/10 ring-1 ring-destructive/20 p-3">
+          <div className="text-xs text-muted-foreground mb-1">❌ Cancelaciones</div>
+          <div className="font-display text-2xl font-semibold text-destructive">{count}</div>
+        </div>
+        <div className="rounded-xl bg-destructive/10 ring-1 ring-destructive/20 p-3">
+          <div className="text-xs text-muted-foreground mb-1">💸 Pérdida estimada</div>
+          <div className="font-display text-2xl font-semibold text-destructive">{fmtAR(perdida)}</div>
+        </div>
+      </div>
+
+      {count === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin cancelaciones en el período.</p>
       ) : (
         <ul className="space-y-3">
           {items.map((a) => (
@@ -630,9 +657,11 @@ function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
                     </>
                   )}
                 </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {"Turno cancelado"}
-                </div>
+                {a.service_price ? (
+                  <div className="text-xs text-destructive/70">{fmtAR(a.service_price)} perdido</div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">Turno cancelado</div>
+                )}
               </div>
               <div className="text-xs text-muted-foreground shrink-0 tabular-nums">
                 {timeAgo(a.starts_at)}
