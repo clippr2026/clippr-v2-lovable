@@ -27,39 +27,16 @@ import {
   Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useClientsData, useSaveClient, type Client, type ClientStatus } from "@/hooks/use-clients-data";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/clients")({
   component: ClientsPage,
 });
 
-type ClientStatus = "vip" | "nuevo" | "activo" | "inactivo" | "perdido";
+// Types imported from use-clients-data
 
-type Client = {
-  id: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  visits: number;
-  spent: number;
-  lastVisit?: string;
-  nextVisit?: string;
-  status: ClientStatus;
-  rating: number;
-  favService?: string;
-  pro?: string;
-  tags?: string[];
-};
-
-const clientsSeed: Client[] = [
-  { id: "6", name: "Martina Reyes", phone: "+54 11 4422-9011", email: "martina@mail.com", visits: 12, spent: 86400, lastVisit: "hace 4 días", nextVisit: "Mar 14:30", status: "vip", rating: 5, favService: "Color + corte", pro: "Sol", tags: ["Color", "Cliente del año"] },
-  { id: "7", name: "Lucía Fernández", phone: "+54 11 3322-7788", email: "lucia.f@mail.com", visits: 8, spent: 52000, lastVisit: "hace 2 semanas", status: "vip", rating: 4, favService: "Brushing", pro: "Mara", tags: ["Brushing"] },
-  { id: "1", name: "Nala Pérez", phone: "+54 11 5566-2233", visits: 0, spent: 0, status: "nuevo", rating: 0, tags: ["Primera visita"] },
-  { id: "2", name: "Aurora Vidal", visits: 0, spent: 0, status: "nuevo", rating: 0 },
-  { id: "8", name: "Camila Souza", phone: "+54 11 2299-1010", visits: 6, spent: 38900, lastVisit: "hace 9 días", status: "activo", rating: 4, favService: "Manicura", pro: "Vale" },
-  { id: "9", name: "Renata Olivieri", visits: 3, spent: 14200, lastVisit: "hace 35 días", status: "inactivo", rating: 3, favService: "Corte" },
-  { id: "10", name: "Paula Méndez", visits: 11, spent: 67800, lastVisit: "hace 4 meses", status: "perdido", rating: 3, favService: "Color" },
-  { id: "3", name: "Auro Beltrán", visits: 1, spent: 4200, status: "nuevo", rating: 2 },
-];
+// Data comes from Supabase via useClientsData
 
 const avatarTints = [
   "from-sky-400/30 to-violet-600/10 text-sky-100 ring-violet-400/30",
@@ -193,17 +170,24 @@ function Sparkbars({ data }: { data: number[] }) {
 }
 
 function ClientsPage() {
+  const { businessId } = useAuth();
+  const { data: allClients = [], isLoading } = useClientsData(businessId);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"todos" | ClientStatus>("todos");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
-  const [selected, setSelected] = useState<string | null>("6");
+  const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<"resumen" | "historial" | "notas">("resumen");
   const [daysActive, setDaysActive] = useState(60);
   const [daysInactive, setDaysInactive] = useState(60);
   const [daysLost, setDaysLost] = useState(90);
 
+  // Auto-select first client when data loads
+  useMemo(() => {
+    if (!selected && allClients.length > 0) setSelected(allClients[0].id);
+  }, [allClients, selected]);
+
   const filtered = useMemo(() => {
-    let list = clientsSeed.filter(
+    let list = allClients.filter(
       (c) =>
         (filter === "todos" || c.status === filter) &&
         c.name.toLowerCase().includes(query.toLowerCase())
@@ -211,20 +195,20 @@ function ClientsPage() {
     if (sort === "gasto") list = [...list].sort((a, b) => b.spent - a.spent);
     if (sort === "nombre") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [query, filter, sort]);
+  }, [allClients, query, filter, sort]);
 
   const counts = useMemo(
     () => ({
-      vip: clientsSeed.filter((c) => c.status === "vip").length,
-      nuevos: clientsSeed.filter((c) => c.status === "nuevo").length,
-      activos: clientsSeed.filter((c) => c.status === "activo").length,
-      inactivos: clientsSeed.filter((c) => c.status === "inactivo").length,
-      perdidos: clientsSeed.filter((c) => c.status === "perdido").length || 7,
+      vip: allClients.filter((c) => c.status === "vip").length,
+      nuevos: allClients.filter((c) => c.status === "nuevo").length,
+      activos: allClients.filter((c) => c.status === "activo").length,
+      inactivos: allClients.filter((c) => c.status === "inactivo").length,
+      perdidos: allClients.filter((c) => c.status === "perdido").length,
     }),
-    []
+    [allClients]
   );
 
-  const current = clientsSeed.find((c) => c.id === selected) ?? null;
+  const current = allClients.find((c) => c.id === selected) ?? null;
   const ticket = current && current.visits ? Math.round(current.spent / current.visits) : 0;
 
   return (
@@ -448,9 +432,14 @@ function ClientsPage() {
                 </button>
               );
             })}
-            {filtered.length === 0 && (
+            {isLoading && (
+              <div className="text-center text-sm text-muted-foreground py-10 animate-pulse">
+                Cargando clientes…
+              </div>
+            )}
+            {!isLoading && filtered.length === 0 && (
               <div className="text-center text-sm text-muted-foreground py-10">
-                No hay clientes con ese filtro
+                {allClients.length === 0 ? "Sin clientes registrados aún." : "No hay clientes con ese filtro"}
               </div>
             )}
           </div>
@@ -504,14 +493,11 @@ function ClientsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       {statusBadge(current.status)}
-                      {current.tags?.map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
-                        >
-                          {t}
+                      {current.notes && (
+                        <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                          nota
                         </span>
-                      ))}
+                      )}
                       <Rating value={current.rating} />
                     </div>
                   </div>
@@ -586,7 +572,7 @@ function ClientsPage() {
                         <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Última visita</div>
                         <div className="text-sm font-semibold mt-2">{current.lastVisit ?? "—"}</div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 inline-flex items-center gap-1">
-                          <Clock3 className="h-3 w-3" /> {current.nextVisit ? `Próx: ${current.nextVisit}` : "sin próxima"}
+                          <Clock3 className="h-3 w-3" /> {current.lastVisit ? `Últ: ${current.lastVisit}` : "sin visitas"}
                         </div>
                       </div>
                     </div>
@@ -603,11 +589,11 @@ function ClientsPage() {
                         <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Preferencias</div>
                         <div className="flex items-center gap-2 text-sm">
                           <Scissors className="h-4 w-4 text-violet-200" />
-                          {current.favService ?? "Sin datos"}
+  "Sin datos de servicios"
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <UserRound className="h-4 w-4 text-violet-200" />
-                          Profesional: {current.pro ?? "—"}
+  Profesional: —
                         </div>
                       </div>
                     </div>
