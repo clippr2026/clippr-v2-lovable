@@ -315,18 +315,13 @@ function EquipoSection() {
       return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
     }
     // Persist extras best-effort (ignore missing columns)
-    const extras: Record<string, unknown> = {
-      accepts_online: form.acceptsOnline,
-      color: form.color,
-      schedule: form.schedule,
-    };
+    // Update optional fields that exist in the table
+    const extras: Record<string, unknown> = {};
     if (form.email) extras.email = form.email;
     if (form.phone) extras.phone = form.phone;
-    if (form.role) extras.role = form.role;
-    if (form.publicName) extras.public_name = form.publicName;
-    if (form.description) extras.description = form.description;
-    if (form.specialty) extras.specialty = form.specialty;
-    try { await supabase.from("employees").update(extras).eq("id", inserted.id); } catch { /* ignore */ }
+    if (Object.keys(extras).length > 0) {
+      try { await supabase.from("employees").update(extras).eq("id", inserted.id); } catch { /* ignore */ }
+    }
     setSaving(false);
     toast.success("✓ Profesional agregado");
     setOpen(false);
