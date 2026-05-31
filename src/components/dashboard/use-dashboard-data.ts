@@ -278,8 +278,6 @@ async function loadDashboard(
         client_name: a.client_name,
         service_name: a.service_name,
         starts_at: a.starts_at,
-        cancelled_at: a.
-        cancelled_by_name: a.
       })),
   };
 }
