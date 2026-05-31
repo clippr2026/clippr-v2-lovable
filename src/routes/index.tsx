@@ -627,7 +627,7 @@ function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="flex gap-3 mb-4">
         <div className="rounded-xl bg-destructive/10 ring-1 ring-destructive/20 p-3">
           <div className="text-xs text-muted-foreground mb-1">❌ Cancelaciones</div>
           <div className="font-display text-2xl font-semibold text-destructive">{count}</div>

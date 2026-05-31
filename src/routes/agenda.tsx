@@ -56,14 +56,14 @@ const STATUS_META: Record<
     dot: "oklch(0.72 0.25 300)",
   },
   completed: {
-    label: "Completado",
-    bg: "oklch(0.4 0.2 150 / 0.35)",
-    border: "oklch(0.76 0.2 150)",
-    dot: "oklch(0.76 0.2 150)",
+    label: "En servicio",
+    bg: "oklch(0.38 0.18 200 / 0.4)",
+    border: "oklch(0.72 0.18 200)",
+    dot: "oklch(0.72 0.18 200)",
   },
   charged: {
     label: "Cobrado",
-    bg: "oklch(0.4 0.2 150 / 0.55)",
+    bg: "oklch(0.38 0.2 150 / 0.55)",
     border: "oklch(0.76 0.2 150)",
     dot: "oklch(0.76 0.2 150)",
   },
@@ -214,7 +214,9 @@ function AgendaPage() {
     inService: data.appointments.filter((a) => a.status === "completed").length,
     seña: data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || "")).length,
     charged: data.appointments.filter((a) => a.status === "charged").length,
+    cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
   };
+  const [filterModal, setFilterModal] = React.useState<string|null>(null);
 
   const move = (delta: number) => {
     const step = view === "day" ? 1 : view === "week" ? 7 : 30;
@@ -262,9 +264,6 @@ function AgendaPage() {
               </button>
             ))}
           </div>
-          <Button size="sm" variant="secondary" onClick={() => setCursor(startOfDay(new Date()))}>
-            Hoy
-          </Button>
           <Button size="icon" variant="ghost" onClick={() => move(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -278,21 +277,26 @@ function AgendaPage() {
       </div>
 
       {/* Quick stats */}
-      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 animate-fade-up">
+      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 animate-fade-up">
         {([
-          ["pending", "Pendientes", "oklch(0.72 0.2 245)"],
-          ["confirmed", "Confirmados", "oklch(0.72 0.26 305)"],
-          ["inService", "En servicio", "oklch(0.78 0.17 55)"],
-          ["seña", "Seña", "oklch(0.78 0.17 75)"],
-          ["charged", "Cobrados", "oklch(0.76 0.2 155)"],
-        ] as const).map(([k, label, color]) => (
-          <div key={k}>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {label}
-            </div>
+          ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
+          ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
+          ["inService", "En servicio",  "oklch(0.72 0.18 200)"],
+          ["seña",      "Seña",         "oklch(0.78 0.17 55)"],
+          ["charged",   "Cobrados",     "oklch(0.76 0.2 155)"],
+          ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
+        ] as [string,string,string][]).map(([k, label, color]) => (
+          <div key={k} className="group">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
             <div className="font-display text-2xl sm:text-3xl font-semibold mt-1" style={{ color }}>
-              {counts[k as keyof typeof counts]}
+              {(counts as Record<string,number>)[k] ?? 0}
             </div>
+            <button
+              onClick={() => setFilterModal(k)}
+              className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              Ver todos →
+            </button>
           </div>
         ))}
         {data.loading && (
@@ -301,6 +305,50 @@ function AgendaPage() {
           </div>
         )}
       </section>
+
+      {/* Filter modal */}
+      {filterModal && (() => {
+        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", inService:"completed", seña:"seña", charged:"charged", cancelled:"cancelled" };
+        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", inService:"En servicio", seña:"Seña", charged:"Cobrados", cancelled:"Cancelados" };
+        const filtered = filterModal === "seña"
+          ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
+          : data.appointments.filter((a) => a.status === statusMap[filterModal]);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-4 pt-16 overflow-y-auto" onClick={() => setFilterModal(null)}>
+            <div className="glass-strong rounded-3xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b border-white/5">
+                <h3 className="font-display text-lg font-semibold">{labels[filterModal]} ({filtered.length})</h3>
+                <button onClick={() => setFilterModal(null)} className="text-muted-foreground hover:text-foreground text-xl">×</button>
+              </div>
+              <div className="p-3 max-h-[60vh] overflow-y-auto">
+                {filtered.length === 0 ? (
+                  <div className="text-center text-sm text-muted-foreground py-8">Sin turnos en este estado.</div>
+                ) : filtered.map((a) => {
+                  const m = STATUS_META[a.status] ?? STATUS_META.pending;
+                  const emp = data.employees.find((e) => e.id === a.employee_id);
+                  return (
+                    <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.03] transition">
+                      <div className="h-8 w-8 rounded-full grid place-items-center ring-1 ring-white/10 shrink-0" style={{ background: m.bg }}>
+                        <span className="text-[10px] font-bold" style={{ color: m.dot }}>
+                          {(a.client_name || "?")[0]?.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{a.client_name || "Sin cliente"}</div>
+                        <div className="text-xs text-muted-foreground truncate">{emp?.full_name ?? emp?.name ?? "—"} · {a.service_name || "—"}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs tabular-nums">{new Date(a.starts_at).toLocaleDateString("es-AR",{day:"2-digit",month:"short"})} {fmtTime(new Date(a.starts_at))}</div>
+                        {a.service_price ? <div className="text-xs text-muted-foreground">${Number(a.service_price).toLocaleString("es-AR")}</div> : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Calendar */}
       {view === "day" ? (
@@ -369,9 +417,32 @@ function DayView({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
 }) {
+  const { supabase } = await import("@/integrations/supabase/client").catch(() => ({ supabase: null }));
   const employees = data.employees.length
     ? data.employees
-    : [{ id: "__none__", name: "Sin asignar", sort_order: 0 }];
+    : [{ id: "__none__", full_name: "Sin asignar" }];
+
+  const handleDrop = async (e: React.DragEvent, empId: string, hour: number) => {
+    e.preventDefault();
+    const apptId = e.dataTransfer.getData("apptId");
+    if (!apptId) return;
+    const appt = data.appointments.find((a) => a.id === apptId);
+    if (!appt) return;
+    const newStart = new Date(date);
+    newStart.setHours(hour, 0, 0, 0);
+    const dur = Number(appt.duration_min ?? 30);
+    const newEnd = new Date(newStart.getTime() + dur * 60000);
+    try {
+      const sb = (await import("@/integrations/supabase/client")).supabase;
+      await sb.from("appointments").update({
+        starts_at: newStart.toISOString(),
+        ends_at: newEnd.toISOString(),
+        employee_id: empId === "__none__" ? null : empId,
+      }).eq("id", apptId);
+      data.refresh();
+      toast.success("Turno movido");
+    } catch (ex) { toast.error((ex as Error).message); }
+  };
 
   const sameDay = (iso: string) => {
     const d = new Date(iso);
@@ -381,7 +452,7 @@ function DayView({
       d.getDate() === date.getDate()
     );
   };
-  const dayAppts = data.appointments.filter((a) => sameDay(a.starts_at));
+  const dayAppts = data.appointments.filter((a) => sameDay(a.starts_at) && a.status !== "cancelled");
 
   return (
     <section className="glass rounded-2xl p-4">
@@ -407,15 +478,20 @@ function DayView({
                 key={e.id}
                 className="px-3 pb-3 pt-1 border-l border-white/[0.04] flex items-center gap-2.5"
               >
-                <div
-                  className="h-9 w-9 rounded-full grid place-items-center text-xs font-semibold text-white ring-1 ring-white/10 shrink-0"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
-                  }}
-                >
-                  {initials || "?"}
-                </div>
+                {e.avatar_url ? (
+                  <img
+                    src={e.avatar_url}
+                    alt={e.full_name ?? ""}
+                    className="h-9 w-9 rounded-full object-cover ring-1 ring-white/10 shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="h-9 w-9 rounded-full grid place-items-center text-xs font-semibold text-white ring-1 ring-white/10 shrink-0"
+                    style={{ background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))" }}
+                  >
+                    {initials || "?"}
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold truncate">{e.full_name ?? e.name}</div>
                   <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
@@ -451,6 +527,8 @@ function DayView({
                   key={h}
                   className="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
                   style={{ height: ROW_PX }}
+                  onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }}
+                  onDrop={(ev) => handleDrop(ev, e.id, h)}
                   onClick={() => {
                     const dt = new Date(date);
                     dt.setHours(h, 0, 0, 0);
@@ -497,22 +575,21 @@ function ApptCard({
   if (top < 0 || top > (HOUR_END - HOUR_START) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("apptId", a.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
   return (
     <div
-      className="absolute left-1.5 right-1.5 rounded-lg px-2.5 py-1.5 cursor-pointer group transition hover:z-10 hover:scale-[1.01]"
-      style={{
-        top,
-        height,
-        background: meta.bg,
-        boxShadow: `inset 0 0 0 1px ${meta.border}`,
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
+      className="absolute left-1.5 right-1.5 rounded-lg px-2.5 py-1.5 cursor-grab active:cursor-grabbing group transition hover:z-10 hover:scale-[1.01]"
+      style={{ top, height, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
+      draggable
+      onDragStart={handleDragStart}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       <div className="text-[10px] font-semibold" style={{ color: meta.dot }}>
-        {fmtTime(start)} · {meta.label}
+        {fmtTime(start)}{a.duration_min ? ` - ${fmtTime(new Date(start.getTime() + Number(a.duration_min)*60000))}` : ""} · {meta.label}
       </div>
       <div className="text-xs font-semibold truncate">{a.client_name || "Sin nombre"}</div>
       <div className="text-[10px] text-foreground/70 truncate">{a.service_name}</div>
