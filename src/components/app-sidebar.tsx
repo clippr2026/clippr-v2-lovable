@@ -1,0 +1,205 @@
+import * as React from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import {
+  LayoutDashboard,
+  Calendar,
+  Users,
+  Wallet,
+  Settings,
+  UserCog,
+  Bell,
+  LogOut,
+  User as UserIcon,
+  Menu,
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+const nav = [
+  { label: "Dashboard", to: "/", icon: LayoutDashboard },
+  { label: "Agenda", to: "/agenda", icon: Calendar },
+  { label: "Caja", to: "/cash-register", icon: Wallet },
+  { label: "Panel Profesionales", to: "/professionals", icon: UserCog },
+  { label: "Clientes", to: "/clients", icon: Users },
+  { label: "Configuración", to: "/settings", icon: Settings },
+];
+
+function initialsOf(name?: string | null, email?: string | null) {
+  const src = (name || email || "").trim();
+  if (!src) return "··";
+  const parts = src.split(/[\s@._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() ||
+    src.slice(0, 2).toUpperCase();
+}
+
+// Kept for backwards compatibility with components that imported these.
+type SidebarCtx = { open: boolean; setOpen: (v: boolean) => void };
+const Ctx = React.createContext<SidebarCtx | null>(null);
+
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false);
+  return <Ctx.Provider value={{ open, setOpen }}>{children}</Ctx.Provider>;
+}
+export function useSidebarToggle() {
+  const ctx = React.useContext(Ctx);
+  return ctx ?? { open: false, setOpen: () => {} };
+}
+
+function Brand() {
+  return (
+    <Link to="/" className="flex items-center gap-2.5 shrink-0">
+      <div
+        className="h-9 w-9 rounded-xl grid place-items-center font-display text-lg text-white"
+        style={{
+          background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
+          boxShadow: "0 8px 24px -6px oklch(0.65 0.27 290 / 0.55)",
+        }}
+      >
+        C
+      </div>
+      <div className="font-display text-lg font-semibold leading-none tracking-tight">
+        Clippr
+      </div>
+    </Link>
+  );
+}
+
+function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?: boolean }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <nav className={cn(vertical ? "flex flex-col gap-1" : "flex items-center gap-1")}>
+      {nav.map((item) => {
+        const active = pathname === item.to;
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            onClick={onNavigate}
+            className={cn(
+              "relative flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all whitespace-nowrap",
+              active
+                ? "text-foreground bg-gradient-to-r from-primary/20 to-accent/15 ring-1 ring-primary/30 shadow-[0_4px_18px_-8px_oklch(0.7_0.25_290/0.6)]"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+            )}
+          >
+            <Icon className={cn("h-4 w-4", active && "text-primary")} />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function UserMenu() {
+  const { profile, signOut } = useAuth();
+  const initials = initialsOf(profile?.full_name, profile?.email);
+  const displayName = profile?.full_name || profile?.email || "Usuario";
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Cuenta"
+          className="h-10 w-10 rounded-xl grid place-items-center text-sm font-semibold text-white ring-1 ring-white/10 hover:brightness-110 transition"
+          style={{
+            background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
+          }}
+        >
+          {initials}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="text-sm font-medium truncate">{displayName}</div>
+          {profile?.email && (
+            <div className="text-xs text-muted-foreground truncate">{profile.email}</div>
+          )}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/settings" className="cursor-pointer">
+            <UserIcon className="h-4 w-4 mr-2" /> Configuración
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => signOut()}
+          className="cursor-pointer text-destructive focus:text-destructive"
+        >
+          <LogOut className="h-4 w-4 mr-2" /> Cerrar sesión
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function AppSidebar() {
+  const { open, setOpen } = useSidebarToggle();
+
+  return (
+    <>
+      <header className="sticky top-0 z-40 w-full border-b border-white/[0.06] bg-[oklch(0.1_0.025_282)]/75 backdrop-blur-xl">
+        <div className="max-w-[1600px] mx-auto h-16 px-4 sm:px-6 lg:px-10 flex items-center gap-4">
+          <Brand />
+
+          {/* Desktop nav */}
+          <div className="hidden lg:flex flex-1 justify-center">
+            <NavItems />
+          </div>
+
+          {/* Right cluster */}
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              className="hidden sm:grid h-10 w-10 place-items-center rounded-xl glass glass-hover relative"
+              aria-label="Notificaciones"
+            >
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-accent" />
+            </button>
+            <UserMenu />
+            <button
+              onClick={() => setOpen(true)}
+              className="lg:hidden h-10 w-10 grid place-items-center rounded-xl glass glass-hover"
+              aria-label="Abrir menú"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile drawer */}
+      {open && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <button
+            aria-label="Cerrar menú"
+            onClick={() => setOpen(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <aside className="absolute right-0 top-0 h-full w-72 max-w-[85%] border-l border-white/[0.06] bg-[oklch(0.085_0.018_280)] p-4 animate-fade-up">
+            <div className="flex items-center justify-between mb-6">
+              <Brand />
+              <button
+                onClick={() => setOpen(false)}
+                className="h-9 w-9 grid place-items-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <NavItems vertical onNavigate={() => setOpen(false)} />
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
