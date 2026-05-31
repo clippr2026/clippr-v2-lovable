@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import {
@@ -48,8 +48,8 @@ function ProfessionalsPage() {
   const empId = activeId ?? professionals[0]?.id ?? null;
 
   // Load approval_mode from Supabase
-  const [approvalMode, setApprovalMode] = React.useState<"auto" | "manual" | "disabled">("auto");
-  React.useEffect(() => {
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">("auto");
+  useEffect(() => {
     if (!businessId) return;
     supabase.from("business_settings").select("approval_mode").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => { if (data?.approval_mode) setApprovalMode(data.approval_mode as typeof approvalMode); });
@@ -179,9 +179,9 @@ function CobroModal({
   empId: string; businessId: string; mode: "auto" | "manual";
   userEmail: string | null; onClose: () => void; onDone: () => void;
 }) {
-  const [method, setMethod] = React.useState<PayMethod>("cash");
-  const [note, setNote] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+  const [method, setMethod] = useState<PayMethod>("cash");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
   const price = Number(turno.service_price ?? 0);
 
   async function confirm() {
@@ -275,7 +275,7 @@ function TurnosView({ businessId, empId, approvalMode, profile }: {
   profile: { id: string; email?: string } | null;
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId);
-  const [cobroTurno, setCobroTurno] = React.useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
 
   const statusLabel: Record<string, string> = {
     pending: "Pendiente", confirmed: "Confirmado", completed: "Completado",
