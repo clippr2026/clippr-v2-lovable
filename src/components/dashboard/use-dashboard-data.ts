@@ -38,6 +38,7 @@ export type DashboardData = {
   clientsCount: number;
   days7: string[];
   revByDay: number[];
+  gastosByDay: number[];
   doneByDay: number[];
   tickByDay: number[];
   occByDay: number[];
@@ -182,9 +183,14 @@ async function loadDashboard(
   ]);
   const w7pay = (w7payR.data as Pay[]) || [];
   const w7appt = (w7apptR.data as Appt[]) || [];
-  const days7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(w7start);
-    d.setDate(w7start.getDate() + i);
+  // Build day array from ACTUAL selected range (not hardcoded 7 days)
+  const spanDays = Math.min(
+    Math.round((todayEnd.getTime() - today.getTime()) / 86_400_000) + 1,
+    90 // cap at 90 days for performance
+  );
+  const days7 = Array.from({ length: spanDays }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
     return d.toLocaleDateString("sv-SE");
   });
   const revByDay = days7.map((ds) =>
@@ -253,6 +259,10 @@ async function loadDashboard(
     ).size,
     days7,
     revByDay,
+    gastosByDay: days7.map(() => {
+      // Distribute total gastos evenly across days for chart
+      return spanDays > 0 ? Math.round(totalGastos / spanDays) : 0;
+    }),
     doneByDay,
     tickByDay,
     occByDay,
