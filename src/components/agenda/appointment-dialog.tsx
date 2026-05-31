@@ -113,7 +113,7 @@ export function AppointmentDialog({
   const pickClient = (id: string) => {
     setClientId(id);
     const c = clients.find((x) => x.id === id);
-    if (c) setClientName(c.name);
+    if (c) setClientName(c.full_name ?? c.name ?? "");
   };
   const pickService = (id: string) => {
     setServiceId(id);
@@ -173,7 +173,7 @@ export function AppointmentDialog({
                 <SelectContent>
                   {clients.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.name}
+                      {c.full_name ?? c.name}
                       {c.phone ? ` · ${c.phone}` : ""}
                     </SelectItem>
                   ))}
@@ -196,7 +196,7 @@ export function AppointmentDialog({
               <SelectContent>
                 {employees.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
-                    {e.name}
+                    {e.full_name ?? e.name}
                   </SelectItem>
                 ))}
               </SelectContent>
