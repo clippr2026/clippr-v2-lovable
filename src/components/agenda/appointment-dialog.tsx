@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import {
   saveAppointment,
   type Appointment,
@@ -74,6 +74,9 @@ export function AppointmentDialog({
 
   const [clientId, setClientId] = React.useState<string>("");
   const [clientName, setClientName] = React.useState("");
+  const [clientPhone, setClientPhone] = React.useState("");
+  const [clientSearch, setClientSearch] = React.useState("");
+  const [showClientList, setShowClientList] = React.useState(false);
   const [employeeId, setEmployeeId] = React.useState<string>("");
   const [serviceId, setServiceId] = React.useState<string>("");
   const [serviceName, setServiceName] = React.useState("");
@@ -99,6 +102,9 @@ export function AppointmentDialog({
     } else {
       setClientId("");
       setClientName("");
+      setClientPhone("");
+      setClientSearch("");
+      setShowClientList(false);
       setEmployeeId(defaultEmployeeId ?? employees[0]?.id ?? "");
       setServiceId("");
       setServiceName("");
@@ -110,11 +116,20 @@ export function AppointmentDialog({
     }
   }, [open, appointment, defaultEmployeeId, defaultStartsAt, employees]);
 
-  const pickClient = (id: string) => {
-    setClientId(id);
-    const c = clients.find((x) => x.id === id);
-    if (c) setClientName(c.full_name ?? c.name ?? "");
+  const pickClient = (c: { id: string; full_name?: string | null; name?: string | null; phone?: string | null }) => {
+    setClientId(c.id);
+    setClientName(c.full_name ?? c.name ?? "");
+    setClientPhone(c.phone ?? "");
+    setClientSearch("");
+    setShowClientList(false);
   };
+
+  const filteredClients = clientSearch.length >= 1
+    ? clients.filter((c) => {
+        const q = clientSearch.toLowerCase();
+        return (c.full_name ?? c.name ?? "").toLowerCase().includes(q) || (c.phone ?? "").includes(q);
+      }).slice(0, 8)
+    : [];
   const pickService = (id: string) => {
     setServiceId(id);
     const s = services.find((x) => x.id === id);
@@ -165,26 +180,57 @@ export function AppointmentDialog({
         <div className="grid gap-5 py-3">
           <div className="grid gap-1.5">
             <Label>Cliente</Label>
-            <div className="flex gap-2">
-              <Select value={clientId} onValueChange={pickClient}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Elegí cliente existente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.full_name ?? c.name}
-                      {c.phone ? ` · ${c.phone}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Search bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                className="pl-8 pr-8"
+                placeholder="Buscar cliente por nombre o teléfono…"
+                value={clientSearch}
+                onChange={(e) => { setClientSearch(e.target.value); setShowClientList(true); setClientId(""); setClientName(e.target.value); }}
+                onFocus={() => setShowClientList(true)}
+              />
+              {clientSearch && (
+                <button className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => { setClientSearch(""); setClientName(""); setClientId(""); setShowClientList(false); }}>
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
-            <Input
-              placeholder="o escribí un nombre"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-            />
+
+            {/* Client search results */}
+            {showClientList && filteredClients.length > 0 && (
+              <div className="rounded-xl border border-white/10 bg-popover shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                {filteredClients.map((c) => (
+                  <button
+                    key={c.id}
+                    className="w-full text-left px-3 py-2.5 hover:bg-white/[0.05] transition flex items-center gap-2 border-b border-white/5 last:border-0"
+                    onClick={() => pickClient(c)}
+                  >
+                    <div className="h-7 w-7 rounded-full bg-primary/20 ring-1 ring-primary/30 grid place-items-center text-xs font-semibold text-primary shrink-0">
+                      {(c.full_name ?? c.name ?? "?")[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{c.full_name ?? c.name}</div>
+                      {c.phone && <div className="text-xs text-muted-foreground">{c.phone}</div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Show selected client or manual input */}
+            {!clientSearch && !clientId && (
+              <Input placeholder="o escribí el nombre del cliente" value={clientName} onChange={(e) => setClientName(e.target.value)} />
+            )}
+            {clientId && (
+              <div className="flex items-center gap-2 rounded-lg bg-primary/10 ring-1 ring-primary/20 px-3 py-2">
+                <span className="text-sm font-medium flex-1">{clientName}</span>
+                {clientPhone && <span className="text-xs text-muted-foreground">{clientPhone}</span>}
+                <button className="text-muted-foreground hover:text-foreground" onClick={() => { setClientId(""); setClientName(""); setClientPhone(""); setClientSearch(""); }}>
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-1.5">
@@ -271,7 +317,8 @@ export function AppointmentDialog({
           <div className="grid gap-1.5">
             <Label>Notas</Label>
             <Textarea
-              rows={2}
+              rows={3}
+              placeholder="Ej: Cliente viene por primera vez · Prefiere degradado bajo · Pidió esperar si se demora"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
