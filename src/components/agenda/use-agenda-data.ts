@@ -84,14 +84,14 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("full_name", { ascending: true }),
       supabase
         .from("services")
-        .select("id,name,price,duration,is_active")
+        .select("id,name,price,duration_min,is_active")
         .eq("business_id", businessId)
         .order("name"),
       supabase
         .from("clients")
-        .select("id,name,phone")
+        .select("id,full_name,phone")
         .eq("business_id", businessId)
-        .order("name"),
+        .order("full_name"),
     ]);
 
     setAppointments(
