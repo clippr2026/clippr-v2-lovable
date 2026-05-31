@@ -721,7 +721,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
               value={client}
               onChange={setClient}
               onPick={(c) => {
-                setClient(c.name);
+                setClient(c.full_name ?? c.name ?? "");
                 if (c.phone) setPhone(c.phone);
               }}
               clients={data.clients}
