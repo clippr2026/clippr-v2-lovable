@@ -126,13 +126,14 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
             type="date"
             value={fromStr}
             max={toStr}
+            onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
             onChange={(e) => {
               const v = e.target.value;
               const y = parseInt(v?.split("-")[0] ?? "0");
               if (v && y >= 2000 && y <= 2099) setFromStr(v);
               else if (!v) setFromStr(todayStr);
             }}
-            className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
+            className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50 cursor-pointer"
           />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -141,13 +142,14 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
             type="date"
             value={toStr}
             min={fromStr}
+            onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
             onChange={(e) => {
               const v = e.target.value;
               const y = parseInt(v?.split("-")[0] ?? "0");
               if (v && y >= 2000 && y <= 2099) setToStr(v);
               else if (!v) setToStr(todayStr);
             }}
-            className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
+            className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50 cursor-pointer"
           />
         </label>
       </div>
@@ -395,20 +397,20 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
   fromStr: string;
   toStr: string;
 }) {
-  const metricConfig: Record<string, { label: string; values: number[]; fmt: (v: number) => string }> = {
-    ingresos:  { label: "Ingresos",       values: data.revByDay,                                     fmt: fmtAR },
-    gastos:    { label: "Gastos",         values: data.revByDay.map(() => data.totalGastos / Math.max(data.revByDay.length, 1)), fmt: fmtAR },
-    utilidad:  { label: "Utilidad",       values: data.revByDay.map((v) => Math.max(0, v - data.totalGastos / Math.max(data.revByDay.length, 1))), fmt: fmtAR },
-    clientes:  { label: "Clientes",       values: data.doneByDay,                                    fmt: (v) => String(Math.round(v)) },
-    ticket:    { label: "Ticket promedio",values: data.tickByDay,                                    fmt: fmtAR },
-    ocupacion: { label: "Ocupación",      values: data.occByDay,                                     fmt: (v) => `${Math.round(v)}%` },
+  const metricConfig: Record<string, { label: string; values: number[]; fmt: (v: number) => string; total?: number }> = {
+    ingresos:  { label: "Ingresos",        values: data.revByDay,    fmt: fmtAR,                      total: data.revHoy },
+    gastos:    { label: "Gastos",          values: data.gastosByDay ?? data.revByDay.map(() => 0), fmt: fmtAR, total: data.totalGastos },
+    utilidad:  { label: "Utilidad",        values: data.revByDay.map((v, i) => Math.max(0, v - (data.gastosByDay?.[i] ?? 0))), fmt: fmtAR, total: Math.max(0, data.utilidad) },
+    clientes:  { label: "Clientes",        values: data.doneByDay,   fmt: (v) => String(Math.round(v)), total: data.clientsCount },
+    ticket:    { label: "Ticket promedio", values: data.tickByDay,   fmt: fmtAR,                      total: data.ticket },
+    ocupacion: { label: "Ocupación",       values: data.occByDay,    fmt: (v) => `${Math.round(v)}%`,  total: data.occ },
   };
   const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
   const chart = data.days7.map((d, i) => ({
-    day: new Date(d).toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
+    day: new Date(d + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
     rev: cfg.values[i] ?? 0,
   }));
-  const total = cfg.values.reduce((s, v) => s + v, 0);
+  const total = cfg.total !== undefined ? cfg.total : cfg.values.reduce((s, v) => s + v, 0);
 
   const rangeLabel = fromStr === toStr
     ? "Hoy"
