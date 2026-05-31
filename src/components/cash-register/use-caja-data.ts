@@ -20,7 +20,7 @@ export type Service = {
 export type Employee = {
   id: string;
   name: string;
-  sort_order?: number | null;
+  
 };
 
 export type ClientLite = {
@@ -86,9 +86,9 @@ export function useCajaData() {
         .order("name"),
       supabase
         .from("employees")
-        .select("id,name,sort_order")
+        .select("id,full_name")
         .eq("business_id", businessId)
-        .order("sort_order"),
+        .order("full_name", { ascending: true }),
       supabase
         .from("payments")
         .select("id,total,amount,method,client_name,service_name,created_at,employee_id,appointment_id")
