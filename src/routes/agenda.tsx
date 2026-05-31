@@ -238,6 +238,14 @@ function AgendaPage() {
 
         {/* All nav controls grouped together */}
         <div className="flex items-center gap-1.5 glass rounded-2xl px-2 py-1.5">
+          {/* Hoy — leftmost */}
+          <button
+            onClick={() => setCursor(startOfDay(new Date()))}
+            className="px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition"
+          >
+            Hoy
+          </button>
+          <div className="h-4 w-px bg-white/10 mx-1" />
           {/* Date label */}
           <div className="inline-flex items-center gap-1.5 px-2 text-sm">
             <CalendarIcon className="h-3.5 w-3.5 text-primary" />
@@ -261,13 +269,7 @@ function AgendaPage() {
             </button>
           ))}
           <div className="h-4 w-px bg-white/10 mx-1" />
-          {/* Hoy + arrows */}
-          <button
-            onClick={() => setCursor(startOfDay(new Date()))}
-            className="px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition"
-          >
-            Hoy
-          </button>
+          {/* Prev / Next */}
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => move(-1)}>
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
@@ -575,7 +577,7 @@ function ApptCard({
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - HOUR_START) * ROW_PX + 2;
-  const height = dur * ROW_PX - 4;
+  const height = Math.max(dur * ROW_PX - 4, 58);
   if (top < 0 || top > (HOUR_END - HOUR_START) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
 
