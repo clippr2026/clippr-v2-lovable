@@ -284,15 +284,17 @@ async function loadDashboard(
 
 export function useDashboardData(
   businessId: string | null,
-  range?: { from: Date; to: Date },
+  range?: { from: Date; to: Date } | null,
 ) {
+  // null range = invalid dates → disable query, return zeros
+  const rangeValid = range !== null && range !== undefined;
   const from = range?.from ?? (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
   const to = range?.to ?? (() => { const d = new Date(); d.setHours(23,59,59,999); return d; })();
   const key = `${from.toISOString().slice(0,10)}_${to.toISOString().slice(0,10)}`;
   return useQuery({
     queryKey: ["dashboard", businessId, key],
     queryFn: () => loadDashboard(businessId!, { from, to }),
-    enabled: !!businessId,
+    enabled: !!businessId && rangeValid,
     staleTime: 30_000,
   });
 }
