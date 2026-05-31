@@ -508,7 +508,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 
   const services = data.services;
   const filtered = services.filter((i) =>
-    i.name.toLowerCase().includes(query.toLowerCase())
+    (i.name ?? "").toLowerCase().includes(query.toLowerCase())
   );
 
   const cartItems = Object.entries(cart)
@@ -858,7 +858,7 @@ function ClientAutocomplete({
   const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();
   const matches = q
-    ? clients.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 8)
+    ? clients.filter((c) => (c.full_name ?? c.name ?? "").toLowerCase().includes(q)).slice(0, 8)
     : clients.slice(0, 8);
 
   return (
@@ -888,7 +888,7 @@ function ClientAutocomplete({
               }}
               className="w-full text-left px-3 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0"
             >
-              <span className="text-sm text-foreground truncate">{c.name}</span>
+              <span className="text-sm text-foreground truncate">{c.full_name ?? c.full_name ?? c.name}</span>
               {c.phone && (
                 <span className="text-xs text-muted-foreground tabular-nums truncate">
                   {c.phone}
