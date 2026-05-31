@@ -77,6 +77,10 @@ export function useProfStats(
   return useQuery({
     queryKey: ["prof-stats", businessId, empId, from, to],
     queryFn: async (): Promise<ProfStats> => {
+      // Guard against invalid dates
+      if (!from || !to || isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
+        return { facturacion: 0, comision: 0, pagado: 0, pendiente: 0, ventasCount: 0 };
+      }
       const fromISO = from + "T00:00:00";
       const toISO = to + "T23:59:59";
 
@@ -151,6 +155,7 @@ export function useProfSales(
   return useQuery({
     queryKey: ["prof-sales", businessId, empId, from, to],
     queryFn: async (): Promise<ProfSale[]> => {
+      if (!from || !to || isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) return [];
       const { data, error } = await supabase
         .from("payments")
         .select("id,client_name,service_name,total,amount,created_at")
