@@ -158,11 +158,11 @@ export function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar turno" : "Nuevo turno"}</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
+        <div className="grid gap-5 py-3">
           <div className="grid gap-1.5">
             <Label>Cliente</Label>
             <div className="flex gap-2">
