@@ -379,8 +379,10 @@ function StatsView({
     }
   }, [range]);
 
-  const { data: stats } = useProfStats(businessId, empId, from, to);
-  const { data: sales = [] } = useProfSales(businessId, empId, from, to);
+  const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
+  const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
+  const { data: stats } = useProfStats(businessId, empId, validFrom, validTo);
+  const { data: sales = [] } = useProfSales(businessId, empId, validFrom, validTo);
 
   const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
 
