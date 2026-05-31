@@ -115,9 +115,9 @@ export function useCajaData() {
         .maybeSingle(),
       supabase
         .from("clients")
-        .select("id,name,phone")
+        .select("id,full_name,phone")
         .eq("business_id", businessId)
-        .order("name"),
+        .order("full_name"),
     ]);
 
     const svcRaw =
