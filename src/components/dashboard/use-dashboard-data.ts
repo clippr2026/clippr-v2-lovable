@@ -15,6 +15,7 @@ export type RecentPayment = {
 };
 
 export type RecentCancellation = {
+  service_price?: number | null;
   id: string;
   client_name?: string | null;
   service_name?: string | null;
@@ -184,11 +185,12 @@ async function loadDashboard(
   const w7pay = (w7payR.data as Pay[]) || [];
   const w7appt = (w7apptR.data as Appt[]) || [];
   // Build day array from ACTUAL selected range (not hardcoded 7 days)
+  // Build exact day list from range.from to range.to inclusive, no extra day
   const spanDays = Math.min(
-    Math.round((todayEnd.getTime() - today.getTime()) / 86_400_000) + 1,
-    90 // cap at 90 days for performance
+    Math.floor((todayEnd.getTime() - today.getTime()) / 86_400_000) + 1,
+    90
   );
-  const days7 = Array.from({ length: spanDays }, (_, i) => {
+  const days7 = Array.from({ length: Math.max(spanDays, 1) }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     return d.toLocaleDateString("sv-SE");
@@ -287,6 +289,7 @@ async function loadDashboard(
         id: a.id,
         client_name: a.client_name,
         service_name: a.service_name,
+        service_price: a.service_price ?? null,
         starts_at: a.starts_at,
       })),
   };
