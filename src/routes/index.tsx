@@ -84,8 +84,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const [toStr, setToStr] = React.useState(todayStr);
 
   const range = React.useMemo(() => {
-    const from = new Date(fromStr + "T00:00:00");
-    const to = new Date(toStr + "T23:59:59");
+    const now = new Date();
+    const MIN = new Date("2000-01-01");
+    const MAX = new Date("2099-12-31");
+    const clamp = (d: Date) => isNaN(d.getTime()) || d < MIN || d > MAX ? now : d;
+    const from = clamp(new Date(fromStr + "T00:00:00"));
+    const to   = clamp(new Date(toStr   + "T23:59:59"));
     if (to < from) return { from: to, to: from };
     return { from, to };
   }, [fromStr, toStr]);
