@@ -63,6 +63,24 @@ export function InventarioTab({
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
+
+    // Fetch valid category slugs from business_settings (same as Catálogo)
+    let validSlugs: string[] = [];
+    try {
+      const { data: bsData } = await supabase
+        .from("business_settings")
+        .select("cat_custom_tabs")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (Array.isArray(bsData?.cat_custom_tabs)) {
+        validSlugs = (bsData.cat_custom_tabs as Array<string | { slug: string }>)
+          .map((c) => (typeof c === "string" ? c : c.slug))
+          .filter(Boolean);
+      }
+    } catch (e) {
+      console.warn("[InventarioTab] cat_custom_tabs:", (e as Error).message);
+    }
+
     const [{ data: items }, { data: movs }] = await Promise.all([
       supabase
         .from("price_catalog")
@@ -79,7 +97,13 @@ export function InventarioTab({
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
-    setProducts(((items ?? []) as Product[]).filter((p) => p.active !== false));
+
+    // Filter: active + only categories that exist in Catálogo tabs
+    let filtered = ((items ?? []) as Product[]).filter((p) => p.active !== false);
+    if (validSlugs.length > 0) {
+      filtered = filtered.filter((p) => p.category && validSlugs.includes(p.category));
+    }
+    setProducts(filtered);
     setMovements((movs ?? []) as Movement[]);
     setLoading(false);
   }, [businessId]);
