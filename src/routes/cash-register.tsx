@@ -745,7 +745,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
                 <option value="">— Sin asignar —</option>
                 {data.employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.name}
+                    {e.full_name ?? e.name}
                   </option>
                 ))}
               </select>

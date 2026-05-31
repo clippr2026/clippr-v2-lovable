@@ -108,7 +108,7 @@ function ReportsPage() {
       const empData = emp.status === "fulfilled" && !emp.value.error ? (emp.value.data as { id: string; name: string }[]) ?? [] : [];
       setPayments(pData);
       setExpenses(eData);
-      setEmployeesMap(Object.fromEntries(empData.map((e) => [e.id, e.name])));
+      setEmployeesMap(Object.fromEntries(empData.map((e) => [e.id, e.full_name ?? e.name])));
       setLoading(false);
     });
   }, [businessId, range]);
