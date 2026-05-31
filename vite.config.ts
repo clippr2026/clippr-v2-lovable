@@ -5,7 +5,9 @@ export default defineConfig({
     server: { entry: "server" },
   },
 
-  nitro: {
-    preset: "vercel",
+  vite: {
+    build: {
+      outDir: "dist",
+    },
   },
 });
