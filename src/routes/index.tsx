@@ -583,9 +583,7 @@ function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
                   )}
                 </div>
                 <div className="text-xs text-muted-foreground truncate">
-                  {a.cancelled_by_name
-                    ? `Cancelado por ${a.cancelled_by_name}`
-                    : "Turno cancelado"}
+                  {"Turno cancelado"}
                 </div>
               </div>
               <div className="text-xs text-muted-foreground shrink-0 tabular-nums">

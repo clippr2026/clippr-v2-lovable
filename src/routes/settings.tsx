@@ -222,7 +222,7 @@ type EmployeeRow = {
   full_name?: string | null;
   is_active?: boolean | null;
   commission_pct?: number | null;
-  sort_order?: number | null;
+  
 };
 
 type NewProForm = {
@@ -281,9 +281,9 @@ function EquipoSection() {
     setLoading(true);
     const { data, error } = await supabase
       .from("employees")
-      .select("id,name,full_name,is_active,commission_pct,sort_order")
+      .select("id,full_name,is_active,commission_pct")
       .eq("business_id", businessId)
-      .order("sort_order");
+      .order("full_name", { ascending: true });
     if (error) toast.error("Error cargando profesionales: " + error.message);
     setRows((data ?? []) as EmployeeRow[]);
     setLoading(false);
@@ -309,7 +309,7 @@ function EquipoSection() {
       full_name: name,
       is_active: true,
       commission_pct: commission,
-      sort_order: rows.length,
+      
     }).select("id").single();
     if (error || !inserted) {
       setSaving(false);
