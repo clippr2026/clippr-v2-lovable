@@ -83,19 +83,21 @@ async function loadDashboard(
       .eq("business_id", businessId)
       .gte("starts_at", today.toISOString())
       .lte("starts_at", todayEnd.toISOString())
-      .order("starts_at"),
+      .order("starts_at", { ascending: true }),
     supabase
       .from("payments")
       .select("id,total,method,created_at,appointment_id,client_name,service_name")
+      .eq("business_id", businessId)
       .gte("created_at", today.toISOString())
       .lte("created_at", todayEnd.toISOString())
       .order("created_at", { ascending: false }),
     supabase
       .from("payments")
       .select("id,total,created_at,appointment_id")
+      .eq("business_id", businessId)
       .gte("created_at", yesterday.toISOString())
       .lte("created_at", yesterdayEnd.toISOString()),
-    supabase.from("employees").select("*").eq("business_id", businessId).order("sort_order"),
+    supabase.from("employees").select("*").eq("business_id", businessId).order("full_name", { ascending: true }),
     supabase
       .from("cash_sessions")
       .select("id")
@@ -124,6 +126,14 @@ async function loadDashboard(
   type Pay = { id: string; total: number; created_at: string; appointment_id?: string; service_name?: string; client_name?: string };
   type Emp = { id: string };
   type Exp = { amount: number };
+
+  // Log any query errors to console for debugging
+  [apptRes, payRes, payYestRes, empRes, sessRes, expRes].forEach((r, i) => {
+    const names = ["appointments","payments","payments(ayer)","employees","cash_sessions","expenses"];
+    if (r.status === "fulfilled" && r.value.error) {
+      console.error(`[Dashboard] ${names[i]} error:`, r.value.error.message, r.value.error);
+    }
+  });
 
   const todayAppts =
     apptRes.status === "fulfilled" ? ((apptRes.value.data as Appt[]) ?? []) : [];
