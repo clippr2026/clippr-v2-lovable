@@ -1,0 +1,228 @@
+import * as React from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+
+/**
+ * Datos de la Agenda. Carga turnos (appointments) del rango visible,
+ * más empleados, servicios y clientes del business para los pickers.
+ *
+ * Mantiene los nombres de columnas usados por la app vanilla (app.js):
+ *   appointments: id, business_id, client_id, client_name, service_name,
+ *     service_price, starts_at, ends_at?, duration_min?, status, employee_id,
+ *     notes,    
+ *     created_by_name, created_by_role, updated_at
+ *   status ∈ pending | confirmed | completed | cancelled | charged | blocked
+ */
+
+export type ApptStatus =
+  | "pending"
+  | "confirmed"
+  | "completed"
+  | "cancelled"
+  | "charged"
+  | "blocked";
+
+export type Appointment = {
+  id: string;
+  business_id: string;
+  client_id: string | null;
+  client_name: string | null;
+  service_name: string | null;
+  service_price: number | null;
+  starts_at: string;
+  ends_at: string | null;
+  duration_min: number | null;
+  status: ApptStatus;
+  employee_id: string | null;
+  notes: string | null;
+  created_by_name: string | null;
+  created_by_role: string | null;
+  updated_at: string | null;
+};
+
+export type Employee = { id: string; name: string; sort_order: number | null };
+export type Service = {
+  id: string;
+  name: string;
+  price: number;
+  duration: number | null;
+};
+export type Client = { id: string; name: string; phone: string | null };
+
+export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
+  const { businessId } = useAuth();
+  const [loading, setLoading] = React.useState(true);
+  const [appointments, setAppointments] = React.useState<Appointment[]>([]);
+  const [employees, setEmployees] = React.useState<Employee[]>([]);
+  const [services, setServices] = React.useState<Service[]>([]);
+  const [clients, setClients] = React.useState<Client[]>([]);
+
+  const startIso = rangeStart.toISOString();
+  const endIso = rangeEnd.toISOString();
+
+  const load = React.useCallback(async () => {
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+
+    const [aRes, eRes, sRes, cRes] = await Promise.allSettled([
+      supabase
+        .from("appointments")
+        .select(
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
+        )
+        .eq("business_id", businessId)
+        .gte("starts_at", startIso)
+        .lte("starts_at", endIso)
+        .order("starts_at"),
+      supabase
+        .from("employees")
+        .select("id,name,sort_order")
+        .eq("business_id", businessId)
+        .order("sort_order"),
+      supabase
+        .from("services")
+        .select("id,name,price,duration,is_active")
+        .eq("business_id", businessId)
+        .order("name"),
+      supabase
+        .from("clients")
+        .select("id,name,phone")
+        .eq("business_id", businessId)
+        .order("name"),
+    ]);
+
+    setAppointments(
+      aRes.status === "fulfilled" && !aRes.value.error
+        ? ((aRes.value.data ?? []) as Appointment[])
+        : [],
+    );
+    setEmployees(
+      eRes.status === "fulfilled" && !eRes.value.error
+        ? ((eRes.value.data ?? []) as Employee[])
+        : [],
+    );
+    const svc =
+      sRes.status === "fulfilled" && !sRes.value.error
+        ? ((sRes.value.data ?? []) as (Service & { is_active?: boolean })[])
+        : [];
+    setServices(svc.filter((s) => s.is_active !== false));
+    setClients(
+      cRes.status === "fulfilled" && !cRes.value.error
+        ? ((cRes.value.data ?? []) as Client[])
+        : [],
+    );
+    setLoading(false);
+  }, [businessId, startIso, endIso]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  return {
+    loading,
+    businessId,
+    appointments,
+    employees,
+    services,
+    clients,
+    refresh: load,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Mutaciones (portadas de app.js: saveAppointment / cancelAppointment / reschedule)
+// ---------------------------------------------------------------------------
+
+export type SaveAppointmentInput = {
+  id?: string | null;
+  business_id: string;
+  client_id?: string | null;
+  client_name: string;
+  employee_id: string | null;
+  service_name: string;
+  service_price: number;
+  starts_at: string; // ISO
+  duration_min: number;
+  status?: ApptStatus;
+  notes?: string | null;
+  created_by_name?: string | null;
+  created_by_role?: string | null;
+};
+
+export async function saveAppointment(input: SaveAppointmentInput) {
+  const ends = new Date(
+    new Date(input.starts_at).getTime() + input.duration_min * 60_000,
+  ).toISOString();
+
+  const payload: Record<string, unknown> = {
+    business_id: input.business_id,
+    client_id: input.client_id ?? null,
+    client_name: input.client_name,
+    employee_id: input.employee_id,
+    service_name: input.service_name,
+    service_price: input.service_price,
+    starts_at: input.starts_at,
+    ends_at: ends,
+    duration_min: input.duration_min,
+    status: input.status ?? "pending",
+    notes: input.notes ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  if (!input.id) {
+    payload.created_by_name = input.created_by_name ?? null;
+    payload.created_by_role = input.created_by_role ?? null;
+  }
+
+  const q = input.id
+    ? supabase.from("appointments").update(payload).eq("id", input.id).select()
+    : supabase.from("appointments").insert(payload).select();
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data?.[0];
+}
+
+export async function setAppointmentStatus(id: string, status: ApptStatus) {
+  const patch: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("appointments").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function cancelAppointment(
+  id: string,
+  by: { userId?: string | null; name?: string | null; role?: string | null },
+) {
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function rescheduleAppointment(
+  id: string,
+  startsAt: string,
+  durationMin: number,
+) {
+  const ends = new Date(
+    new Date(startsAt).getTime() + durationMin * 60_000,
+  ).toISOString();
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      starts_at: startsAt,
+      ends_at: ends,
+      duration_min: durationMin,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
