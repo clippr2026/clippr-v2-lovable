@@ -14,6 +14,8 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfStats, useProfPayments,
   useProfSales, useProfTurnos, useRegisterPayout,
@@ -44,6 +46,14 @@ function ProfessionalsPage() {
   const [range, setRange] = useState<"hoy" | "semana" | "mes">("semana");
 
   const empId = activeId ?? professionals[0]?.id ?? null;
+
+  // Load approval_mode from Supabase
+  const [approvalMode, setApprovalMode] = React.useState<"auto" | "manual" | "disabled">("auto");
+  React.useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("approval_mode").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => { if (data?.approval_mode) setApprovalMode(data.approval_mode as typeof approvalMode); });
+  }, [businessId]);
   const active = useMemo(() => professionals.find((p) => p.id === empId) ?? professionals[0] ?? null, [professionals, empId]);
   const activeColor = useMemo(() => COLORS[(professionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [professionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
@@ -81,9 +91,15 @@ function ProfessionalsPage() {
                 {active.full_name}
               </div>
               <div className="text-sm text-muted-foreground mt-0.5">Profesional</div>
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 ring-1 ring-emerald-400/30 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                <Zap className="h-3 w-3 fill-emerald-300" />
-                Automático
+              <div className={cn(
+                "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
+                approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
+                approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
+                approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
+              )}>
+                {approvalMode === "auto" && <><Zap className="h-3 w-3 fill-emerald-300" /> Automático</>}
+                {approvalMode === "manual" && <>👁 Manual</>}
+                {approvalMode === "disabled" && <>🚫 Desactivado</>}
               </div>
             </div>
           </div>
@@ -144,7 +160,7 @@ function ProfessionalsPage() {
       </div>
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} />}
       {tab === "stats" && <StatsView range={range} setRange={setRange} businessId={businessId} empId={empId} />}
       {tab === "historial" && <HistorialView businessId={businessId} empId={empId} />}
       {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} />}
@@ -155,8 +171,111 @@ function ProfessionalsPage() {
 
 
 
-function TurnosView({ businessId, empId }: { businessId: string | null; empId: string | null }) {
-  const { data: turnos = [], isLoading } = useProfTurnos(businessId, empId);
+// ── Cobro modal ────────────────────────────────────────────────────────────
+function CobroModal({
+  turno, empId, businessId, mode, userEmail, onClose, onDone,
+}: {
+  turno: import("@/hooks/use-professionals-data").ProfTurno;
+  empId: string; businessId: string; mode: "auto" | "manual";
+  userEmail: string | null; onClose: () => void; onDone: () => void;
+}) {
+  const [method, setMethod] = React.useState<PayMethod>("cash");
+  const [note, setNote] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const price = Number(turno.service_price ?? 0);
+
+  async function confirm() {
+    setSaving(true);
+    try {
+      if (mode === "auto") {
+        // Charge directly
+        await registerPayment({
+          businessId, employeeId: empId,
+          clientName: turno.client_name ?? "Sin cliente",
+          items: [{ serviceName: turno.service_name ?? "Servicio", amount: price }],
+          method,
+        });
+        // Mark appointment as charged
+        await supabase.from("appointments").update({ status: "charged" }).eq("id", turno.id);
+        toast.success("✓ Cobro registrado");
+      } else {
+        // Manual: mark as pending approval
+        await supabase.from("appointments").update({ status: "pending", notes: note || turno.notes }).eq("id", turno.id);
+        toast.success("✓ Enviado a Caja para aprobación");
+      }
+      onDone();
+      onClose();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass-strong rounded-3xl w-full max-w-md p-6 space-y-5" onClick={e => e.stopPropagation()}>
+        {/* Banner de modo */}
+        <div className={cn("rounded-2xl px-4 py-3 text-sm ring-1",
+          mode === "auto" ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-200" : "bg-amber-500/10 ring-amber-400/20 text-amber-200")}>
+          <div className="font-semibold mb-0.5">{mode === "auto" ? "⚡ Cobro automático" : "👁 Enviar a Caja"}</div>
+          <div className="text-xs opacity-75">
+            {mode === "auto" ? "El cobro se registra directamente en caja." : "La recepcionista revisará y confirmará el cobro."}
+          </div>
+        </div>
+
+        {/* Turno info */}
+        <div>
+          <div className="font-display font-semibold text-lg">{turno.client_name ?? "Sin cliente"}</div>
+          <div className="text-sm text-muted-foreground">{turno.service_name ?? "—"}</div>
+          {price > 0 && <div className="text-2xl font-display font-light mt-1">${price.toLocaleString("es-AR")}</div>}
+        </div>
+
+        {/* Método de pago — solo en auto */}
+        {mode === "auto" && (
+          <div className="space-y-2">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Método de pago</div>
+            <div className="grid grid-cols-3 gap-2">
+              {(["cash","transfer","card","mp","qr"] as PayMethod[]).map(m => {
+                const labels: Record<PayMethod,string> = { cash:"Efectivo", transfer:"Transfer.", card:"Tarjeta", mp:"Mercado P.", qr:"QR", cuenta:"Cuenta" };
+                return (
+                  <button key={m} onClick={() => setMethod(m)}
+                    className={cn("rounded-xl py-2 text-xs font-medium ring-1 transition-all",
+                      method === m ? "bg-primary/20 ring-primary/50 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:ring-white/20")}>
+                    {labels[m]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Nota */}
+        <input value={note} onChange={e => setNote(e.target.value)} placeholder="Nota opcional…"
+          className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-white/30" />
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 rounded-xl ring-1 ring-white/10 py-3 text-sm text-muted-foreground hover:text-foreground transition">
+            Cancelar
+          </button>
+          <button onClick={confirm} disabled={saving}
+            className={cn("flex-1 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-50",
+              mode === "auto" ? "bg-gradient-to-r from-emerald-400 to-emerald-500 text-background" : "bg-gradient-to-r from-amber-300 to-amber-500 text-background")}>
+            {saving ? "Guardando…" : mode === "auto" ? "Confirmar cobro" : "Enviar a Caja"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TurnosView({ businessId, empId, approvalMode, profile }: {
+  businessId: string | null; empId: string | null;
+  approvalMode: "auto" | "manual" | "disabled";
+  profile: { id: string; email?: string } | null;
+}) {
+  const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId);
+  const [cobroTurno, setCobroTurno] = React.useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
 
   const statusLabel: Record<string, string> = {
     pending: "Pendiente", confirmed: "Confirmado", completed: "Completado",
@@ -169,9 +288,18 @@ function TurnosView({ businessId, empId }: { businessId: string | null; empId: s
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos de hoy</div>
+      {/* Mode explanation banner */}
+      <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
+        approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
+        approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
+        approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
+      )}>
+        {approvalMode === "auto" && "⚡ Cobro automático — podés cobrar directamente desde tu panel."}
+        {approvalMode === "manual" && "👁 Cobro manual — enviás el cobro a Caja para que recepción lo confirme."}
+        {approvalMode === "disabled" && "🚫 Cobro desactivado — los cobros se realizan desde Caja & Cobro."}
       </div>
+
+      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos de hoy</div>
 
       {isLoading ? (
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
@@ -180,7 +308,7 @@ function TurnosView({ businessId, empId }: { businessId: string | null; empId: s
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
           {turnos.map((t, i) => (
-            <div key={t.id} className={cn("flex items-center gap-4 px-5 py-3.5", i < turnos.length - 1 && "border-b border-white/5")}>
+            <div key={t.id} className={cn("flex items-center gap-3 px-5 py-3.5", i < turnos.length - 1 && "border-b border-white/5")}>
               <div className="text-xs text-muted-foreground w-14 shrink-0 tabular-nums">
                 {new Date(t.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
               </div>
@@ -188,17 +316,39 @@ function TurnosView({ businessId, empId }: { businessId: string | null; empId: s
                 <div className="text-sm font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
                 <div className="text-xs text-muted-foreground truncate">{t.service_name ?? "—"}</div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {t.service_price != null && (
                   <span className="text-sm font-semibold tabular-nums">${Number(t.service_price).toLocaleString("es-AR")}</span>
                 )}
                 <span className={cn("text-[11px] font-semibold uppercase tracking-wider", statusColor[t.status] ?? "text-muted-foreground")}>
                   {statusLabel[t.status] ?? t.status}
                 </span>
+                {/* Cobrar button */}
+                {approvalMode !== "disabled" && t.status !== "charged" && t.status !== "cancelled" && (
+                  <button onClick={() => setCobroTurno(t)}
+                    className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
+                      approvalMode === "auto"
+                        ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                        : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
+                    {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {cobroTurno && businessId && empId && (
+        <CobroModal
+          turno={cobroTurno}
+          empId={empId}
+          businessId={businessId}
+          mode={approvalMode === "manual" ? "manual" : "auto"}
+          userEmail={profile?.email ?? null}
+          onClose={() => setCobroTurno(null)}
+          onDone={() => refetch()}
+        />
       )}
     </div>
   );
