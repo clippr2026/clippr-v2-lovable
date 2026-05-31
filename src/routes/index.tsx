@@ -589,7 +589,7 @@ function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
                 </div>
               </div>
               <div className="text-xs text-muted-foreground shrink-0 tabular-nums">
-                {timeAgo(a.cancelled_at || a.starts_at)}
+                {timeAgo(a.starts_at)}
               </div>
             </li>
           ))}
