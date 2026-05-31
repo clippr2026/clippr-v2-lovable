@@ -38,6 +38,22 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
+
+    // Load valid category slugs (same as Catálogo)
+    let validSlugs: string[] = [];
+    try {
+      const { data: bsData } = await supabase
+        .from("business_settings")
+        .select("cat_custom_tabs")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (Array.isArray(bsData?.cat_custom_tabs)) {
+        validSlugs = (bsData.cat_custom_tabs as Array<string | { slug: string }>)
+          .map((c) => (typeof c === "string" ? c : c.slug))
+          .filter(Boolean);
+      }
+    } catch (e) { console.warn("[PreciosTab] cat_custom_tabs:", (e as Error).message); }
+
     const { data, error } = await supabase
       .from("price_catalog")
       .select("id,name,price,duration_min,category,active")
@@ -46,7 +62,12 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
       .order("category")
       .order("name");
     if (error) toast.error("Error cargando precios: " + error.message);
-    setRows((data ?? []) as Row[]);
+
+    let filtered = (data ?? []) as Row[];
+    if (validSlugs.length > 0) {
+      filtered = filtered.filter((r) => r.category && validSlugs.includes(r.category));
+    }
+    setRows(filtered);
     setLoading(false);
   }, [businessId]);
 
