@@ -84,17 +84,17 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const [toStr, setToStr] = React.useState(todayStr);
 
   const range = React.useMemo(() => {
-    const now = new Date();
     const MIN = new Date("2000-01-01");
     const MAX = new Date("2099-12-31");
-    const clamp = (d: Date) => isNaN(d.getTime()) || d < MIN || d > MAX ? now : d;
-    const from = clamp(new Date(fromStr + "T00:00:00"));
-    const to   = clamp(new Date(toStr   + "T23:59:59"));
+    const from = new Date(fromStr + "T00:00:00");
+    const to   = new Date(toStr   + "T23:59:59");
+    // If either date is invalid or out of range, return null to show zeros
+    if (isNaN(from.getTime()) || isNaN(to.getTime()) || from < MIN || to > MAX) return null;
     if (to < from) return { from: to, to: from };
     return { from, to };
   }, [fromStr, toStr]);
 
-  const { data, isLoading, error } = useDashboardData(businessId, range);
+  const { data, isLoading, error } = useDashboardData(businessId, range ?? null);
 
   const setQuickRange = (days: number) => {
     const to = new Date();
@@ -124,7 +124,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
             type="date"
             value={fromStr}
             max={toStr}
-            onChange={(e) => setFromStr(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              const y = parseInt(v?.split("-")[0] ?? "0");
+              if (v && y >= 2000 && y <= 2099) setFromStr(v);
+              else if (!v) setFromStr(todayStr);
+            }}
             className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
           />
         </label>
@@ -134,7 +139,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
             type="date"
             value={toStr}
             min={fromStr}
-            onChange={(e) => setToStr(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              const y = parseInt(v?.split("-")[0] ?? "0");
+              if (v && y >= 2000 && y <= 2099) setToStr(v);
+              else if (!v) setToStr(todayStr);
+            }}
             className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
           />
         </label>
