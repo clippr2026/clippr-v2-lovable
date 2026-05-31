@@ -95,6 +95,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   }, [fromStr, toStr]);
 
   const { data, isLoading, error } = useDashboardData(businessId, range ?? null);
+  const [activeMetric, setActiveMetric] = React.useState<"ingresos"|"gastos"|"utilidad"|"clientes"|"ticket"|"ocupacion">("ingresos");
 
   const setQuickRange = (days: number) => {
     const to = new Date();
@@ -149,20 +150,13 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           />
         </label>
       </div>
-      <div className="flex items-center gap-1 ml-auto flex-wrap">
-        {[
-          { label: "Hoy", days: 1 },
-          { label: "7d", days: 7 },
-          { label: "30d", days: 30 },
-        ].map((p) => (
-          <button
-            key={p.label}
-            onClick={() => setQuickRange(p.days)}
-            className="text-xs px-2.5 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-foreground/80"
-          >
-            {p.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-1 ml-auto">
+        <button
+          onClick={() => setQuickRange(1)}
+          className="text-xs px-2.5 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-foreground/80"
+        >
+          Hoy
+        </button>
       </div>
     </div>
   );
@@ -197,6 +191,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <Stat
+          active={activeMetric === "ingresos"}
+          onClick={() => setActiveMetric("ingresos")}
           label="Ingresos"
           value={fmtAR(data.revHoy)}
           sub={`${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`}
@@ -205,6 +201,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           spark={data.revByDay}
         />
         <Stat
+          active={activeMetric === "gastos"}
+          onClick={() => setActiveMetric("gastos")}
           label="Gastos"
           value={data.totalGastos > 0 ? `-${fmtAR(data.totalGastos)}` : "$0"}
           sub={
@@ -217,6 +215,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           spark={data.revByDay.map((v) => v * 0.25)}
         />
         <Stat
+          active={activeMetric === "utilidad"}
+          onClick={() => setActiveMetric("utilidad")}
           label="Utilidad"
           value={fmtAR(utilidad)}
           sub={`Ingresos ${fmtAR(data.revHoy)} − Gastos ${fmtAR(data.totalGastos)}`}
@@ -229,6 +229,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
       {/* Second row */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <Stat
+          active={activeMetric === "clientes"}
+          onClick={() => setActiveMetric("clientes")}
           label="Clientes"
           value={String(data.clientsCount)}
           sub="atendidos hoy"
@@ -237,6 +239,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           spark={data.doneByDay}
         />
         <Stat
+          active={activeMetric === "ticket"}
+          onClick={() => setActiveMetric("ticket")}
           label="Ticket promedio"
           value={fmtAR(data.ticket)}
           sub={data.cobros === 0 ? "sin cobros" : `sobre ${data.cobros} cobros`}
@@ -245,6 +249,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           spark={data.tickByDay}
         />
         <Stat
+          active={activeMetric === "ocupacion"}
+          onClick={() => setActiveMetric("ocupacion")}
           label="Ocupación"
           value={`${data.occ}%`}
           sub={`${data.usedSlots} de ${data.totalSlots} slots`}
@@ -256,7 +262,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
 
       {/* Revenue chart + donut */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <RevenueChart data={data} />
+        <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
         <ServicesDonut data={data} />
       </section>
 
@@ -317,6 +323,8 @@ function Stat({
   icon: Icon,
   tone = "neutral",
   spark,
+  active = false,
+  onClick,
 }: {
   label: string;
   value: string;
@@ -324,6 +332,8 @@ function Stat({
   icon: React.ComponentType<{ className?: string }>;
   tone?: keyof typeof TONE;
   spark?: number[];
+  active?: boolean;
+  onClick?: () => void;
 }) {
   const t = TONE[tone];
   const id = React.useId().replace(/:/g, "");
@@ -331,7 +341,10 @@ function Stat({
   const hasSpark = sparkData.some((d) => d.v > 0);
 
   return (
-    <div className="glass glass-hover rounded-2xl p-5 relative overflow-hidden">
+    <div
+      onClick={onClick}
+      className={cn("glass glass-hover rounded-2xl p-5 relative overflow-hidden transition-all", onClick && "cursor-pointer", active && "ring-2 ring-primary/60 shadow-[0_0_30px_-8px_oklch(0.66_0.22_265)]")}
+    >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <div className={`h-9 w-9 rounded-xl grid place-items-center ring-1 ${t.ring} ${t.bg}`}>
@@ -375,22 +388,40 @@ function Stat({
 // ---------------------------------------------------------------------------
 // Revenue chart (7d)
 // ---------------------------------------------------------------------------
-function RevenueChart({ data }: { data: DashboardData }) {
+function RevenueChart({ data, activeMetric, fromStr, toStr }: {
+  data: DashboardData;
+  activeMetric: string;
+  fromStr: string;
+  toStr: string;
+}) {
+  const metricConfig: Record<string, { label: string; values: number[]; fmt: (v: number) => string }> = {
+    ingresos:  { label: "Ingresos",       values: data.revByDay,                                     fmt: fmtAR },
+    gastos:    { label: "Gastos",         values: data.revByDay.map(() => data.totalGastos / Math.max(data.revByDay.length, 1)), fmt: fmtAR },
+    utilidad:  { label: "Utilidad",       values: data.revByDay.map((v) => Math.max(0, v - data.totalGastos / Math.max(data.revByDay.length, 1))), fmt: fmtAR },
+    clientes:  { label: "Clientes",       values: data.doneByDay,                                    fmt: (v) => String(Math.round(v)) },
+    ticket:    { label: "Ticket promedio",values: data.tickByDay,                                    fmt: fmtAR },
+    ocupacion: { label: "Ocupación",      values: data.occByDay,                                     fmt: (v) => `${Math.round(v)}%` },
+  };
+  const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
   const chart = data.days7.map((d, i) => ({
     day: new Date(d).toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
-    rev: data.revByDay[i] ?? 0,
+    rev: cfg.values[i] ?? 0,
   }));
-  const total = data.revByDay.reduce((s, v) => s + v, 0);
+  const total = cfg.values.reduce((s, v) => s + v, 0);
+
+  const rangeLabel = fromStr === toStr
+    ? "Hoy"
+    : `${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} al ${new Date(toStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
 
   return (
     <div className="glass rounded-2xl p-5 lg:col-span-2 relative overflow-hidden">
       <div className="flex items-start justify-between mb-1">
         <div>
-          <div className="text-xs text-muted-foreground">Ingresos</div>
+          <div className="text-xs text-muted-foreground">{cfg.label}</div>
           <div className="font-display text-3xl font-semibold tracking-tight mt-1">
-            {fmtAR(total)}
+            {cfg.fmt(total)}
           </div>
-          <div className="text-xs text-muted-foreground mt-1">últimos 7 días</div>
+          <div className="text-xs text-muted-foreground mt-1">{rangeLabel}</div>
         </div>
       </div>
       <div className="h-64 sm:h-72 mt-3 -mx-2">
