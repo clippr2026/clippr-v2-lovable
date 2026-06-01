@@ -504,6 +504,11 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const [method, setMethod] = useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = useState<"simple" | "multiple">("simple");
   const [received, setReceived] = useState("");
+  const [multiplePayments, setMultiplePayments] = useState<Record<"cash" | "transfer" | "card", string>>({
+    cash: "",
+    transfer: "",
+    card: "",
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const services = data.services;
@@ -530,6 +535,8 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
   const receivedNumber = Number(received || 0);
   const change = method === "cash" && receivedNumber > total ? receivedNumber - total : 0;
+  const multipleTotal = Object.values(multiplePayments).reduce((sum, value) => sum + Number(value || 0), 0);
+  const multipleRemaining = total - multipleTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
@@ -602,15 +609,43 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         }))
       );
 
-      await registerPayment({
-        businessId: data.businessId,
-        employeeId: employeeId || null,
-        clientName: client.trim() || "Cliente del mostrador",
-        items,
-        method,
-        sessionId: data.cashSessionId,
-        chargedBy: data.profileId,
-      });
+      if (paymentMode === "multiple") {
+        const splits = (["cash", "transfer", "card"] as const)
+          .map((splitMethod) => ({ method: splitMethod, amount: Number(multiplePayments[splitMethod] || 0) }))
+          .filter((split) => split.amount > 0);
+
+        if (splits.length < 2) {
+          toast.error("Para pago múltiple cargá al menos 2 formas de pago.");
+          return;
+        }
+        if (Math.round(multipleTotal) !== Math.round(total)) {
+          toast.error(`El pago múltiple debe sumar $${total.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(multipleRemaining).toLocaleString("es-AR")}.`);
+          return;
+        }
+
+        const resumen = cartItems.map(({ svc, qty }) => `${svc.name} x${qty}`).join(" + ");
+        for (const split of splits) {
+          await registerPayment({
+            businessId: data.businessId,
+            employeeId: employeeId || null,
+            clientName: client.trim() || "Cliente del mostrador",
+            items: [{ serviceName: resumen || "Venta múltiple", amount: split.amount }],
+            method: split.method,
+            sessionId: data.cashSessionId,
+            chargedBy: data.profileId,
+          });
+        }
+      } else {
+        await registerPayment({
+          businessId: data.businessId,
+          employeeId: employeeId || null,
+          clientName: client.trim() || "Cliente del mostrador",
+          items,
+          method,
+          sessionId: data.cashSessionId,
+          chargedBy: data.profileId,
+        });
+      }
 
       toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
       setCart({});
@@ -620,6 +655,8 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
       setEmail("");
       setBirthDate("");
       setReceived("");
+      setMultiplePayments({ cash: "", transfer: "", card: "" });
+      setPaymentMode("simple");
       setStep(1);
       await data.refresh();
     } catch (e) {
@@ -663,7 +700,11 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
       {step === 1 && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">Seleccioná un profesional</p>
-          {data.employees.map((e) => {
+          {data.employees.length === 0 ? (
+            <Card className="px-4 py-10 text-center text-sm text-muted-foreground">
+              No hay profesionales activos. Cargalos en Configuración → Equipo → Profesionales.
+            </Card>
+          ) : data.employees.map((e) => {
             const active = employeeId === e.id;
             const name = e.name;
             return (
@@ -839,49 +880,81 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
             <button onClick={() => setPaymentMode("simple")} className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "simple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>Pago simple</button>
             <button onClick={() => setPaymentMode("multiple")} className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "multiple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>Pago múltiple</button>
           </div>
-          <div>
-            <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-3">MÉTODO DE PAGO</p>
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {paymentMode === "simple" ? (
+            <>
+              <div>
+                <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-3">MÉTODO DE PAGO</p>
+                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {([
+                    { id: "cash", label: "Efectivo", icon: Banknote },
+                    { id: "transfer", label: "Transferencia", icon: Smartphone },
+                    { id: "card", label: "Débito / Crédito", icon: CreditCard },
+                    { id: "mp", label: "Mercado Pago", icon: Wallet },
+                    { id: "qr", label: "QR", icon: Smartphone },
+                  ] as const).map((m) => {
+                    const active = method === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => setMethod(m.id)}
+                        className={cn(
+                          "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all",
+                          active
+                            ? "border-amber-300/50 bg-amber-300/10 text-foreground"
+                            : "border-white/10 bg-white/[0.02] text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <m.icon className="size-5" /> <span className="text-sm font-medium">{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {method === "cash" && (
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">¿Con cuánto paga?</label>
+                  <input
+                    value={received}
+                    onChange={(e) => setReceived(e.target.value)}
+                    inputMode="numeric"
+                    placeholder="Monto entregado"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                  />
+                  {receivedNumber > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Entregado: ${receivedNumber.toLocaleString("es-AR")} {change > 0 && <span className="text-emerald-300">| Vuelto: ${change.toLocaleString("es-AR")}</span>}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
               {([
                 { id: "cash", label: "Efectivo", icon: Banknote },
                 { id: "transfer", label: "Transferencia", icon: Smartphone },
-                { id: "card", label: "Débito / Crédito", icon: CreditCard },
-                { id: "mp", label: "Mercado Pago", icon: Wallet },
-                { id: "qr", label: "QR", icon: Smartphone },
-              ] as const).map((m) => {
-                const active = method === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setMethod(m.id)}
-                    className={cn(
-                      "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all",
-                      active
-                        ? "border-amber-300/50 bg-amber-300/10 text-foreground"
-                        : "border-white/10 bg-white/[0.02] text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <m.icon className="size-5" /> <span className="text-sm font-medium">{m.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          {method === "cash" && (
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">¿Con cuánto paga?</label>
-              <input
-                value={received}
-                onChange={(e) => setReceived(e.target.value)}
-                inputMode="numeric"
-                placeholder="Monto entregado"
-                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-              />
-              {receivedNumber > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Entregado: ${receivedNumber.toLocaleString("es-AR")} {change > 0 && <span className="text-emerald-300">| Vuelto: ${change.toLocaleString("es-AR")}</span>}
-                </p>
-              )}
+                { id: "card", label: "Tarjeta", icon: CreditCard },
+              ] as const).map((m) => (
+                <div key={m.id} className="grid grid-cols-[180px_1fr] gap-3 items-center rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <m.icon className="size-4 text-amber-200" /> {m.label}
+                  </div>
+                  <input
+                    value={multiplePayments[m.id]}
+                    onChange={(e) => setMultiplePayments((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                    inputMode="numeric"
+                    placeholder="Monto"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                  />
+                </div>
+              ))}
+              <div className="flex items-center justify-between text-sm rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3">
+                <span className="text-muted-foreground">Total cargado: ${multipleTotal.toLocaleString("es-AR")}</span>
+                <span className={cn("font-semibold", multipleRemaining === 0 ? "text-emerald-300" : multipleRemaining > 0 ? "text-amber-200" : "text-rose-300")}>
+                  {multipleRemaining === 0 ? "Completo" : multipleRemaining > 0 ? `Falta $${multipleRemaining.toLocaleString("es-AR")}` : `Sobra $${Math.abs(multipleRemaining).toLocaleString("es-AR")}`}
+                </span>
+              </div>
             </div>
           )}
         </Card>
