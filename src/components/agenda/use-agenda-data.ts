@@ -243,6 +243,24 @@ export async function setAppointmentStatus(id: string, status: ApptStatus) {
   if (error) throw new Error(error.message);
 }
 
+
+export async function markAppointmentDeposit(id: string, currentNotes?: string | null) {
+  const hasDeposit = /se(ñ|n)a/i.test(currentNotes || "");
+  const nextNotes = hasDeposit
+    ? currentNotes || ""
+    : [currentNotes, "Seña paga"].filter(Boolean).join("\n");
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      notes: nextNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+}
+
 export async function cancelAppointment(
   id: string,
   by: { userId?: string | null; name?: string | null; role?: string | null },
