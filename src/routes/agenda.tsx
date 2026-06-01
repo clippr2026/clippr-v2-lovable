@@ -58,9 +58,9 @@ const STATUS_META: Record<
 > = {
   pending: {
     label: "Pendiente",
-    bg: "oklch(0.42 0.19 235 / 0.38)",
-    border: "oklch(0.78 0.18 235)",
-    dot: "oklch(0.82 0.17 235)",
+    bg: "oklch(0.38 0.2 220 / 0.4)",
+    border: "oklch(0.72 0.2 210)",
+    dot: "oklch(0.82 0.18 210)",
   },
   confirmed: {
     label: "Confirmado",
@@ -70,9 +70,9 @@ const STATUS_META: Record<
   },
   completed: {
     label: "En servicio",
-    bg: "oklch(0.48 0.17 100 / 0.42)",
-    border: "oklch(0.88 0.18 100)",
-    dot: "oklch(0.92 0.18 100)",
+    bg: "oklch(0.42 0.18 80 / 0.5)",
+    border: "oklch(0.82 0.2 75)",
+    dot: "oklch(0.88 0.2 75)",
   },
   charged: {
     label: "Cobrado",
@@ -211,20 +211,28 @@ function AgendaPage() {
 
   const onMarkDeposit = async (a: Appointment) => {
     try {
-      await markAppointmentDeposit(a.id, a.notes);
       const hadDeposit = /se(ñ|n)a/i.test(a.notes || "");
-      toast.success(hadDeposit ? "Seña desmarcada" : "Seña marcada");
+      await markAppointmentDeposit(a.id, a.notes);
+      // When adding seña: also set status to "confirmed"
+      if (!hadDeposit && a.status === "pending") {
+        await setAppointmentStatus(a.id, "confirmed");
+      }
+      toast.success(hadDeposit ? "Seña desmarcada" : "Seña marcada · turno confirmado");
       setSelected((current) => {
         if (!current || current.id !== a.id) return current;
         const hasDeposit = /se(ñ|n)a/i.test(current.notes || "");
         const nextNotes = hasDeposit
           ? (current.notes || "")
-              .split(/\n+/)
+              .split(/
++/)
               .filter((line) => !/se(ñ|n)a/i.test(line))
-              .join("\n")
+              .join("
+")
               .trim() || null
-          : [current.notes, "Seña paga"].filter(Boolean).join("\n");
-        return { ...current, notes: nextNotes };
+          : [current.notes, "Seña paga"].filter(Boolean).join("
+");
+        const nextStatus = !hasDeposit && current.status === "pending" ? "confirmed" as ApptStatus : current.status;
+        return { ...current, notes: nextNotes, status: nextStatus };
       });
       data.refresh();
     } catch (e) {
@@ -331,12 +339,11 @@ function AgendaPage() {
       </div>
 
       {/* Quick stats */}
-      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 animate-fade-up">
+      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 animate-fade-up">
         {([
           ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
           ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
           ["inService", "En servicio",  "oklch(0.92 0.18 100)"],
-          ["seña",      "Seña",         "oklch(0.78 0.17 55)"],
           ["charged",   "Cobrados",     "oklch(0.76 0.2 155)"],
           ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
         ] as [string,string,string][]).map(([k, label, color]) => (
@@ -362,8 +369,8 @@ function AgendaPage() {
 
       {/* Filter modal */}
       {filterModal && (() => {
-        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", inService:"completed", seña:"seña", charged:"charged", cancelled:"cancelled" };
-        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", inService:"En servicio", seña:"Seña", charged:"Cobrados", cancelled:"Cancelados" };
+        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", inService:"completed", charged:"charged", cancelled:"cancelled" };
+        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", inService:"En servicio", charged:"Cobrados", cancelled:"Cancelados" };
         const filtered = filterModal === "seña"
           ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
           : data.appointments.filter((a) => a.status === statusMap[filterModal]);
@@ -796,6 +803,12 @@ function ApptCard({
       <div className="text-[10px] font-semibold leading-[1.05] truncate mt-0.5">{a.client_name || "Sin nombre"}</div>
       {/* Service */}
       {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-[1.05] mt-0.5">{a.service_name}</div>}
+      {/se(ñ|n)a/i.test(a.notes || "") && (
+        <div className="text-[8px] font-semibold mt-0.5 px-1 rounded w-fit"
+          style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}>
+          Seña
+        </div>
+      )}
 
       {/* Quick actions removed — use detail modal instead */}
     </div>
@@ -931,40 +944,55 @@ function AppointmentDetailDialog({
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
-              {([
-                ["pending", "Pendiente"],
-                ["confirmed", "Confirmado"],
-                ["completed", "En servicio"],
-                ["charged", "Cobrado"],
-              ] as [ApptStatus, string][]).map(([status, label]) => {
-                const sMeta = STATUS_META[status] ?? STATUS_META.pending;
-                const isActive = appointment.status === status;
+              {(() => {
+                const hasDeposit = /se(ñ|n)a/i.test(appointment.notes || "");
+                return ([
+                  ["pending", "Pendiente"],
+                  ["confirmed", "Confirmado"],
+                  ["completed", "En servicio"],
+                  ["charged", "Cobrado"],
+                ] as [ApptStatus, string][]).map(([status, label]) => {
+                  const sMeta = STATUS_META[status] ?? STATUS_META.pending;
+                  const isActive = appointment.status === status;
+                  // Block going back to pending if has seña
+                  const isDisabled = status === "pending" && hasDeposit;
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => !isDisabled && onChangeStatus(appointment, status)}
+                      disabled={isDisabled}
+                      title={isDisabled ? "No se puede volver a Pendiente con seña cargada" : undefined}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      style={{
+                        background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
+                        color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
+                        boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.border}, 0 0 12px -4px ${sMeta.dot}` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                });
+              })()}
+              {/* Seña — marks as confirmed + adds note */}
+              {(() => {
+                const hasDeposit = /se(ñ|n)a/i.test(appointment.notes || "");
                 return (
                   <button
-                    key={status}
-                    onClick={() => onChangeStatus(appointment, status)}
+                    onClick={() => onMarkDeposit(appointment)}
                     className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition"
                     style={{
-                      background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
-                      color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
-                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.border}, 0 0 12px -4px ${sMeta.dot}` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                      background: hasDeposit ? "oklch(0.42 0.18 75 / 0.5)" : "rgba(255,255,255,0.03)",
+                      color: hasDeposit ? "oklch(0.88 0.2 75)" : "rgba(255,255,255,0.45)",
+                      boxShadow: hasDeposit
+                        ? "inset 0 0 0 1px oklch(0.82 0.2 75), 0 0 12px -4px oklch(0.88 0.2 75)"
+                        : "inset 0 0 0 1px rgba(255,255,255,0.1)",
                     }}
                   >
-                    {label}
+                    Seña {hasDeposit ? "✓" : ""}
                   </button>
                 );
-              })}
-              <button
-                onClick={() => onMarkDeposit(appointment)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium ring-1 transition",
-                  /se(ñ|n)a/i.test(appointment.notes || "")
-                    ? "bg-amber-400/20 ring-amber-300/40 text-amber-200"
-                    : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
-                )}
-              >
-                Seña
-              </button>
+              })()}
             </div>
           </div>
 
