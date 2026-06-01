@@ -222,15 +222,8 @@ function AgendaPage() {
         if (!current || current.id !== a.id) return current;
         const hasDeposit = /se(ñ|n)a/i.test(current.notes || "");
         const nextNotes = hasDeposit
-          ? (current.notes || "")
-              .split(/
-+/)
-              .filter((line) => !/se(ñ|n)a/i.test(line))
-              .join("
-")
-              .trim() || null
-          : [current.notes, "Seña paga"].filter(Boolean).join("
-");
+          ? (current.notes || "").split("\n").filter((l) => !/se(ñ|n)a/i.test(l)).join("\n").trim() || null
+          : [current.notes, "Seña paga"].filter(Boolean).join("\n");
         const nextStatus = !hasDeposit && current.status === "pending" ? "confirmed" as ApptStatus : current.status;
         return { ...current, notes: nextNotes, status: nextStatus };
       });
