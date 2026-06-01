@@ -100,7 +100,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .from("clients")
         .select("id,full_name,name,phone,email,birth_date")
         .eq("business_id", businessId)
-        .order("full_name"),
+        .order("name"),
       supabase
         .from("business_settings")
         .select("schedule")
