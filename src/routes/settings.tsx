@@ -818,7 +818,7 @@ function EquipoSection() {
                     key={emp.id}
                     className={cn(
                       "glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity",
-                      !active && "opacity-45",
+                      !active && "opacity-70",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -1795,7 +1795,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     {row.category || (isService ? "Servicios" : "Productos")}
                     {row.duration_min ? ` · ${row.duration_min} min` : ""}
                     {typeof row.stock === "number" && !isService
-                      ? ` · stock ${row.stock}`
+                      ? ` · Stock disponible: ${row.stock}`
                       : ""}
                   </div>
                 </div>
@@ -2061,21 +2061,16 @@ function SettingsPage() {
 
   return (
     <AppShell>
-      <Topbar title="Configuración" subtitle="Personalizá tu negocio" />
-      <div className="space-y-6 animate-fade-up">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-display text-3xl font-semibold tracking-tight">
-              Configuración
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Personalizá tu negocio
-            </p>
-          </div>
+      <Topbar
+        title="Configuración"
+        subtitle="Personalizá tu negocio"
+        action={
           <button className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition">
             Guardar <Check className="h-4 w-4" strokeWidth={3} />
           </button>
-        </div>
+        }
+      />
+      <div className="space-y-6 animate-fade-up">
 
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
           {/* Sidebar */}
