@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import * as React from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -85,10 +86,10 @@ const STATUS_META: Record<
 // Helpers de fechas
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
-const HOUR_START = 8;
-const HOUR_END = 22;
-const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
-const ROW_PX = 64;
+const ROW_PX = 72;
+// HOUR_START/END will be dynamic from business_settings (see DayView)
+const DEFAULT_HOUR_START = 8;
+const DEFAULT_HOUR_END = 22;
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -424,27 +425,31 @@ function DayView({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
 }) {
+  const HOUR_START = hourStart ?? DEFAULT_HOUR_START;
+  const HOUR_END   = hourEnd   ?? DEFAULT_HOUR_END;
+  const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
   const employees = data.employees.length
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
 
-  const handleDrop = async (e: React.DragEvent, empId: string, hour: number) => {
+  const handleDrop = async (e: React.DragEvent, empId: string, hour: number, dropDate?: Date) => {
     e.preventDefault();
     const apptId = e.dataTransfer.getData("apptId");
     if (!apptId) return;
     const appt = data.appointments.find((a) => a.id === apptId);
     if (!appt) return;
-    const newStart = new Date(date);
+    const targetDate = dropDate ?? date;
+    const newStart = new Date(targetDate);
     newStart.setHours(hour, 0, 0, 0);
     const dur = Number(appt.duration_min ?? 30);
     const newEnd = new Date(newStart.getTime() + dur * 60000);
     try {
-      const sb = supabase;
-      await sb.from("appointments").update({
+      const { error } = await supabase.from("appointments").update({
         starts_at: newStart.toISOString(),
         ends_at: newEnd.toISOString(),
         employee_id: empId === "__none__" ? null : empId,
       }).eq("id", apptId);
+      if (error) throw new Error(error.message);
       data.refresh();
       toast.success("Turno movido");
     } catch (ex) { toast.error((ex as Error).message); }
@@ -577,7 +582,7 @@ function ApptCard({
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - HOUR_START) * ROW_PX + 2;
-  const height = Math.max(dur * ROW_PX - 4, 58);
+  const height = Math.max(dur * ROW_PX - 4, 68);
   if (top < 0 || top > (HOUR_END - HOUR_START) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
 
