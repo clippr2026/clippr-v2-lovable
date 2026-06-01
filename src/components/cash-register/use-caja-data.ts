@@ -27,6 +27,8 @@ export type ClientLite = {
   id: string;
   name: string;
   phone: string | null;
+  email?: string | null;
+  birth_date?: string | null;
 };
 
 export type Payment = {
@@ -115,9 +117,9 @@ export function useCajaData() {
         .maybeSingle(),
       supabase
         .from("clients")
-        .select("id,full_name,phone")
+        .select("id,name,phone,email,birth_date")
         .eq("business_id", businessId)
-        .order("full_name"),
+        .order("name"),
     ]);
 
     const svcRaw =
@@ -137,7 +139,10 @@ export function useCajaData() {
     );
     setEmployees(
       empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Employee[])
+        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null }>).map((r) => ({
+            id: r.id,
+            name: r.full_name ?? "Sin nombre",
+          }))
         : []
     );
     setClients(
