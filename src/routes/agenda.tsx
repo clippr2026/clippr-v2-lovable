@@ -157,6 +157,36 @@ function AgendaPage() {
   }, [view, cursor]);
 
   const data = useAgendaData(range.start, range.end);
+  const [senasConfig, setSenasConfig] = React.useState<{
+    enabled: boolean;
+    services: string[];
+    amount_type: "fixed" | "percent";
+    amount_value: number;
+    lost_dist: "local" | "prof" | "custom";
+    lost_local: number;
+    lost_prof: number;
+  } | null>(null);
+
+  const { businessId } = useAuth();
+
+  React.useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("senas_config").eq("business_id", businessId).maybeSingle()
+      .then(({ data: bsData }) => {
+        if (bsData?.senas_config) setSenasConfig(bsData.senas_config as typeof senasConfig);
+      });
+  }, [businessId]);
+
+  const serviceRequiresDeposit = (serviceName: string | null) => {
+    if (!senasConfig?.enabled || !serviceName) return false;
+    return data.services.some((s) => senasConfig.services.includes(s.id) && s.name === serviceName);
+  };
+
+  const calcDeposit = (price: number) => {
+    if (!senasConfig) return 0;
+    if (senasConfig.amount_type === "fixed") return senasConfig.amount_value;
+    return Math.round(price * senasConfig.amount_value / 100);
+  };
 
   const [dlgOpen, setDlgOpen] = React.useState(false);
   const [detailOpen, setDetailOpen] = React.useState(false);
@@ -209,11 +239,18 @@ function AgendaPage() {
   };
 
   const onMarkDeposit = (a: Appointment) => {
-    if (/se(ñ|n)a/i.test(a.notes || "")) {
-      toast.info("Este turno ya tiene seña registrada.");
+    if (a.deposit_status === "paid") {
+      toast.info("Este turno ya tiene seña pagada.");
       return;
     }
-    navigate({ to: "/cash-register", search: { depositAppointmentId: a.id } as never });
+    const depositAmount = a.deposit_amount ?? calcDeposit(Number(a.service_price ?? 0));
+    navigate({ to: "/cash-register", search: {
+      depositAppointmentId: a.id,
+      depositAmount: String(depositAmount),
+      clientName: a.client_name ?? "",
+      serviceName: a.service_name ?? "",
+      employeeId: a.employee_id ?? "",
+    } as never });
   };
 
   const goToCobro = async (a: Appointment) => {
@@ -226,7 +263,54 @@ function AgendaPage() {
         return;
       }
     }
-    navigate({ to: "/cash-register", search: { appointmentId: a.id } as never });
+    const depositPaid = Number(a.deposit_paid ?? 0);
+    const totalPrice  = Number(a.service_price ?? 0);
+    const remainder   = depositPaid > 0 ? Math.max(0, totalPrice - depositPaid) : totalPrice;
+    navigate({ to: "/cash-register", search: {
+      appointmentId: a.id,
+      finalAmount: String(remainder),
+      depositPaid: String(depositPaid),
+      totalPrice: String(totalPrice),
+      clientName: a.client_name ?? "",
+      serviceName: a.service_name ?? "",
+      employeeId: a.employee_id ?? "",
+    } as never });
+  };
+
+  const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return") => {
+    if (action === "return") {
+      // Motivo - prompt para más detalle
+      const motivo = window.prompt("Ingresá el motivo de la devolución (opcional):", "") ?? "";
+      try {
+        // Register refund in expenses
+        await supabase.from("expenses").insert({
+          business_id: a.business_id,
+          description: `Devolución de seña – ${a.client_name ?? "cliente"} – ${a.service_name ?? ""}${motivo ? " – " + motivo : ""}`,
+          amount: Number(a.deposit_paid ?? 0),
+          type: "devolucion_sena",
+          date: new Date().toISOString().slice(0, 10),
+        });
+        // Update appointment
+        await supabase.from("appointments").update({
+          deposit_status: "returned",
+          status: "cancelled",
+        }).eq("id", a.id);
+        toast.success("Seña devuelta y egreso registrado en Caja");
+      } catch (e) { toast.error((e as Error).message); return; }
+    } else {
+      // Keep seña — mark as lost, apply distribution
+      try {
+        await supabase.from("appointments").update({
+          deposit_status: "lost",
+          status: "cancelled",
+        }).eq("id", a.id);
+        // If prof share > 0, register compensation
+        // (senasConfig is loaded at page level)
+        toast.success("Seña marcada como perdida");
+      } catch (e) { toast.error((e as Error).message); return; }
+    }
+    setDetailOpen(false);
+    data.refresh();
   };
 
   if (authLoading || !session) {
@@ -430,6 +514,7 @@ function AgendaPage() {
         onFicha={() => navigate({ to: "/clients" })}
         onChangeStatus={onChangeStatus}
         onMarkDeposit={onMarkDeposit}
+        onCancelWithDeposit={onCancelWithDeposit}
       />
 
       {data.businessId && (
@@ -823,6 +908,7 @@ function AppointmentDetailDialog({
   onFicha,
   onChangeStatus,
   onMarkDeposit,
+  onCancelWithDeposit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -835,6 +921,7 @@ function AppointmentDetailDialog({
   onFicha: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
+  onCancelWithDeposit: (a: Appointment, action: "keep" | "return") => void;
 }) {
   if (!appointment) return null;
 
@@ -847,6 +934,7 @@ function AppointmentDetailDialog({
   const phone = client?.phone ?? null;
   const email = client?.email ?? null;
   const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
+  const requiresDeposit = Boolean(appointment.deposit_status && appointment.deposit_status !== "none");
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" })} - ${fmtTime(start)} a ${fmtTime(end)}`;
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
@@ -872,6 +960,7 @@ function AppointmentDetailDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-4 px-6" style={{ background: `oklch(from ${meta.dot} calc(l*0.15) c h / 0.08)` }}>
+          {/* Service info card */}
           <div className="rounded-2xl p-4 ring-1 ring-white/10" style={{ background: meta.bg }}>
             <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: meta.dot }}>
               {meta.label}
@@ -886,6 +975,34 @@ function AppointmentDetailDialog({
             <div className="mt-2 text-sm text-muted-foreground">
               Se atenderá con: <span className="text-foreground">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
             </div>
+
+            {/* Deposit info — only when deposit fields exist */}
+            {appointment.deposit_status && appointment.deposit_status !== "none" && (() => {
+              const ds = appointment.deposit_status;
+              const depositAmt = Number(appointment.deposit_amount ?? 0);
+              const depositPaid = Number(appointment.deposit_paid ?? 0);
+              const total = Number(appointment.service_price ?? 0);
+              const remaining = Math.max(0, total - depositPaid);
+              const statusMap: Record<string, { icon: string; label: string; color: string }> = {
+                pending: { icon: "🟡", label: "Seña pendiente",   color: "text-amber-300" },
+                paid:    { icon: "🟢", label: "Seña pagada",      color: "text-emerald-300" },
+                lost:    { icon: "🔴", label: "Seña perdida",     color: "text-rose-300" },
+                returned:{ icon: "🔵", label: "Seña devuelta",    color: "text-sky-300" },
+              };
+              const dsInfo = statusMap[ds] ?? statusMap.pending;
+              return (
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-1.5 text-sm">
+                  <div className={`font-semibold ${dsInfo.color}`}>{dsInfo.icon} {dsInfo.label}</div>
+                  {depositAmt > 0 && <div className="text-muted-foreground">Seña requerida: <span className="text-foreground font-medium">${depositAmt.toLocaleString("es-AR")}</span></div>}
+                  {ds === "paid" && depositPaid > 0 && (
+                    <>
+                      <div className="text-muted-foreground">Seña pagada: <span className="text-emerald-300 font-medium">${depositPaid.toLocaleString("es-AR")}</span></div>
+                      <div className="text-muted-foreground">Pendiente de cobro: <span className="text-foreground font-medium">${remaining.toLocaleString("es-AR")}</span></div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="grid gap-3 text-sm">
@@ -912,14 +1029,16 @@ function AppointmentDetailDialog({
             <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
               <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => onMarkDeposit(appointment)}
-              disabled={appointment.status === "charged" || /se(ñ|n)a/i.test(appointment.notes || "")}
-              className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15 disabled:opacity-60"
-            >
-              <DollarSign className="h-4 w-4 mr-1" /> {/se(ñ|n)a/i.test(appointment.notes || "") ? "Seña pagada" : "Seña"}
-            </Button>
+            {/* Seña button — only when deposit expected and not yet paid */}
+            {requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
+              <Button
+                variant="secondary"
+                onClick={() => onMarkDeposit(appointment)}
+                className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
+              >
+                <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+              </Button>
+            )}
           </div>
 
           <div>
@@ -959,11 +1078,32 @@ function AppointmentDetailDialog({
             </div>
           </div>
 
-          {appointment.status !== "charged" && appointment.status !== "cancelled" && (
-            <Button variant="destructive" className="w-full" onClick={() => onCancel(appointment)}>
-              Cancelar turno
-            </Button>
-          )}
+          {appointment.status !== "charged" && appointment.status !== "cancelled" && (() => {
+            const hasDepositPaid = appointment.deposit_status === "paid";
+            return hasDepositPaid ? (
+              <div className="space-y-3 rounded-2xl bg-rose-500/5 ring-1 ring-rose-400/20 p-4">
+                <div className="text-sm font-semibold text-rose-300">¿Qué querés hacer con la seña?</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onCancelWithDeposit(appointment, "keep")}
+                    className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-rose-400/30 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15 transition"
+                  >
+                    🔴 Mantener seña
+                  </button>
+                  <button
+                    onClick={() => onCancelWithDeposit(appointment, "return")}
+                    className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-sky-400/30 bg-sky-400/10 text-sky-200 hover:bg-sky-400/15 transition"
+                  >
+                    🔵 Devolver seña
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="destructive" className="w-full" onClick={() => onCancel(appointment)}>
+                Cancelar turno
+              </Button>
+            );
+          })()}
         </div>
       </DialogContent>
     </Dialog>

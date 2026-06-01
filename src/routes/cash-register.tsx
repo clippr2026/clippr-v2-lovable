@@ -1,4 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import React from 'react';
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
@@ -42,6 +43,17 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/cash-register")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    depositAppointmentId: (search.depositAppointmentId as string) ?? null,
+    depositAmount: (search.depositAmount as string) ?? null,
+    clientName: (search.clientName as string) ?? null,
+    serviceName: (search.serviceName as string) ?? null,
+    employeeId: (search.employeeId as string) ?? null,
+    appointmentId: (search.appointmentId as string) ?? null,
+    finalAmount: (search.finalAmount as string) ?? null,
+    depositPaid: (search.depositPaid as string) ?? null,
+    totalPrice: (search.totalPrice as string) ?? null,
+  }),
   head: () => ({
     meta: [
       { title: "Caja & Cobro — Clippr" },
@@ -56,8 +68,20 @@ type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesio
 function CashRegisterPage() {
   const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
-  const [tab, setTab] = useState<Tab>("resumen");
+  // Determine initial tab based on search params
+  const [tab, setTab] = useState<Tab>(
+    search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
+  );
+  // Toast on arrival from deposit/cobro flow
+  React.useEffect(() => {
+    if (search.depositAppointmentId && search.depositAmount) {
+      toast.info(`Cobrar seña de $${parseInt(search.depositAmount).toLocaleString("es-AR")} para ${search.clientName ?? "cliente"}`);
+    } else if (search.appointmentId && search.depositPaid && parseInt(search.depositPaid) > 0) {
+      toast.info(`Cobro final: $${parseInt(search.finalAmount ?? "0").toLocaleString("es-AR")} (seña pagada: $${parseInt(search.depositPaid).toLocaleString("es-AR")})`);
+    }
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
