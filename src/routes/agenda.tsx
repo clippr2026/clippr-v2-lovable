@@ -94,7 +94,7 @@ const STATUS_META: Record<
 // Helpers de fechas
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
-const ROW_PX = 72;
+const ROW_PX = 120;
 const DEFAULT_HOUR_START = 8;
 const DEFAULT_HOUR_END = 22;
 
@@ -683,7 +683,7 @@ function ApptCard({
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - hourStart) * ROW_PX + 2;
-  const height = Math.max(dur * ROW_PX - 4, 28);
+  const height = Math.max(dur * ROW_PX - 4, 52);
   if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
   const isMovable = a.status !== "charged";
@@ -706,7 +706,7 @@ function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-lg px-2.5 py-1.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
+        "absolute rounded-lg px-2.5 py-1 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
@@ -715,8 +715,8 @@ function ApptCard({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {/* Time + status */}
-      <div className="flex items-center justify-between gap-1 mb-0.5 min-w-0">
-        <span className="text-[10px] font-bold tabular-nums truncate" style={{ color: meta.dot }}>
+      <div className="flex items-center justify-between gap-1 min-w-0 leading-none">
+        <span className="text-[10px] font-bold tabular-nums truncate leading-none" style={{ color: meta.dot }}>
           {fmtTime(start)}{a.duration_min ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min)*60000))}` : ""}
         </span>
         <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
@@ -724,9 +724,9 @@ function ApptCard({
         </span>
       </div>
       {/* Client */}
-      <div className="text-[11px] font-semibold leading-tight truncate">{a.client_name || "Sin nombre"}</div>
+      <div className="text-[11px] font-semibold leading-tight truncate mt-1">{a.client_name || "Sin nombre"}</div>
       {/* Service */}
-      {height >= 42 && a.service_name && <div className="text-[10px] text-foreground/65 truncate mt-0.5">{a.service_name}</div>}
+      {a.service_name && <div className="text-[10px] text-foreground/65 truncate leading-tight mt-0.5">{a.service_name}</div>}
 
       {/* Quick actions */}
       <div
@@ -1035,13 +1035,13 @@ function WeekView({
                         onApptClick(a);
                       }}
                     >
-                      <div className="text-[9px] font-semibold" style={{ color: meta.dot }}>
+                      <div className="text-[9px] font-semibold leading-none" style={{ color: meta.dot }}>
                         {fmtTime(start)}
                       </div>
-                      <div className="text-[11px] font-semibold truncate">
+                      <div className="text-[11px] font-semibold truncate leading-tight mt-1">
                         {a.client_name || "—"}
                       </div>
-                      <div className="text-[10px] truncate text-foreground/70">
+                      <div className="text-[10px] truncate text-foreground/70 leading-tight">
                         {a.service_name}
                       </div>
                     </div>
