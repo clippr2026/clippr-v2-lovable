@@ -66,9 +66,9 @@ const STATUS_META: Record<
   },
   completed: {
     label: "En servicio",
-    bg: "oklch(0.4 0.2 150 / 0.42)",
-    border: "oklch(0.76 0.2 150)",
-    dot: "oklch(0.78 0.2 150)",
+    bg: "oklch(0.48 0.18 80 / 0.42)",
+    border: "oklch(0.82 0.18 80)",
+    dot: "oklch(0.84 0.18 80)",
   },
   charged: {
     label: "Cobrado",
@@ -303,7 +303,7 @@ function AgendaPage() {
         {([
           ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
           ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
-          ["inService", "En servicio",  "oklch(0.72 0.18 200)"],
+          ["inService", "En servicio",  "oklch(0.84 0.18 80)"],
           ["seña",      "Seña",         "oklch(0.78 0.17 55)"],
           ["charged",   "Cobrados",     "oklch(0.76 0.2 155)"],
           ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
