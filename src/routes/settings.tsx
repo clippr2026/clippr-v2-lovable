@@ -323,6 +323,13 @@ function HorariosSection() {
     toast.success("Horarios guardados");
   }
 
+
+  useEffect(() => {
+    const handler = () => void saveSchedule();
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, [businessId, days, reservationSettings]);
+
   const reservationRows = [
     {
       key: "interval" as const,
@@ -358,14 +365,6 @@ function HorariosSection() {
             Configurá los días y horarios en que tu barbería atiende clientes.
           </p>
         </div>
-        <button
-          onClick={saveSchedule}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black hover:opacity-95 disabled:opacity-60"
-        >
-          {saving ? "Guardando…" : "Guardar horarios"}{" "}
-          <Check className="h-4 w-4" strokeWidth={3} />
-        </button>
       </div>
 
       <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
@@ -1795,10 +1794,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     {row.category || (isService ? "Servicios" : "Productos")}
                     {row.duration_min ? ` · ${row.duration_min} min` : ""}
                     {typeof row.stock === "number" && !isService
-                      ? ` · Stock disponible: ${row.stock}`
+                      ? ` · Stock: ${row.stock}`
                       : ""}
                   </div>
                 </div>
+                {typeof row.stock === "number" && !isService && (
+                  <span className={cn(
+                    "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1",
+                    row.stock > 0
+                      ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
+                      : "bg-red-500/10 text-red-300 ring-red-400/25"
+                  )}>
+                    Stock {row.stock}
+                  </span>
+                )}
                 <div className="text-right shrink-0">
                   <div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">
                     ${Number(row.price).toLocaleString("es-AR")}
@@ -1974,7 +1983,7 @@ function CajaSection() {
                 id: "disabled",
                 icon: Lock,
                 label: "Desactivado",
-                hint: "El profesional no puede cobrar desde su panel.",
+                hint: "El profesional no puede enviar ni cobrar servicios desde su panel.",
               },
             ] as const
           ).map((opt) => {
@@ -2065,7 +2074,10 @@ function SettingsPage() {
         title="Configuración"
         subtitle="Personalizá tu negocio"
         action={
-          <button className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition">
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings"))}
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition"
+          >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />
           </button>
         }
