@@ -56,6 +56,53 @@ export type Client = {
   birth_date?: string | null;
 };
 
+export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+export type DaySchedule = {
+  enabled: boolean;
+  start: string;
+  end: string;
+  breakStart?: string;
+  breakEnd?: string;
+};
+export type ScheduleMap = Record<DayKey, DaySchedule>;
+
+const DAY_KEYS: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+export function parseScheduleTime(value: string) {
+  const [hh, mm = "0"] = String(value || "0:00").split(":");
+  const h = Number(hh);
+  const m = Number(mm);
+  if (!Number.isFinite(h)) return 0;
+  return h + (Number.isFinite(m) ? m / 60 : 0);
+}
+
+export function getScheduleForDate(schedule: ScheduleMap | null, date: Date): DaySchedule | null {
+  if (!schedule) return null;
+  return schedule[DAY_KEYS[date.getDay()]] ?? null;
+}
+
+function normalizeSchedule(value: unknown): ScheduleMap | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, any>;
+  const required: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+  const normalized = {} as ScheduleMap;
+  for (const key of required) {
+    const day = source[key];
+    if (!day || typeof day !== "object") return null;
+    normalized[key] = {
+      enabled: day.enabled !== false,
+      start: typeof day.start === "string" ? day.start : "00:00",
+      end: typeof day.end === "string" ? day.end : "00:00",
+      breakStart: typeof day.breakStart === "string" ? day.breakStart : undefined,
+      breakEnd: typeof day.breakEnd === "string" ? day.breakEnd : undefined,
+    };
+  }
+
+  return normalized;
+}
+
+
 export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const { businessId } = useAuth();
   const [loading, setLoading] = React.useState(true);
@@ -63,8 +110,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
-  const [scheduleOpen, setScheduleOpen] = React.useState<number>(8);
-  const [scheduleClose, setScheduleClose] = React.useState<number>(22);
+  const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
 
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
@@ -108,39 +154,11 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .maybeSingle(),
     ]);
 
-    // Parse schedule hours. Supports both simple shape
-    // { open_hour: 11, close_hour: 20 } and weekly shape
-    // { mon: { enabled: true, start: "11:00", end: "20:00" }, ... }
-    if (bsRes.status === "fulfilled" && !bsRes.value.error) {
-      const sched = bsRes.value.data?.schedule;
-      if (sched && typeof sched === "object") {
-        const schedule = sched as Record<string, any>;
-        let open = typeof schedule.open_hour === "number" ? schedule.open_hour : undefined;
-        let close = typeof schedule.close_hour === "number" ? schedule.close_hour : undefined;
-
-        if (open === undefined || close === undefined) {
-          const enabledDays = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-            .map((key) => schedule[key])
-            .filter((day) => day && day.enabled !== false && day.start && day.end);
-
-          const toHour = (value: string, fallback: number) => {
-            const [hh, mm = "0"] = String(value).split(":");
-            const h = Number(hh);
-            const m = Number(mm);
-            if (!Number.isFinite(h)) return fallback;
-            return h + (Number.isFinite(m) ? m / 60 : 0);
-          };
-
-          if (enabledDays.length) {
-            open = Math.floor(Math.min(...enabledDays.map((day) => toHour(day.start, 8))));
-            close = Math.ceil(Math.max(...enabledDays.map((day) => toHour(day.end, 22))));
-          }
-        }
-
-        if (open !== undefined) setScheduleOpen(Math.max(0, Math.min(23, open)));
-        if (close !== undefined) setScheduleClose(Math.max(1, Math.min(24, close)));
-      }
-    }
+    const loadedSchedule =
+      bsRes.status === "fulfilled" && !bsRes.value.error
+        ? normalizeSchedule(bsRes.value.data?.schedule)
+        : null;
+    setSchedule(loadedSchedule);
 
     setAppointments(
       aRes.status === "fulfilled" && !aRes.value.error
@@ -176,8 +194,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     employees,
     services,
     clients,
-    scheduleOpen,
-    scheduleClose,
+    schedule,
     refresh: load,
   };
 }
@@ -245,15 +262,14 @@ export async function setAppointmentStatus(id: string, status: ApptStatus) {
 
 
 export async function markAppointmentDeposit(id: string, currentNotes?: string | null) {
-  const notes = currentNotes || "";
-  const hasDeposit = /se(ñ|n)a/i.test(notes);
+  const hasDeposit = /se(ñ|n)a/i.test(currentNotes || "");
   const nextNotes = hasDeposit
-    ? notes
-        .split(/\n/)
+    ? (currentNotes || "")
+        .split(/\n+/)
         .filter((line) => !/se(ñ|n)a/i.test(line))
         .join("\n")
         .trim() || null
-    : [notes, "Seña paga"].filter(Boolean).join("\n");
+    : [currentNotes, "Seña paga"].filter(Boolean).join("\n");
 
   const { error } = await supabase
     .from("appointments")
