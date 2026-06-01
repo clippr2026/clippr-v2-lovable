@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Search, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
   type Appointment,
@@ -75,6 +76,8 @@ export function AppointmentDialog({
   const [clientId, setClientId] = React.useState<string>("");
   const [clientName, setClientName] = React.useState("");
   const [clientPhone, setClientPhone] = React.useState("");
+  const [clientEmail, setClientEmail] = React.useState("");
+  const [clientBirth, setClientBirth] = React.useState("");
   const [clientSearch, setClientSearch] = React.useState("");
   const [showClientList, setShowClientList] = React.useState(false);
   const [employeeId, setEmployeeId] = React.useState<string>("");
@@ -103,6 +106,8 @@ export function AppointmentDialog({
       setClientId("");
       setClientName("");
       setClientPhone("");
+      setClientEmail("");
+      setClientBirth("");
       setClientSearch("");
       setShowClientList(false);
       setEmployeeId(defaultEmployeeId ?? employees[0]?.id ?? "");
@@ -120,6 +125,8 @@ export function AppointmentDialog({
     setClientId(c.id);
     setClientName(c.full_name ?? c.name ?? "");
     setClientPhone(c.phone ?? "");
+    setClientEmail((c as {email?: string | null}).email ?? "");
+    setClientBirth((c as {birth_date?: string | null}).birth_date ?? "");
     setClientSearch("");
     setShowClientList(false);
   };
@@ -145,11 +152,25 @@ export function AppointmentDialog({
     if (!serviceName.trim()) return toast.error("Elegí o escribí un servicio.");
     if (!startsAt) return toast.error("Falta la fecha y hora.");
     setBusy(true);
+    let resolvedClientId = clientId;
+    // If new client (no ID), save to clients table first
+    if (!clientId && clientName.trim()) {
+      try {
+        const { data: newClient } = await supabase.from("clients").insert({
+          business_id: businessId,
+          full_name: clientName.trim(),
+          phone: clientPhone.trim() || null,
+          email: clientEmail.trim() || null,
+          birth_date: clientBirth || null,
+        }).select("id").single();
+        if (newClient?.id) resolvedClientId = newClient.id;
+      } catch { /* non-blocking — client save fails silently */ }
+    }
     try {
       await saveAppointment({
         id: appointment?.id ?? null,
         business_id: businessId,
-        client_id: clientId || null,
+        client_id: resolvedClientId || null,
         client_name: clientName.trim(),
         employee_id: employeeId || null,
         service_name: serviceName.trim(),

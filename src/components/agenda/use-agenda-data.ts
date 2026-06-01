@@ -56,6 +56,8 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
+  const [scheduleOpen, setScheduleOpen] = React.useState<number>(8);
+  const [scheduleClose, setScheduleClose] = React.useState<number>(22);
 
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
@@ -67,7 +69,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     }
     setLoading(true);
 
-    const [aRes, eRes, sRes, cRes] = await Promise.allSettled([
+    const [aRes, eRes, sRes, cRes, bsRes] = await Promise.allSettled([
       supabase
         .from("appointments")
         .select(
@@ -92,7 +94,23 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .select("id,full_name,phone")
         .eq("business_id", businessId)
         .order("full_name"),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
     ]);
+
+    // Parse schedule hours
+    if (bsRes.status === "fulfilled" && !bsRes.value.error) {
+      const sched = bsRes.value.data?.schedule;
+      if (sched && typeof sched === "object") {
+        const open  = (sched as { open_hour?: number }).open_hour;
+        const close = (sched as { close_hour?: number }).close_hour;
+        if (open  !== undefined) setScheduleOpen(Math.max(0, Math.min(23, open)));
+        if (close !== undefined) setScheduleClose(Math.max(1, Math.min(24, close)));
+      }
+    }
 
     setAppointments(
       aRes.status === "fulfilled" && !aRes.value.error
@@ -128,6 +146,8 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     employees,
     services,
     clients,
+    scheduleOpen,
+    scheduleClose,
     refresh: load,
   };
 }
