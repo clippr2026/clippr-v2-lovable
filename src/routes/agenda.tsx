@@ -14,6 +14,8 @@ import {
   DollarSign,
   Pencil,
   CheckCircle2,
+  MessageCircle,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,6 +28,12 @@ import {
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/agenda")({
   head: () => ({
@@ -46,9 +54,9 @@ const STATUS_META: Record<
 > = {
   pending: {
     label: "Pendiente",
-    bg: "oklch(0.4 0.22 260 / 0.35)",
-    border: "oklch(0.72 0.22 260)",
-    dot: "oklch(0.72 0.22 260)",
+    bg: "oklch(0.45 0.16 75 / 0.36)",
+    border: "oklch(0.78 0.18 75)",
+    dot: "oklch(0.82 0.16 75)",
   },
   confirmed: {
     label: "Confirmado",
@@ -58,9 +66,9 @@ const STATUS_META: Record<
   },
   completed: {
     label: "En servicio",
-    bg: "oklch(0.38 0.18 200 / 0.4)",
-    border: "oklch(0.72 0.18 200)",
-    dot: "oklch(0.72 0.18 200)",
+    bg: "oklch(0.4 0.2 150 / 0.42)",
+    border: "oklch(0.76 0.2 150)",
+    dot: "oklch(0.78 0.2 150)",
   },
   charged: {
     label: "Cobrado",
@@ -150,6 +158,8 @@ function AgendaPage() {
   const data = useAgendaData(range.start, range.end);
 
   const [dlgOpen, setDlgOpen] = React.useState(false);
+  const [detailOpen, setDetailOpen] = React.useState(false);
+  const [selected, setSelected] = React.useState<Appointment | null>(null);
   const [editing, setEditing] = React.useState<Appointment | null>(null);
   const [dlgDefaults, setDlgDefaults] = React.useState<{
     employeeId?: string | null;
@@ -161,7 +171,12 @@ function AgendaPage() {
     setDlgDefaults({ employeeId, startsAt });
     setDlgOpen(true);
   };
+  const openDetail = (a: Appointment) => {
+    setSelected(a);
+    setDetailOpen(true);
+  };
   const openEdit = (a: Appointment) => {
+    setDetailOpen(false);
     setEditing(a);
     setDlgDefaults({});
     setDlgOpen(true);
@@ -362,8 +377,10 @@ function AgendaPage() {
         <DayView
           date={cursor}
           data={data}
+          hourStart={data.scheduleOpen}
+          hourEnd={data.scheduleClose}
           onSlotClick={openNew}
-          onApptClick={openEdit}
+          onApptClick={openDetail}
           onChangeStatus={onChangeStatus}
           onCobrar={goToCobro}
         />
@@ -371,20 +388,35 @@ function AgendaPage() {
         <WeekView
           start={startOfWeek(cursor)}
           appointments={data.appointments}
-          onApptClick={openEdit}
+          hourStart={data.scheduleOpen}
+          hourEnd={data.scheduleClose}
+          onApptClick={openDetail}
           onSlotClick={(date) => openNew(null, date)}
         />
       ) : (
         <MonthView
           cursor={cursor}
           appointments={data.appointments}
-          onApptClick={openEdit}
+          onApptClick={openDetail}
           onPickDay={(d) => {
             setCursor(d);
             setView("day");
           }}
         />
       )}
+
+      <AppointmentDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        appointment={selected}
+        employees={data.employees}
+        clients={data.clients}
+        onEdit={openEdit}
+        onCancel={(a) => onChangeStatus(a, "cancelled")}
+        onCobrar={goToCobro}
+        onFicha={() => navigate({ to: "/clients" })}
+        onChangeStatus={onChangeStatus}
+      />
 
       {data.businessId && (
         <AppointmentDialog
@@ -404,6 +436,57 @@ function AgendaPage() {
       )}
     </AppShell>
   );
+}
+
+type ApptLayout = { lane: number; laneCount: number };
+
+function getApptEnd(a: Appointment) {
+  if (a.ends_at) return new Date(a.ends_at);
+  return new Date(new Date(a.starts_at).getTime() + Number(a.duration_min ?? 30) * 60_000);
+}
+
+function computeOverlapLayouts(appts: Appointment[]) {
+  const sorted = [...appts].sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at));
+  const result = new Map<string, ApptLayout>();
+  let group: Appointment[] = [];
+  let groupEnd = 0;
+
+  const flush = () => {
+    if (!group.length) return;
+    const laneEnds: number[] = [];
+    const laneById = new Map<string, number>();
+
+    for (const appt of group) {
+      const start = +new Date(appt.starts_at);
+      let lane = laneEnds.findIndex((end) => end <= start);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(0);
+      }
+      laneEnds[lane] = +getApptEnd(appt);
+      laneById.set(appt.id, lane);
+    }
+
+    const laneCount = Math.max(1, laneEnds.length);
+    for (const appt of group) result.set(appt.id, { lane: laneById.get(appt.id) ?? 0, laneCount });
+    group = [];
+    groupEnd = 0;
+  };
+
+  for (const appt of sorted) {
+    const start = +new Date(appt.starts_at);
+    const end = +getApptEnd(appt);
+    if (!group.length || start < groupEnd) {
+      group.push(appt);
+      groupEnd = Math.max(groupEnd, end);
+    } else {
+      flush();
+      group = [appt];
+      groupEnd = end;
+    }
+  }
+  flush();
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -430,7 +513,7 @@ function DayView({
 }) {
   const HOUR_START = hourStart ?? DEFAULT_HOUR_START;
   const HOUR_END   = hourEnd   ?? DEFAULT_HOUR_END;
-  const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
+  const HOURS = Array.from({ length: Math.max(1, HOUR_END - HOUR_START) }, (_, i) => HOUR_START + i);
   const employees = data.employees.length
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
@@ -441,6 +524,10 @@ function DayView({
     if (!apptId) return;
     const appt = data.appointments.find((a) => a.id === apptId);
     if (!appt) return;
+    if (appt.status === "charged") {
+      toast.error("Los turnos cobrados no se pueden mover.");
+      return;
+    }
     const targetDate = dropDate ?? date;
     const newStart = new Date(targetDate);
     newStart.setHours(hour, 0, 0, 0);
@@ -551,17 +638,22 @@ function DayView({
                 />
               ))}
 
-              {dayAppts
-                .filter((a) => (e.id === "__none__" ? !a.employee_id : a.employee_id === e.id))
-                .map((a) => (
+              {(() => {
+                const columnAppts = dayAppts.filter((a) => (e.id === "__none__" ? !a.employee_id : a.employee_id === e.id));
+                const layouts = computeOverlapLayouts(columnAppts);
+                return columnAppts.map((a) => (
                   <ApptCard
                     key={a.id}
                     a={a}
+                    layout={layouts.get(a.id)}
+                    hourStart={HOUR_START}
+                    hourEnd={HOUR_END}
                     onClick={() => onApptClick(a)}
                     onChangeStatus={(s) => onChangeStatus(a, s)}
                     onCobrar={() => onCobrar(a)}
                   />
-                ))}
+                ));
+              })()}
             </div>
           ))}
         </div>
@@ -575,6 +667,7 @@ function ApptCard({
   onClick,
   onChangeStatus,
   onCobrar,
+  layout,
   hourStart = DEFAULT_HOUR_START,
   hourEnd = DEFAULT_HOUR_END,
 }: {
@@ -582,6 +675,7 @@ function ApptCard({
   onClick: () => void;
   onChangeStatus: (s: ApptStatus) => void;
   onCobrar: () => void;
+  layout?: ApptLayout;
   hourStart?: number;
   hourEnd?: number;
 }) {
@@ -592,17 +686,31 @@ function ApptCard({
   const height = Math.max(dur * ROW_PX - 4, 68);
   if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
+  const isMovable = a.status !== "charged";
+  const laneCount = layout?.laneCount ?? 1;
+  const lane = layout?.lane ?? 0;
+  const gapPx = 6;
+  const width = `calc(${100 / laneCount}% - ${gapPx}px)`;
+  const left = `calc(${(lane * 100) / laneCount}% + ${gapPx / 2}px)`;
 
   const handleDragStart = (e: React.DragEvent) => {
+    if (!isMovable) {
+      e.preventDefault();
+      toast.error("Los turnos cobrados no se pueden mover.");
+      return;
+    }
     e.dataTransfer.setData("apptId", a.id);
     e.dataTransfer.effectAllowed = "move";
   };
 
   return (
     <div
-      className="absolute left-1.5 right-1.5 rounded-lg px-2.5 py-1.5 cursor-grab active:cursor-grabbing group transition hover:z-10 hover:scale-[1.01]"
-      style={{ top, height, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
-      draggable
+      className={cn(
+        "absolute rounded-lg px-2.5 py-1.5 group transition hover:z-10 hover:scale-[1.01]",
+        isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+      )}
+      style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
+      draggable={isMovable}
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
@@ -619,12 +727,6 @@ function ApptCard({
       <div className="text-[11px] font-semibold leading-tight truncate">{a.client_name || "Sin nombre"}</div>
       {/* Service */}
       {a.service_name && <div className="text-[10px] text-foreground/65 truncate mt-0.5">{a.service_name}</div>}
-      {/* Price */}
-      {a.service_price ? (
-        <div className="text-[10px] font-semibold mt-0.5" style={{ color: meta.dot }}>
-          ${Math.round(Number(a.service_price)).toLocaleString("es-AR")}
-        </div>
-      ) : null}
 
       {/* Quick actions */}
       <div
@@ -679,20 +781,166 @@ function IconBtn({
   );
 }
 
+function AppointmentDetailDialog({
+  open,
+  onOpenChange,
+  appointment,
+  employees,
+  clients,
+  onEdit,
+  onCancel,
+  onCobrar,
+  onFicha,
+  onChangeStatus,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  appointment: Appointment | null;
+  employees: ReturnType<typeof useAgendaData>["employees"];
+  clients: ReturnType<typeof useAgendaData>["clients"];
+  onEdit: (a: Appointment) => void;
+  onCancel: (a: Appointment) => void;
+  onCobrar: (a: Appointment) => void;
+  onFicha: (a: Appointment) => void;
+  onChangeStatus: (a: Appointment, s: ApptStatus) => void;
+}) {
+  if (!appointment) return null;
+
+  const employee = employees.find((e) => e.id === appointment.employee_id);
+  const client = clients.find((c) => c.id === appointment.client_id);
+  const start = new Date(appointment.starts_at);
+  const end = appointment.ends_at
+    ? new Date(appointment.ends_at)
+    : new Date(start.getTime() + Number(appointment.duration_min ?? 30) * 60_000);
+  const phone = client?.phone ?? null;
+  const email = client?.email ?? null;
+  const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
+  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" })} - ${fmtTime(start)} a ${fmtTime(end)} hrs`;
+  const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+  const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cliente Nuevo</div>
+              <DialogTitle className="mt-1 text-2xl font-display">{appointment.client_name || "Sin cliente"}</DialogTitle>
+            </div>
+            <div className="flex gap-2 pr-6">
+              <Button size="sm" variant="secondary" onClick={() => onEdit(appointment)}>
+                Editar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-5 py-2">
+          <div className="rounded-2xl p-4 ring-1 ring-white/10" style={{ background: meta.bg }}>
+            <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: meta.dot }}>
+              {meta.label}
+            </div>
+            <div className="mt-2 text-lg font-semibold">{appointment.service_name || "Servicio"}</div>
+            {appointment.service_price ? (
+              <div className="mt-1 text-2xl font-display font-semibold">
+                ${Number(appointment.service_price).toLocaleString("es-AR")}
+              </div>
+            ) : null}
+            <div className="mt-3 text-sm text-foreground/80 capitalize">{dateText}</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              Se atenderá con: <span className="text-foreground">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 text-sm">
+            {phone && (
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
+                <span>{phone}</span>
+                {whatsappHref && (
+                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/15 transition">
+                    <MessageCircle className="h-3.5 w-3.5" /> Hablar por WhatsApp
+                  </a>
+                )}
+              </div>
+            )}
+            {email && <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">{email}</div>}
+            {appointment.notes && (
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Nota interna</div>
+                {appointment.notes}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
+              <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Pagar"}
+            </Button>
+            <Button variant="secondary" onClick={() => onFicha(appointment)}>
+              <UserRound className="h-4 w-4 mr-1" /> Ficha
+            </Button>
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["pending", "Pendiente"],
+                ["confirmed", "Confirmado"],
+                ["completed", "En servicio"],
+                ["cancelled", "Cancelado"],
+                ["charged", "Pagado"],
+              ] as [ApptStatus, string][]).map(([status, label]) => (
+                <button
+                  key={status}
+                  onClick={() => onChangeStatus(appointment, status)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium ring-1 transition",
+                    appointment.status === status
+                      ? "bg-white/15 ring-white/20 text-foreground"
+                      : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {appointment.status !== "charged" && appointment.status !== "cancelled" && (
+            <Button variant="destructive" className="w-full" onClick={() => onCancel(appointment)}>
+              Cancelar turno
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Week view: columnas por día
 // ---------------------------------------------------------------------------
 function WeekView({
   start,
   appointments,
+  hourStart = DEFAULT_HOUR_START,
+  hourEnd = DEFAULT_HOUR_END,
   onApptClick,
   onSlotClick,
 }: {
   start: Date;
   appointments: Appointment[];
+  hourStart?: number;
+  hourEnd?: number;
   onApptClick: (a: Appointment) => void;
   onSlotClick: (date: Date) => void;
 }) {
+  const HOURS = Array.from({ length: Math.max(1, hourEnd - hourStart) }, (_, i) => hourStart + i);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
@@ -768,9 +1016,9 @@ function WeekView({
                   const start = new Date(a.starts_at);
                   const startH = start.getHours() + start.getMinutes() / 60;
                   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
-                  const top = (startH - DEFAULT_HOUR_START) * ROW_PX + 2;
+                  const top = (startH - hourStart) * ROW_PX + 2;
                   const height = dur * ROW_PX - 4;
-                  if (top < 0) return null;
+                  if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
                   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
                   return (
                     <div
