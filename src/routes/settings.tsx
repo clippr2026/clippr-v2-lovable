@@ -2116,7 +2116,6 @@ function SenasSection() {
     "Hola 👋\nPara confirmar tu turno debés abonar una seña.\nTitular: [Nombre]\nAlias: [alias]\nCBU: [cbu]\nBanco: [banco]"
   );
   const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (!businessId) return;
@@ -2141,7 +2140,6 @@ function SenasSection() {
 
   const save = async () => {
     if (!businessId) return;
-    setSaving(true);
     const localPct = parseInt(lostLocal) || 0;
     const profPct  = lostDist === "custom" ? (100 - localPct) : lostDist === "prof" ? 100 : 0;
     await supabase.from("business_settings").upsert({
@@ -2152,8 +2150,7 @@ function SenasSection() {
         lost_dist: lostDist, lost_local: localPct, lost_prof: profPct, msg,
       }
     }, { onConflict: "business_id" });
-    setSaving(false);
-    toast.success("Configuración de señas guardada");
+    toast.success("Señas guardadas");
   };
 
   React.useEffect(() => {
@@ -2164,119 +2161,156 @@ function SenasSection() {
     return () => window.removeEventListener("clippr:save-settings", handler);
   });
 
-  if (loading) return <div className="text-sm text-muted-foreground">Cargando…</div>;
+  if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
+
+  // Reusable block wrapper
+  const Block = ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
+    <div className="rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.06] p-6 space-y-4">
+      <div>
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
+      </div>
+      {children}
+    </div>
+  );
+
+  const ToggleBtn = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
+    <button onClick={onClick}
+      className={cn("px-5 py-2.5 rounded-xl text-sm font-semibold ring-1 transition-all",
+        active
+          ? "bg-primary/20 ring-primary/50 text-foreground shadow-[0_0_16px_-4px_oklch(0.66_0.22_265/0.4)]"
+          : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]")}>
+      {label}
+    </button>
+  );
 
   return (
-    <div className="space-y-6">
-      <SectionCard title="Señas" description="Configurá cómo funcionan las señas en tu negocio.">
-        {/* 1. Activar */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium">¿Activar señas?</div>
-          <div className="flex gap-3">
-            {(["Sí","No"] as const).map((v) => (
-              <button key={v} onClick={() => setEnabled(v === "Sí")}
-                className={cn("px-5 py-2 rounded-xl text-sm font-semibold ring-1 transition",
-                  (enabled ? v === "Sí" : v === "No")
-                    ? "bg-primary/20 ring-primary/50 text-foreground"
-                    : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
-                {v}
-              </button>
-            ))}
-          </div>
+    <div className="space-y-4">
+      {/* Bloque 1: Activar */}
+      <Block title="¿Activar señas?" subtitle="Cuando está activado podés requerir una seña para confirmar turnos.">
+        <div className="flex gap-3">
+          <ToggleBtn label="Sí" active={enabled} onClick={() => setEnabled(true)} />
+          <ToggleBtn label="No" active={!enabled} onClick={() => setEnabled(false)} />
         </div>
+      </Block>
 
-        {enabled && (<>
-          {/* 2. Servicios que requieren seña */}
-          <div className="space-y-2 pt-2 border-t border-white/5">
-            <div className="text-sm font-medium">Servicios que requieren seña</div>
-            <div className="text-xs text-muted-foreground">Los servicios no seleccionados no pedirán seña.</div>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {services.map((s) => {
-                const on = selectedSvcs.includes(s.id);
-                return (
-                  <button key={s.id} onClick={() => setSelectedSvcs(on ? selectedSvcs.filter(x=>x!==s.id) : [...selectedSvcs,s.id])}
-                    className={cn("px-3 py-1.5 rounded-lg text-xs font-medium ring-1 transition",
-                      on ? "bg-primary/20 ring-primary/40 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
-                    {s.name}
-                  </button>
-                );
-              })}
-              {services.length === 0 && <div className="text-xs text-muted-foreground">Primero cargá servicios en Servicios.</div>}
-            </div>
-          </div>
-
-          {/* 3. Monto de la seña */}
-          <div className="space-y-3 pt-2 border-t border-white/5">
-            <div className="text-sm font-medium">Monto de la seña</div>
-            <div className="flex gap-3">
-              {([["fixed","Monto fijo"],["percent","Porcentaje"]] as [string,string][]).map(([v,l]) => (
-                <button key={v} onClick={() => setAmountType(v as "fixed"|"percent")}
-                  className={cn("px-4 py-2 rounded-xl text-sm font-medium ring-1 transition",
-                    amountType===v ? "bg-primary/20 ring-primary/40 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
-                  {l}
+      {enabled && (<>
+        {/* Bloque 2: Servicios */}
+        <Block title="Servicios que requieren seña" subtitle="Solo los servicios seleccionados pedirán seña al reservar.">
+          <div className="flex flex-wrap gap-2">
+            {services.map((s) => {
+              const on = selectedSvcs.includes(s.id);
+              return (
+                <button key={s.id}
+                  onClick={() => setSelectedSvcs(on ? selectedSvcs.filter(x=>x!==s.id) : [...selectedSvcs,s.id])}
+                  className={cn("px-3.5 py-2 rounded-xl text-xs font-medium ring-1 transition-all",
+                    on
+                      ? "bg-primary/20 ring-primary/40 text-foreground shadow-[0_0_12px_-4px_oklch(0.66_0.22_265/0.35)]"
+                      : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]")}>
+                  {s.name}
                 </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              {amountType === "fixed" && <span className="text-sm text-muted-foreground">$</span>}
-              <input type="number" value={amountValue} onChange={e=>setAmountValue(e.target.value)}
-                placeholder={amountType==="fixed" ? "30000" : "50"}
-                className="w-36 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-white/30" />
-              {amountType === "percent" && <span className="text-sm text-muted-foreground">%</span>}
-            </div>
-          </div>
-
-          {/* 4. Si se pierde la seña */}
-          <div className="space-y-3 pt-2 border-t border-white/5">
-            <div className="text-sm font-medium">Si el cliente pierde la seña</div>
-            <div className="flex flex-wrap gap-3">
-              {([["local","100% para el local"],["prof","100% para el profesional"],["custom","Personalizado"]] as [string,string][]).map(([v,l]) => (
-                <button key={v} onClick={() => {
-                  setLostDist(v as "local"|"prof"|"custom");
-                  if (v==="local"){setLostLocal("100");setLostProf("0")}
-                  else if (v==="prof"){setLostLocal("0");setLostProf("100")}
-                }}
-                  className={cn("px-4 py-2 rounded-xl text-sm font-medium ring-1 transition",
-                    lostDist===v ? "bg-primary/20 ring-primary/40 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
-                  {l}
-                </button>
-              ))}
-            </div>
-            {lostDist==="custom" && (
-              <div className="flex items-center gap-4 mt-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-20">% para el local</span>
-                  <input type="number" min="0" max="100" value={lostLocal}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostLocal(String(v));setLostProf(String(100-v));}}
-                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-24">% para el profesional</span>
-                  <input type="number" min="0" max="100" value={lostProf}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostProf(String(v));setLostLocal(String(100-v));}}
-                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none" />
-                </div>
-                {parseInt(lostLocal)+parseInt(lostProf)!==100 && (
-                  <span className="text-xs text-destructive">Debe sumar 100%</span>
-                )}
-              </div>
+              );
+            })}
+            {services.length === 0 && (
+              <div className="text-xs text-muted-foreground py-1">Primero cargá servicios en la sección Servicios.</div>
             )}
           </div>
+        </Block>
 
-          {/* 5. Mensaje de seña */}
-          <div className="space-y-2 pt-2 border-t border-white/5">
-            <div className="text-sm font-medium">Mensaje para el cliente</div>
-            <div className="text-xs text-muted-foreground">Se envía al finalizar una reserva de un servicio con seña.</div>
-            <textarea rows={6} value={msg} onChange={e=>setMsg(e.target.value)}
-              className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-white/30 resize-none font-mono" />
+        {/* Bloque 3: Monto */}
+        <Block title="Monto de la seña" subtitle="Definí si la seña es un monto fijo o un porcentaje del servicio.">
+          <div className="flex gap-3">
+            <ToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
+            <ToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
           </div>
-        </>)}
+          <div className="flex items-center gap-3 mt-1">
+            {amountType === "fixed" && (
+              <span className="text-lg font-light text-muted-foreground">$</span>
+            )}
+            <input
+              type="number"
+              value={amountValue}
+              onChange={e => setAmountValue(e.target.value)}
+              placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
+              className="w-44 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-white/30 transition"
+            />
+            {amountType === "percent" && (
+              <span className="text-lg font-light text-muted-foreground">%</span>
+            )}
+            {amountValue && (
+              <span className="text-xs text-muted-foreground">
+                {amountType==="fixed"
+                  ? `$${parseInt(amountValue||"0").toLocaleString("es-AR")} fijos`
+                  : `${amountValue}% del precio del servicio`}
+              </span>
+            )}
+          </div>
+        </Block>
 
-        <button onClick={save} disabled={saving}
-          className="mt-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black disabled:opacity-50">
-          {saving ? "Guardando…" : "Guardar señas"}
-        </button>
-      </SectionCard>
+        {/* Bloque 4: Distribución si se pierde */}
+        <Block title="Si el cliente pierde la seña" subtitle="Definí cómo se distribuye el dinero de la seña perdida.">
+          <div className="flex flex-wrap gap-3">
+            {([
+              ["local",  "100% para el local"],
+              ["prof",   "100% para el profesional"],
+              ["custom", "Personalizado"],
+            ] as [string,string][]).map(([v,l]) => (
+              <ToggleBtn key={v} label={l} active={lostDist===v} onClick={() => {
+                setLostDist(v as "local"|"prof"|"custom");
+                if (v==="local")      { setLostLocal("100"); setLostProf("0"); }
+                else if (v==="prof")  { setLostLocal("0");   setLostProf("100"); }
+              }} />
+            ))}
+          </div>
+
+          {lostDist==="custom" && (
+            <div className="mt-2 p-4 rounded-xl bg-white/[0.02] ring-1 ring-white/[0.06] space-y-3">
+              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Distribución personalizada</div>
+              <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground w-24">Local</span>
+                  <input type="number" min="0" max="100" value={lostLocal}
+                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostLocal(String(v));setLostProf(String(100-v));}}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground w-24">Profesional</span>
+                  <input type="number" min="0" max="100" value={lostProf}
+                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostProf(String(v));setLostLocal(String(100-v));}}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+                <div className={cn("text-xs font-semibold px-3 py-1 rounded-full",
+                  parseInt(lostLocal)+parseInt(lostProf)===100
+                    ? "bg-emerald-400/10 text-emerald-400 ring-1 ring-emerald-400/20"
+                    : "bg-destructive/10 text-destructive ring-1 ring-destructive/20")}>
+                  Total: {parseInt(lostLocal)+parseInt(lostProf)}%
+                  {parseInt(lostLocal)+parseInt(lostProf)===100 ? " ✓" : " (debe ser 100%)"}
+                </div>
+              </div>
+            </div>
+          )}
+        </Block>
+
+        {/* Bloque 5: Mensaje */}
+        <Block title="Mensaje para el cliente" subtitle="Se envía automáticamente al finalizar una reserva con seña requerida.">
+          <div className="relative">
+            <textarea
+              rows={4}
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
+            />
+            <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground/50">
+              {msg.length} car.
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Podés usar saltos de línea. El mensaje se puede copiar y enviar por WhatsApp o mensaje de texto.
+          </div>
+        </Block>
+      </>)}
     </div>
   );
 }
