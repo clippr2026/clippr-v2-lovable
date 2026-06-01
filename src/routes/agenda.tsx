@@ -89,10 +89,6 @@ const DAY_MS = 86_400_000;
 const ROW_PX = 72;
 const DEFAULT_HOUR_START = 8;
 const DEFAULT_HOUR_END = 22;
-// Module-level fallbacks for ApptCard and WeekView
-let HOUR_START = DEFAULT_HOUR_START;
-let HOUR_END   = DEFAULT_HOUR_END;
-const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_,i) => HOUR_START + i);
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -428,8 +424,8 @@ function DayView({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
 }) {
-  HOUR_START = hourStart ?? DEFAULT_HOUR_START;
-  HOUR_END   = hourEnd   ?? DEFAULT_HOUR_END;
+  const HOUR_START = hourStart ?? DEFAULT_HOUR_START;
+  const HOUR_END   = hourEnd   ?? DEFAULT_HOUR_END;
   const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
   const employees = data.employees.length
     ? data.employees
@@ -575,18 +571,22 @@ function ApptCard({
   onClick,
   onChangeStatus,
   onCobrar,
+  hourStart = DEFAULT_HOUR_START,
+  hourEnd = DEFAULT_HOUR_END,
 }: {
   a: Appointment;
   onClick: () => void;
   onChangeStatus: (s: ApptStatus) => void;
   onCobrar: () => void;
+  hourStart?: number;
+  hourEnd?: number;
 }) {
   const start = new Date(a.starts_at);
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
-  const top = (startH - HOUR_START) * ROW_PX + 2;
+  const top = (startH - hourStart) * ROW_PX + 2;
   const height = Math.max(dur * ROW_PX - 4, 68);
-  if (top < 0 || top > (HOUR_END - HOUR_START) * ROW_PX) return null;
+  if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -764,7 +764,7 @@ function WeekView({
                   const start = new Date(a.starts_at);
                   const startH = start.getHours() + start.getMinutes() / 60;
                   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
-                  const top = (startH - HOUR_START) * ROW_PX + 2;
+                  const top = (startH - DEFAULT_HOUR_START) * ROW_PX + 2;
                   const height = dur * ROW_PX - 4;
                   if (top < 0) return null;
                   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
