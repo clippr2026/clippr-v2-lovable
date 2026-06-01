@@ -87,9 +87,12 @@ const STATUS_META: Record<
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
 const ROW_PX = 72;
-// HOUR_START/END will be dynamic from business_settings (see DayView)
 const DEFAULT_HOUR_START = 8;
 const DEFAULT_HOUR_END = 22;
+// Module-level fallbacks for ApptCard and WeekView
+let HOUR_START = DEFAULT_HOUR_START;
+let HOUR_END   = DEFAULT_HOUR_END;
+const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_,i) => HOUR_START + i);
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -425,8 +428,8 @@ function DayView({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
 }) {
-  const HOUR_START = hourStart ?? DEFAULT_HOUR_START;
-  const HOUR_END   = hourEnd   ?? DEFAULT_HOUR_END;
+  HOUR_START = hourStart ?? DEFAULT_HOUR_START;
+  HOUR_END   = hourEnd   ?? DEFAULT_HOUR_END;
   const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
   const employees = data.employees.length
     ? data.employees
