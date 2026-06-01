@@ -21,7 +21,7 @@ export function Topbar({
   action?: React.ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const defaultAction = ACTION_BY_PATH[pathname] ?? { label: "Nueva reserva", to: "/agenda" };
+  const defaultAction = ACTION_BY_PATH[pathname];
 
   return (
     <header className="flex flex-wrap items-end gap-3 justify-between mb-6 md:mb-8">
@@ -41,7 +41,7 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {action ?? (
+        {action ?? (defaultAction ? (
           <Link
             to={defaultAction.to}
             className="h-10 px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition"
@@ -54,7 +54,7 @@ export function Topbar({
             <Plus className="h-4 w-4" />
             <span>{defaultAction.label}</span>
           </Link>
-        )}
+        ) : null)}
       </div>
     </header>
   );
