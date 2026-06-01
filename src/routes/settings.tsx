@@ -816,7 +816,10 @@ function EquipoSection() {
                 return (
                   <div
                     key={emp.id}
-                    className="glass rounded-2xl p-4 ring-1 ring-white/5"
+                    className={cn(
+                      "glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity",
+                      !active && "opacity-45",
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <div
@@ -1305,6 +1308,7 @@ function PriceEditorModal({
   onClose,
   onSave,
   saving,
+  catalogCategories = defaultCatalogCategories,
 }: {
   open: boolean;
   mode: "new" | "edit";
@@ -1314,6 +1318,7 @@ function PriceEditorModal({
   onClose: () => void;
   onSave: () => void;
   saving: boolean;
+  catalogCategories?: string[];
 }) {
   if (!open) return null;
   const cashPrice = priceToCash(form.price, form.discount);
@@ -1321,7 +1326,7 @@ function PriceEditorModal({
   const availableCatalogCategories = Array.from(
     new Set([
       ...(form.category ? [form.category] : []),
-      ...defaultCatalogCategories,
+      ...catalogCategories,
     ]),
   );
 
@@ -1529,9 +1534,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (isService || typeof window === "undefined") return [];
     try {
       const saved = window.localStorage.getItem("clippr_catalog_categories");
-      return saved ? JSON.parse(saved) : [];
+      return saved ? JSON.parse(saved) : defaultCatalogCategories;
     } catch {
-      return [];
+      return defaultCatalogCategories;
     }
   });
 
@@ -1576,12 +1581,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const categories = isService
     ? serviceCategories
     : Array.from(
-        new Set(
-          defaultCatalogCategories.concat(
-            customCatalogCategories,
-            visibleRows.map((r) => r.category || "Productos"),
-          ),
-        ),
+        new Set([
+          ...customCatalogCategories,
+          ...visibleRows.map((r) => r.category || "Productos"),
+        ]),
       );
   const filtered = isService
     ? visibleRows
@@ -1658,14 +1661,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const name = prompt("Nuevo nombre de la categoría", category);
     const clean = name?.trim();
     if (!clean || clean === category) return;
-    const next = customCatalogCategories.map((c) =>
-      c === category ? clean : c,
-    );
-    saveCatalogCategories(
-      defaultCatalogCategories.includes(category)
-        ? [...customCatalogCategories, clean]
-        : next,
-    );
+    const next = customCatalogCategories.includes(category)
+      ? customCatalogCategories.map((c) => (c === category ? clean : c))
+      : [...customCatalogCategories, clean];
+    saveCatalogCategories(next);
     if (businessId) {
       await supabase
         .from("price_catalog")
@@ -1678,25 +1677,26 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   }
 
   async function deleteCatalogCategory(category: string) {
-    if (defaultCatalogCategories.includes(category))
-      return toast.error("Esta categoría base no se puede eliminar");
+    const currentCategories = categories.filter((c) => c !== category);
+    if (currentCategories.length === 0) {
+      return toast.error("Debe quedar al menos una categoría en Catálogo");
+    }
+    const fallbackCategory = currentCategories[0] || "Productos";
     if (
       !confirm(
-        `¿Eliminar la categoría ${category}? Los ítems pasarán a Productos.`,
+        `¿Eliminar la categoría ${category}? Los ítems pasarán a ${fallbackCategory}.`,
       )
     )
       return;
-    saveCatalogCategories(
-      customCatalogCategories.filter((c) => c !== category),
-    );
+    saveCatalogCategories(customCatalogCategories.filter((c) => c !== category));
     if (businessId) {
       await supabase
         .from("price_catalog")
-        .update({ category: "Productos" })
+        .update({ category: fallbackCategory })
         .eq("business_id", businessId)
         .eq("category", category);
     }
-    setCat("Productos");
+    setCat(fallbackCategory);
     load();
   }
 
@@ -1760,10 +1760,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     >
                       ✎
                     </button>
-                    {!defaultCatalogCategories.includes(category) && (
+                    {categories.length > 1 && (
                       <button
                         onClick={() => deleteCatalogCategory(category)}
                         className="pr-2 text-xs text-red-300/80 hover:text-red-300"
+                        title="Eliminar categoría"
                       >
                         ×
                       </button>
@@ -1854,6 +1855,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onClose={() => setModalOpen(false)}
         onSave={saveItem}
         saving={saving}
+        catalogCategories={categories}
       />
     </>
   );
@@ -1953,20 +1955,26 @@ function CajaSection() {
         <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-3 px-1">
           Modo de aprobación predeterminado
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {(
             [
               {
                 id: "auto",
                 icon: Zap,
                 label: "Automático",
-                hint: "Al terminar el servicio pasa directo a caja. Sin intervención manual.",
+                hint: "El profesional cobra desde su panel y el cobro impacta sin confirmación.",
               },
               {
                 id: "manual",
                 icon: Eye,
                 label: "Manual",
-                hint: "La recepcionista aprueba cada servicio antes de que pase a caja.",
+                hint: "El servicio queda pendiente y caja/recepción lo confirma y cobra.",
+              },
+              {
+                id: "disabled",
+                icon: Lock,
+                label: "Desactivado",
+                hint: "El profesional no puede cobrar desde su panel.",
               },
             ] as const
           ).map((opt) => {
