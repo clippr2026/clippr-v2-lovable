@@ -428,7 +428,7 @@ function AgendaPage() {
         employees={data.employees}
         clients={data.clients}
         onEdit={openEdit}
-        onCancel={(a) => onChangeStatus(a, "cancelled")}
+        onCancel={(a) => { if (window.confirm("¿Cancelar este turno? No se puede deshacer.")) onChangeStatus(a, "cancelled"); }}
         onCobrar={goToCobro}
         onFicha={() => navigate({ to: "/clients" })}
         onChangeStatus={onChangeStatus}
@@ -745,35 +745,7 @@ function ApptCard({
       {/* Service */}
       {a.service_name && <div className="text-[10px] text-foreground/65 truncate leading-tight mt-0.5">{a.service_name}</div>}
 
-      {/* Quick actions */}
-      <div
-        className="absolute bottom-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {a.status === "pending" && (
-          <IconBtn title="Confirmar" onClick={() => onChangeStatus("confirmed")}>
-            <Check className="h-3 w-3" />
-          </IconBtn>
-        )}
-        {(a.status === "pending" || a.status === "confirmed") && (
-          <IconBtn title="Completar" onClick={() => onChangeStatus("completed")}>
-            <CheckCircle2 className="h-3 w-3" />
-          </IconBtn>
-        )}
-        {(a.status === "completed" || a.status === "confirmed" || a.status === "pending") && (
-          <IconBtn title="Cobrar" onClick={onCobrar}>
-            <DollarSign className="h-3 w-3" />
-          </IconBtn>
-        )}
-        <IconBtn title="Editar" onClick={onClick}>
-          <Pencil className="h-3 w-3" />
-        </IconBtn>
-        {a.status !== "cancelled" && (
-          <IconBtn title="Cancelar" onClick={() => onChangeStatus("cancelled")}>
-            <X className="h-3 w-3" />
-          </IconBtn>
-        )}
-      </div>
+      {/* Quick actions removed — use detail modal instead */}
     </div>
   );
 }
@@ -840,8 +812,8 @@ function AppointmentDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" aria-describedby={undefined}>
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg p-0 overflow-hidden" aria-describedby={undefined}>
+        <DialogHeader className="px-6 pt-5 pb-4" style={{ background: `oklch(from ${meta.dot} calc(l*0.15) c h / 0.12)`, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cliente Nuevo</div>
@@ -858,7 +830,7 @@ function AppointmentDetailDialog({
           </div>
         </DialogHeader>
 
-        <div className="space-y-5 py-2">
+        <div className="space-y-5 py-4 px-6" style={{ background: `oklch(from ${meta.dot} calc(l*0.15) c h / 0.08)` }}>
           <div className="rounded-2xl p-4 ring-1 ring-white/10" style={{ background: meta.bg }}>
             <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: meta.dot }}>
               {meta.label}
@@ -908,25 +880,28 @@ function AppointmentDetailDialog({
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
               {([
-                ["pending", "Pendientes"],
-                ["confirmed", "Confirmados"],
+                ["pending", "Reservado"],
+                ["confirmed", "Confirmado"],
                 ["completed", "En servicio"],
-                ["cancelled", "Cancelados"],
-                ["charged", "Cobrados"],
-              ] as [ApptStatus, string][]).map(([status, label]) => (
-                <button
-                  key={status}
-                  onClick={() => onChangeStatus(appointment, status)}
-                  className={cn(
-                    "rounded-lg px-3 py-1.5 text-xs font-medium ring-1 transition",
-                    appointment.status === status
-                      ? "bg-white/15 ring-white/20 text-foreground"
-                      : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+                ["charged", "Cobrado"],
+              ] as [ApptStatus, string][]).map(([status, label]) => {
+                const sMeta = STATUS_META[status] ?? STATUS_META.pending;
+                const isActive = appointment.status === status;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => onChangeStatus(appointment, status)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition"
+                    style={{
+                      background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
+                      color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
+                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.border}, 0 0 12px -4px ${sMeta.dot}` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
               <button
                 onClick={() => onMarkDeposit(appointment)}
                 className={cn(
