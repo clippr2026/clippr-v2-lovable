@@ -23,6 +23,7 @@ import {
   useAgendaData,
   cancelAppointment,
   setAppointmentStatus,
+  markAppointmentDeposit,
   type Appointment,
   type ApptStatus,
 } from "@/components/agenda/use-agenda-data";
@@ -66,9 +67,9 @@ const STATUS_META: Record<
   },
   completed: {
     label: "En servicio",
-    bg: "oklch(0.48 0.18 80 / 0.42)",
+    bg: "oklch(0.44 0.16 80 / 0.42)",
     border: "oklch(0.82 0.18 80)",
-    dot: "oklch(0.84 0.18 80)",
+    dot: "oklch(0.86 0.18 80)",
   },
   charged: {
     label: "Cobrado",
@@ -194,6 +195,20 @@ function AgendaPage() {
         await setAppointmentStatus(a.id, status);
       }
       toast.success("Turno actualizado");
+      setSelected((current) => current && current.id === a.id ? { ...current, status } : current);
+      data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const onMarkDeposit = async (a: Appointment) => {
+    try {
+      await markAppointmentDeposit(a.id, a.notes);
+      toast.success("Seña marcada");
+      setSelected((current) => current && current.id === a.id
+        ? { ...current, notes: /se(ñ|n)a/i.test(current.notes || "") ? current.notes : [current.notes, "Seña paga"].filter(Boolean).join("\n") }
+        : current);
       data.refresh();
     } catch (e) {
       toast.error((e as Error).message);
@@ -303,7 +318,7 @@ function AgendaPage() {
         {([
           ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
           ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
-          ["inService", "En servicio",  "oklch(0.84 0.18 80)"],
+          ["inService", "En servicio",  "oklch(0.86 0.18 80)"],
           ["seña",      "Seña",         "oklch(0.78 0.17 55)"],
           ["charged",   "Cobrados",     "oklch(0.76 0.2 155)"],
           ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
@@ -416,6 +431,7 @@ function AgendaPage() {
         onCobrar={goToCobro}
         onFicha={() => navigate({ to: "/clients" })}
         onChangeStatus={onChangeStatus}
+        onMarkDeposit={onMarkDeposit}
       />
 
       {data.businessId && (
@@ -792,6 +808,7 @@ function AppointmentDetailDialog({
   onCobrar,
   onFicha,
   onChangeStatus,
+  onMarkDeposit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -803,6 +820,7 @@ function AppointmentDetailDialog({
   onCobrar: (a: Appointment) => void;
   onFicha: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
+  onMarkDeposit: (a: Appointment) => void;
 }) {
   if (!appointment) return null;
 
@@ -815,7 +833,7 @@ function AppointmentDetailDialog({
   const phone = client?.phone ?? null;
   const email = client?.email ?? null;
   const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
-  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" })} - ${fmtTime(start)} a ${fmtTime(end)} hrs`;
+  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" })} - ${fmtTime(start)} a ${fmtTime(end)}`;
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
 
@@ -878,7 +896,7 @@ function AppointmentDetailDialog({
 
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
-              <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Pagar"}
+              <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
             </Button>
             <Button variant="secondary" onClick={() => onFicha(appointment)}>
               <UserRound className="h-4 w-4 mr-1" /> Ficha
@@ -889,11 +907,11 @@ function AppointmentDetailDialog({
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
               {([
-                ["pending", "Pendiente"],
-                ["confirmed", "Confirmado"],
+                ["pending", "Pendientes"],
+                ["confirmed", "Confirmados"],
                 ["completed", "En servicio"],
-                ["cancelled", "Cancelado"],
-                ["charged", "Pagado"],
+                ["cancelled", "Cancelados"],
+                ["charged", "Cobrados"],
               ] as [ApptStatus, string][]).map(([status, label]) => (
                 <button
                   key={status}
@@ -908,6 +926,17 @@ function AppointmentDetailDialog({
                   {label}
                 </button>
               ))}
+              <button
+                onClick={() => onMarkDeposit(appointment)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-medium ring-1 transition",
+                  /se(ñ|n)a/i.test(appointment.notes || "")
+                    ? "bg-amber-400/20 ring-amber-300/40 text-amber-200"
+                    : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+                )}
+              >
+                Seña
+              </button>
             </div>
           </div>
 
