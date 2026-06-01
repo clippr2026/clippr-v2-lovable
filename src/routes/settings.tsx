@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import React from 'react';
 import { useAuth } from "@/hooks/use-auth";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
@@ -44,6 +45,8 @@ import {
   Users,
   Star,
   ShieldCheck,
+  Handshake,
+  HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +57,7 @@ type SectionId =
   | "servicios"
   | "catalogo"
   | "caja"
+  | "senas"
   | "plan";
 
 type NavItem = {
@@ -119,6 +123,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Banknote,
         tint: "text-[oklch(0.82_0.14_75)]",
         glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]",
+      },
+      {
+        id: "senas",
+        label: "Señas",
+        icon: HandCoins,
+        tint: "text-[oklch(0.82_0.18_50)]",
+        glow: "from-[oklch(0.82_0.18_50/0.25)] to-[oklch(0.78_0.2_40/0.05)]",
       },
     ],
   },
@@ -2087,6 +2098,189 @@ function CajaSection() {
 }
 
 // ─────────── Page ───────────
+
+// ---------------------------------------------------------------------------
+// Señas Section
+// ---------------------------------------------------------------------------
+function SenasSection() {
+  const { businessId } = useAuth();
+  const [enabled, setEnabled] = React.useState(false);
+  const [services, setServices] = React.useState<{id:string;name:string}[]>([]);
+  const [selectedSvcs, setSelectedSvcs] = React.useState<string[]>([]);
+  const [amountType, setAmountType] = React.useState<"fixed"|"percent">("fixed");
+  const [amountValue, setAmountValue] = React.useState("");
+  const [lostDist, setLostDist] = React.useState<"local"|"prof"|"custom">("local");
+  const [lostLocal, setLostLocal] = React.useState("100");
+  const [lostProf, setLostProf] = React.useState("0");
+  const [msg, setMsg] = React.useState(
+    "Hola 👋\nPara confirmar tu turno debés abonar una seña.\nTitular: [Nombre]\nAlias: [alias]\nCBU: [cbu]\nBanco: [banco]"
+  );
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("senas_config").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.senas_config) {
+          const c = data.senas_config as Record<string,unknown>;
+          setEnabled(!!c.enabled);
+          setSelectedSvcs((c.services as string[]) ?? []);
+          setAmountType((c.amount_type as "fixed"|"percent") ?? "fixed");
+          setAmountValue(String(c.amount_value ?? ""));
+          setLostDist((c.lost_dist as "local"|"prof"|"custom") ?? "local");
+          setLostLocal(String(c.lost_local ?? "100"));
+          setLostProf(String(c.lost_prof ?? "0"));
+          setMsg(String(c.msg ?? msg));
+        }
+        setLoading(false);
+      });
+    supabase.from("services").select("id,name").eq("business_id", businessId).order("name")
+      .then(({ data }) => setServices((data ?? []) as {id:string;name:string}[]));
+  }, [businessId]);
+
+  const save = async () => {
+    if (!businessId) return;
+    setSaving(true);
+    const localPct = parseInt(lostLocal) || 0;
+    const profPct  = lostDist === "custom" ? (100 - localPct) : lostDist === "prof" ? 100 : 0;
+    await supabase.from("business_settings").upsert({
+      business_id: businessId,
+      senas_config: {
+        enabled, services: selectedSvcs, amount_type: amountType,
+        amount_value: parseFloat(amountValue) || 0,
+        lost_dist: lostDist, lost_local: localPct, lost_prof: profPct, msg,
+      }
+    }, { onConflict: "business_id" });
+    setSaving(false);
+    toast.success("Configuración de señas guardada");
+  };
+
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail?.section === "senas") save();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  });
+
+  if (loading) return <div className="text-sm text-muted-foreground">Cargando…</div>;
+
+  return (
+    <div className="space-y-6">
+      <SectionCard title="Señas" description="Configurá cómo funcionan las señas en tu negocio.">
+        {/* 1. Activar */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium">¿Activar señas?</div>
+          <div className="flex gap-3">
+            {(["Sí","No"] as const).map((v) => (
+              <button key={v} onClick={() => setEnabled(v === "Sí")}
+                className={cn("px-5 py-2 rounded-xl text-sm font-semibold ring-1 transition",
+                  (enabled ? v === "Sí" : v === "No")
+                    ? "bg-primary/20 ring-primary/50 text-foreground"
+                    : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {enabled && (<>
+          {/* 2. Servicios que requieren seña */}
+          <div className="space-y-2 pt-2 border-t border-white/5">
+            <div className="text-sm font-medium">Servicios que requieren seña</div>
+            <div className="text-xs text-muted-foreground">Los servicios no seleccionados no pedirán seña.</div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {services.map((s) => {
+                const on = selectedSvcs.includes(s.id);
+                return (
+                  <button key={s.id} onClick={() => setSelectedSvcs(on ? selectedSvcs.filter(x=>x!==s.id) : [...selectedSvcs,s.id])}
+                    className={cn("px-3 py-1.5 rounded-lg text-xs font-medium ring-1 transition",
+                      on ? "bg-primary/20 ring-primary/40 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
+                    {s.name}
+                  </button>
+                );
+              })}
+              {services.length === 0 && <div className="text-xs text-muted-foreground">Primero cargá servicios en Servicios.</div>}
+            </div>
+          </div>
+
+          {/* 3. Monto de la seña */}
+          <div className="space-y-3 pt-2 border-t border-white/5">
+            <div className="text-sm font-medium">Monto de la seña</div>
+            <div className="flex gap-3">
+              {([["fixed","Monto fijo"],["percent","Porcentaje"]] as [string,string][]).map(([v,l]) => (
+                <button key={v} onClick={() => setAmountType(v as "fixed"|"percent")}
+                  className={cn("px-4 py-2 rounded-xl text-sm font-medium ring-1 transition",
+                    amountType===v ? "bg-primary/20 ring-primary/40 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {amountType === "fixed" && <span className="text-sm text-muted-foreground">$</span>}
+              <input type="number" value={amountValue} onChange={e=>setAmountValue(e.target.value)}
+                placeholder={amountType==="fixed" ? "30000" : "50"}
+                className="w-36 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-white/30" />
+              {amountType === "percent" && <span className="text-sm text-muted-foreground">%</span>}
+            </div>
+          </div>
+
+          {/* 4. Si se pierde la seña */}
+          <div className="space-y-3 pt-2 border-t border-white/5">
+            <div className="text-sm font-medium">Si el cliente pierde la seña</div>
+            <div className="flex flex-wrap gap-3">
+              {([["local","100% para el local"],["prof","100% para el profesional"],["custom","Personalizado"]] as [string,string][]).map(([v,l]) => (
+                <button key={v} onClick={() => {
+                  setLostDist(v as "local"|"prof"|"custom");
+                  if (v==="local"){setLostLocal("100");setLostProf("0")}
+                  else if (v==="prof"){setLostLocal("0");setLostProf("100")}
+                }}
+                  className={cn("px-4 py-2 rounded-xl text-sm font-medium ring-1 transition",
+                    lostDist===v ? "bg-primary/20 ring-primary/40 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {lostDist==="custom" && (
+              <div className="flex items-center gap-4 mt-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-20">% para el local</span>
+                  <input type="number" min="0" max="100" value={lostLocal}
+                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostLocal(String(v));setLostProf(String(100-v));}}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-24">% para el profesional</span>
+                  <input type="number" min="0" max="100" value={lostProf}
+                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostProf(String(v));setLostLocal(String(100-v));}}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none" />
+                </div>
+                {parseInt(lostLocal)+parseInt(lostProf)!==100 && (
+                  <span className="text-xs text-destructive">Debe sumar 100%</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 5. Mensaje de seña */}
+          <div className="space-y-2 pt-2 border-t border-white/5">
+            <div className="text-sm font-medium">Mensaje para el cliente</div>
+            <div className="text-xs text-muted-foreground">Se envía al finalizar una reserva de un servicio con seña.</div>
+            <textarea rows={6} value={msg} onChange={e=>setMsg(e.target.value)}
+              className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-white/30 resize-none font-mono" />
+          </div>
+        </>)}
+
+        <button onClick={save} disabled={saving}
+          className="mt-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black disabled:opacity-50">
+          {saving ? "Guardando…" : "Guardar señas"}
+        </button>
+      </SectionCard>
+    </div>
+  );
+}
+
 function SettingsPage() {
   const [active, setActive] = useState<SectionId>("branding");
   const [values, setValues] = useState(infoFields.map((f) => f.value));
@@ -2268,6 +2462,7 @@ function SettingsPage() {
             {active === "servicios" && <ServiciosSection />}
             {active === "catalogo" && <CatalogoSection />}
             {active === "caja" && <CajaSection />}
+            {active === "senas" && <SenasSection />}
 
             {active === "plan" && <PlanSection />}
           </section>
