@@ -26,6 +26,8 @@ import {
   markAppointmentDeposit,
   type Appointment,
   type ApptStatus,
+  getScheduleForDate,
+  parseScheduleTime,
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { Button } from "@/components/ui/button";
@@ -96,9 +98,7 @@ const STATUS_META: Record<
 // Helpers de fechas
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
-const ROW_PX = 120;
-const DEFAULT_HOUR_START = 8;
-const DEFAULT_HOUR_END = 22;
+const ROW_PX = 86;
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -169,6 +169,12 @@ function AgendaPage() {
   }>({});
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
+    const target = startsAt ?? cursor;
+    const schedule = getScheduleForDate(data.schedule, target);
+    if (!schedule?.enabled) {
+      toast.error("Negocio cerrado este día.");
+      return;
+    }
     setEditing(null);
     setDlgDefaults({ employeeId, startsAt });
     setDlgOpen(true);
@@ -393,8 +399,7 @@ function AgendaPage() {
         <DayView
           date={cursor}
           data={data}
-          hourStart={data.scheduleOpen}
-          hourEnd={data.scheduleClose}
+          schedule={getScheduleForDate(data.schedule, cursor)}
           onSlotClick={openNew}
           onApptClick={openDetail}
           onChangeStatus={onChangeStatus}
@@ -404,8 +409,7 @@ function AgendaPage() {
         <WeekView
           start={startOfWeek(cursor)}
           appointments={data.appointments}
-          hourStart={data.scheduleOpen}
-          hourEnd={data.scheduleClose}
+          schedule={data.schedule}
           onApptClick={openDetail}
           onSlotClick={(date) => openNew(null, date)}
         />
@@ -512,8 +516,7 @@ function computeOverlapLayouts(appts: Appointment[]) {
 function DayView({
   date,
   data,
-  hourStart,
-  hourEnd,
+  schedule,
   onSlotClick,
   onApptClick,
   onChangeStatus,
@@ -521,16 +524,16 @@ function DayView({
 }: {
   date: Date;
   data: ReturnType<typeof useAgendaData>;
-  hourStart?: number;
-  hourEnd?: number;
+  schedule: ReturnType<typeof getScheduleForDate>;
   onSlotClick: (employeeId: string | null, startsAt: Date) => void;
   onApptClick: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
 }) {
-  const HOUR_START = hourStart ?? DEFAULT_HOUR_START;
-  const HOUR_END   = hourEnd   ?? DEFAULT_HOUR_END;
-  const HOURS = Array.from({ length: Math.max(1, HOUR_END - HOUR_START) }, (_, i) => HOUR_START + i);
+  const isClosed = !schedule?.enabled;
+  const HOUR_START = schedule ? Math.floor(parseScheduleTime(schedule.start)) : 0;
+  const HOUR_END = schedule ? Math.ceil(parseScheduleTime(schedule.end)) : 0;
+  const HOURS = !isClosed ? Array.from({ length: Math.max(0, HOUR_END - HOUR_START) }, (_, i) => HOUR_START + i) : [];
   const employees = data.employees.length
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
@@ -543,6 +546,10 @@ function DayView({
     if (!appt) return;
     if (appt.status === "charged") {
       toast.error("Los turnos cobrados no se pueden mover.");
+      return;
+    }
+    if (isClosed) {
+      toast.error("Negocio cerrado este día.");
       return;
     }
     const targetDate = dropDate ?? date;
@@ -571,6 +578,19 @@ function DayView({
     );
   };
   const dayAppts = data.appointments.filter((a) => sameDay(a.starts_at) && a.status !== "cancelled");
+
+  if (isClosed) {
+    return (
+      <section className="glass rounded-2xl p-8 min-h-[360px] grid place-items-center text-center">
+        <div>
+          <div className="text-sm font-semibold">Negocio cerrado este día</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Este día está desactivado en Configuración &gt; Horarios.
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="glass rounded-2xl p-4">
@@ -685,22 +705,22 @@ function ApptCard({
   onChangeStatus,
   onCobrar,
   layout,
-  hourStart = DEFAULT_HOUR_START,
-  hourEnd = DEFAULT_HOUR_END,
+  hourStart,
+  hourEnd,
 }: {
   a: Appointment;
   onClick: () => void;
   onChangeStatus: (s: ApptStatus) => void;
   onCobrar: () => void;
   layout?: ApptLayout;
-  hourStart?: number;
-  hourEnd?: number;
+  hourStart: number;
+  hourEnd: number;
 }) {
   const start = new Date(a.starts_at);
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - hourStart) * ROW_PX + 2;
-  const height = Math.max(dur * ROW_PX - 4, 52);
+  const height = Math.max(dur * ROW_PX - 4, 38);
   if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
   const isMovable = a.status !== "charged";
@@ -723,7 +743,7 @@ function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-lg px-2.5 py-1 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
+        "absolute rounded-lg px-2 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
@@ -733,17 +753,17 @@ function ApptCard({
     >
       {/* Time + status */}
       <div className="flex items-center justify-between gap-1 min-w-0 leading-none">
-        <span className="text-[10px] font-bold tabular-nums truncate leading-none" style={{ color: meta.dot }}>
+        <span className="text-[9px] font-bold tabular-nums truncate leading-none" style={{ color: meta.dot }}>
           {fmtTime(start)}{a.duration_min ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min)*60000))}` : ""}
         </span>
-        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
+        <span className="shrink-0 text-[8px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
           {meta.label}
         </span>
       </div>
       {/* Client */}
-      <div className="text-[11px] font-semibold leading-tight truncate mt-1">{a.client_name || "Sin nombre"}</div>
+      <div className="text-[10px] font-semibold leading-[1.05] truncate mt-0.5">{a.client_name || "Sin nombre"}</div>
       {/* Service */}
-      {a.service_name && <div className="text-[10px] text-foreground/65 truncate leading-tight mt-0.5">{a.service_name}</div>}
+      {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-[1.05] mt-0.5">{a.service_name}</div>}
 
       {/* Quick actions removed — use detail modal instead */}
     </div>
@@ -933,24 +953,27 @@ function AppointmentDetailDialog({
 function WeekView({
   start,
   appointments,
-  hourStart = DEFAULT_HOUR_START,
-  hourEnd = DEFAULT_HOUR_END,
+  schedule,
   onApptClick,
   onSlotClick,
 }: {
   start: Date;
   appointments: Appointment[];
-  hourStart?: number;
-  hourEnd?: number;
+  schedule: ReturnType<typeof useAgendaData>["schedule"];
   onApptClick: (a: Appointment) => void;
   onSlotClick: (date: Date) => void;
 }) {
-  const HOURS = Array.from({ length: Math.max(1, hourEnd - hourStart) }, (_, i) => hourStart + i);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     return d;
   });
+  const openDays = days
+    .map((d) => getScheduleForDate(schedule, d))
+    .filter((day): day is NonNullable<typeof day> => Boolean(day?.enabled));
+  const hourStart = openDays.length ? Math.floor(Math.min(...openDays.map((day) => parseScheduleTime(day.start)))) : 0;
+  const hourEnd = openDays.length ? Math.ceil(Math.max(...openDays.map((day) => parseScheduleTime(day.end)))) : 0;
+  const HOURS = openDays.length ? Array.from({ length: Math.max(0, hourEnd - hourStart) }, (_, i) => hourStart + i) : [];
 
   return (
     <section className="glass rounded-2xl p-4">
@@ -962,10 +985,15 @@ function WeekView({
           <div />
           {days.map((d) => {
             const isToday = startOfDay(new Date()).getTime() === startOfDay(d).getTime();
+            const daySchedule = getScheduleForDate(schedule, d);
+            const isClosed = !daySchedule?.enabled;
             return (
               <div
                 key={d.toISOString()}
-                className="px-2 pb-2 pt-1 border-l border-white/[0.04] text-center"
+                className={cn(
+                  "px-2 pb-2 pt-1 border-l border-white/[0.04] text-center",
+                  isClosed && "opacity-50"
+                )}
               >
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   {fmtShortDow(d)}
@@ -995,9 +1023,13 @@ function WeekView({
           </div>
 
           {days.map((d) => {
+            const daySchedule = getScheduleForDate(schedule, d);
+            const isClosed = !daySchedule?.enabled;
             const dayAppts = appointments.filter((a) => {
               const ad = new Date(a.starts_at);
               return (
+                !isClosed &&
+                a.status !== "cancelled" &&
                 ad.getFullYear() === d.getFullYear() &&
                 ad.getMonth() === d.getMonth() &&
                 ad.getDate() === d.getDate()
@@ -1005,30 +1037,36 @@ function WeekView({
             });
             return (
               <div key={d.toISOString()} className="relative border-l border-white/[0.04]">
-                {HOURS.map((h) => (
-                  <div
-                    key={h}
-                    className="border-t border-white/[0.04] hover:bg-white/[0.02] transition cursor-pointer"
-                    style={{ height: ROW_PX }}
-                    onClick={() => {
-                      const dt = new Date(d);
-                      dt.setHours(h, 0, 0, 0);
-                      onSlotClick(dt);
-                    }}
-                  />
-                ))}
+                {isClosed ? (
+                  <div className="absolute inset-0 grid place-items-center bg-black/10 text-[11px] text-muted-foreground text-center px-2">
+                    Negocio cerrado
+                  </div>
+                ) : (
+                  HOURS.map((h) => (
+                    <div
+                      key={h}
+                      className="border-t border-white/[0.04] hover:bg-white/[0.02] transition cursor-pointer"
+                      style={{ height: ROW_PX }}
+                      onClick={() => {
+                        const dt = new Date(d);
+                        dt.setHours(h, 0, 0, 0);
+                        onSlotClick(dt);
+                      }}
+                    />
+                  ))
+                )}
                 {dayAppts.map((a) => {
                   const start = new Date(a.starts_at);
                   const startH = start.getHours() + start.getMinutes() / 60;
                   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
                   const top = (startH - hourStart) * ROW_PX + 2;
-                  const height = dur * ROW_PX - 4;
+                  const height = Math.max(dur * ROW_PX - 4, 38);
                   if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
                   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
                   return (
                     <div
                       key={a.id}
-                      className="absolute left-1 right-1 rounded-md px-1.5 py-1 cursor-pointer hover:z-10 hover:scale-[1.01] transition overflow-hidden"
+                      className="absolute left-1 right-1 rounded-md px-1.5 py-0.5 cursor-pointer hover:z-10 hover:scale-[1.01] transition overflow-hidden"
                       style={{
                         top,
                         height,
@@ -1040,13 +1078,13 @@ function WeekView({
                         onApptClick(a);
                       }}
                     >
-                      <div className="text-[9px] font-semibold leading-none" style={{ color: meta.dot }}>
-                        {fmtTime(start)}
+                      <div className="text-[8px] font-semibold leading-none truncate" style={{ color: meta.dot }}>
+                        {fmtTime(start)}{a.duration_min ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min) * 60000))}` : ""}
                       </div>
-                      <div className="text-[11px] font-semibold truncate leading-tight mt-1">
+                      <div className="text-[10px] font-semibold truncate leading-[1.05] mt-0.5">
                         {a.client_name || "—"}
                       </div>
-                      <div className="text-[10px] truncate text-foreground/70 leading-tight">
+                      <div className="text-[9px] truncate text-foreground/70 leading-[1.05] mt-0.5">
                         {a.service_name}
                       </div>
                     </div>

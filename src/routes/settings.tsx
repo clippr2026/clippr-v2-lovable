@@ -117,14 +117,78 @@ function SectionCard({ label, children }: { label: string; children: React.React
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
 function HorariosSection() {
+  const { businessId } = useAuth();
   const [days, setDays] = useState(
     DAYS.map((d, i) => ({ name: d, open: "11:00", close: "20:00", enabled: i < 6 }))
   );
+  const [saving, setSaving] = useState(false);
+  const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = data?.schedule as Record<string, any> | null | undefined;
+        if (!schedule || typeof schedule !== "object") return;
+        setDays((current) =>
+          current.map((day, i) => {
+            const saved = schedule[dayKeys[i]];
+            if (!saved || typeof saved !== "object") return day;
+            return {
+              ...day,
+              open: typeof saved.start === "string" ? saved.start : day.open,
+              close: typeof saved.end === "string" ? saved.end : day.close,
+              enabled: saved.enabled !== false,
+            };
+          })
+        );
+      });
+  }, [businessId]);
+
+  async function saveSchedule() {
+    if (!businessId) return toast.error("No se encontró el negocio");
+    setSaving(true);
+
+    const schedule = Object.fromEntries(
+      days.map((day, i) => [
+        dayKeys[i],
+        {
+          enabled: day.enabled,
+          start: day.open,
+          end: day.close,
+          breakStart: "12:00",
+          breakEnd: "13:00",
+        },
+      ])
+    );
+
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert({ business_id: businessId, schedule }, { onConflict: "business_id" });
+
+    setSaving(false);
+    if (error) return toast.error("Error guardando horarios: " + error.message);
+    toast.success("Horarios guardados");
+  }
+
   return (
     <>
-      <div>
-        <h2 className="text-xl font-display font-semibold">Horarios de atención</h2>
-        <p className="text-sm text-muted-foreground mt-1">Configurá los días y horarios en que tu barbería atiende clientes.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-display font-semibold">Horarios de atención</h2>
+          <p className="text-sm text-muted-foreground mt-1">Configurá los días y horarios en que tu barbería atiende clientes.</p>
+        </div>
+        <button
+          onClick={saveSchedule}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black hover:opacity-95 disabled:opacity-60"
+        >
+          {saving ? "Guardando…" : "Guardar horarios"} <Check className="h-4 w-4" strokeWidth={3} />
+        </button>
       </div>
 
       <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
@@ -138,7 +202,14 @@ function HorariosSection() {
               <input value={d.open} disabled={!d.enabled} onChange={(e) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, open: e.target.value } : x))} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed" />
               <input value={d.close} disabled={!d.enabled} onChange={(e) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, close: e.target.value } : x))} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed" />
               <Toggle on={d.enabled} onChange={(v) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, enabled: v } : x))} />
-              <button disabled={!d.enabled} className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/10 disabled:opacity-40">
+              <button
+                disabled={!d.enabled}
+                onClick={() => {
+                  const source = days[i];
+                  setDays((state) => state.map((row, idx) => idx > i ? { ...row, open: source.open, close: source.close, enabled: source.enabled } : row));
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/10 disabled:opacity-40"
+              >
                 <Copy className="h-3 w-3" /> Copiar
               </button>
             </div>
