@@ -343,9 +343,11 @@ function EquipoSection() {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<"datos" | "horarios" | "perfil" | "comisiones">("datos");
+  const [commissionServices, setCommissionServices] = useState<CommissionServiceRow[]>([]);
 
   const load = useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
@@ -362,10 +364,65 @@ function EquipoSection() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("price_catalog")
+      .select("id,name,category,active")
+      .eq("business_id", businessId)
+      .eq("active", true)
+      .order("category")
+      .order("name")
+      .then(({ data }) => setCommissionServices((data ?? []) as CommissionServiceRow[]));
+  }, [businessId]);
+
   function openNew() {
-    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setForm({ ...EMPTY_FORM, schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)) });
     setDlgTab("datos");
     setOpen(true);
+  }
+
+  async function openEdit(emp: EmployeeRow) {
+    const displayName = emp.full_name || emp.name || "";
+    setEditingId(emp.id);
+    setForm({
+      ...EMPTY_FORM,
+      fullName: displayName,
+      phone: emp.phone ?? "",
+      role: emp.role ?? "Barbero",
+      commissionPct: emp.commission_pct != null ? String(emp.commission_pct) : "",
+      schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)),
+    });
+    setDlgTab("datos");
+    setOpen(true);
+
+    const { data } = await supabase.from("employees").select("*").eq("id", emp.id).single();
+    if (!data) return;
+    const anyData = data as Record<string, any>;
+    const savedSchedule = anyData.schedule ?? anyData.working_hours ?? anyData.hours ?? DEFAULT_SCHEDULE;
+    setForm((f) => ({
+      ...f,
+      fullName: anyData.full_name ?? anyData.name ?? displayName,
+      email: anyData.email ?? "",
+      phone: anyData.phone ?? "",
+      role: anyData.role ?? "Barbero",
+      acceptsOnline: anyData.accepts_online ?? anyData.acceptsOnline ?? true,
+      color: anyData.agenda_color ?? anyData.color ?? AGENDA_COLORS[0],
+      schedule: savedSchedule && typeof savedSchedule === "object" ? { ...DEFAULT_SCHEDULE, ...savedSchedule } : f.schedule,
+      publicName: anyData.public_name ?? anyData.publicName ?? anyData.full_name ?? displayName,
+      description: anyData.description ?? "",
+      specialty: anyData.specialty ?? anyData.highlight_specialty ?? "",
+      commissionPct: anyData.commission_pct != null ? String(anyData.commission_pct) : "",
+    }));
+  }
+
+  async function updateIfColumnExists(id: string, field: string, value: unknown) {
+    const { error } = await supabase.from("employees").update({ [field]: value }).eq("id", id);
+    if (error) {
+      // Algunos proyectos todavía no tienen todas las columnas opcionales.
+      // Ignoramos estos campos para no romper el alta básica del profesional.
+    }
   }
 
   async function saveProfessional() {
@@ -374,28 +431,49 @@ function EquipoSection() {
     if (!name) { setDlgTab("datos"); return toast.error("Ingresá el nombre completo"); }
     setSaving(true);
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
-    const { data: inserted, error } = await supabase.from("employees").insert({
-      business_id: businessId,
-      full_name: name,
-      is_active: true,
-      commission_pct: commission,
-      
-    }).select("id").single();
-    if (error || !inserted) {
-      setSaving(false);
-      return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
+
+    let employeeId = editingId;
+    if (editingId) {
+      const { error } = await supabase
+        .from("employees")
+        .update({ full_name: name, commission_pct: commission })
+        .eq("id", editingId);
+      if (error) {
+        setSaving(false);
+        return toast.error("Error: " + error.message);
+      }
+    } else {
+      const { data: inserted, error } = await supabase.from("employees").insert({
+        business_id: businessId,
+        full_name: name,
+        is_active: true,
+        commission_pct: commission,
+      }).select("id").single();
+      if (error || !inserted) {
+        setSaving(false);
+        return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
+      }
+      employeeId = inserted.id;
     }
-    // Persist extras best-effort (ignore missing columns)
-    // Update optional fields that exist in the table
-    const extras: Record<string, unknown> = {};
-    if (form.email) extras.email = form.email;
-    if (form.phone) extras.phone = form.phone;
-    if (Object.keys(extras).length > 0) {
-      try { await supabase.from("employees").update(extras).eq("id", inserted.id); } catch { /* ignore */ }
+
+    if (employeeId) {
+      await Promise.all([
+        updateIfColumnExists(employeeId, "email", form.email || null),
+        updateIfColumnExists(employeeId, "phone", form.phone || null),
+        updateIfColumnExists(employeeId, "role", form.role || "Barbero"),
+        updateIfColumnExists(employeeId, "accepts_online", form.acceptsOnline),
+        updateIfColumnExists(employeeId, "agenda_color", form.color),
+        updateIfColumnExists(employeeId, "schedule", form.schedule),
+        updateIfColumnExists(employeeId, "public_name", form.publicName || name),
+        updateIfColumnExists(employeeId, "description", form.description || null),
+        updateIfColumnExists(employeeId, "specialty", form.specialty || null),
+      ]);
     }
+
     setSaving(false);
-    toast.success("✓ Profesional agregado");
+    toast.success(editingId ? "✓ Profesional actualizado" : "✓ Profesional agregado");
     setOpen(false);
+    setEditingId(null);
     load();
   }
 
@@ -496,6 +574,12 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
+                        onClick={() => openEdit(emp)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
+                      >
+                        ↝ Editar
+                      </button>
+                      <button
                         onClick={() => toggleActive(emp)}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
@@ -533,7 +617,7 @@ function EquipoSection() {
                 {(form.fullName[0] || "A").toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold">Nuevo profesional</div>
+                <div className="font-semibold">{editingId ? "Editar profesional" : "Agregar profesional"}</div>
                 <div className="text-xs text-muted-foreground">{form.role || "Barbero"}</div>
               </div>
               <button onClick={() => setOpen(false)} className="rounded-full p-1.5 ring-1 ring-white/10 hover:bg-white/5 text-muted-foreground">✕</button>
@@ -642,6 +726,20 @@ function EquipoSection() {
 
               {dlgTab === "perfil" && (
                 <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-14 w-14 rounded-full grid place-items-center bg-white/5 ring-1 ring-white/10 text-2xl">
+                      👤
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-xs"
+                      >
+                        <Upload className="h-3.5 w-3.5" /> Subir foto
+                      </button>
+                      <div className="mt-1 text-[11px] text-muted-foreground">JPG, PNG · máx 2MB</div>
+                    </div>
+                  </div>
                   <Field label="Nombre público">
                     <input value={form.publicName} onChange={(e) => setForm({ ...form, publicName: e.target.value })} className={inputCls} placeholder={form.fullName || "Nombre que verán los clientes"} />
                   </Field>
@@ -656,21 +754,37 @@ function EquipoSection() {
 
               {dlgTab === "comisiones" && (
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">Activá la comisión general. Podés ajustar por servicio luego de crear al profesional.</p>
-                  <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">Comisión general</div>
-                      <div className="text-xs text-muted-foreground">Aplicada a todos los servicios.</div>
+                  <p className="text-xs text-muted-foreground">💡 Activá la comisión por servicio. Si está apagada, ese servicio no genera comisión para este profesional.</p>
+                  {commissionServices.length === 0 ? (
+                    <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
+                      No hay servicios activos cargados todavía.
                     </div>
-                    <input
-                      type="number" min={0} max={100}
-                      value={form.commissionPct}
-                      onChange={(e) => setForm({ ...form, commissionPct: e.target.value })}
-                      className="w-20 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-sm text-right focus:outline-none"
-                      placeholder="0"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
+                  ) : (
+                    commissionServices.map((svc) => (
+                      <div key={svc.id} className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3">
+                        <button
+                          type="button"
+                          className="h-5 w-9 rounded-full relative bg-[oklch(0.78_0.17_55)] shrink-0"
+                        >
+                          <span className="absolute top-0.5 left-[18px] h-4 w-4 rounded-full bg-white" />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{svc.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{svc.category ?? "Servicio"}</div>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={form.commissionPct}
+                          onChange={(e) => setForm({ ...form, commissionPct: e.target.value })}
+                          className="w-20 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-sm text-right focus:outline-none"
+                          placeholder="0"
+                        />
+                        <span className="text-sm text-muted-foreground">%</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
