@@ -88,8 +88,9 @@ export function useCajaData() {
         .order("name"),
       supabase
         .from("employees")
-        .select("id,full_name")
+        .select("id,full_name,is_active")
         .eq("business_id", businessId)
+        .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")
@@ -139,7 +140,7 @@ export function useCajaData() {
     );
     setEmployees(
       empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null }>).map((r) => ({
+        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; is_active?: boolean | null }>).map((r) => ({
             id: r.id,
             name: r.full_name ?? "Sin nombre",
           }))
