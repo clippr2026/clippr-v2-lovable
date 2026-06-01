@@ -35,19 +35,78 @@ export type Appointment = {
   status: ApptStatus;
   employee_id: string | null;
   notes: string | null;
+  deposit_amount: number | null;
+  deposit_paid: number | null;
+  deposit_status: string | null;
+  client_phone: string | null;
+  client_email: string | null;
   created_by_name: string | null;
   created_by_role: string | null;
   updated_at: string | null;
 };
 
-export type Employee = { id: string; name: string; sort_order: number | null };
+export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null };
 export type Service = {
   id: string;
   name: string;
   price: number;
   duration: number | null;
 };
-export type Client = { id: string; name: string; phone: string | null };
+export type Client = {
+  id: string;
+  name?: string | null;
+  full_name?: string | null;
+  phone: string | null;
+  email?: string | null;
+  birth_date?: string | null;
+};
+
+export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+export type DaySchedule = {
+  enabled: boolean;
+  start: string;
+  end: string;
+  breakStart?: string;
+  breakEnd?: string;
+};
+export type ScheduleMap = Record<DayKey, DaySchedule>;
+
+const DAY_KEYS: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+export function parseScheduleTime(value: string) {
+  const [hh, mm = "0"] = String(value || "0:00").split(":");
+  const h = Number(hh);
+  const m = Number(mm);
+  if (!Number.isFinite(h)) return 0;
+  return h + (Number.isFinite(m) ? m / 60 : 0);
+}
+
+export function getScheduleForDate(schedule: ScheduleMap | null, date: Date): DaySchedule | null {
+  if (!schedule) return null;
+  return schedule[DAY_KEYS[date.getDay()]] ?? null;
+}
+
+function normalizeSchedule(value: unknown): ScheduleMap | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, any>;
+  const required: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+  const normalized = {} as ScheduleMap;
+  for (const key of required) {
+    const day = source[key];
+    if (!day || typeof day !== "object") return null;
+    normalized[key] = {
+      enabled: day.enabled !== false,
+      start: typeof day.start === "string" ? day.start : "00:00",
+      end: typeof day.end === "string" ? day.end : "00:00",
+      breakStart: typeof day.breakStart === "string" ? day.breakStart : undefined,
+      breakEnd: typeof day.breakEnd === "string" ? day.breakEnd : undefined,
+    };
+  }
+
+  return normalized;
+}
+
 
 export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const { businessId } = useAuth();
@@ -56,6 +115,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
+  const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
 
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
@@ -67,11 +127,11 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     }
     setLoading(true);
 
-    const [aRes, eRes, sRes, cRes] = await Promise.allSettled([
+    const [aRes, eRes, sRes, cRes, bsRes] = await Promise.allSettled([
       supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,deposit_amount,deposit_paid,deposit_status,client_phone,client_email,created_by_name,created_by_role,updated_at",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -79,20 +139,31 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("starts_at"),
       supabase
         .from("employees")
-        .select("id,name,sort_order")
+        .select("id,full_name")
         .eq("business_id", businessId)
-        .order("sort_order"),
+        .order("full_name", { ascending: true }),
       supabase
         .from("services")
-        .select("id,name,price,duration,is_active")
+        .select("id,name,price,duration_min,is_active")
         .eq("business_id", businessId)
         .order("name"),
       supabase
         .from("clients")
-        .select("id,name,phone")
+        .select("id,full_name,phone,email,birth_date")
         .eq("business_id", businessId)
-        .order("name"),
+        .order("full_name"),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
     ]);
+
+    const loadedSchedule =
+      bsRes.status === "fulfilled" && !bsRes.value.error
+        ? normalizeSchedule(bsRes.value.data?.schedule)
+        : null;
+    setSchedule(loadedSchedule);
 
     setAppointments(
       aRes.status === "fulfilled" && !aRes.value.error
@@ -128,6 +199,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     employees,
     services,
     clients,
+    schedule,
     refresh: load,
   };
 }
@@ -190,6 +262,28 @@ export async function setAppointmentStatus(id: string, status: ApptStatus) {
     updated_at: new Date().toISOString(),
   };
   const { error } = await supabase.from("appointments").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+
+export async function markAppointmentDeposit(id: string, currentNotes?: string | null) {
+  const hasDeposit = /se(ñ|n)a/i.test(currentNotes || "");
+  const nextNotes = hasDeposit
+    ? (currentNotes || "")
+        .split(/\n+/)
+        .filter((line) => !/se(ñ|n)a/i.test(line))
+        .join("\n")
+        .trim() || null
+    : [currentNotes, "Seña paga"].filter(Boolean).join("\n");
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      notes: nextNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
   if (error) throw new Error(error.message);
 }
 
