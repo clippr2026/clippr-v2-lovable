@@ -47,7 +47,8 @@ type Props = {
 const STATUS_OPTIONS: { value: ApptStatus; label: string }[] = [
   { value: "pending", label: "Pendiente" },
   { value: "confirmed", label: "Confirmado" },
-  { value: "completed", label: "Completado" },
+  { value: "completed", label: "En servicio" },
+  { value: "charged", label: "Pagado" },
   { value: "cancelled", label: "Cancelado" },
 ];
 
@@ -134,7 +135,7 @@ export function AppointmentDialog({
   const filteredClients = clientSearch.length >= 1
     ? clients.filter((c) => {
         const q = clientSearch.toLowerCase();
-        return (c.full_name ?? c.name ?? "").toLowerCase().includes(q) || (c.phone ?? "").includes(q);
+        return (c.full_name ?? c.name ?? "").toLowerCase().includes(q) || (c.phone ?? "").includes(q) || (c.email ?? "").toLowerCase().includes(q);
       }).slice(0, 8)
     : [];
   const pickService = (id: string) => {
@@ -206,7 +207,7 @@ export function AppointmentDialog({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 className="pl-8 pr-8"
-                placeholder="Buscar cliente por nombre o teléfono…"
+                placeholder="Buscar cliente por nombre, teléfono o email…"
                 value={clientSearch}
                 onChange={(e) => { setClientSearch(e.target.value); setShowClientList(true); setClientId(""); setClientName(e.target.value); }}
                 onFocus={() => setShowClientList(true)}

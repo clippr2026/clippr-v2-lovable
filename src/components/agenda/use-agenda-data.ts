@@ -40,14 +40,21 @@ export type Appointment = {
   updated_at: string | null;
 };
 
-export type Employee = { id: string; full_name: string; name?: string };
+export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null };
 export type Service = {
   id: string;
   name: string;
   price: number;
   duration: number | null;
 };
-export type Client = { id: string; name: string; phone: string | null };
+export type Client = {
+  id: string;
+  name?: string | null;
+  full_name?: string | null;
+  phone: string | null;
+  email?: string | null;
+  birth_date?: string | null;
+};
 
 export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const { businessId } = useAuth();
@@ -91,7 +98,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("name"),
       supabase
         .from("clients")
-        .select("id,full_name,phone")
+        .select("id,full_name,name,phone,email,birth_date")
         .eq("business_id", businessId)
         .order("full_name"),
       supabase
@@ -101,13 +108,36 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .maybeSingle(),
     ]);
 
-    // Parse schedule hours
+    // Parse schedule hours. Supports both simple shape
+    // { open_hour: 11, close_hour: 20 } and weekly shape
+    // { mon: { enabled: true, start: "11:00", end: "20:00" }, ... }
     if (bsRes.status === "fulfilled" && !bsRes.value.error) {
       const sched = bsRes.value.data?.schedule;
       if (sched && typeof sched === "object") {
-        const open  = (sched as { open_hour?: number }).open_hour;
-        const close = (sched as { close_hour?: number }).close_hour;
-        if (open  !== undefined) setScheduleOpen(Math.max(0, Math.min(23, open)));
+        const schedule = sched as Record<string, any>;
+        let open = typeof schedule.open_hour === "number" ? schedule.open_hour : undefined;
+        let close = typeof schedule.close_hour === "number" ? schedule.close_hour : undefined;
+
+        if (open === undefined || close === undefined) {
+          const enabledDays = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+            .map((key) => schedule[key])
+            .filter((day) => day && day.enabled !== false && day.start && day.end);
+
+          const toHour = (value: string, fallback: number) => {
+            const [hh, mm = "0"] = String(value).split(":");
+            const h = Number(hh);
+            const m = Number(mm);
+            if (!Number.isFinite(h)) return fallback;
+            return h + (Number.isFinite(m) ? m / 60 : 0);
+          };
+
+          if (enabledDays.length) {
+            open = Math.floor(Math.min(...enabledDays.map((day) => toHour(day.start, 8))));
+            close = Math.ceil(Math.max(...enabledDays.map((day) => toHour(day.end, 22))));
+          }
+        }
+
+        if (open !== undefined) setScheduleOpen(Math.max(0, Math.min(23, open)));
         if (close !== undefined) setScheduleClose(Math.max(1, Math.min(24, close)));
       }
     }
