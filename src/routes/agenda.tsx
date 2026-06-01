@@ -412,6 +412,8 @@ function AgendaPage() {
 function DayView({
   date,
   data,
+  hourStart,
+  hourEnd,
   onSlotClick,
   onApptClick,
   onChangeStatus,
@@ -419,6 +421,8 @@ function DayView({
 }: {
   date: Date;
   data: ReturnType<typeof useAgendaData>;
+  hourStart?: number;
+  hourEnd?: number;
   onSlotClick: (employeeId: string | null, startsAt: Date) => void;
   onApptClick: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
