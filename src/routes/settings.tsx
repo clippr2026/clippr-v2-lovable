@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SectionId = "branding" | "horarios" | "equipo" | "servicios" | "caja" | "plan";
+type SectionId = "branding" | "horarios" | "equipo" | "servicios" | "catalogo" | "caja" | "plan";
 
 type NavItem = {
   id: SectionId;
@@ -65,6 +65,7 @@ const groups: { label: string; items: NavItem[] }[] = [
   { label: "Operaciones", items: [
     { id: "equipo", label: "Equipo", icon: Users, tint: "text-[oklch(0.82_0.16_200)]", glow: "from-[oklch(0.82_0.16_200/0.25)] to-[oklch(0.7_0.2_220/0.05)]" },
     { id: "servicios", label: "Servicios", icon: Scissors, tint: "text-[oklch(0.78_0.17_140)]", glow: "from-[oklch(0.78_0.17_140/0.25)] to-[oklch(0.7_0.2_160/0.05)]" },
+    { id: "catalogo", label: "Catálogo", icon: Store, tint: "text-[oklch(0.82_0.14_75)]", glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]" },
   ]},
   { label: "Sistema", items: [
     { id: "caja", label: "Caja", icon: Banknote, tint: "text-[oklch(0.82_0.14_75)]", glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]" },
@@ -116,11 +117,24 @@ function SectionCard({ label, children }: { label: string; children: React.React
 // ─────────── Horarios ───────────
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
+type ReservationSettings = {
+  interval: string;
+  maxAdvance: string;
+  minCancel: string;
+};
+
+const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
+  interval: "30",
+  maxAdvance: "30",
+  minCancel: "2",
+};
+
 function HorariosSection() {
   const { businessId } = useAuth();
   const [days, setDays] = useState(
     DAYS.map((d, i) => ({ name: d, open: "11:00", close: "20:00", enabled: i < 6 }))
   );
+  const [reservationSettings, setReservationSettings] = useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
   const [saving, setSaving] = useState(false);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
@@ -146,6 +160,14 @@ function HorariosSection() {
             };
           })
         );
+        const settings = schedule._settings;
+        if (settings && typeof settings === "object") {
+          setReservationSettings({
+            interval: String(settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval),
+            maxAdvance: String(settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance),
+            minCancel: String(settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel),
+          });
+        }
       });
   }, [businessId]);
 
@@ -164,7 +186,13 @@ function HorariosSection() {
           breakEnd: "13:00",
         },
       ])
-    );
+    ) as Record<string, any>;
+
+    schedule._settings = {
+      interval: Number(reservationSettings.interval) || 30,
+      maxAdvance: Number(reservationSettings.maxAdvance) || 30,
+      minCancel: Number(reservationSettings.minCancel) || 2,
+    };
 
     const { error } = await supabase
       .from("business_settings")
@@ -174,6 +202,12 @@ function HorariosSection() {
     if (error) return toast.error("Error guardando horarios: " + error.message);
     toast.success("Horarios guardados");
   }
+
+  const reservationRows = [
+    { key: "interval" as const, icon: Timer, title: "Intervalo de turnos", hint: "Cada cuántos minutos se pueden crear turnos", suffix: "min" },
+    { key: "maxAdvance" as const, icon: CalendarDays, title: "Anticipación máxima", hint: "Con cuántos días de anticipación se puede reservar", suffix: "días" },
+    { key: "minCancel" as const, icon: AlarmClock, title: "Cancelación mínima", hint: "Con cuántas horas de anticipación se puede cancelar", suffix: "horas" },
+  ];
 
   return (
     <>
@@ -199,8 +233,8 @@ function HorariosSection() {
           {days.map((d, i) => (
             <div key={d.name} className={cn("grid grid-cols-[120px_1fr_1fr_auto_auto] gap-3 items-center py-3", !d.enabled && "opacity-50")}>
               <div className="text-sm font-medium">{d.name}</div>
-              <input value={d.open} disabled={!d.enabled} onChange={(e) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, open: e.target.value } : x))} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed" />
-              <input value={d.close} disabled={!d.enabled} onChange={(e) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, close: e.target.value } : x))} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed" />
+              <input type="time" value={d.open} disabled={!d.enabled} onChange={(e) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, open: e.target.value } : x))} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed" />
+              <input type="time" value={d.close} disabled={!d.enabled} onChange={(e) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, close: e.target.value } : x))} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed" />
               <Toggle on={d.enabled} onChange={(v) => setDays((s) => s.map((x, idx) => idx === i ? { ...x, enabled: v } : x))} />
               <button
                 disabled={!d.enabled}
@@ -219,14 +253,10 @@ function HorariosSection() {
 
       <SectionCard label="Turnos y reservas">
         <div className="divide-y divide-white/5">
-          {[
-            { icon: Timer, title: "Intervalo de turnos", hint: "Cada cuántos minutos se pueden crear turnos", value: "30 min" },
-            { icon: CalendarDays, title: "Anticipación máxima", hint: "Con cuántos días de anticipación se puede reservar", value: "30 días" },
-            { icon: AlarmClock, title: "Cancelación mínima", hint: "Con cuántas horas de anticipación se puede cancelar", value: "2 horas" },
-          ].map((r) => {
+          {reservationRows.map((r) => {
             const Icon = r.icon;
             return (
-              <div key={r.title} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+              <div key={r.key} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
                 <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
                   <Icon className="h-4.5 w-4.5 text-muted-foreground" />
                 </div>
@@ -234,7 +264,16 @@ function HorariosSection() {
                   <div className="font-medium text-sm">{r.title}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{r.hint}</div>
                 </div>
-                <div className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm">{r.value}</div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={reservationSettings[r.key]}
+                    onChange={(e) => setReservationSettings((state) => ({ ...state, [r.key]: e.target.value }))}
+                    className="w-16 bg-transparent text-sm focus:outline-none text-right"
+                  />
+                  <span className="text-xs text-muted-foreground">{r.suffix}</span>
+                </div>
               </div>
             );
           })}
@@ -343,11 +382,9 @@ function EquipoSection() {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<"datos" | "horarios" | "perfil" | "comisiones">("datos");
-  const [commissionServices, setCommissionServices] = useState<CommissionServiceRow[]>([]);
 
   const load = useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
@@ -364,65 +401,10 @@ function EquipoSection() {
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    if (!businessId) return;
-    supabase
-      .from("price_catalog")
-      .select("id,name,category,active")
-      .eq("business_id", businessId)
-      .eq("active", true)
-      .order("category")
-      .order("name")
-      .then(({ data }) => setCommissionServices((data ?? []) as CommissionServiceRow[]));
-  }, [businessId]);
-
   function openNew() {
-    setEditingId(null);
-    setForm({ ...EMPTY_FORM, schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)) });
+    setForm(EMPTY_FORM);
     setDlgTab("datos");
     setOpen(true);
-  }
-
-  async function openEdit(emp: EmployeeRow) {
-    const displayName = emp.full_name || emp.name || "";
-    setEditingId(emp.id);
-    setForm({
-      ...EMPTY_FORM,
-      fullName: displayName,
-      phone: emp.phone ?? "",
-      role: emp.role ?? "Barbero",
-      commissionPct: emp.commission_pct != null ? String(emp.commission_pct) : "",
-      schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)),
-    });
-    setDlgTab("datos");
-    setOpen(true);
-
-    const { data } = await supabase.from("employees").select("*").eq("id", emp.id).single();
-    if (!data) return;
-    const anyData = data as Record<string, any>;
-    const savedSchedule = anyData.schedule ?? anyData.working_hours ?? anyData.hours ?? DEFAULT_SCHEDULE;
-    setForm((f) => ({
-      ...f,
-      fullName: anyData.full_name ?? anyData.name ?? displayName,
-      email: anyData.email ?? "",
-      phone: anyData.phone ?? "",
-      role: anyData.role ?? "Barbero",
-      acceptsOnline: anyData.accepts_online ?? anyData.acceptsOnline ?? true,
-      color: anyData.agenda_color ?? anyData.color ?? AGENDA_COLORS[0],
-      schedule: savedSchedule && typeof savedSchedule === "object" ? { ...DEFAULT_SCHEDULE, ...savedSchedule } : f.schedule,
-      publicName: anyData.public_name ?? anyData.publicName ?? anyData.full_name ?? displayName,
-      description: anyData.description ?? "",
-      specialty: anyData.specialty ?? anyData.highlight_specialty ?? "",
-      commissionPct: anyData.commission_pct != null ? String(anyData.commission_pct) : "",
-    }));
-  }
-
-  async function updateIfColumnExists(id: string, field: string, value: unknown) {
-    const { error } = await supabase.from("employees").update({ [field]: value }).eq("id", id);
-    if (error) {
-      // Algunos proyectos todavía no tienen todas las columnas opcionales.
-      // Ignoramos estos campos para no romper el alta básica del profesional.
-    }
   }
 
   async function saveProfessional() {
@@ -431,49 +413,28 @@ function EquipoSection() {
     if (!name) { setDlgTab("datos"); return toast.error("Ingresá el nombre completo"); }
     setSaving(true);
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
-
-    let employeeId = editingId;
-    if (editingId) {
-      const { error } = await supabase
-        .from("employees")
-        .update({ full_name: name, commission_pct: commission })
-        .eq("id", editingId);
-      if (error) {
-        setSaving(false);
-        return toast.error("Error: " + error.message);
-      }
-    } else {
-      const { data: inserted, error } = await supabase.from("employees").insert({
-        business_id: businessId,
-        full_name: name,
-        is_active: true,
-        commission_pct: commission,
-      }).select("id").single();
-      if (error || !inserted) {
-        setSaving(false);
-        return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
-      }
-      employeeId = inserted.id;
+    const { data: inserted, error } = await supabase.from("employees").insert({
+      business_id: businessId,
+      full_name: name,
+      is_active: true,
+      commission_pct: commission,
+      
+    }).select("id").single();
+    if (error || !inserted) {
+      setSaving(false);
+      return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
     }
-
-    if (employeeId) {
-      await Promise.all([
-        updateIfColumnExists(employeeId, "email", form.email || null),
-        updateIfColumnExists(employeeId, "phone", form.phone || null),
-        updateIfColumnExists(employeeId, "role", form.role || "Barbero"),
-        updateIfColumnExists(employeeId, "accepts_online", form.acceptsOnline),
-        updateIfColumnExists(employeeId, "agenda_color", form.color),
-        updateIfColumnExists(employeeId, "schedule", form.schedule),
-        updateIfColumnExists(employeeId, "public_name", form.publicName || name),
-        updateIfColumnExists(employeeId, "description", form.description || null),
-        updateIfColumnExists(employeeId, "specialty", form.specialty || null),
-      ]);
+    // Persist extras best-effort (ignore missing columns)
+    // Update optional fields that exist in the table
+    const extras: Record<string, unknown> = {};
+    if (form.email) extras.email = form.email;
+    if (form.phone) extras.phone = form.phone;
+    if (Object.keys(extras).length > 0) {
+      try { await supabase.from("employees").update(extras).eq("id", inserted.id); } catch { /* ignore */ }
     }
-
     setSaving(false);
-    toast.success(editingId ? "✓ Profesional actualizado" : "✓ Profesional agregado");
+    toast.success("✓ Profesional agregado");
     setOpen(false);
-    setEditingId(null);
     load();
   }
 
@@ -574,12 +535,6 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => openEdit(emp)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
-                      >
-                        ↝ Editar
-                      </button>
-                      <button
                         onClick={() => toggleActive(emp)}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
@@ -617,7 +572,7 @@ function EquipoSection() {
                 {(form.fullName[0] || "A").toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold">{editingId ? "Editar profesional" : "Agregar profesional"}</div>
+                <div className="font-semibold">Nuevo profesional</div>
                 <div className="text-xs text-muted-foreground">{form.role || "Barbero"}</div>
               </div>
               <button onClick={() => setOpen(false)} className="rounded-full p-1.5 ring-1 ring-white/10 hover:bg-white/5 text-muted-foreground">✕</button>
@@ -726,20 +681,6 @@ function EquipoSection() {
 
               {dlgTab === "perfil" && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-full grid place-items-center bg-white/5 ring-1 ring-white/10 text-2xl">
-                      👤
-                    </div>
-                    <div>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-xs"
-                      >
-                        <Upload className="h-3.5 w-3.5" /> Subir foto
-                      </button>
-                      <div className="mt-1 text-[11px] text-muted-foreground">JPG, PNG · máx 2MB</div>
-                    </div>
-                  </div>
                   <Field label="Nombre público">
                     <input value={form.publicName} onChange={(e) => setForm({ ...form, publicName: e.target.value })} className={inputCls} placeholder={form.fullName || "Nombre que verán los clientes"} />
                   </Field>
@@ -754,37 +695,21 @@ function EquipoSection() {
 
               {dlgTab === "comisiones" && (
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">💡 Activá la comisión por servicio. Si está apagada, ese servicio no genera comisión para este profesional.</p>
-                  {commissionServices.length === 0 ? (
-                    <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
-                      No hay servicios activos cargados todavía.
+                  <p className="text-xs text-muted-foreground">Activá la comisión general. Podés ajustar por servicio luego de crear al profesional.</p>
+                  <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">Comisión general</div>
+                      <div className="text-xs text-muted-foreground">Aplicada a todos los servicios.</div>
                     </div>
-                  ) : (
-                    commissionServices.map((svc) => (
-                      <div key={svc.id} className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3">
-                        <button
-                          type="button"
-                          className="h-5 w-9 rounded-full relative bg-[oklch(0.78_0.17_55)] shrink-0"
-                        >
-                          <span className="absolute top-0.5 left-[18px] h-4 w-4 rounded-full bg-white" />
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{svc.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{svc.category ?? "Servicio"}</div>
-                        </div>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={form.commissionPct}
-                          onChange={(e) => setForm({ ...form, commissionPct: e.target.value })}
-                          className="w-20 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-sm text-right focus:outline-none"
-                          placeholder="0"
-                        />
-                        <span className="text-sm text-muted-foreground">%</span>
-                      </div>
-                    ))
-                  )}
+                    <input
+                      type="number" min={0} max={100}
+                      value={form.commissionPct}
+                      onChange={(e) => setForm({ ...form, commissionPct: e.target.value })}
+                      className="w-20 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-sm text-right focus:outline-none"
+                      placeholder="0"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -812,7 +737,7 @@ function EquipoSection() {
   );
 }
 
-// ─────────── Servicios ───────────
+// ─────────── Servicios y Catálogo ───────────
 type PriceRow = {
   id: string;
   name: string;
@@ -823,11 +748,178 @@ type PriceRow = {
   stock?: number | null;
 };
 
-function ServiciosSection() {
+type PriceForm = {
+  name: string;
+  price: string;
+  discount: string;
+  duration: string;
+  status: "Activo" | "Inactivo";
+  category: string;
+  description: string;
+  reservable: boolean;
+  stock: string;
+  warnStock: string;
+  criticalStock: string;
+};
+
+const emptyPriceForm = (category = "Servicios", isService = true): PriceForm => ({
+  name: "",
+  price: "0",
+  discount: "0",
+  duration: isService ? "30" : "",
+  status: "Activo",
+  category,
+  description: "",
+  reservable: true,
+  stock: "0",
+  warnStock: "0",
+  criticalStock: "0",
+});
+
+const serviceCategories = ["Servicios", "Otros"];
+const catalogCategories = ["Productos", "Bebidas", "Indumentaria"];
+
+function priceToCash(price: string, discount: string) {
+  const p = Number(price) || 0;
+  const d = Number(discount) || 0;
+  return Math.max(0, Math.round(p - (p * d) / 100));
+}
+
+function rowToForm(row: PriceRow, isService: boolean): PriceForm {
+  return {
+    name: row.name ?? "",
+    price: String(row.price ?? 0),
+    discount: "0",
+    duration: row.duration_min ? String(row.duration_min) : isService ? "30" : "",
+    status: row.active === false ? "Inactivo" : "Activo",
+    category: row.category || (isService ? "Servicios" : "Productos"),
+    description: "",
+    reservable: row.active !== false,
+    stock: String(row.stock ?? 0),
+    warnStock: "0",
+    criticalStock: "0",
+  };
+}
+
+function PriceEditorModal({
+  open,
+  mode,
+  isService,
+  form,
+  setForm,
+  onClose,
+  onSave,
+  saving,
+}: {
+  open: boolean;
+  mode: "new" | "edit";
+  isService: boolean;
+  form: PriceForm;
+  setForm: (form: PriceForm) => void;
+  onClose: () => void;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  if (!open) return null;
+  const cashPrice = priceToCash(form.price, form.discount);
+  const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : form.category.toLowerCase()}`;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-xl rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+          <h3 className="font-display text-lg font-semibold">{title}</h3>
+          <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5">✕</button>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          <Field label={isService ? "Nombre del servicio" : "Nombre"}>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder={isService ? "Corte + Barba" : "Nombre del producto"} />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Precio de lista">
+              <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className={inputCls} />
+            </Field>
+            <Field label="Descuento efectivo (%)">
+              <input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} className={inputCls} />
+            </Field>
+          </div>
+
+          <div className="rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 text-sm text-muted-foreground">
+            💵 Precio en efectivo: <span className="font-semibold text-[oklch(0.82_0.14_75)]">${cashPrice.toLocaleString("es-AR")}</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {isService && (
+              <Field label="Duración (min)">
+                <input type="number" min={0} value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} className={inputCls} />
+              </Field>
+            )}
+            <Field label="Estado">
+              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as PriceForm["status"] })} className={inputCls}>
+                <option>Activo</option>
+                <option>Inactivo</option>
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Categoría">
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls}>
+              {(isService ? serviceCategories : catalogCategories).map((category) => <option key={category}>{category}</option>)}
+            </select>
+          </Field>
+
+          <Field label="Descripción (opcional)">
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={cn(inputCls, "min-h-[100px] resize-y")} placeholder="Describí el servicio, qué incluye, técnica, stock o detalles…" />
+          </Field>
+
+          <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
+            <div>
+              <div className="text-sm font-medium">Se puede reservar online</div>
+              <div className="text-xs text-muted-foreground">Disponible para reserva/compra online</div>
+            </div>
+            <Toggle on={form.reservable} onChange={(v) => setForm({ ...form, reservable: v })} />
+          </label>
+
+          {!isService && (
+            <SectionCard label="Stock">
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Stock inicial">
+                  <input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className={inputCls} />
+                </Field>
+                <Field label="⚠️ Avisar en">
+                  <input type="number" value={form.warnStock} onChange={(e) => setForm({ ...form, warnStock: e.target.value })} className={inputCls} />
+                </Field>
+                <Field label="🔴 Crítico en">
+                  <input type="number" value={form.criticalStock} onChange={(e) => setForm({ ...form, criticalStock: e.target.value })} className={inputCls} />
+                </Field>
+              </div>
+            </SectionCard>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 px-6 py-5 border-t border-white/5">
+          <button onClick={onSave} disabled={saving} className="flex-1 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm disabled:opacity-50">
+            {saving ? "Guardando…" : `Guardar ${isService ? "servicio" : form.category.toLowerCase()}`}
+          </button>
+          <button onClick={onClose} disabled={saving} className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
+  const isService = kind === "servicios";
   const { businessId } = useAuth();
   const [rows, setRows] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cat, setCat] = useState<string>("__all");
+  const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
+  const [editing, setEditing] = useState<PriceRow | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<PriceForm>(emptyPriceForm(isService ? "Servicios" : "Productos", isService));
 
   const load = useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
@@ -845,23 +937,59 @@ function ServiciosSection() {
 
   useEffect(() => { load(); }, [load]);
 
-  const categories = Array.from(
-    new Set(rows.map((r) => (r.category || "Otros").trim()).filter(Boolean))
-  );
-  const filtered = cat === "__all" ? rows : rows.filter((r) => (r.category || "Otros") === cat);
+  const visibleRows = rows.filter((row) => {
+    const category = (row.category || "Otros").toLowerCase();
+    if (isService) return row.duration_min != null || category.includes("servicio") || category === "otros";
+    return row.duration_min == null && !category.includes("servicio") && category !== "otros";
+  });
+  const categories = Array.from(new Set((isService ? serviceCategories : catalogCategories).concat(visibleRows.map((r) => r.category || (isService ? "Servicios" : "Productos")))));
+  const filtered = visibleRows.filter((r) => (r.category || (isService ? "Servicios" : "Productos")) === cat);
 
-  async function toggle(r: PriceRow) {
-    const { error } = await supabase
-      .from("price_catalog")
-      .update({ active: !r.active })
-      .eq("id", r.id);
+  function openNew() {
+    setEditing(null);
+    setForm(emptyPriceForm(cat, isService));
+    setModalOpen(true);
+  }
+
+  function openEdit(row: PriceRow) {
+    setEditing(row);
+    setForm(rowToForm(row, isService));
+    setModalOpen(true);
+  }
+
+  async function saveItem() {
+    if (!businessId) return toast.error("No se encontró el negocio");
+    if (!form.name.trim()) return toast.error("Ingresá un nombre");
+    setSaving(true);
+    const payload: Record<string, unknown> = {
+      business_id: businessId,
+      name: form.name.trim(),
+      price: Number(form.price) || 0,
+      category: form.category,
+      active: form.status === "Activo" && form.reservable,
+      duration_min: isService ? Number(form.duration) || 30 : null,
+    };
+    if (!isService) payload.stock = Number(form.stock) || 0;
+
+    const { error } = editing
+      ? await supabase.from("price_catalog").update(payload).eq("id", editing.id)
+      : await supabase.from("price_catalog").insert(payload);
+    setSaving(false);
+    if (error) return toast.error("Error: " + error.message);
+    toast.success(isService ? "Servicio guardado" : "Ítem guardado");
+    setModalOpen(false);
+    load();
+  }
+
+  async function toggle(row: PriceRow) {
+    const { error } = await supabase.from("price_catalog").update({ active: !row.active }).eq("id", row.id);
     if (error) return toast.error("Error: " + error.message);
     load();
   }
 
-  async function remove(r: PriceRow) {
-    if (!confirm(`¿Eliminar ${r.name}?`)) return;
-    const { error } = await supabase.from("price_catalog").delete().eq("id", r.id);
+  async function remove(row: PriceRow) {
+    if (!confirm(`¿Eliminar ${row.name}?`)) return;
+    const { error } = await supabase.from("price_catalog").delete().eq("id", row.id);
     if (error) return toast.error("Error: " + error.message);
     toast.success("Eliminado");
     load();
@@ -871,28 +999,23 @@ function ServiciosSection() {
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-display font-semibold">Catálogo del negocio</h2>
+          <h2 className="text-xl font-display font-semibold">{isService ? "Servicios" : "Catálogo"}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Precios/servicios sincronizados con Caja → Nueva Venta. Para crear nuevos ítems usá la pestaña <b>Precios</b> en Caja & Cobro.
+            {isService ? "Administrá únicamente los servicios que se reservan y se cobran en Caja." : "Administrá productos, bebidas, indumentaria y otros ítems del negocio."}
           </p>
         </div>
+        <button onClick={openNew} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm">
+          <Plus className="h-4 w-4" /> {isService ? "Nuevo servicio" : `Nuevo ${cat.toLowerCase()}`}
+        </button>
       </div>
 
       <div className="glass rounded-2xl ring-1 ring-white/5">
         <div className="flex items-center gap-1 px-3 pt-3 border-b border-white/5 overflow-x-auto">
-          {[{ id: "__all", label: "Todos" }, ...categories.map((c) => ({ id: c, label: c }))].map((c) => {
-            const active = c.id === cat;
+          {categories.map((category) => {
+            const active = category === cat;
             return (
-              <button
-                key={c.id}
-                onClick={() => setCat(c.id)}
-                className={cn(
-                  "inline-flex items-center gap-2 px-3 py-2 text-sm rounded-t-lg transition-colors whitespace-nowrap",
-                  active ? "bg-white/5 text-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Scissors className="h-3.5 w-3.5" />
-                {c.label}
+              <button key={category} onClick={() => setCat(category)} className={cn("inline-flex items-center gap-2 px-3 py-2 text-sm rounded-t-lg transition-colors whitespace-nowrap", active ? "bg-white/5 text-foreground" : "text-muted-foreground hover:text-foreground")}> 
+                <Scissors className="h-3.5 w-3.5" /> {category}
               </button>
             );
           })}
@@ -901,53 +1024,43 @@ function ServiciosSection() {
         {loading ? (
           <div className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
         ) : filtered.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-            No hay ítems en este catálogo.
-          </div>
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">No hay ítems en esta sección.</div>
         ) : (
           <div className="divide-y divide-white/5">
-            {filtered.map((s) => (
-              <div key={s.id} className="flex items-center gap-4 px-5 py-4">
+            {filtered.map((row) => (
+              <div key={row.id} className="flex items-center gap-4 px-5 py-4">
                 <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)] shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{s.name}</div>
+                  <div className="font-medium text-sm">{row.name}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {s.category || "Otros"}{s.duration_min ? ` · ${s.duration_min} min` : ""}
-                    {typeof s.stock === "number" ? ` · stock ${s.stock}` : ""}
+                    {row.category || (isService ? "Servicios" : "Productos")}{row.duration_min ? ` · ${row.duration_min} min` : ""}{typeof row.stock === "number" && !isService ? ` · stock ${row.stock}` : ""}
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">${Number(s.price).toLocaleString("es-AR")}</div>
-                </div>
-                <span className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
-                  s.active
-                    ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-                    : "bg-white/5 ring-white/10 text-muted-foreground"
-                )}>
-                  <span className={cn("h-1.5 w-1.5 rounded-full", s.active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground")} /> {s.active ? "Activo" : "Inactivo"}
+                <div className="text-right shrink-0"><div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">${Number(row.price).toLocaleString("es-AR")}</div></div>
+                <span className={cn("inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider", row.active !== false ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]" : "bg-white/5 ring-white/10 text-muted-foreground")}> 
+                  <span className={cn("h-1.5 w-1.5 rounded-full", row.active !== false ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground")} /> {row.active !== false ? "Activo" : "Inactivo"}
                 </span>
-                <button
-                  onClick={() => toggle(s)}
-                  className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1 text-xs text-muted-foreground"
-                >
-                  {s.active ? "Off" : "On"}
-                </button>
-                <button
-                  onClick={() => remove(s)}
-                  className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2 py-1.5"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <button onClick={() => openEdit(row)} className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs">Editar</button>
+                <button onClick={() => toggle(row)} className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1 text-xs text-muted-foreground">{row.active !== false ? "Off" : "On"}</button>
+                <button onClick={() => remove(row)} className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2 py-1.5"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <PriceEditorModal open={modalOpen} mode={editing ? "edit" : "new"} isService={isService} form={form} setForm={setForm} onClose={() => setModalOpen(false)} onSave={saveItem} saving={saving} />
     </>
   );
 }
 
+function ServiciosSection() {
+  return <PriceCatalogSection kind="servicios" />;
+}
+
+function CatalogoSection() {
+  return <PriceCatalogSection kind="catalogo" />;
+}
 
 // ─────────── Caja ───────────
 function CajaSection() {
@@ -1187,6 +1300,7 @@ function SettingsPage() {
           {active === "horarios" && <HorariosSection />}
           {active === "equipo" && <EquipoSection />}
           {active === "servicios" && <ServiciosSection />}
+          {active === "catalogo" && <CatalogoSection />}
           {active === "caja" && <CajaSection />}
 
           {active === "plan" && <PlanSection />}
