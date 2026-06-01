@@ -325,7 +325,10 @@ function HorariosSection() {
 
 
   useEffect(() => {
-    const handler = () => void saveSchedule();
+    const handler = (event: Event) => {
+      const section = (event as CustomEvent).detail?.section;
+      if (!section || section === "horarios") void saveSchedule();
+    };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, [businessId, days, reservationSettings]);
@@ -1916,6 +1919,27 @@ function CajaSection() {
     if (error) console.warn("[CajaSection] saveMode:", error.message);
   }
 
+  async function saveCajaSettings() {
+    if (!businessId) return toast.error("No se encontró el negocio");
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert(
+        { business_id: businessId, approval_mode: mode },
+        { onConflict: "business_id" },
+      );
+    if (error) return toast.error("Error guardando caja: " + error.message);
+    toast.success("Configuración guardada");
+  }
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const section = (event as CustomEvent).detail?.section;
+      if (!section || section === "caja") void saveCajaSettings();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, [businessId, mode]);
+
   const M = [
     {
       id: "efectivo",
@@ -2075,7 +2099,7 @@ function SettingsPage() {
         subtitle="Personalizá tu negocio"
         action={
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings"))}
+            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: { section: active } }))}
             className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition"
           >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />
