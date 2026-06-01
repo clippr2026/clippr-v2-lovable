@@ -58,16 +58,6 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const data = useCajaData();
   const [tab, setTab] = useState<Tab>("resumen");
-  const [depositAppointmentId, setDepositAppointmentId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("depositAppointmentId");
-    if (id) {
-      setDepositAppointmentId(id);
-      setTab("nueva");
-    }
-  }, []);
 
   useEffect(() => {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
@@ -89,7 +79,7 @@ function CashRegisterPage() {
       <Tabs tab={tab} onChange={setTab} />
       <div className="mt-6">
         {tab === "resumen" && <ResumenTab data={data} />}
-        {tab === "nueva" && <NuevaVentaTab data={data} depositAppointmentId={depositAppointmentId} />}
+        {tab === "nueva" && <NuevaVentaTab data={data} />}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
@@ -500,112 +490,34 @@ function History({ data }: { data: ReturnType<typeof useCajaData> }) {
 }
 
 // ───────────────────────────── NUEVA VENTA
-type UIMethod = "efectivo" | "tarjeta" | "transferencia";
-const UI_TO_DB: Record<UIMethod, PayMethod> = {
-  efectivo: "cash",
-  tarjeta: "card",
-  transferencia: "transfer",
-};
-
-function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof useCajaData>; depositAppointmentId?: string | null }) {
-  const navigate = useNavigate();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<string>("Todos");
+  const [clientId, setClientId] = useState<string | null>(null);
   const [client, setClient] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [employeeId, setEmployeeId] = useState<string>("");
-  const [method, setMethod] = useState<UIMethod>("efectivo");
+  const [method, setMethod] = useState<PayMethod>("cash");
+  const [paymentMode, setPaymentMode] = useState<"simple" | "multiple">("simple");
+  const [received, setReceived] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [depositAppointment, setDepositAppointment] = useState<null | {
-    id: string;
-    client_name: string | null;
-    service_name: string | null;
-    service_price: number | null;
-    employee_id: string | null;
-    notes: string | null;
-    status: string | null;
-  }>(null);
-  const [depositAmount, setDepositAmount] = useState<number>(0);
-  const [depositLoading, setDepositLoading] = useState(false);
-
-  useEffect(() => {
-    if (!depositAppointmentId) return;
-    let alive = true;
-    setDepositLoading(true);
-    supabase
-      .from("appointments")
-      .select("id,client_name,service_name,service_price,employee_id,notes,status")
-      .eq("id", depositAppointmentId)
-      .single()
-      .then(({ data: appt, error }) => {
-        if (!alive) return;
-        if (error || !appt) {
-          toast.error(error?.message || "No se encontró el turno para cobrar seña.");
-          return;
-        }
-        const normalized = appt as typeof depositAppointment;
-        setDepositAppointment(normalized);
-        setClient(normalized?.client_name || "");
-        setEmployeeId(normalized?.employee_id || "");
-        setDepositAmount(Number(normalized?.service_price || 0));
-      })
-      .finally(() => { if (alive) setDepositLoading(false); });
-    return () => { alive = false; };
-  }, [depositAppointmentId]);
-
-  async function handleCobrarSena() {
-    if (!depositAppointment || !data.businessId) {
-      toast.error("Falta el turno o el negocio para cobrar la seña.");
-      return;
-    }
-    if (depositAmount <= 0) {
-      toast.error("Indicá el monto de la seña.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await registerPayment({
-        businessId: data.businessId,
-        employeeId: depositAppointment.employee_id || null,
-        clientName: depositAppointment.client_name || "Cliente",
-        items: [{
-          serviceName: `Seña - ${depositAppointment.service_name || "Turno"}`,
-          amount: depositAmount,
-        }],
-        method: UI_TO_DB[method],
-        sessionId: data.cashSessionId,
-        chargedBy: data.profileId,
-      });
-
-      const currentNotes = depositAppointment.notes || "";
-      const nextNotes = /se(ñ|n)a/i.test(currentNotes)
-        ? currentNotes
-        : [currentNotes, "Seña paga"].filter(Boolean).join("\n");
-
-      const { error } = await supabase
-        .from("appointments")
-        .update({
-          status: "confirmed",
-          notes: nextNotes,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", depositAppointment.id);
-      if (error) throw new Error(error.message);
-
-      toast.success("Seña cobrada · turno confirmado");
-      navigate({ to: "/agenda" });
-    } catch (e) {
-      toast.error((e as Error).message || "Error al cobrar la seña");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   const services = data.services;
-  const filtered = services.filter((i) =>
-    (i.name ?? "").toLowerCase().includes(query.toLowerCase())
-  );
+  const categories = useMemo(() => {
+    const list = Array.from(new Set(services.map((s) => s.category || "Otros"))).filter(Boolean);
+    return ["Todos", ...list];
+  }, [services]);
+
+  const filtered = services.filter((i) => {
+    const q = query.trim().toLowerCase();
+    const matchesText = !q || `${i.name} ${i.category ?? ""}`.toLowerCase().includes(q);
+    const matchesCategory = category === "Todos" || (i.category || "Otros") === category;
+    return matchesText && matchesCategory;
+  });
 
   const cartItems = Object.entries(cart)
     .map(([id, qty]) => {
@@ -616,6 +528,9 @@ function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof
 
   const total = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
+  const receivedNumber = Number(received || 0);
+  const change = method === "cash" && receivedNumber > total ? receivedNumber - total : 0;
+  const selectedEmployee = data.employees.find((e) => e.id === employeeId);
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
   const sub = (id: string) =>
@@ -625,18 +540,61 @@ function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof
       return n <= 0 ? rest : { ...c, [id]: n };
     });
 
+  function goNext() {
+    if (step === 1 && !employeeId) {
+      toast.error("Seleccioná un profesional.");
+      return;
+    }
+    if (step === 2 && !client.trim()) {
+      toast.error("Completá o seleccioná un cliente.");
+      return;
+    }
+    if (step === 3 && cartItems.length === 0) {
+      toast.error("Agregá al menos un servicio o producto.");
+      return;
+    }
+    setStep((s) => (s < 4 ? ((s + 1) as 1 | 2 | 3 | 4) : s));
+  }
+
+  async function saveClientIfNeeded() {
+    if (!data.businessId || clientId || !client.trim()) return;
+    try {
+      const { data: created, error } = await supabase
+        .from("clients")
+        .insert({
+          business_id: data.businessId,
+          name: client.trim(),
+          phone: phone.trim() || null,
+          email: email.trim() || null,
+          birth_date: birthDate || null,
+        })
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (created?.id) setClientId(created.id);
+    } catch (e) {
+      console.warn("[cash-register] no se pudo guardar cliente nuevo", e);
+    }
+  }
+
   async function handleCobrar() {
     if (!data.businessId) {
       toast.error("No se pudo identificar el negocio.");
       return;
     }
+    if (!employeeId) {
+      toast.error("Seleccioná un profesional.");
+      setStep(1);
+      return;
+    }
     if (cartItems.length === 0) {
       toast.error("Agregá al menos un servicio.");
+      setStep(3);
       return;
     }
     setSubmitting(true);
     try {
-      // Expandir qty: una fila de payments por cada unidad cobrada (replica app.js)
+      await saveClientIfNeeded();
       const items = cartItems.flatMap(({ svc, qty }) =>
         Array.from({ length: qty }, () => ({
           serviceName: svc.name,
@@ -649,17 +607,19 @@ function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof
         employeeId: employeeId || null,
         clientName: client.trim() || "Cliente del mostrador",
         items,
-        method: UI_TO_DB[method],
+        method,
         sessionId: data.cashSessionId,
         chargedBy: data.profileId,
       });
 
-      toast.success(
-        `💰 $${total.toLocaleString("es-AR")} cobrado · ${client.trim() || "Mostrador"}`
-      );
+      toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
       setCart({});
+      setClientId(null);
       setClient("");
       setPhone("");
+      setEmail("");
+      setBirthDate("");
+      setReceived("");
       setStep(1);
       await data.refresh();
     } catch (e) {
@@ -669,100 +629,31 @@ function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof
     }
   }
 
+  const stepItems = [
+    { n: 1, label: "Profesional" },
+    { n: 2, label: "Cliente" },
+    { n: 3, label: "Servicios" },
+    { n: 4, label: "Pago" },
+  ] as const;
+
   return (
     <div className="space-y-5">
-      {depositAppointmentId && (
-        <Card className="p-5 border-amber-300/20 bg-amber-300/[0.03]">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <p className="text-[11px] tracking-[0.18em] text-amber-200/80 font-medium uppercase">Cobrar seña del turno</p>
-              {depositLoading ? (
-                <p className="mt-2 text-sm text-muted-foreground inline-flex items-center gap-2"><Loader2 className="size-3.5 animate-spin" /> Cargando turno…</p>
-              ) : depositAppointment ? (
-                <>
-                  <h3 className="mt-2 text-lg font-semibold text-foreground">{depositAppointment.client_name || "Cliente"}</h3>
-                  <p className="text-sm text-muted-foreground">{depositAppointment.service_name || "Servicio"}</p>
-                </>
-              ) : (
-                <p className="mt-2 text-sm text-muted-foreground">No se pudo cargar el turno.</p>
-              )}
-            </div>
-            <button
-              onClick={() => navigate({ to: "/agenda" })}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Volver a Agenda
-            </button>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-            <label className="grid gap-1.5 text-sm">
-              <span className="text-xs text-muted-foreground">Monto de seña</span>
-              <input
-                type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(Number(e.target.value))}
-                className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-amber-300/50"
-              />
-            </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="text-xs text-muted-foreground">Método</span>
-              <select
-                value={method}
-                onChange={(e) => setMethod(e.target.value as UIMethod)}
-                className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-amber-300/50"
-              >
-                <option value="efectivo">Efectivo</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="tarjeta">Tarjeta</option>
-              </select>
-            </label>
-            <button
-              onClick={handleCobrarSena}
-              disabled={submitting || depositLoading || !depositAppointment}
-              className="rounded-xl bg-gradient-to-r from-amber-200 to-amber-400 text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50"
-            >
-              {submitting ? "Confirmando…" : "Confirmar seña"}
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {/* stepper */}
-      <Card className="p-2">
-        <div className="grid grid-cols-3 gap-1">
-          {[
-            { n: 1, label: "Servicios" },
-            { n: 2, label: "Cliente" },
-            { n: 3, label: "Pago" },
-          ].map((s) => {
+      <Card className="p-1.5">
+        <div className="grid grid-cols-4 gap-1">
+          {stepItems.map((s) => {
             const active = step === s.n;
-            const done = step > s.n;
             return (
               <button
                 key={s.n}
-                onClick={() => setStep(s.n as 1 | 2 | 3)}
+                onClick={() => setStep(s.n)}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                  "rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border",
                   active
-                    ? "bg-gradient-to-b from-amber-300/15 to-amber-300/0 border border-amber-300/30 text-foreground shadow-[0_0_30px_-10px] shadow-amber-300/40"
-                    : "text-muted-foreground hover:text-foreground border border-transparent"
+                    ? "bg-gradient-to-b from-amber-200 to-amber-300 text-black border-amber-200"
+                    : "text-muted-foreground border-white/10 bg-white/[0.02] hover:text-foreground"
                 )}
               >
-                <span
-                  className={cn(
-                    "size-6 rounded-full grid place-items-center text-xs font-semibold",
-                    active
-                      ? "bg-amber-300 text-zinc-950"
-                      : done
-                        ? "bg-emerald-400/20 text-emerald-300"
-                        : "bg-white/5 text-muted-foreground"
-                  )}
-                >
-                  {done ? <Check className="size-3.5" /> : s.n}
-                </span>
-                {s.label}
-                {s.n < 3 && <ArrowRight className="size-3.5 ml-auto text-muted-foreground/50" />}
+                {s.n} · {s.label}
               </button>
             );
           })}
@@ -770,206 +661,252 @@ function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof
       </Card>
 
       {step === 1 && (
-        <>
-          <Card className="px-4 py-3 flex items-center gap-3">
-            <Search className="size-4 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar servicios..."
-              className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
-            />
-          </Card>
-
-          <div className="space-y-2">
-            {data.loading ? (
-              <Card className="px-4 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
-                <Loader2 className="size-4 animate-spin" /> Cargando servicios…
-              </Card>
-            ) : filtered.length === 0 ? (
-              <Card className="px-4 py-12 text-center text-sm text-muted-foreground">
-                {services.length === 0
-                  ? "Sin servicios cargados. Agregá servicios en la pestaña Precios."
-                  : "Sin resultados."}
-              </Card>
-            ) : (
-              filtered.map((it) => {
-                const qty = cart[it.id] ?? 0;
-                return (
-                  <Card
-                    key={it.id}
-                    className="px-4 py-3.5 flex items-center gap-4 hover:bg-white/[0.04] transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-foreground">{it.name}</p>
-                        {it.category && (
-                          <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                            {it.category}
-                          </span>
-                        )}
-                        {typeof it.stock === "number" && it.category !== "servicios" && (
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] tabular-nums",
-                              it.stock <= 0
-                                ? "bg-rose-400/10 text-rose-300 border border-rose-400/30"
-                                : "bg-white/[0.04] text-muted-foreground border border-white/10",
-                            )}
-                          >
-                            stock {it.stock}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                        {it.duration ? (
-                          <>
-                            <Clock className="inline size-3 -mt-0.5" /> {it.duration} min
-                          </>
-                        ) : (
-                          it.category ?? "ítem"
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-sm font-semibold text-foreground tabular-nums">
-                      ${Number(it.price).toLocaleString("es-AR")}
-                    </div>
-                    {qty > 0 ? (
-                      <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
-                        <button
-                          onClick={() => sub(it.id)}
-                          className="size-7 grid place-items-center rounded-md hover:bg-white/5 text-muted-foreground hover:text-foreground"
-                        >
-                          <Minus className="size-3.5" />
-                        </button>
-                        <span className="px-2 text-sm tabular-nums">{qty}</span>
-                        <button
-                          onClick={() => add(it.id)}
-                          className="size-7 grid place-items-center rounded-md hover:bg-white/5 text-foreground"
-                        >
-                          <Plus className="size-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => add(it.id)}
-                        className="size-8 grid place-items-center rounded-lg border border-amber-300/30 bg-amber-300/10 text-amber-200 hover:bg-amber-300/20 transition-colors"
-                      >
-                        <Plus className="size-4" />
-                      </button>
-                    )}
-                  </Card>
-                );
-              })
-            )}
-          </div>
-        </>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Seleccioná un profesional</p>
+          {data.employees.map((e) => {
+            const active = employeeId === e.id;
+            const name = e.name;
+            return (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => setEmployeeId(e.id)}
+                className={cn(
+                  "w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left transition-all",
+                  active
+                    ? "border-amber-300/50 bg-amber-300/10"
+                    : "border-white/10 bg-white/[0.025] hover:bg-white/[0.04]"
+                )}
+              >
+                <span className="size-9 rounded-full bg-gradient-to-br from-amber-200/80 to-amber-500/80 text-black font-semibold grid place-items-center">
+                  {(name || "P").slice(0, 1).toUpperCase()}
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-foreground">{name}</span>
+                  <span className="block text-xs text-muted-foreground">Profesional</span>
+                </span>
+                {active ? <Check className="size-4 text-amber-200" /> : <ArrowRight className="size-4 text-muted-foreground" />}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {step === 2 && (
-        <Card className="p-6 space-y-4">
-          <h3 className="text-base font-semibold text-foreground">Datos del cliente</h3>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <ClientAutocomplete
+        <Card className="p-5 space-y-4">
+          <ClientAutocomplete
+            value={client}
+            onChange={(v) => {
+              setClient(v);
+              setClientId(null);
+            }}
+            onPick={(c) => {
+              setClientId(c.id);
+              setClient(c.name ?? "");
+              setPhone(c.phone ?? "");
+              setEmail(c.email ?? "");
+              setBirthDate(c.birth_date ?? "");
+            }}
+            clients={data.clients}
+          />
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
+            <span className="h-px flex-1 bg-white/10" />
+            o completá los datos para crear uno nuevo
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+          <div className="space-y-3">
+            <input
               value={client}
-              onChange={setClient}
-              onPick={(c) => {
-                setClient(c.full_name ?? c.name ?? "");
-                if (c.phone) setPhone(c.phone);
+              onChange={(e) => {
+                setClient(e.target.value);
+                setClientId(null);
               }}
-              clients={data.clients}
+              placeholder="Nombre *"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
             />
-            <label className="block">
-              <span className="text-xs text-muted-foreground">Teléfono</span>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+54 ..."
-                className="mt-1 w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-              />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-xs text-muted-foreground">Profesional</span>
-              <select
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                className="mt-1 w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-              >
-                <option value="">— Sin asignar —</option>
-                {data.employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.full_name ?? e.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Teléfono"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+            />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+            />
+            <input
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+              type="date"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+            />
           </div>
         </Card>
       )}
 
       {step === 3 && (
-        <Card className="p-6 space-y-5">
-          <h3 className="text-base font-semibold text-foreground">Método de pago</h3>
-          <div className="grid grid-cols-3 gap-3">
-            {(
-              [
-                { id: "efectivo", label: "Efectivo", icon: Banknote },
-                { id: "tarjeta", label: "Tarjeta", icon: CreditCard },
-                { id: "transferencia", label: "Transferencia", icon: Smartphone },
-              ] as const
-            ).map((m) => {
-              const active = method === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setMethod(m.id)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all",
-                    active
-                      ? "border-amber-300/40 bg-gradient-to-b from-amber-300/15 to-amber-300/0 text-foreground shadow-[0_0_25px_-8px] shadow-amber-300/50"
-                      : "border-white/10 bg-white/[0.02] text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <m.icon className="size-5" /> <span className="text-sm font-medium">{m.label}</span>
-                </button>
-              );
-            })}
+        <div className="space-y-4">
+          <Card className="px-4 py-3 flex items-center gap-3">
+            <Search className="size-4 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar servicio o producto..."
+              className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+            />
+          </Card>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategory(c)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors capitalize",
+                  category === c
+                    ? "border-amber-300/50 bg-amber-300/10 text-amber-200"
+                    : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {c}
+              </button>
+            ))}
           </div>
-          <div className="flex items-center justify-between pt-3 border-t border-white/5">
-            <span className="text-sm text-muted-foreground">Total a cobrar</span>
-            <Money value={total} large />
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {data.loading ? (
+              <Card className="px-4 py-12 text-center text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+                <Loader2 className="size-4 animate-spin inline mr-2" /> Cargando servicios…
+              </Card>
+            ) : filtered.length === 0 ? (
+              <Card className="px-4 py-12 text-center text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+                Sin servicios o productos.
+              </Card>
+            ) : (
+              filtered.map((it) => {
+                const qty = cart[it.id] ?? 0;
+                return (
+                  <Card key={it.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{it.name}</p>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {it.category ?? "ítem"}{it.duration ? ` · ${it.duration} min` : ""}
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground tabular-nums">
+                        ${Number(it.price).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      {typeof it.stock === "number" && it.category !== "servicios" ? (
+                        <span className="text-[11px] text-muted-foreground">Stock {it.stock}</span>
+                      ) : <span />}
+                      <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+                        <button onClick={() => sub(it.id)} className="size-8 grid place-items-center rounded-md hover:bg-white/5 text-muted-foreground hover:text-foreground">
+                          <Minus className="size-3.5" />
+                        </button>
+                        <span className="w-8 text-center text-sm tabular-nums">{qty}</span>
+                        <button onClick={() => add(it.id)} className="size-8 grid place-items-center rounded-md hover:bg-white/5 text-foreground">
+                          <Plus className="size-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })
+            )}
           </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <Card className="p-5 space-y-5">
+          <div className="space-y-2">
+            <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">RESUMEN</p>
+            {cartItems.map(({ svc, qty }) => (
+              <div key={svc.id} className="flex items-center justify-between gap-3 text-sm border-b border-white/5 pb-2">
+                <span className="text-muted-foreground">{svc.name} x{qty}</span>
+                <span className="text-foreground tabular-nums">${(Number(svc.price) * qty).toLocaleString("es-AR")}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-lg font-semibold text-foreground">Total</span>
+              <Money value={total} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
+            <button onClick={() => setPaymentMode("simple")} className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "simple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>Pago simple</button>
+            <button onClick={() => setPaymentMode("multiple")} className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "multiple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>Pago múltiple</button>
+          </div>
+          <div>
+            <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-3">MÉTODO DE PAGO</p>
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {([
+                { id: "cash", label: "Efectivo", icon: Banknote },
+                { id: "transfer", label: "Transferencia", icon: Smartphone },
+                { id: "card", label: "Débito / Crédito", icon: CreditCard },
+                { id: "mp", label: "Mercado Pago", icon: Wallet },
+                { id: "qr", label: "QR", icon: Smartphone },
+              ] as const).map((m) => {
+                const active = method === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => setMethod(m.id)}
+                    className={cn(
+                      "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all",
+                      active
+                        ? "border-amber-300/50 bg-amber-300/10 text-foreground"
+                        : "border-white/10 bg-white/[0.02] text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <m.icon className="size-5" /> <span className="text-sm font-medium">{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {method === "cash" && (
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">¿Con cuánto paga?</label>
+              <input
+                value={received}
+                onChange={(e) => setReceived(e.target.value)}
+                inputMode="numeric"
+                placeholder="Monto entregado"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+              />
+              {receivedNumber > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Entregado: ${receivedNumber.toLocaleString("es-AR")} {change > 0 && <span className="text-emerald-300">| Vuelto: ${change.toLocaleString("es-AR")}</span>}
+                </p>
+              )}
+            </div>
+          )}
         </Card>
       )}
 
-      {/* sticky footer */}
       <div className="sticky bottom-4 z-10">
         <Card className="px-4 py-3 flex items-center gap-4">
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">CARRITO</p>
+          <button
+            onClick={() => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
+            disabled={step === 1}
+            className="rounded-xl px-5 py-3 text-sm font-medium border border-white/10 text-muted-foreground hover:text-foreground disabled:opacity-40"
+          >
+            ← Volver
+          </button>
+          <div className="flex-1 min-w-0 text-right sm:text-left">
+            <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">TOTAL</p>
             <p className="text-sm text-foreground">
-              {cartCount === 0
-                ? "Sin items"
-                : `${cartCount} item${cartCount > 1 ? "s" : ""}`}
-              {cartCount > 0 && (
-                <button
-                  onClick={() => setCart({})}
-                  className="ml-3 text-xs text-muted-foreground hover:text-rose-300 inline-flex items-center gap-1"
-                >
-                  <Trash2 className="size-3" /> Vaciar
-                </button>
-              )}
+              {cartCount} item{cartCount === 1 ? "" : "s"} · {selectedEmployee?.name ?? "Sin profesional"}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">TOTAL</p>
-            <Money value={total} />
-          </div>
-          {step < 3 ? (
+          <Money value={total} />
+          {step < 4 ? (
             <button
-              onClick={() => setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s))}
-              disabled={cartCount === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 shadow-[0_0_30px_-8px] shadow-amber-300/70 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              onClick={goNext}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 transition-all"
             >
               Continuar <ArrowRight className="size-4" />
             </button>
@@ -977,18 +914,9 @@ function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof
             <button
               disabled={cartCount === 0 || submitting}
               onClick={handleCobrar}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-emerald-300 to-emerald-500 hover:from-emerald-200 hover:to-emerald-400 shadow-[0_0_30px_-8px] shadow-emerald-400/70 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 transition-all"
             >
-              {submitting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Cobrando…
-                </>
-              ) : (
-                <>
-                  <Check className="size-4" /> Cobrar
-                  {total > 0 && ` · $${total.toLocaleString("es-AR")}`}
-                </>
-              )}
+              {submitting ? <><Loader2 className="size-4 animate-spin" /> Confirmando…</> : <>Confirmar cobro <Check className="size-4" /></>}
             </button>
           )}
         </Card>
@@ -1005,29 +933,33 @@ function ClientAutocomplete({
 }: {
   value: string;
   onChange: (v: string) => void;
-  onPick: (c: { id: string; name: string; phone: string | null }) => void;
-  clients: Array<{ id: string; name: string; phone: string | null }>;
+  onPick: (c: { id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }) => void;
+  clients: Array<{ id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }>;
 }) {
   const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();
   const matches = q
-    ? clients.filter((c) => (c.full_name ?? c.name ?? "").toLowerCase().includes(q)).slice(0, 8)
+    ? clients
+        .filter((c) => `${c.name ?? ""} ${c.phone ?? ""} ${c.email ?? ""}`.toLowerCase().includes(q))
+        .slice(0, 8)
     : clients.slice(0, 8);
 
   return (
     <label className="block relative">
-      <span className="text-xs text-muted-foreground">Nombre</span>
-      <input
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="Buscar cliente..."
-        className="mt-1 w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-      />
+      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-amber-300/40">
+        <Search className="size-4 text-muted-foreground" />
+        <input
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Buscar cliente existente..."
+          className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+        />
+      </div>
       {open && matches.length > 0 && (
         <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-white/10 bg-[oklch(0.13_0.025_282)]/95 backdrop-blur-xl shadow-2xl max-h-64 overflow-auto">
           {matches.map((c) => (
@@ -1041,12 +973,11 @@ function ClientAutocomplete({
               }}
               className="w-full text-left px-3 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0"
             >
-              <span className="text-sm text-foreground truncate">{c.full_name ?? c.full_name ?? c.name}</span>
-              {c.phone && (
-                <span className="text-xs text-muted-foreground tabular-nums truncate">
-                  {c.phone}
-                </span>
-              )}
+              <span className="min-w-0">
+                <span className="block text-sm text-foreground truncate">{c.name}</span>
+                {c.email && <span className="block text-xs text-muted-foreground truncate">{c.email}</span>}
+              </span>
+              {c.phone && <span className="text-xs text-muted-foreground tabular-nums truncate">{c.phone}</span>}
             </button>
           ))}
         </div>
@@ -1054,4 +985,3 @@ function ClientAutocomplete({
     </label>
   );
 }
-
