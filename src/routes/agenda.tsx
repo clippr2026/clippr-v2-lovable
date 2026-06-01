@@ -23,7 +23,6 @@ import {
   useAgendaData,
   cancelAppointment,
   setAppointmentStatus,
-  markAppointmentDeposit,
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
@@ -209,28 +208,12 @@ function AgendaPage() {
     }
   };
 
-  const onMarkDeposit = async (a: Appointment) => {
-    try {
-      const hadDeposit = /se(ñ|n)a/i.test(a.notes || "");
-      await markAppointmentDeposit(a.id, a.notes);
-      // When adding seña: also set status to "confirmed"
-      if (!hadDeposit && a.status === "pending") {
-        await setAppointmentStatus(a.id, "confirmed");
-      }
-      toast.success(hadDeposit ? "Seña desmarcada" : "Seña marcada · turno confirmado");
-      setSelected((current) => {
-        if (!current || current.id !== a.id) return current;
-        const hasDeposit = /se(ñ|n)a/i.test(current.notes || "");
-        const nextNotes = hasDeposit
-          ? (current.notes || "").split("\n").filter((l) => !/se(ñ|n)a/i.test(l)).join("\n").trim() || null
-          : [current.notes, "Seña paga"].filter(Boolean).join("\n");
-        const nextStatus = !hasDeposit && current.status === "pending" ? "confirmed" as ApptStatus : current.status;
-        return { ...current, notes: nextNotes, status: nextStatus };
-      });
-      data.refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
+  const onMarkDeposit = (a: Appointment) => {
+    if (/se(ñ|n)a/i.test(a.notes || "")) {
+      toast.info("Este turno ya tiene seña registrada.");
+      return;
     }
+    navigate({ to: "/cash-register", search: { depositAppointmentId: a.id } as never });
   };
 
   const goToCobro = async (a: Appointment) => {
@@ -878,11 +861,11 @@ function AppointmentDetailDialog({
               <DialogTitle className="mt-1 text-2xl font-display">{appointment.client_name || "Sin cliente"}</DialogTitle>
             </div>
             <div className="flex gap-2 pr-6">
-              <Button size="sm" variant="secondary" onClick={() => onEdit(appointment)}>
-                Editar
+              <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onFicha(appointment)}>
+                <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>
-                Cerrar
+              <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onEdit(appointment)}>
+                Editar
               </Button>
             </div>
           </div>
@@ -929,8 +912,13 @@ function AppointmentDetailDialog({
             <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
               <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
             </Button>
-            <Button variant="secondary" onClick={() => onFicha(appointment)}>
-              <UserRound className="h-4 w-4 mr-1" /> Ficha
+            <Button
+              variant="secondary"
+              onClick={() => onMarkDeposit(appointment)}
+              disabled={appointment.status === "charged" || /se(ñ|n)a/i.test(appointment.notes || "")}
+              className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15 disabled:opacity-60"
+            >
+              <DollarSign className="h-4 w-4 mr-1" /> {/se(ñ|n)a/i.test(appointment.notes || "") ? "Seña pagada" : "Seña"}
             </Button>
           </div>
 
@@ -947,14 +935,15 @@ function AppointmentDetailDialog({
                 ] as [ApptStatus, string][]).map(([status, label]) => {
                   const sMeta = STATUS_META[status] ?? STATUS_META.pending;
                   const isActive = appointment.status === status;
-                  // Block going back to pending if has seña
-                  const isDisabled = status === "pending" && hasDeposit;
+                  // Si el turno ya tiene seña pagada y quedó confirmado, no permitimos cambiarlo desde acá.
+                  const lockedByDeposit = hasDeposit && appointment.status === "confirmed";
+                  const isDisabled = lockedByDeposit || (status === "pending" && hasDeposit);
                   return (
                     <button
                       key={status}
                       onClick={() => !isDisabled && onChangeStatus(appointment, status)}
                       disabled={isDisabled}
-                      title={isDisabled ? "No se puede volver a Pendiente con seña cargada" : undefined}
+                      title={isDisabled ? (hasDeposit && appointment.status === "confirmed" ? "Turno confirmado con seña pagada" : "No se puede volver a Pendiente con seña cargada") : undefined}
                       className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition disabled:opacity-30 disabled:cursor-not-allowed"
                       style={{
                         background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
@@ -966,25 +955,6 @@ function AppointmentDetailDialog({
                     </button>
                   );
                 });
-              })()}
-              {/* Seña — marks as confirmed + adds note */}
-              {(() => {
-                const hasDeposit = /se(ñ|n)a/i.test(appointment.notes || "");
-                return (
-                  <button
-                    onClick={() => onMarkDeposit(appointment)}
-                    className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition"
-                    style={{
-                      background: hasDeposit ? "oklch(0.42 0.18 75 / 0.5)" : "rgba(255,255,255,0.03)",
-                      color: hasDeposit ? "oklch(0.88 0.2 75)" : "rgba(255,255,255,0.45)",
-                      boxShadow: hasDeposit
-                        ? "inset 0 0 0 1px oklch(0.82 0.2 75), 0 0 12px -4px oklch(0.88 0.2 75)"
-                        : "inset 0 0 0 1px rgba(255,255,255,0.1)",
-                    }}
-                  >
-                    Seña {hasDeposit ? "✓" : ""}
-                  </button>
-                );
               })()}
             </div>
           </div>

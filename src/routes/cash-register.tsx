@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { useCajaData, type Service } from "@/components/cash-register/use-caja-data";
 import {
   PAY_METHOD_LABEL,
@@ -57,6 +58,16 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const data = useCajaData();
   const [tab, setTab] = useState<Tab>("resumen");
+  const [depositAppointmentId, setDepositAppointmentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("depositAppointmentId");
+    if (id) {
+      setDepositAppointmentId(id);
+      setTab("nueva");
+    }
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
@@ -78,7 +89,7 @@ function CashRegisterPage() {
       <Tabs tab={tab} onChange={setTab} />
       <div className="mt-6">
         {tab === "resumen" && <ResumenTab data={data} />}
-        {tab === "nueva" && <NuevaVentaTab data={data} />}
+        {tab === "nueva" && <NuevaVentaTab data={data} depositAppointmentId={depositAppointmentId} />}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
@@ -496,7 +507,8 @@ const UI_TO_DB: Record<UIMethod, PayMethod> = {
   transferencia: "transfer",
 };
 
-function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
+function NuevaVentaTab({ data, depositAppointmentId }: { data: ReturnType<typeof useCajaData>; depositAppointmentId?: string | null }) {
+  const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
@@ -505,6 +517,90 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const [employeeId, setEmployeeId] = useState<string>("");
   const [method, setMethod] = useState<UIMethod>("efectivo");
   const [submitting, setSubmitting] = useState(false);
+  const [depositAppointment, setDepositAppointment] = useState<null | {
+    id: string;
+    client_name: string | null;
+    service_name: string | null;
+    service_price: number | null;
+    employee_id: string | null;
+    notes: string | null;
+    status: string | null;
+  }>(null);
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [depositLoading, setDepositLoading] = useState(false);
+
+  useEffect(() => {
+    if (!depositAppointmentId) return;
+    let alive = true;
+    setDepositLoading(true);
+    supabase
+      .from("appointments")
+      .select("id,client_name,service_name,service_price,employee_id,notes,status")
+      .eq("id", depositAppointmentId)
+      .single()
+      .then(({ data: appt, error }) => {
+        if (!alive) return;
+        if (error || !appt) {
+          toast.error(error?.message || "No se encontró el turno para cobrar seña.");
+          return;
+        }
+        const normalized = appt as typeof depositAppointment;
+        setDepositAppointment(normalized);
+        setClient(normalized?.client_name || "");
+        setEmployeeId(normalized?.employee_id || "");
+        setDepositAmount(Number(normalized?.service_price || 0));
+      })
+      .finally(() => { if (alive) setDepositLoading(false); });
+    return () => { alive = false; };
+  }, [depositAppointmentId]);
+
+  async function handleCobrarSena() {
+    if (!depositAppointment || !data.businessId) {
+      toast.error("Falta el turno o el negocio para cobrar la seña.");
+      return;
+    }
+    if (depositAmount <= 0) {
+      toast.error("Indicá el monto de la seña.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await registerPayment({
+        businessId: data.businessId,
+        employeeId: depositAppointment.employee_id || null,
+        clientName: depositAppointment.client_name || "Cliente",
+        items: [{
+          serviceName: `Seña - ${depositAppointment.service_name || "Turno"}`,
+          amount: depositAmount,
+        }],
+        method: UI_TO_DB[method],
+        sessionId: data.cashSessionId,
+        chargedBy: data.profileId,
+      });
+
+      const currentNotes = depositAppointment.notes || "";
+      const nextNotes = /se(ñ|n)a/i.test(currentNotes)
+        ? currentNotes
+        : [currentNotes, "Seña paga"].filter(Boolean).join("\n");
+
+      const { error } = await supabase
+        .from("appointments")
+        .update({
+          status: "confirmed",
+          notes: nextNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", depositAppointment.id);
+      if (error) throw new Error(error.message);
+
+      toast.success("Seña cobrada · turno confirmado");
+      navigate({ to: "/agenda" });
+    } catch (e) {
+      toast.error((e as Error).message || "Error al cobrar la seña");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const services = data.services;
   const filtered = services.filter((i) =>
@@ -575,6 +671,63 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 
   return (
     <div className="space-y-5">
+      {depositAppointmentId && (
+        <Card className="p-5 border-amber-300/20 bg-amber-300/[0.03]">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-[11px] tracking-[0.18em] text-amber-200/80 font-medium uppercase">Cobrar seña del turno</p>
+              {depositLoading ? (
+                <p className="mt-2 text-sm text-muted-foreground inline-flex items-center gap-2"><Loader2 className="size-3.5 animate-spin" /> Cargando turno…</p>
+              ) : depositAppointment ? (
+                <>
+                  <h3 className="mt-2 text-lg font-semibold text-foreground">{depositAppointment.client_name || "Cliente"}</h3>
+                  <p className="text-sm text-muted-foreground">{depositAppointment.service_name || "Servicio"}</p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">No se pudo cargar el turno.</p>
+              )}
+            </div>
+            <button
+              onClick={() => navigate({ to: "/agenda" })}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Volver a Agenda
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+            <label className="grid gap-1.5 text-sm">
+              <span className="text-xs text-muted-foreground">Monto de seña</span>
+              <input
+                type="number"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(Number(e.target.value))}
+                className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-amber-300/50"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="text-xs text-muted-foreground">Método</span>
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value as UIMethod)}
+                className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-amber-300/50"
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="tarjeta">Tarjeta</option>
+              </select>
+            </label>
+            <button
+              onClick={handleCobrarSena}
+              disabled={submitting || depositLoading || !depositAppointment}
+              className="rounded-xl bg-gradient-to-r from-amber-200 to-amber-400 text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50"
+            >
+              {submitting ? "Confirmando…" : "Confirmar seña"}
+            </button>
+          </div>
+        </Card>
+      )}
+
       {/* stepper */}
       <Card className="p-2">
         <div className="grid grid-cols-3 gap-1">
