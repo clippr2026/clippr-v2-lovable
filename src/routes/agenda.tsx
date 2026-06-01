@@ -683,7 +683,7 @@ function ApptCard({
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - hourStart) * ROW_PX + 2;
-  const height = Math.max(dur * ROW_PX - 4, 68);
+  const height = Math.max(dur * ROW_PX - 4, 28);
   if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
   const isMovable = a.status !== "charged";
@@ -706,7 +706,7 @@ function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-lg px-2.5 py-1.5 group transition hover:z-10 hover:scale-[1.01]",
+        "absolute rounded-lg px-2.5 py-1.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
@@ -715,18 +715,18 @@ function ApptCard({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {/* Time + status */}
-      <div className="flex items-center justify-between gap-1 mb-0.5">
-        <span className="text-[10px] font-bold tabular-nums" style={{ color: meta.dot }}>
+      <div className="flex items-center justify-between gap-1 mb-0.5 min-w-0">
+        <span className="text-[10px] font-bold tabular-nums truncate" style={{ color: meta.dot }}>
           {fmtTime(start)}{a.duration_min ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min)*60000))}` : ""}
         </span>
-        <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
+        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
           {meta.label}
         </span>
       </div>
       {/* Client */}
       <div className="text-[11px] font-semibold leading-tight truncate">{a.client_name || "Sin nombre"}</div>
       {/* Service */}
-      {a.service_name && <div className="text-[10px] text-foreground/65 truncate mt-0.5">{a.service_name}</div>}
+      {height >= 42 && a.service_name && <div className="text-[10px] text-foreground/65 truncate mt-0.5">{a.service_name}</div>}
 
       {/* Quick actions */}
       <div
@@ -1023,7 +1023,7 @@ function WeekView({
                   return (
                     <div
                       key={a.id}
-                      className="absolute left-1 right-1 rounded-md px-1.5 py-1 cursor-pointer hover:z-10 hover:scale-[1.01] transition"
+                      className="absolute left-1 right-1 rounded-md px-1.5 py-1 cursor-pointer hover:z-10 hover:scale-[1.01] transition overflow-hidden"
                       style={{
                         top,
                         height,
