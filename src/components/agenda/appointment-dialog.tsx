@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -198,6 +199,7 @@ export function AppointmentDialog({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar turno" : "Nuevo turno"}</DialogTitle>
+          <DialogDescription>{isEdit ? "Modificá los datos del turno." : "Completá los datos para agendar un nuevo turno."}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-5 py-3">
           <div className="grid gap-1.5">

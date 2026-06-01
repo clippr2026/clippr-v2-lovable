@@ -98,9 +98,9 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("name"),
       supabase
         .from("clients")
-        .select("id,full_name,name,phone,email,birth_date")
+        .select("id,full_name,phone,email,birth_date")
         .eq("business_id", businessId)
-        .order("name"),
+        .order("full_name"),
       supabase
         .from("business_settings")
         .select("schedule")
