@@ -35,6 +35,7 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
     note: "",
   });
   const [saving, setSaving] = React.useState(false);
+  const [showForm, setShowForm] = React.useState(false);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
@@ -75,6 +76,7 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
     if (error) return toast.error("Error guardando gasto: " + error.message);
     toast.success("✓ Gasto registrado");
     setForm({ name: "", amount: "", type: "", method: "", note: "" });
+    setShowForm(false);
     load();
   }
 
@@ -101,13 +103,22 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
               })}
             </p>
           </div>
-          <div className="text-xl font-bold text-rose-300 tabular-nums">
-            -${total.toLocaleString("es-AR")}
+          <div className="flex items-center gap-3">
+            <div className="text-xl font-bold text-rose-300 tabular-nums">
+              -${total.toLocaleString("es-AR")}
+            </div>
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 px-4 py-2.5 text-sm font-semibold"
+            >
+              <Plus className="size-4" /> Nuevo gasto
+            </button>
           </div>
         </div>
       </div>
 
       {/* Formulario */}
+      {showForm && (
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
         <h3 className="text-sm font-semibold text-muted-foreground mb-3">Nuevo gasto</h3>
         <div className="space-y-2.5">
@@ -167,6 +178,7 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Lista */}
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">

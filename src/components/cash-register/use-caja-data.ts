@@ -51,38 +51,12 @@ export type Expense = {
 };
 
 export type ApprovalMode = "auto" | "manual" | "disabled";
-export type PaymentMethodsConfig = {
-  efectivo: boolean;
-  transferencia: boolean;
-  tarjeta: boolean;
-  mp: boolean;
-  cuentaDni: boolean;
-};
-
-const DEFAULT_PAYMENT_METHODS: PaymentMethodsConfig = {
-  efectivo: true,
-  transferencia: true,
-  tarjeta: true,
-  mp: true,
-  cuentaDni: false,
-};
-
-function readCajaConfig(businessId: string | null | undefined) {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(`clippr_business_settings_${businessId || "local"}`);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return parsed?.caja_config ?? null;
-  } catch {
-    return null;
-  }
-}
+export type PaymentMethodsConfig = { efectivo: boolean; transferencia: boolean; tarjeta: boolean; mp: boolean; cuentaDni: boolean };
 
 export function useCajaData() {
   const { businessId, profile } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>("auto");
-  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethodsConfig>(DEFAULT_PAYMENT_METHODS);
   const [services, setServices] = React.useState<Service[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [clients, setClients] = React.useState<ClientLite[]>([]);
@@ -91,6 +65,13 @@ export function useCajaData() {
   const [cashSessionId, setCashSessionId] = React.useState<string | null>(null);
   const [pendingCount, setPendingCount] = React.useState(0);
   const [pendingAmount, setPendingAmount] = React.useState(0);
+  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethodsConfig>({
+    efectivo: true,
+    transferencia: true,
+    tarjeta: true,
+    mp: true,
+    cuentaDni: false,
+  });
 
   const load = React.useCallback(async () => {
     if (!businessId) {
@@ -98,6 +79,17 @@ export function useCajaData() {
       return;
     }
     setLoading(true);
+
+    if (typeof window !== "undefined") {
+      try {
+        const saved = window.localStorage.getItem(`clippr_payment_methods_${businessId}`);
+        if (saved) {
+          setPaymentMethods((defaults) => ({ ...defaults, ...JSON.parse(saved) }));
+        }
+      } catch {
+        // mantener defaults
+      }
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -222,14 +214,6 @@ export function useCajaData() {
     if (mode === "manual" || mode === "auto" || mode === "disabled")
       setApprovalModeState(mode as ApprovalMode);
 
-    const localCaja = readCajaConfig(businessId) as { approval_mode?: ApprovalMode; payment_methods?: PaymentMethodsConfig } | null;
-    if (!mode && (localCaja?.approval_mode === "manual" || localCaja?.approval_mode === "auto" || localCaja?.approval_mode === "disabled")) {
-      setApprovalModeState(localCaja.approval_mode);
-    }
-    if (localCaja?.payment_methods) {
-      setPaymentMethods({ ...DEFAULT_PAYMENT_METHODS, ...localCaja.payment_methods });
-    }
-
     setLoading(false);
   }, [businessId]);
 
@@ -273,7 +257,6 @@ export function useCajaData() {
     profileId: profile?.id ?? null,
     approvalMode,
     setApprovalMode,
-    paymentMethods,
     services,
     employees,
     clients,
@@ -286,6 +269,7 @@ export function useCajaData() {
     totalGastos,
     pendingCount,
     pendingAmount,
+    paymentMethods,
     refresh: load,
   };
 }
