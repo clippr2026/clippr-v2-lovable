@@ -507,9 +507,9 @@ function ServiciosDesglose() {
     { label: "Otros", value: 0, color: "oklch(0.72 0.18 55)" },
   ];
   const total = items.reduce((s, i) => s + i.value, 0);
-  // visual fallback when all zero so donut isn't empty
-  const display = total === 0 ? items.map(() => 1) : items.map((i) => i.value);
+  const display = items.map((i) => i.value);
   const sum = display.reduce((s, v) => s + v, 0);
+  const hasServiceData = sum > 0;
 
   const R = 60;
   const C = 2 * Math.PI * R;

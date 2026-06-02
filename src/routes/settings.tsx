@@ -1697,14 +1697,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   async function deleteCategory(category: string) {
     const currentCategories = categories.filter((c) => c !== category);
     if (currentCategories.length === 0) return toast.error("Debe quedar al menos una categoría");
-    const fallbackCategory = currentCategories[0] || (isService ? "Servicios" : "Productos");
+    const targetCategory = currentCategories[0];
     if (!confirm(`¿Eliminar ${category}?`)) return;
     if (isService) saveCategories(customServiceCategories.filter((c) => c !== category), "service");
     else saveCategories(customCatalogCategories.filter((c) => c !== category), "catalog");
     if (businessId) {
-      await supabase.from("price_catalog").update({ category: fallbackCategory }).eq("business_id", businessId).eq("category", category);
+      await supabase.from("price_catalog").update({ category: targetCategory }).eq("business_id", businessId).eq("category", category);
     }
-    setCat(fallbackCategory);
+    setCat(targetCategory);
     toast.success("Categoría eliminada");
     load();
   }

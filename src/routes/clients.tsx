@@ -105,9 +105,9 @@ function sanitizeDays(v: string) {
   return v.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
 }
 
-function daysNumber(v: string, fallback: number) {
+function daysNumber(v: string, defaultDays: number) {
   const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+  return Number.isFinite(n) && n > 0 ? n : defaultDays;
 }
 
 function ClientsPage() {
