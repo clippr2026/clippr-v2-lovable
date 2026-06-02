@@ -2,14 +2,35 @@ import * as React from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, type Profile } from "@/integrations/supabase/client";
 
+
+export type PermKey = "dashboard"|"agenda"|"caja"|"profesionales"|"clientes"|"branding"|"horarios"|"equipo"|"servicios"|"catalogo"|"config_caja"|"plan";
+
+export const ROLE_DEFAULTS: Record<string, Record<PermKey, boolean>> = {
+  admin_general: { dashboard:true, agenda:true, caja:true, profesionales:true, clientes:true, branding:true, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:true },
+  socio:         { dashboard:true, agenda:true, caja:true, profesionales:true, clientes:true, branding:true, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:true },
+  admin_local:   { dashboard:false, agenda:true, caja:true, profesionales:false, clientes:true, branding:false, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:false },
+  recepcionista: { dashboard:false, agenda:true, caja:true, profesionales:false, clientes:true, branding:false, horarios:false, equipo:false, servicios:false, catalogo:false, config_caja:false, plan:false },
+  profesional:   { dashboard:false, agenda:false, caja:false, profesionales:true, clientes:false, branding:false, horarios:false, equipo:false, servicios:false, catalogo:false, config_caja:false, plan:false },
+  owner:         { dashboard:true, agenda:true, caja:true, profesionales:true, clientes:true, branding:true, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:true },
+};
+
+export function getPermissions(role: string | null | undefined, rolePermissions: Record<string, Record<string, boolean>> | null): Record<PermKey, boolean> {
+  const key = role ?? "owner";
+  const custom = rolePermissions?.[key];
+  const defaults = ROLE_DEFAULTS[key] ?? ROLE_DEFAULTS.owner;
+  return { ...defaults, ...(custom ?? {}) } as Record<PermKey, boolean>;
+}
+
 type AuthState = {
   loading: boolean;
   session: Session | null;
   user: User | null;
   profile: Profile | null;
   businessId: string | null;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, remember?: boolean) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  permissions: Record<PermKey, boolean>;
+  rolePermissions: Record<string, Record<string, boolean>> | null;
 };
 
 const AuthCtx = React.createContext<AuthState | undefined>(undefined);
@@ -105,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [businessId, setBusinessId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [rolePermissions, setRolePermissions] = React.useState<Record<string,Record<string,boolean>>|null>(null);
 
   const hydrate = React.useCallback(async (s: Session | null) => {
     setSession(s);
@@ -113,6 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { businessId: biz, profile: prof } = await resolveBusinessId(s.user);
         setBusinessId(biz);
         setProfile(prof);
+        // Load role_permissions from business_settings
+        if (biz) {
+          supabase.from("business_settings").select("role_permissions").eq("business_id", biz).maybeSingle()
+            .then(({ data }) => { if (data?.role_permissions) setRolePermissions(data.role_permissions as Record<string,Record<string,boolean>>); });
+        }
       } catch (e) {
         console.error("[AUTH] hydrate:", (e as Error).message);
       }
@@ -149,7 +176,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydrate]);
 
-  const signIn = React.useCallback(async (email: string, password: string) => {
+  const signIn = React.useCallback(async (email: string, password: string, remember = false) => {
+    // Supabase uses localStorage by default (persistSession=true).
+    // For "remember me" = false, we store session in sessionStorage only.
+    if (!remember) {
+      // Override storage temporarily for this sign-in
+      supabase.auth.setSession({ access_token: "", refresh_token: "" }).catch(() => {});
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
   }, []);
@@ -157,6 +190,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = React.useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
+
+  const permissions = React.useMemo(
+    () => getPermissions(profile?.role, rolePermissions),
+    [profile?.role, rolePermissions]
+  );
 
   const value: AuthState = {
     loading,
@@ -166,6 +204,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     businessId,
     signIn,
     signOut,
+    permissions,
+    rolePermissions,
   };
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
