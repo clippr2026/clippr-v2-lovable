@@ -1817,6 +1817,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     emptyPriceForm(isService ? "Servicios" : "Productos", isService),
   );
   const [confirmDelItem, setConfirmDelItem] = useState<PriceRow | null>(null);
+  // Pending changes — written to Supabase only when global Save is pressed
+  type PendingItem = { tempId: string; payload: Record<string, unknown>; isNew: boolean };
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
   const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(defaultCatalogCategories);
   const [customServiceCategories, setCustomServiceCategories] = useState<string[]>(defaultServiceCategories);
@@ -1880,17 +1884,50 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }, [load]);
 
-  // Global Save: persist categories + show toast
+  // Global Save: persist pending + categories + show toast
   const persistCategoriesRef = useRef(persistCategories);
   useEffect(() => { persistCategoriesRef.current = persistCategories; }, [persistCategories]);
+  const pendingItemsRef = useRef(pendingItems);
+  const pendingDeletesRef = useRef(pendingDeletes);
+  useEffect(() => { pendingItemsRef.current = pendingItems; }, [pendingItems]);
+  useEffect(() => { pendingDeletesRef.current = pendingDeletes; }, [pendingDeletes]);
 
   useEffect(() => {
-    const handler = (e: Event) => {
+    const handler = async (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
       const mySection = isService ? "servicios" : "catalogo";
       if (!section || section === mySection) {
-        void persistCategoriesRef.current();
-        toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
+        const items = pendingItemsRef.current;
+        const deletes = pendingDeletesRef.current;
+        const errors: string[] = [];
+
+        // Flush deletes
+        for (const id of deletes) {
+          const { error } = await supabase.from("price_catalog").delete().eq("id", id);
+          if (error) errors.push(error.message);
+        }
+
+        // Flush upserts
+        for (const { tempId, payload, isNew } of items) {
+          if (isNew) {
+            const { error } = await supabase.from("price_catalog").insert(payload);
+            if (error) errors.push(error.message);
+          } else {
+            const { error } = await supabase.from("price_catalog").update(payload).eq("id", tempId);
+            if (error) errors.push(error.message);
+          }
+        }
+
+        await persistCategoriesRef.current();
+
+        if (errors.length > 0) {
+          toast.error("Error guardando: " + errors[0]);
+        } else {
+          setPendingItems([]);
+          setPendingDeletes(new Set());
+          toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
+          load();
+        }
       }
     };
     window.addEventListener("clippr:save-settings", handler);
@@ -1919,10 +1956,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setModalOpen(true);
   }
 
-  async function saveItem() {
+  function saveItem() {
     if (!businessId) return toast.error("No se encontró el negocio");
     if (!form.name.trim()) return toast.error("Ingresá un nombre");
-    setSaving(true);
     const payload: Record<string, unknown> = {
       business_id: businessId,
       name: form.name.trim(),
@@ -1933,26 +1969,30 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     };
     if (!isService) payload.stock = Number(form.stock) || 0;
 
-    const { error } = editing
-      ? await supabase
-          .from("price_catalog")
-          .update(payload)
-          .eq("id", editing.id)
-      : await supabase.from("price_catalog").insert(payload);
-    setSaving(false);
-    if (error) return toast.error("Error: " + error.message);
-    toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
+    if (editing) {
+      // Update existing row locally
+      setRows(prev => prev.map(r => r.id === editing.id ? { ...r, ...payload } as PriceRow : r));
+      setPendingItems(prev => {
+        const next = prev.filter(p => p.tempId !== editing.id);
+        return [...next, { tempId: editing.id, payload: { ...payload }, isNew: false }];
+      });
+    } else {
+      // New row — temp negative id until saved
+      const tempId = `new_${Date.now()}`;
+      setRows(prev => [...prev, { id: tempId, ...payload } as PriceRow]);
+      setPendingItems(prev => [...prev, { tempId, payload: { ...payload }, isNew: true }]);
+    }
     setModalOpen(false);
-    load();
   }
 
-  async function toggle(row: PriceRow) {
-    const { error } = await supabase
-      .from("price_catalog")
-      .update({ active: !row.active })
-      .eq("id", row.id);
-    if (error) return toast.error("Error: " + error.message);
-    load();
+  function toggle(row: PriceRow) {
+    const newActive = !row.active;
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, active: newActive } : r));
+    setPendingItems(prev => {
+      const existing = prev.find(p => p.tempId === row.id);
+      if (existing) return prev.map(p => p.tempId === row.id ? { ...p, payload: { ...p.payload, active: newActive } } : p);
+      return [...prev, { tempId: row.id, payload: { active: newActive }, isNew: false }];
+    });
   }
 
   async function remove(row: PriceRow) {
@@ -1963,10 +2003,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!confirmDelItem) return;
     const row = confirmDelItem;
     setConfirmDelItem(null);
-    const { error } = await supabase.from("price_catalog").delete().eq("id", row.id);
-    if (error) return toast.error("Error: " + error.message);
+    setRows(prev => prev.filter(r => r.id !== row.id));
+    // If it was a new (unsaved) item, just remove from pending
+    if (row.id.startsWith("new_")) {
+      setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
+    } else {
+      setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
+      setPendingDeletes(prev => new Set([...prev, row.id]));
+    }
     toast.success(isService ? "Servicio eliminado" : "Producto eliminado");
-    load();
   }
 
   function reorderItem(row: PriceRow, direction: "up" | "down") {
