@@ -223,7 +223,7 @@ export function AppointmentDialog({
       setDateValue(parts.date);
       setHourValue(parts.hour);
       setMinuteValue(parts.minute);
-      setStatus(appointment.status);
+      setStatus(appointment.status === "confirmed" ? "confirmed" : "pending");
       setNotes(appointment.notes ?? "");
       setInternalNotes("");
     } else {
@@ -603,6 +603,18 @@ export function AppointmentDialog({
             {requiresDeposit && (
               <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm">
                 🟡 Este servicio requiere seña. Seña pendiente: ${Math.round(depositAmount).toLocaleString("es-AR")}
+              </div>
+            )}
+            {isEdit && (
+              <div className="grid gap-1.5">
+                <Label>Estado del turno</Label>
+                <Select value={status} onValueChange={(value) => setStatus(value as ApptStatus)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="confirmed">Confirmado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </section>

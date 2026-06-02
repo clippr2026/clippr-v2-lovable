@@ -11,7 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
  *     service_price, starts_at, ends_at?, duration_min?, status, employee_id,
  *     notes,    
  *     created_by_name, created_by_role, updated_at
- *   status ∈ pending | confirmed | completed | cancelled | charged | blocked
+ *   En edición manual del turno se usan solamente: pending | confirmed.
+ *   Los otros estados quedan reservados para flujos internos de caja/cancelación.
  */
 
 export type ApptStatus =
@@ -208,6 +209,8 @@ export type SaveAppointmentInput = {
   business_id: string;
   client_id?: string | null;
   client_name: string;
+  client_phone?: string | null;
+  client_email?: string | null;
   employee_id: string | null;
   service_name: string;
   service_price: number;
@@ -215,6 +218,9 @@ export type SaveAppointmentInput = {
   duration_min: number;
   status?: ApptStatus;
   notes?: string | null;
+  deposit_amount?: number | null;
+  deposit_paid?: number | null;
+  deposit_status?: string | null;
   created_by_name?: string | null;
   created_by_role?: string | null;
 };
@@ -228,6 +234,8 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     business_id: input.business_id,
     client_id: input.client_id ?? null,
     client_name: input.client_name,
+    client_phone: input.client_phone ?? null,
+    client_email: input.client_email ?? null,
     employee_id: input.employee_id,
     service_name: input.service_name,
     service_price: input.service_price,
@@ -236,6 +244,9 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     duration_min: input.duration_min,
     status: input.status ?? "pending",
     notes: input.notes ?? null,
+    deposit_amount: input.deposit_amount ?? null,
+    deposit_paid: input.deposit_paid ?? null,
+    deposit_status: input.deposit_status ?? null,
     updated_at: new Date().toISOString(),
   };
   if (!input.id) {
