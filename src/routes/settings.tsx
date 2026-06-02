@@ -20,9 +20,13 @@ import {
   CalendarDays,
   AlarmClock,
   Plus,
-  // Pencil removed (now unused)
   Trash2,
   Scissors,
+  ChevronUp,
+  ChevronDown,
+  Mail,
+  Instagram,
+  GripVertical,
   Zap,
   Eye,
   Banknote,
@@ -147,32 +151,189 @@ const groups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
-const infoFields = [
-  {
-    icon: Building2,
-    label: "Nombre del local",
-    hint: "Aparece en tickets, reportes y la pantalla de login",
-    value: "Auro Stylo",
-  },
-  {
-    icon: MapPin,
-    label: "Dirección",
-    hint: "Dirección del local principal",
-    value: "Av. Independencia 1255",
-  },
-  {
-    icon: Phone,
-    label: "Teléfono de contacto",
-    hint: "Para confirmaciones y WhatsApp",
-    value: "+54 11 0000-0000",
-  },
-  {
-    icon: Globe,
-    label: "Instagram / Redes",
-    hint: "Aparece en el pie de los tickets",
-    value: "@Aurostylo",
-  },
-];
+// ─────────── Branding ───────────
+type BrandingData = {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  instagram: string;
+  website: string;
+  description: string;
+  logo_url: string;
+  cover_url: string;
+};
+const EMPTY_BRANDING: BrandingData = {
+  name: "", address: "", phone: "", email: "",
+  instagram: "", website: "", description: "", logo_url: "", cover_url: "",
+};
+
+function BrandingSection() {
+  const { businessId } = useAuth();
+  const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (!businessId) { setLoading(false); return; }
+    supabase.from("businesses").select("name,address,phone,email,instagram,website,description,logo_url,cover_url")
+      .eq("id", businessId).maybeSingle()
+      .then(({ data: row }) => {
+        if (row) setData({ ...EMPTY_BRANDING, ...row });
+        setLoading(false);
+      });
+  }, [businessId]);
+
+  const set = (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setData(d => ({ ...d, [k]: e.target.value }));
+
+  async function uploadImage(file: File, path: string): Promise<string | null> {
+    const { error } = await supabase.storage.from("business-assets").upload(path, file, { upsert: true });
+    if (error) { toast.error("Error subiendo imagen: " + error.message); return null; }
+    const { data: urlData } = supabase.storage.from("business-assets").getPublicUrl(path);
+    return urlData.publicUrl;
+  }
+
+  async function save() {
+    if (!businessId) return;
+    setSaving(true);
+    let logo_url = data.logo_url;
+    let cover_url = data.cover_url;
+    if (logoFile) {
+      const url = await uploadImage(logoFile, `${businessId}/logo`);
+      if (url) logo_url = url;
+    }
+    if (coverFile) {
+      const url = await uploadImage(coverFile, `${businessId}/cover`);
+      if (url) cover_url = url;
+    }
+    const payload = { ...data, logo_url, cover_url };
+    const { error } = await supabase.from("businesses").update(payload).eq("id", businessId);
+    setSaving(false);
+    if (error) return toast.error("Error guardando: " + error.message);
+    setData(d => ({ ...d, logo_url, cover_url }));
+    setLogoFile(null);
+    setCoverFile(null);
+    toast.success("Branding guardado correctamente");
+  }
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "branding") void save();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, [businessId, data, logoFile, coverFile]);
+
+  if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
+
+  const infoRows: { icon: React.ComponentType<{className?:string}>; label: string; hint: string; key: keyof BrandingData; type?: string }[] = [
+    { icon: Building2, label: "Nombre del local", hint: "Aparece en tickets, reportes y la pantalla de login", key: "name" },
+    { icon: MapPin, label: "Dirección", hint: "Dirección del local principal", key: "address" },
+    { icon: Phone, label: "Teléfono de contacto", hint: "Para confirmaciones y WhatsApp", key: "phone" },
+    { icon: Mail, label: "Email de contacto", hint: "Para notificaciones y comunicaciones", key: "email", type: "email" },
+    { icon: Instagram, label: "Instagram / Redes", hint: "Aparece en el pie de los tickets", key: "instagram" },
+    { icon: Globe, label: "Sitio web", hint: "URL del sitio web del negocio", key: "website" },
+  ];
+
+  return (
+    <>
+      <div>
+        <h2 className="text-xl font-display font-semibold">Branding</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Personalizá la identidad visual de tu barbería en el sistema.
+        </p>
+      </div>
+
+      <SectionCard label="Información de la barbería">
+        <div className="divide-y divide-white/5">
+          {infoRows.map((f) => {
+            const Icon = f.icon;
+            return (
+              <div key={f.key} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                  <Icon className="h-4.5 w-4.5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">{f.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{f.hint}</div>
+                </div>
+                <input
+                  type={f.type ?? "text"}
+                  value={(data[f.key] as string) ?? ""}
+                  onChange={set(f.key)}
+                  className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                />
+              </div>
+            );
+          })}
+          <div className="flex items-start gap-4 py-4 last:pb-0">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <FileText className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Descripción</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Cuéntale a tus clientes sobre tu empresa</div>
+            </div>
+            <textarea
+              value={data.description}
+              onChange={set("description")}
+              rows={3}
+              className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
+            />
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard label="Imágenes">
+        <div className="space-y-5">
+          {([
+            { key: "logo_url" as const, fileState: logoFile, setFile: setLogoFile, title: "Logo", hint: "Se muestra en el sidebar y en los tickets", btn: "Subir logo" },
+            { key: "cover_url" as const, fileState: coverFile, setFile: setCoverFile, title: "Imagen de portada", hint: "Se muestra en la pantalla de login y bienvenida", btn: "Subir portada" },
+          ]).map((it) => (
+            <div key={it.title} className="flex items-center gap-4">
+              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1">
+                <div className="font-medium text-sm">{it.title}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{it.hint}</div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <div className="h-16 w-24 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+                  {it.fileState ? (
+                    <img src={URL.createObjectURL(it.fileState)} alt="" className="h-full w-full object-cover" />
+                  ) : data[it.key] ? (
+                    <img src={data[it.key] as string} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">vacío</span>
+                  )}
+                </div>
+                <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
+                  <Upload className="h-3.5 w-3.5" /> {it.btn}
+                  <input type="file" accept="image/*" className="hidden" onChange={e => it.setFile(e.target.files?.[0] ?? null)} />
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <div className="flex justify-end">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition disabled:opacity-50"
+        >
+          {saving ? "Guardando…" : <><Check className="h-4 w-4" strokeWidth={3} /> Guardar branding</>}
+        </button>
+      </div>
+    </>
+  );
+}
 
 // ─────────── shared bits ───────────
 function Toggle({
@@ -215,6 +376,56 @@ function SectionCard({
         {label}
       </div>
       {children}
+    </div>
+  );
+}
+
+// ─────────── ConfirmDialog ───────────
+function ConfirmDialog({
+  open,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  confirmLabel = "Eliminar",
+  danger = true,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirmLabel?: string;
+  danger?: boolean;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
+        <div>
+          <div className="font-display font-semibold text-base text-foreground">{title}</div>
+          <div className="text-sm text-muted-foreground mt-1">{message}</div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className={cn(
+              "px-4 py-2 rounded-xl text-sm font-semibold transition",
+              danger
+                ? "bg-red-500/20 hover:bg-red-500/30 ring-1 ring-red-500/40 text-red-300"
+                : "bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black",
+            )}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -331,7 +542,7 @@ function HorariosSection() {
 
     setSaving(false);
     if (error) return toast.error("Error guardando horarios: " + error.message);
-    toast.success("Horarios guardados");
+    toast.success("Horarios guardados correctamente");
   }
 
 
@@ -664,6 +875,7 @@ function EquipoSection() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<
     "datos" | "horarios" | "perfil" | "comisiones"
@@ -731,7 +943,7 @@ function EquipoSection() {
       }
     }
     setSaving(false);
-    toast.success("✓ Profesional agregado");
+    toast.success("Equipo actualizado correctamente");
     setOpen(false);
     load();
   }
@@ -746,13 +958,16 @@ function EquipoSection() {
   }
 
   async function remove(emp: EmployeeRow) {
-    if (!confirm(`¿Eliminar a ${emp.full_name || emp.name}?`)) return;
-    const { error } = await supabase
-      .from("employees")
-      .delete()
-      .eq("id", emp.id);
+    setConfirmDel(emp);
+  }
+
+  async function doRemoveEmp() {
+    if (!confirmDel) return;
+    const emp = confirmDel;
+    setConfirmDel(null);
+    const { error } = await supabase.from("employees").delete().eq("id", emp.id);
     if (error) return toast.error("Error: " + error.message);
-    toast.success("Profesional eliminado");
+    toast.success("Equipo actualizado correctamente");
     load();
   }
 
@@ -1237,6 +1452,13 @@ function EquipoSection() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!confirmDel}
+        title="Eliminar profesional"
+        message={`¿Deseás eliminar a "${confirmDel?.full_name ?? confirmDel?.name}"?`}
+        onConfirm={doRemoveEmp}
+        onCancel={() => setConfirmDel(null)}
+      />
     </>
   );
 }
@@ -1250,6 +1472,7 @@ type PriceRow = {
   category: string | null;
   active: boolean | null;
   stock?: number | null;
+  sort_order?: number | null;
 };
 
 type PriceForm = {
@@ -1542,6 +1765,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [form, setForm] = useState<PriceForm>(
     emptyPriceForm(isService ? "Servicios" : "Productos", isService),
   );
+  const [confirmDelItem, setConfirmDelItem] = useState<PriceRow | null>(null);
+  const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
   const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(() => {
     if (isService || typeof window === "undefined") return [];
     try {
@@ -1580,9 +1805,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock")
+      .select("id,name,price,duration_min,category,active,stock,sort_order")
       .eq("business_id", businessId)
-      .order("category")
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("name");
     if (error) toast.error("Error: " + error.message);
     setRows((data ?? []) as PriceRow[]);
@@ -1637,7 +1862,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       : await supabase.from("price_catalog").insert(payload);
     setSaving(false);
     if (error) return toast.error("Error: " + error.message);
-    toast.success(isService ? "Servicio guardado" : "Ítem guardado");
+    toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
     setModalOpen(false);
     load();
   }
@@ -1652,53 +1877,92 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   }
 
   async function remove(row: PriceRow) {
-    if (!confirm(`¿Eliminar ${row.name}?`)) return;
-    const { error } = await supabase
-      .from("price_catalog")
-      .delete()
-      .eq("id", row.id);
+    setConfirmDelItem(row);
+  }
+
+  async function doRemoveItem() {
+    if (!confirmDelItem) return;
+    const row = confirmDelItem;
+    setConfirmDelItem(null);
+    const { error } = await supabase.from("price_catalog").delete().eq("id", row.id);
     if (error) return toast.error("Error: " + error.message);
-    toast.success("Eliminado");
+    toast.success(isService ? "Servicio eliminado" : "Producto eliminado");
     load();
   }
 
+  async function reorderItem(row: PriceRow, direction: "up" | "down") {
+    const catRows = filtered;
+    const idx = catRows.findIndex((r) => r.id === row.id);
+    if (direction === "up" && idx === 0) return;
+    if (direction === "down" && idx === catRows.length - 1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    const swapRow = catRows[swapIdx];
+    const aOrder = idx;
+    const bOrder = swapIdx;
+    await Promise.all([
+      supabase.from("price_catalog").update({ sort_order: bOrder }).eq("id", row.id),
+      supabase.from("price_catalog").update({ sort_order: aOrder }).eq("id", swapRow.id),
+    ]);
+    load();
+  }
+
+  // Inline input modal for add/rename category (avoids browser prompt())
+  const [catModal, setCatModal] = useState<{ mode: "add" | "rename"; current?: string } | null>(null);
+  const [catInputVal, setCatInputVal] = useState("");
+
   function addCategory() {
-    const name = prompt("Nombre de la nueva categoría");
-    const clean = name?.trim();
-    if (!clean) return;
-    if (isService) saveCategories([...customServiceCategories, clean], "service");
-    else saveCategories([...customCatalogCategories, clean], "catalog");
-    setCat(clean);
+    setCatInputVal("");
+    setCatModal({ mode: "add" });
   }
 
   async function renameCategory(category: string) {
-    const name = prompt("Nuevo nombre de la categoría", category);
-    const clean = name?.trim();
-    if (!clean || clean === category) return;
-    if (isService) {
-      const next = customServiceCategories.includes(category)
-        ? customServiceCategories.map((c) => (c === category ? clean : c))
-        : [...customServiceCategories, clean];
-      saveCategories(next, "service");
-    } else {
-      const next = customCatalogCategories.includes(category)
-        ? customCatalogCategories.map((c) => (c === category ? clean : c))
-        : [...customCatalogCategories, clean];
-      saveCategories(next, "catalog");
+    setCatInputVal(category);
+    setCatModal({ mode: "rename", current: category });
+  }
+
+  async function submitCatModal() {
+    const clean = catInputVal.trim();
+    if (!clean) { setCatModal(null); return; }
+    if (catModal?.mode === "add") {
+      if (isService) saveCategories([...customServiceCategories, clean], "service");
+      else saveCategories([...customCatalogCategories, clean], "catalog");
+      setCat(clean);
+    } else if (catModal?.mode === "rename" && catModal.current) {
+      const category = catModal.current;
+      if (clean !== category) {
+        if (isService) {
+          const next = customServiceCategories.includes(category)
+            ? customServiceCategories.map((c) => (c === category ? clean : c))
+            : [...customServiceCategories, clean];
+          saveCategories(next, "service");
+        } else {
+          const next = customCatalogCategories.includes(category)
+            ? customCatalogCategories.map((c) => (c === category ? clean : c))
+            : [...customCatalogCategories, clean];
+          saveCategories(next, "catalog");
+        }
+        if (businessId) {
+          await supabase.from("price_catalog").update({ category: clean }).eq("business_id", businessId).eq("category", category);
+        }
+        setCat(clean);
+        toast.success("Categoría actualizada");
+        load();
+      }
     }
-    if (businessId) {
-      await supabase.from("price_catalog").update({ category: clean }).eq("business_id", businessId).eq("category", category);
-    }
-    setCat(clean);
-    toast.success("Categoría actualizada");
-    load();
+    setCatModal(null);
   }
 
   async function deleteCategory(category: string) {
+    setConfirmDelCat(category);
+  }
+
+  async function doDeleteCategory() {
+    if (!confirmDelCat) return;
+    const category = confirmDelCat;
+    setConfirmDelCat(null);
     const currentCategories = categories.filter((c) => c !== category);
     if (currentCategories.length === 0) return toast.error("Debe quedar al menos una categoría");
     const targetCategory = currentCategories[0];
-    if (!confirm(`¿Eliminar ${category}?`)) return;
     if (isService) saveCategories(customServiceCategories.filter((c) => c !== category), "service");
     else saveCategories(customCatalogCategories.filter((c) => c !== category), "catalog");
     if (businessId) {
@@ -1759,7 +2023,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   onClick={() => setCat(category)}
                   className="inline-flex items-center gap-2 px-3 py-2 text-sm"
                 >
-                  <Scissors className="h-3.5 w-3.5" /> {category}
+                  {category}
                 </button>
                 {(
                   <>
@@ -1795,16 +2059,32 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {filtered.map((row) => (
-              <div key={row.id} className="flex items-center gap-4 px-5 py-4">
+            {filtered.map((row, rowIdx) => (
+              <div key={row.id} className="flex items-center gap-3 px-5 py-4">
+                {/* Reorder buttons */}
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  <button
+                    onClick={() => reorderItem(row, "up")}
+                    disabled={rowIdx === 0}
+                    className="h-5 w-5 rounded grid place-items-center text-muted-foreground hover:text-foreground hover:bg-white/10 disabled:opacity-20 transition"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => reorderItem(row, "down")}
+                    disabled={rowIdx === filtered.length - 1}
+                    className="h-5 w-5 rounded grid place-items-center text-muted-foreground hover:text-foreground hover:bg-white/10 disabled:opacity-20 transition"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)] shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{row.name}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {row.category || (isService ? "Servicios" : "Productos")}
-                    {row.duration_min ? ` · ${row.duration_min} min` : ""}
+                    {row.duration_min ? `${row.duration_min} min` : ""}
                     {typeof row.stock === "number" && !isService
-                      ? ` · Stock: ${row.stock}`
+                      ? `Stock: ${row.stock}`
                       : ""}
                   </div>
                 </div>
@@ -1876,6 +2156,49 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         saving={saving}
         catalogCategories={categories}
       />
+      <ConfirmDialog
+        open={!!confirmDelItem}
+        title={isService ? "Eliminar servicio" : "Eliminar producto"}
+        message={`¿Deseás eliminar "${confirmDelItem?.name}"?`}
+        onConfirm={doRemoveItem}
+        onCancel={() => setConfirmDelItem(null)}
+      />
+      <ConfirmDialog
+        open={!!confirmDelCat}
+        title="Eliminar categoría"
+        message={`¿Deseás eliminar la categoría "${confirmDelCat}"? Los ítems se moverán a la primera categoría disponible.`}
+        onConfirm={doDeleteCategory}
+        onCancel={() => setConfirmDelCat(null)}
+      />
+      {/* Category name input modal */}
+      {catModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
+            <div className="font-display font-semibold text-base">
+              {catModal.mode === "add" ? "Nueva categoría" : "Renombrar categoría"}
+            </div>
+            <input
+              autoFocus
+              value={catInputVal}
+              onChange={(e) => setCatInputVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submitCatModal(); if (e.key === "Escape") setCatModal(null); }}
+              placeholder="Nombre de la categoría"
+              className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setCatModal(null)} className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition">
+                Cancelar
+              </button>
+              <button
+                onClick={submitCatModal}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black transition"
+              >
+                {catModal.mode === "add" ? "Agregar" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1919,7 +2242,7 @@ function CajaSection() {
       window.localStorage.setItem("clippr_cash_auto_change", String(autoChange));
       window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
     }
-    toast.success("Configuración guardada");
+    toast.success("Configuración de caja guardada correctamente");
   }
 
   useEffect(() => {
@@ -2071,7 +2394,7 @@ function SenasSection() {
         lost_dist: lostDist, lost_local: localPct, lost_prof: profPct, msg,
       }
     }, { onConflict: "business_id" });
-    toast.success("Señas guardadas");
+    toast.success("Configuración de señas guardada correctamente");
   };
 
   React.useEffect(() => {
@@ -2238,8 +2561,6 @@ function SenasSection() {
 
 function SettingsPage() {
   const [active, setActive] = useState<SectionId>("branding");
-  const [values, setValues] = useState(infoFields.map((f) => f.value));
-  const [desc, setDesc] = useState("AURO STYLO");
 
   return (
     <AppShell>
@@ -2308,109 +2629,7 @@ function SettingsPage() {
 
           {/* Content */}
           <section className="space-y-6">
-            {active === "branding" && (
-              <>
-                <div>
-                  <h2 className="text-xl font-display font-semibold">
-                    Branding
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Personalizá la identidad visual de tu barbería en el
-                    sistema.
-                  </p>
-                </div>
-
-                <SectionCard label="Información de la barbería">
-                  <div className="divide-y divide-white/5">
-                    {infoFields.map((f, i) => {
-                      const Icon = f.icon;
-                      return (
-                        <div
-                          key={f.label}
-                          className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
-                        >
-                          <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                            <Icon className="h-4.5 w-4.5 text-muted-foreground" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm">{f.label}</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {f.hint}
-                            </div>
-                          </div>
-                          <input
-                            value={values[i]}
-                            onChange={(e) =>
-                              setValues((v) =>
-                                v.map((x, idx) =>
-                                  idx === i ? e.target.value : x,
-                                ),
-                              )
-                            }
-                            className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                          />
-                        </div>
-                      );
-                    })}
-                    <div className="flex items-start gap-4 py-4 last:pb-0">
-                      <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                        <FileText className="h-4.5 w-4.5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">Descripción</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          Cuéntale a tus clientes sobre tu empresa, servicios o
-                          propuesta de valor
-                        </div>
-                      </div>
-                      <textarea
-                        value={desc}
-                        onChange={(e) => setDesc(e.target.value)}
-                        rows={3}
-                        className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
-                      />
-                    </div>
-                  </div>
-                </SectionCard>
-
-                <SectionCard label="Imágenes">
-                  <div className="space-y-5">
-                    {[
-                      {
-                        title: "Logo",
-                        hint: "Se muestra en el sidebar y en los tickets",
-                        btn: "Subir logo",
-                      },
-                      {
-                        title: "Imagen de portada",
-                        hint: "Se muestra en la pantalla de login y bienvenida",
-                        btn: "Subir portada",
-                      },
-                    ].map((it) => (
-                      <div key={it.title} className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                          <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{it.title}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {it.hint}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="h-16 w-24 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center text-[10px] text-muted-foreground">
-                            vacío
-                          </div>
-                          <button className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs">
-                            <Upload className="h-3.5 w-3.5" /> {it.btn}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </SectionCard>
-              </>
-            )}
+            {active === "branding" && <BrandingSection />}
 
             {active === "horarios" && <HorariosSection />}
             {active === "equipo" && <EquipoSection />}
