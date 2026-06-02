@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import React from 'react';
@@ -161,11 +161,10 @@ type BrandingData = {
   website: string;
   description: string;
   logo_url: string;
-  cover_url: string;
 };
 const EMPTY_BRANDING: BrandingData = {
   name: "", address: "", phone: "", email: "",
-  instagram: "", website: "", description: "", logo_url: "", cover_url: "",
+  instagram: "", website: "", description: "", logo_url: "",
 };
 
 function BrandingSection() {
@@ -174,11 +173,10 @@ function BrandingSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
-    supabase.from("businesses").select("name,address,phone,email,instagram,website,description,logo_url,cover_url")
+    supabase.from("businesses").select("name,address,phone,email,instagram,website,description,logo_url")
       .eq("id", businessId).maybeSingle()
       .then(({ data: row }) => {
         if (row) setData({ ...EMPTY_BRANDING, ...row });
@@ -200,33 +198,39 @@ function BrandingSection() {
     if (!businessId) return;
     setSaving(true);
     let logo_url = data.logo_url;
-    let cover_url = data.cover_url;
     if (logoFile) {
       const url = await uploadImage(logoFile, `${businessId}/logo`);
       if (url) logo_url = url;
     }
-    if (coverFile) {
-      const url = await uploadImage(coverFile, `${businessId}/cover`);
-      if (url) cover_url = url;
-    }
-    const payload = { ...data, logo_url, cover_url };
+    const payload: Partial<BrandingData> = {
+      name: data.name,
+      address: data.address,
+      phone: data.phone,
+      email: data.email,
+      instagram: data.instagram,
+      website: data.website,
+      description: data.description,
+      logo_url,
+    };
     const { error } = await supabase.from("businesses").update(payload).eq("id", businessId);
     setSaving(false);
     if (error) return toast.error("Error guardando: " + error.message);
-    setData(d => ({ ...d, logo_url, cover_url }));
+    setData(d => ({ ...d, logo_url }));
     setLogoFile(null);
-    setCoverFile(null);
     toast.success("Branding guardado correctamente");
   }
+
+  const saveRef = React.useRef(save);
+  React.useEffect(() => { saveRef.current = save; }, [save]);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "branding") void save();
+      if (!section || section === "branding") void saveRef.current();
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, data, logoFile, coverFile]);
+  }, []);
 
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
@@ -290,35 +294,30 @@ function BrandingSection() {
 
       <SectionCard label="Imágenes">
         <div className="space-y-5">
-          {([
-            { key: "logo_url" as const, fileState: logoFile, setFile: setLogoFile, title: "Logo", hint: "Se muestra en el sidebar y en los tickets", btn: "Subir logo" },
-            { key: "cover_url" as const, fileState: coverFile, setFile: setCoverFile, title: "Imagen de portada", hint: "Se muestra en la pantalla de login y bienvenida", btn: "Subir portada" },
-          ]).map((it) => (
-            <div key={it.title} className="flex items-center gap-4">
-              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium text-sm">{it.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{it.hint}</div>
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <div className="h-16 w-24 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
-                  {it.fileState ? (
-                    <img src={URL.createObjectURL(it.fileState)} alt="" className="h-full w-full object-cover" />
-                  ) : data[it.key] ? (
-                    <img src={data[it.key] as string} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground">vacío</span>
-                  )}
-                </div>
-                <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
-                  <Upload className="h-3.5 w-3.5" /> {it.btn}
-                  <input type="file" accept="image/*" className="hidden" onChange={e => it.setFile(e.target.files?.[0] ?? null)} />
-                </label>
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
-          ))}
+            <div className="flex-1">
+              <div className="font-medium text-sm">Logo</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Se muestra en el sidebar y en los tickets</div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="h-16 w-24 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+                {logoFile ? (
+                  <img src={URL.createObjectURL(logoFile)} alt="" className="h-full w-full object-cover" />
+                ) : data.logo_url ? (
+                  <img src={data.logo_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">vacío</span>
+                )}
+              </div>
+              <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
+                <Upload className="h-3.5 w-3.5" /> Subir logo
+                <input type="file" accept="image/*" className="hidden" onChange={e => setLogoFile(e.target.files?.[0] ?? null)} />
+              </label>
+            </div>
+          </div>
         </div>
       </SectionCard>
 
@@ -545,15 +544,17 @@ function HorariosSection() {
     toast.success("Horarios guardados correctamente");
   }
 
+  const saveScheduleRef = useRef(saveSchedule);
+  useEffect(() => { saveScheduleRef.current = saveSchedule; }, [businessId, days, reservationSettings]);
 
   useEffect(() => {
     const handler = (event: Event) => {
       const section = (event as CustomEvent).detail?.section;
-      if (!section || section === "horarios") void saveSchedule();
+      if (!section || section === "horarios") void saveScheduleRef.current();
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, days, reservationSettings]);
+  }, []);
 
   const reservationRows = [
     {
@@ -1818,6 +1819,19 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }, [load]);
 
+  // Global Save button: show confirmation toast for this section
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      const mySection = isService ? "servicios" : "catalogo";
+      if (!section || section === mySection) {
+        toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
+      }
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, [isService]);
+
   const visibleRows = rows.filter((row) => {
     const category = (row.category || "Productos").toLowerCase();
     if (isService) return row.duration_min != null;
@@ -2382,11 +2396,11 @@ function SenasSection() {
       .then(({ data }) => setServices((data ?? []) as {id:string;name:string}[]));
   }, [businessId]);
 
-  const save = async () => {
+  const save = React.useCallback(async () => {
     if (!businessId) return;
     const localPct = parseInt(lostLocal) || 0;
     const profPct  = lostDist === "custom" ? (100 - localPct) : lostDist === "prof" ? 100 : 0;
-    await supabase.from("business_settings").upsert({
+    const { error } = await supabase.from("business_settings").upsert({
       business_id: businessId,
       senas_config: {
         enabled, services: selectedSvcs, amount_type: amountType,
@@ -2394,16 +2408,21 @@ function SenasSection() {
         lost_dist: lostDist, lost_local: localPct, lost_prof: profPct, msg,
       }
     }, { onConflict: "business_id" });
+    if (error) { toast.error("Error guardando señas: " + error.message); return; }
     toast.success("Configuración de señas guardada correctamente");
-  };
+  }, [businessId, enabled, selectedSvcs, amountType, amountValue, lostDist, lostLocal, msg]);
+
+  const saveRef = React.useRef(save);
+  React.useEffect(() => { saveRef.current = save; }, [save]);
 
   React.useEffect(() => {
     const handler = (e: Event) => {
-      if ((e as CustomEvent).detail?.section === "senas") save();
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "senas") saveRef.current();
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  });
+  }, []);
 
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
