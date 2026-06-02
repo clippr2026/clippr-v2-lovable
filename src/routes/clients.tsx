@@ -21,12 +21,13 @@ import {
   Star,
   TrendingUp,
   Clock3,
+  Filter,
   MoreHorizontal,
   Scissors,
   Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useClientsData, useSaveClient, type Client, type ClientStatus } from "@/hooks/use-clients-data";
+import { useClientsData, useDeleteClient, type ClientStatus } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/clients")({
@@ -171,8 +172,8 @@ function Sparkbars({ data }: { data: number[] }) {
 function ClientsPage() {
   const { businessId } = useAuth();
   const { data: allClients = [], isLoading } = useClientsData(businessId);
+  const deleteClient = useDeleteClient(businessId);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"todos" | ClientStatus>("todos");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<"resumen" | "historial" | "notas">("resumen");
@@ -186,15 +187,16 @@ function ClientsPage() {
   }, [allClients, selected]);
 
   const filtered = useMemo(() => {
-    let list = allClients.filter(
-      (c) =>
-        (filter === "todos" || c.status === filter) &&
-        (c.full_name ?? c.name ?? "").toLowerCase().includes(query.toLowerCase())
+    let list = allClients.filter((c) =>
+      (c.name ?? "").toLowerCase().includes(query.toLowerCase()) ||
+      (c.phone ?? "").toLowerCase().includes(query.toLowerCase()) ||
+      (c.email ?? "").toLowerCase().includes(query.toLowerCase())
     );
     if (sort === "gasto") list = [...list].sort((a, b) => b.spent - a.spent);
     if (sort === "nombre") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === "recientes") list = [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return list;
-  }, [allClients, query, filter, sort]);
+  }, [allClients, query, sort]);
 
   const counts = useMemo(
     () => ({
@@ -210,35 +212,17 @@ function ClientsPage() {
   const current = allClients.find((c) => c.id === selected) ?? null;
   const ticket = current && current.visits ? Math.round(current.spent / current.visits) : 0;
 
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    const ok = window.confirm(`¿Eliminar cliente ${clientName}? Esta acción no se puede deshacer.`);
+    if (!ok) return;
+    await deleteClient.mutateAsync(clientId);
+    if (selected === clientId) setSelected(null);
+  };
+
   return (
     <AppShell>
       <Topbar title="Clientes" subtitle="Cartera, segmentación y reconquista" />
       <div className="space-y-6 animate-fade-up">
-      {/* Premium hero */}
-      <div className="glass relative overflow-hidden rounded-3xl p-6 md:p-7">
-        <div className="pointer-events-none absolute -top-32 -left-20 h-72 w-72 rounded-full bg-violet-500/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -right-20 h-72 w-72 rounded-full bg-violet-400/15 blur-3xl" />
-        <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-5">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] text-violet-200/90">
-              <Crown className="h-3 w-3" /> Cartera de clientes
-            </div>
-            <h1 className="text-4xl md:text-5xl font-display font-light tracking-tight">
-              Conocé a cada cliente
-              <span className="block bg-gradient-to-r from-sky-300 via-indigo-400 to-violet-500 bg-clip-text text-transparent">
-                como si fuera el único
-              </span>
-            </h1>
-            <p className="text-sm text-muted-foreground max-w-md">
-              Segmentá, recordá preferencias y volvé a invitar a los que se alejaron.
-            </p>
-          </div>
-          <div className="hidden md:block text-xs text-muted-foreground/80 max-w-xs text-right">
-            Usá el botón superior para crear clientes nuevos.
-          </div>
-        </div>
-      </div>
-
       {/* Stats grid */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         <StatCard
@@ -341,22 +325,6 @@ function ClientsPage() {
             />
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            {(["todos", "vip", "nuevo", "activo", "inactivo", "perdido"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ring-1 transition",
-                  filter === f
-                    ? "bg-gradient-to-r from-sky-400/20 to-violet-500/10 text-sky-100 ring-violet-400/50 shadow-[0_0_18px_-4px_rgba(139,92,246,0.5)]"
-                    : "bg-white/5 text-muted-foreground ring-white/10 hover:text-foreground hover:bg-white/10"
-                )}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{filtered.length} clientes</span>
@@ -398,7 +366,7 @@ function ClientsPage() {
                         avatarTints[i % avatarTints.length]
                       )}
                     >
-                      {(c.full_name ?? c.name ?? "")[0]?.toUpperCase()}
+                      {(c.name ?? "")[0]?.toUpperCase()}
                     </div>
                     {c.status === "vip" && (
                       <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-gradient-to-br from-sky-300 to-violet-500 grid place-items-center ring-2 ring-background">
@@ -408,7 +376,7 @@ function ClientsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium truncate">{c.full_name ?? c.name}</div>
+                      <div className="font-medium truncate">{c.name}</div>
                       <div className="text-sm font-semibold tabular-nums text-foreground/90">
                         ${c.spent.toLocaleString("es-AR")}
                       </div>
@@ -481,8 +449,12 @@ function ClientsPage() {
                           )}
                         </div>
                       </div>
-                      <button className="rounded-full p-2 hover:bg-white/5 transition">
-                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                      <button
+                        onClick={() => handleDeleteClient(current.id, current.name)}
+                        title="Eliminar cliente"
+                        className="rounded-full p-2 hover:bg-rose-500/10 transition"
+                      >
+                        <MoreHorizontal className="h-4 w-4 text-muted-foreground hover:text-rose-300" />
                       </button>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -497,23 +469,6 @@ function ClientsPage() {
                   </div>
                 </div>
 
-                {/* Action row */}
-                <div className="relative grid grid-cols-4 gap-2 mt-5">
-                  {[
-                    { i: <CalendarDays className="h-4 w-4" />, l: "Agendar" },
-                    { i: <MessageCircle className="h-4 w-4" />, l: "WhatsApp" },
-                    { i: <Gift className="h-4 w-4" />, l: "Regalo" },
-                    { i: <Heart className="h-4 w-4" />, l: "Favorito" },
-                  ].map((a) => (
-                    <button
-                      key={a.l}
-                      className="inline-flex flex-col items-center gap-1 rounded-xl bg-white/5 ring-1 ring-white/10 py-3 text-[11px] text-foreground/90 hover:bg-white/10 hover:ring-violet-400/30 transition"
-                    >
-                      <span className="text-violet-200">{a.i}</span>
-                      {a.l}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Tabs */}
@@ -571,26 +526,6 @@ function ClientsPage() {
                       </div>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-3">
-                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Frecuencia (últ. 6 meses)</div>
-                          <div className="text-[10px] text-violet-200">42 d prom.</div>
-                        </div>
-                        <Sparkbars data={[3, 5, 2, 6, 4, 7, 5, 8, 6, 9, 7, 10]} />
-                      </div>
-                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 space-y-2">
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Preferencias</div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Scissors className="h-4 w-4 text-violet-200" />
-  "Sin datos de servicios"
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <UserRound className="h-4 w-4 text-violet-200" />
-  Profesional: —
-                        </div>
-                      </div>
-                    </div>
                   </>
                 )}
 
