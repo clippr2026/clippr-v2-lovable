@@ -35,11 +35,6 @@ export type Appointment = {
   status: ApptStatus;
   employee_id: string | null;
   notes: string | null;
-  deposit_amount: number | null;
-  deposit_paid: number | null;
-  deposit_status: string | null;
-  client_phone: string | null;
-  client_email: string | null;
   created_by_name: string | null;
   created_by_role: string | null;
   updated_at: string | null;
@@ -131,7 +126,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,deposit_amount,deposit_paid,deposit_status,client_phone,client_email,created_by_name,created_by_role,updated_at",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -139,9 +134,8 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("starts_at"),
       supabase
         .from("employees")
-        .select("id,full_name,is_active")
+        .select("id,full_name")
         .eq("business_id", businessId)
-        .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("services")
