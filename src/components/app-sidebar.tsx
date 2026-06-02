@@ -115,27 +115,29 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
 
 function NotificationsButton() {
   const { businessId } = useAuth();
+  const [items, setItems] = React.useState<Array<{ id: string; title: string; detail: string; read: boolean }>>([]);
   const [open, setOpen] = React.useState(false);
-  const [items, setItems] = React.useState<Array<{ id: string; title: string; detail: string }>>([]);
 
-  const storageKey = React.useMemo(
-    () => `clippr_read_notifications_${businessId ?? "global"}`,
+  const readStorageKey = React.useMemo(
+    () => `clippr_read_notifications_${businessId || "global"}`,
     [businessId],
   );
 
-  const readIds = React.useCallback(() => {
-    if (typeof window === "undefined") return new Set<string>();
+  const getReadIds = React.useCallback(() => {
     try {
-      return new Set<string>(JSON.parse(window.localStorage.getItem(storageKey) || "[]"));
+      return new Set(JSON.parse(localStorage.getItem(readStorageKey) || "[]") as string[]);
     } catch {
       return new Set<string>();
     }
-  }, [storageKey]);
+  }, [readStorageKey]);
 
-  const saveReadIds = React.useCallback((ids: string[]) => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(storageKey, JSON.stringify(Array.from(new Set(ids)).slice(0, 300)));
-  }, [storageKey]);
+  const markVisibleAsRead = React.useCallback(() => {
+    if (items.length === 0) return;
+    const read = getReadIds();
+    items.forEach((item) => read.add(item.id));
+    localStorage.setItem(readStorageKey, JSON.stringify(Array.from(read).slice(-500)));
+    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+  }, [getReadIds, items, readStorageKey]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -148,29 +150,31 @@ function NotificationsButton() {
 
       const { data } = await supabase
         .from("appointments")
-        .select("id,client_name,service_name,status,starts_at,updated_at,created_at")
+        .select("id,client_name,service_name,status,starts_at,created_at,created_by_role")
         .eq("business_id", businessId)
-        .in("status", ["pending", "confirmed", "cancelled"])
         .gte("created_at", since.toISOString())
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(30);
 
       if (!mounted) return;
-      const read = readIds();
 
+      const readIds = getReadIds();
       const next = (data ?? [])
-        .filter((appt: any) => !read.has(`${appt.id}:${appt.status}:${appt.updated_at ?? appt.created_at}`))
+        .filter((appt: any) => {
+          const role = String(appt.created_by_role || "").toLowerCase();
+          return !role || role === "cliente" || role === "client" || role === "online" || role === "public";
+        })
         .map((appt: any) => {
           const isCancelled = appt.status === "cancelled";
-          const when = appt.starts_at
-            ? new Date(appt.starts_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
-            : "Sin fecha";
+          const when = appt.starts_at ? new Date(appt.starts_at).toLocaleString("es-AR") : "Sin fecha";
           return {
-            id: `${appt.id}:${appt.status}:${appt.updated_at ?? appt.created_at}`,
+            id: appt.id,
             title: isCancelled ? "Reserva cancelada" : "Nueva reserva",
             detail: `${appt.client_name || "Cliente"} · ${appt.service_name || "Servicio"} · ${when}`,
+            read: readIds.has(appt.id),
           };
-        });
+        })
+        .slice(0, 10);
 
       setItems(next);
     }
@@ -181,29 +185,24 @@ function NotificationsButton() {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, [businessId, readIds]);
-
-  function handleOpenChange(nextOpen: boolean) {
-    setOpen(nextOpen);
-    if (nextOpen && items.length > 0) {
-      saveReadIds([...Array.from(readIds()), ...items.map((i) => i.id)]);
-      // al abrirlas se consideran vistas; desaparecen del contador y del listado
-      window.setTimeout(() => setItems([]), 250);
-    }
-  }
+  }, [businessId, getReadIds]);
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) window.setTimeout(markVisibleAsRead, 700);
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <button
           className="hidden sm:grid h-10 w-10 place-items-center rounded-xl glass glass-hover relative"
           aria-label="Notificaciones"
         >
           <Bell className="h-4 w-4" />
-          {items.length > 0 && (
-            <span className="absolute top-1.5 right-1.5 min-h-4 min-w-4 rounded-full bg-accent px-1 text-[10px] font-bold text-background grid place-items-center">
-              {items.length}
-            </span>
+          {items.some((item) => !item.read) && (
+            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent shadow-[0_0_10px] shadow-accent/60" />
           )}
         </button>
       </DropdownMenuTrigger>
@@ -216,8 +215,17 @@ function NotificationsButton() {
           </div>
         ) : (
           items.map((item) => (
-            <DropdownMenuItem key={item.id} className="flex flex-col items-start gap-1 py-2">
-              <span className="font-medium">{item.title}</span>
+            <DropdownMenuItem
+              key={item.id}
+              className={cn(
+                "flex flex-col items-start gap-1 py-2",
+                !item.read && "bg-primary/10 text-foreground",
+              )}
+            >
+              <span className="font-medium inline-flex items-center gap-2">
+                {!item.read && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+                {item.title}
+              </span>
               <span className="text-xs text-muted-foreground whitespace-normal">{item.detail}</span>
             </DropdownMenuItem>
           ))
