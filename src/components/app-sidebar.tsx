@@ -118,6 +118,28 @@ function NotificationsButton() {
   const [items, setItems] = React.useState<Array<{ id: string; title: string; detail: string }>>(
     [],
   );
+  const [open, setOpen] = React.useState(false);
+
+  const readStorageKey = React.useMemo(
+    () => `clippr_read_notifications_${businessId || "global"}`,
+    [businessId],
+  );
+
+  const getReadIds = React.useCallback(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(readStorageKey) || "[]") as string[]);
+    } catch {
+      return new Set<string>();
+    }
+  }, [readStorageKey]);
+
+  const markVisibleAsRead = React.useCallback(() => {
+    if (items.length === 0) return;
+    const read = getReadIds();
+    items.forEach((item) => read.add(item.id));
+    localStorage.setItem(readStorageKey, JSON.stringify(Array.from(read).slice(-300)));
+    setItems([]);
+  }, [getReadIds, items, readStorageKey]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -130,25 +152,35 @@ function NotificationsButton() {
 
       const { data } = await supabase
         .from("appointments")
-        .select("id,client_name,service_name,status,starts_at,updated_at,created_at")
+        .select("id,client_name,service_name,status,starts_at,updated_at,created_at,created_by_role")
         .eq("business_id", businessId)
         .gte("created_at", since.toISOString())
         .order("created_at", { ascending: false })
-        .limit(8);
+        .limit(20);
 
       if (!mounted) return;
 
-      const next = (data ?? []).map((appt: any) => {
-        const isCancelled = appt.status === "cancelled";
-        const when = appt.starts_at
-          ? new Date(appt.starts_at).toLocaleString("es-AR")
-          : "Sin fecha";
-        return {
-          id: appt.id,
-          title: isCancelled ? "Reserva cancelada" : "Nueva reserva",
-          detail: `${appt.client_name || "Cliente"} · ${appt.service_name || "Servicio"} · ${when}`,
-        };
-      });
+      const readIds = getReadIds();
+      const next = (data ?? [])
+        .filter((appt: any) => {
+          if (readIds.has(appt.id)) return false;
+          // Evita notificar acciones internas hechas desde la app. Las reservas públicas/online
+          // normalmente llegan sin rol interno o con rol cliente/online.
+          const role = String(appt.created_by_role || "").toLowerCase();
+          return !role || role === "cliente" || role === "client" || role === "online" || role === "public";
+        })
+        .map((appt: any) => {
+          const isCancelled = appt.status === "cancelled";
+          const when = appt.starts_at
+            ? new Date(appt.starts_at).toLocaleString("es-AR")
+            : "Sin fecha";
+          return {
+            id: appt.id,
+            title: isCancelled ? "Reserva cancelada" : "Nueva reserva",
+            detail: `${appt.client_name || "Cliente"} · ${appt.service_name || "Servicio"} · ${when}`,
+          };
+        })
+        .slice(0, 8);
 
       setItems(next);
     }
@@ -159,10 +191,16 @@ function NotificationsButton() {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, [businessId]);
+  }, [businessId, getReadIds]);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) markVisibleAsRead();
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <button
           className="hidden sm:grid h-10 w-10 place-items-center rounded-xl glass glass-hover relative"
@@ -181,7 +219,7 @@ function NotificationsButton() {
         <DropdownMenuSeparator />
         {items.length === 0 ? (
           <div className="px-3 py-6 text-sm text-muted-foreground text-center">
-            Sin reservas ni cancelaciones recientes.
+            Sin reservas ni cancelaciones nuevas.
           </div>
         ) : (
           items.map((item) => (
