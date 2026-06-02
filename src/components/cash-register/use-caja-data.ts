@@ -53,10 +53,31 @@ export type Expense = {
 export type ApprovalMode = "auto" | "manual" | "disabled";
 export type PaymentMethodsConfig = { efectivo: boolean; transferencia: boolean; tarjeta: boolean; mp: boolean; cuentaDni: boolean };
 
+function loadPaymentMethods(): PaymentMethodsConfig {
+  if (typeof window === "undefined") return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
+  try {
+    const saved = JSON.parse(window.localStorage.getItem("clippr_payment_methods") || "null");
+    return {
+      efectivo: saved?.efectivo !== false,
+      transferencia: saved?.transferencia !== false,
+      tarjeta: saved?.tarjeta !== false,
+      mp: saved?.mp !== false,
+      cuentaDni: saved?.cuentaDni === true,
+    };
+  } catch {
+    return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
+  }
+}
+
 export function useCajaData() {
   const { businessId, profile } = useAuth();
   const [loading, setLoading] = React.useState(true);
-  const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>("auto");
+  const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>(() => {
+    if (typeof window === "undefined") return "auto";
+    const saved = window.localStorage.getItem("clippr_approval_mode");
+    return saved === "manual" || saved === "disabled" || saved === "auto" ? saved : "auto";
+  });
+  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethodsConfig>(() => loadPaymentMethods());
   const [services, setServices] = React.useState<Service[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [clients, setClients] = React.useState<ClientLite[]>([]);
@@ -65,13 +86,16 @@ export function useCajaData() {
   const [cashSessionId, setCashSessionId] = React.useState<string | null>(null);
   const [pendingCount, setPendingCount] = React.useState(0);
   const [pendingAmount, setPendingAmount] = React.useState(0);
-  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethodsConfig>({
-    efectivo: true,
-    transferencia: true,
-    tarjeta: true,
-    mp: true,
-    cuentaDni: false,
-  });
+
+  React.useEffect(() => {
+    const refreshPaymentMethods = () => setPaymentMethods(loadPaymentMethods());
+    window.addEventListener("clippr:caja-settings-updated", refreshPaymentMethods);
+    window.addEventListener("storage", refreshPaymentMethods);
+    return () => {
+      window.removeEventListener("clippr:caja-settings-updated", refreshPaymentMethods);
+      window.removeEventListener("storage", refreshPaymentMethods);
+    };
+  }, []);
 
   const load = React.useCallback(async () => {
     if (!businessId) {
@@ -79,17 +103,6 @@ export function useCajaData() {
       return;
     }
     setLoading(true);
-
-    if (typeof window !== "undefined") {
-      try {
-        const saved = window.localStorage.getItem(`clippr_payment_methods_${businessId}`);
-        if (saved) {
-          setPaymentMethods((defaults) => ({ ...defaults, ...JSON.parse(saved) }));
-        }
-      } catch {
-        // mantener defaults
-      }
-    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -104,7 +117,7 @@ export function useCajaData() {
         .eq("business_id", businessId)
         .eq("active", true)
         .order("category")
-        .order("name"),
+        .order("full_name"),
       supabase
         .from("employees")
         .select("id,full_name,is_active")
@@ -137,9 +150,9 @@ export function useCajaData() {
         .maybeSingle(),
       supabase
         .from("clients")
-        .select("id,name,phone,email,birth_date")
+        .select("id,full_name,phone,email,birth_date")
         .eq("business_id", businessId)
-        .order("name"),
+        .order("full_name"),
     ]);
 
     const svcRaw =
@@ -167,7 +180,13 @@ export function useCajaData() {
     );
     setClients(
       cliRes.status === "fulfilled" && !cliRes.value.error
-        ? ((cliRes.value.data ?? []) as ClientLite[])
+        ? ((cliRes.value.data ?? []) as Array<{ id: string; full_name?: string | null; name?: string | null; phone: string | null; email?: string | null; birth_date?: string | null }>).map((r) => ({
+            id: r.id,
+            name: r.full_name ?? r.name ?? "Sin nombre",
+            phone: r.phone,
+            email: r.email,
+            birth_date: r.birth_date,
+          }))
         : []
     );
     setPaymentsToday(
@@ -211,8 +230,10 @@ export function useCajaData() {
       bsRes.status === "fulfilled" && !bsRes.value.error
         ? bsRes.value.data?.approval_mode
         : null;
-    if (mode === "manual" || mode === "auto" || mode === "disabled")
+    if (mode === "manual" || mode === "auto" || mode === "disabled") {
       setApprovalModeState(mode as ApprovalMode);
+      if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", mode);
+    }
 
     setLoading(false);
   }, [businessId]);
@@ -224,14 +245,21 @@ export function useCajaData() {
   const setApprovalMode = React.useCallback(
     async (m: ApprovalMode) => {
       setApprovalModeState(m);
+      if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", m);
       if (!businessId) return;
+
       try {
-        await supabase
+        const { error: updateError } = await supabase
           .from("business_settings")
-          .upsert(
-            { business_id: businessId, approval_mode: m },
-            { onConflict: "business_id" }
-          );
+          .update({ approval_mode: m })
+          .eq("business_id", businessId);
+
+        if (updateError) {
+          const { error: insertError } = await supabase
+            .from("business_settings")
+            .upsert({ business_id: businessId, approval_mode: m }, { onConflict: "business_id" });
+          if (insertError) throw insertError;
+        }
       } catch (e) {
         console.warn("[caja] setApprovalMode failed:", (e as Error).message);
       }
@@ -257,6 +285,7 @@ export function useCajaData() {
     profileId: profile?.id ?? null,
     approvalMode,
     setApprovalMode,
+    paymentMethods,
     services,
     employees,
     clients,
@@ -269,7 +298,6 @@ export function useCajaData() {
     totalGastos,
     pendingCount,
     pendingAmount,
-    paymentMethods,
     refresh: load,
   };
 }
