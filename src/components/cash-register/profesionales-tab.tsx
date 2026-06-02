@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Loader2, Wallet, Eye, BarChart3, X } from "lucide-react";
+import { Loader2, Wallet, Eye, BarChart3, X, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -164,18 +164,36 @@ export function ProfesionalesTab({
               </option>
             ))}
           </select>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
-          />
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
-          />
+          <label className="group relative min-w-[170px] flex-1 sm:flex-none">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Desde
+            </span>
+            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-amber-200">
+              <CalendarDays className="size-4" />
+            </span>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              onClick={(e) => e.currentTarget.showPicker?.()}
+              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+            />
+          </label>
+          <label className="group relative min-w-[170px] flex-1 sm:flex-none">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Hasta
+            </span>
+            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-amber-200">
+              <CalendarDays className="size-4" />
+            </span>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              onClick={(e) => e.currentTarget.showPicker?.()}
+              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+            />
+          </label>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {RANGES.map((r) => (
