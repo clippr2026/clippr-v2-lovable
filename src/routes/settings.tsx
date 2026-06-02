@@ -946,46 +946,49 @@ function EquipoSection() {
       setDlgTab("datos");
       return toast.error("Ingresá el nombre completo");
     }
-
     setSaving(true);
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
 
-    const result = editingEmp
-      ? await supabase
-          .from("employees")
-          .update({ full_name: name, commission_pct: commission })
-          .eq("business_id", businessId)
-          .eq("id", editingEmp.id)
-          .select("id")
-          .single()
-      : await supabase
-          .from("employees")
-          .insert({
-            business_id: businessId,
-            full_name: name,
-            is_active: true,
-            commission_pct: commission,
-          })
-          .select("id")
-          .single();
-
-    if (result.error || !result.data?.id) {
+    if (editingEmp) {
+      // Update existing
+      const { error } = await supabase.from("employees").update({
+        full_name: name,
+        commission_pct: commission,
+      }).eq("id", editingEmp.id);
       setSaving(false);
-      return toast.error("Error: " + (result.error?.message ?? "no se pudo guardar"));
+      if (error) return toast.error("Error: " + error.message);
+      toast.success("Profesional actualizado correctamente");
+      setOpen(false);
+      setEditingEmp(null);
+      load();
+      return;
     }
 
+    // Insert new
+    const { data: inserted, error } = await supabase
+      .from("employees")
+      .insert({
+        business_id: businessId,
+        full_name: name,
+        is_active: true,
+        commission_pct: commission,
+      })
+      .select("id")
+      .single();
+    if (error || !inserted) {
+      setSaving(false);
+      return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
+    }
     setSaving(false);
-    toast.success(editingEmp ? "Profesional actualizado correctamente" : "Equipo actualizado correctamente");
+    toast.success("Profesional agregado correctamente");
     setOpen(false);
-    setEditingEmp(null);
-    void load();
+    load();
   }
 
   async function toggleActive(emp: EmployeeRow) {
     const { error } = await supabase
       .from("employees")
       .update({ is_active: !(emp.is_active !== false) })
-      .eq("business_id", businessId)
       .eq("id", emp.id);
     if (error) return toast.error("Error: " + error.message);
     load();
@@ -999,7 +1002,7 @@ function EquipoSection() {
     if (!confirmDel) return;
     const emp = confirmDel;
     setConfirmDel(null);
-    const { error } = await supabase.from("employees").delete().eq("business_id", businessId).eq("id", emp.id);
+    const { error } = await supabase.from("employees").delete().eq("id", emp.id);
     if (error) return toast.error("Error: " + error.message);
     toast.success("Equipo actualizado correctamente");
     load();
@@ -1510,7 +1513,6 @@ type PriceRow = {
   category: string | null;
   active: boolean | null;
   stock?: number | null;
-  sort_order?: number | null;
 };
 
 type PriceForm = {
@@ -1567,7 +1569,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     status: row.active === false ? "Inactivo" : "Activo",
     category: row.category || (isService ? "Servicios" : "Productos"),
     description: "",
-    reservable: (row as Record<string, unknown>).bookable_online !== false,
+    reservable: true,
     stock: String(row.stock ?? 0),
     warnStock: "0",
     criticalStock: "0",
@@ -1849,9 +1851,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock,sort_order")
+      .select("id,name,price,duration_min,category,active,stock")
       .eq("business_id", businessId)
-      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("category")
       .order("name");
     if (error) toast.error("Error: " + error.message);
     setRows((data ?? []) as PriceRow[]);
@@ -1907,7 +1909,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       price: Number(form.price) || 0,
       category: form.category,
       active: form.status === "Activo",
-      bookable_online: form.reservable,
       duration_min: isService ? Number(form.duration) || 30 : null,
     };
     if (!isService) payload.stock = Number(form.stock) || 0;
@@ -1948,20 +1949,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }
 
-  async function reorderItem(row: PriceRow, direction: "up" | "down") {
+  function reorderItem(row: PriceRow, direction: "up" | "down") {
     const catRows = filtered;
     const idx = catRows.findIndex((r) => r.id === row.id);
     if (direction === "up" && idx === 0) return;
     if (direction === "down" && idx === catRows.length - 1) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     const swapRow = catRows[swapIdx];
-    const aOrder = idx;
-    const bOrder = swapIdx;
-    await Promise.all([
-      supabase.from("price_catalog").update({ sort_order: bOrder }).eq("id", row.id),
-      supabase.from("price_catalog").update({ sort_order: aOrder }).eq("id", swapRow.id),
-    ]);
-    load();
+    setRows(prev => {
+      const arr = [...prev];
+      const i = arr.findIndex(r => r.id === row.id);
+      const j = arr.findIndex(r => r.id === swapRow.id);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return arr;
+    });
   }
 
   // Inline input modal for add/rename category (avoids browser prompt())
