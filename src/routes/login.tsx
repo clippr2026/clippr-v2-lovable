@@ -35,7 +35,7 @@ function LoginPage() {
     }
     setError(null);
     setSubmitting(true);
-    const { error: err } = await signIn(email.trim(), password);
+    const { error: err } = await signIn(email.trim(), password, remember);
     setSubmitting(false);
     if (err) setError(err);
   }
