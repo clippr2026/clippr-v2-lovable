@@ -3,15 +3,32 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase, type Profile } from "@/integrations/supabase/client";
 
 
-export type PermKey = "dashboard"|"agenda"|"caja"|"profesionales"|"clientes"|"branding"|"horarios"|"equipo"|"servicios"|"catalogo"|"config_caja"|"plan";
+export type PermKey =
+  | "dashboard" | "agenda" | "caja" | "profesionales" | "clientes"
+  | "configuracion" | "branding" | "horarios" | "equipo" | "servicios"
+  | "catalogo" | "config_caja" | "senas" | "plan";
+
+const ALL_TRUE_PERMS: Record<PermKey, boolean> = {
+  dashboard: true, agenda: true, caja: true, profesionales: true, clientes: true,
+  configuracion: true, branding: true, horarios: true, equipo: true, servicios: true,
+  catalogo: true, config_caja: true, senas: true, plan: true,
+};
 
 export const ROLE_DEFAULTS: Record<string, Record<PermKey, boolean>> = {
-  admin_general: { dashboard:true, agenda:true, caja:true, profesionales:true, clientes:true, branding:true, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:true },
-  socio:         { dashboard:true, agenda:true, caja:true, profesionales:true, clientes:true, branding:true, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:true },
-  admin_local:   { dashboard:false, agenda:true, caja:true, profesionales:false, clientes:true, branding:false, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:false },
-  recepcionista: { dashboard:false, agenda:true, caja:true, profesionales:false, clientes:true, branding:false, horarios:false, equipo:false, servicios:false, catalogo:false, config_caja:false, plan:false },
-  profesional:   { dashboard:false, agenda:false, caja:false, profesionales:true, clientes:false, branding:false, horarios:false, equipo:false, servicios:false, catalogo:false, config_caja:false, plan:false },
-  owner:         { dashboard:true, agenda:true, caja:true, profesionales:true, clientes:true, branding:true, horarios:true, equipo:true, servicios:true, catalogo:true, config_caja:true, plan:true },
+  admin_general: { ...ALL_TRUE_PERMS },
+  socio: { ...ALL_TRUE_PERMS },
+  admin_local: { ...ALL_TRUE_PERMS, dashboard: false, profesionales: false, branding: false, plan: false },
+  recepcionista: {
+    ...ALL_TRUE_PERMS, dashboard: false, profesionales: false, configuracion: false,
+    branding: false, horarios: false, equipo: false, servicios: false, catalogo: false,
+    config_caja: false, senas: false, plan: false,
+  },
+  profesional: {
+    ...ALL_TRUE_PERMS, dashboard: false, agenda: false, caja: false, profesionales: true,
+    clientes: false, configuracion: false, branding: false, horarios: false, equipo: false,
+    servicios: false, catalogo: false, config_caja: false, senas: false, plan: false,
+  },
+  owner: { ...ALL_TRUE_PERMS },
 };
 
 export function getPermissions(role: string | null | undefined, rolePermissions: Record<string, Record<string, boolean>> | null): Record<PermKey, boolean> {
@@ -31,6 +48,7 @@ type AuthState = {
   signOut: () => Promise<void>;
   permissions: Record<PermKey, boolean>;
   rolePermissions: Record<string, Record<string, boolean>> | null;
+  reloadRolePermissions: () => Promise<void>;
 };
 
 const AuthCtx = React.createContext<AuthState | undefined>(undefined);
@@ -126,7 +144,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [businessId, setBusinessId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [rolePermissions, setRolePermissions] = React.useState<Record<string,Record<string,boolean>>|null>(null);
+  const [rolePermissions, setRolePermissions] = React.useState<Record<string, Record<string, boolean>> | null>(null);
+
+  const reloadRolePermissions = React.useCallback(async () => {
+    if (!businessId) return;
+    const { data } = await supabase
+      .from("business_settings")
+      .select("role_permissions")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    setRolePermissions((data?.role_permissions as Record<string, Record<string, boolean>> | null) ?? null);
+  }, [businessId]);
+
+  React.useEffect(() => {
+    const handler = () => { void reloadRolePermissions(); };
+    window.addEventListener("clippr:role-permissions-updated", handler);
+    return () => window.removeEventListener("clippr:role-permissions-updated", handler);
+  }, [reloadRolePermissions]);
 
   const hydrate = React.useCallback(async (s: Session | null) => {
     setSession(s);
@@ -146,6 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       setBusinessId(null);
       setProfile(null);
+      setRolePermissions(null);
     }
     setLoading(false);
   }, []);
@@ -177,13 +212,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [hydrate]);
 
   const signIn = React.useCallback(async (email: string, password: string, remember = false) => {
-    // Supabase uses localStorage by default (persistSession=true).
-    // For "remember me" = false, we store session in sessionStorage only.
-    if (!remember) {
-      // Override storage temporarily for this sign-in
-      supabase.auth.setSession({ access_token: "", refresh_token: "" }).catch(() => {});
-    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) {
+      if (remember) {
+        localStorage.setItem("clippr_remember_login", "1");
+        localStorage.setItem("clippr_remember_email", email);
+      } else {
+        localStorage.removeItem("clippr_remember_login");
+        localStorage.removeItem("clippr_remember_email");
+      }
+    }
     return { error: error?.message ?? null };
   }, []);
 
@@ -206,6 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     permissions,
     rolePermissions,
+    reloadRolePermissions,
   };
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
