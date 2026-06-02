@@ -932,6 +932,17 @@ function EquipoSection() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "equipo") {
+        toast.success("Equipo guardado correctamente");
+      }
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, []);
+
   function openNew() {
     setEditingEmp(null);
     setForm(EMPTY_FORM);
