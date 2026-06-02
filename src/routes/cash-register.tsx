@@ -119,6 +119,46 @@ function CashRegisterPage() {
 }
 
 function Header({ data }: { data: ReturnType<typeof useCajaData> }) {
+  const cashSessionId = data.cashSessionId;
+  const open = Boolean(cashSessionId);
+  const [busy, setBusy] = useState(false);
+
+  async function handleOpen() {
+    if (!data.businessId || !data.profileId) {
+      toast.error("Falta identificar negocio o usuario.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await openCashSession({ businessId: data.businessId, openedBy: data.profileId });
+      toast.success("Caja abierta");
+      await data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClose() {
+    if (!cashSessionId || !data.profileId) return;
+    if (!confirm("¿Cerrar la caja del día?")) return;
+    setBusy(true);
+    try {
+      await closeCashSession({
+        sessionId: cashSessionId,
+        closedBy: data.profileId,
+        total: data.revHoy,
+      });
+      toast.success("Caja cerrada");
+      await data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="flex items-end justify-between gap-4 flex-wrap">
       <div>
@@ -126,17 +166,50 @@ function Header({ data }: { data: ReturnType<typeof useCajaData> }) {
           Caja & Cobro
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Resumen del día, ventas, precios, inventario y gastos en un solo lugar.
+          Resumen del día, ventas, precios e inventario en un solo lugar.
         </p>
       </div>
-      {data.loading && (
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" /> Sincronizando…
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium",
+            open
+              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+              : "border-white/15 bg-white/[0.04] text-muted-foreground"
+          )}
+        >
+          <span
+            className={cn(
+              "size-1.5 rounded-full",
+              open ? "bg-emerald-400 shadow-[0_0_10px] shadow-emerald-400/70" : "bg-muted-foreground/60"
+            )}
+          />
+          {open ? "Caja abierta" : "Caja sin abrir"}
         </span>
-      )}
+        {open ? (
+          <button
+            onClick={handleClose}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 text-amber-200 px-3 py-1.5 text-xs font-medium hover:bg-amber-300/20 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Lock className="size-3.5" />}
+            Cerrar caja
+          </button>
+        ) : (
+          <button
+            onClick={handleOpen}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 px-3 py-1.5 text-xs font-medium hover:bg-emerald-400/20 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Unlock className="size-3.5" />}
+            Abrir caja
+          </button>
+        )}
+      </div>
     </div>
   );
 }
+
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "resumen", label: "Resumen del día" },
@@ -489,25 +562,6 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const multipleTotal = Object.values(multiplePayments).reduce((sum, value) => sum + Number(value || 0), 0);
   const multipleRemaining = total - multipleTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
-  const enabledPaymentMethods = ([
-    { id: "cash", configKey: "efectivo", label: "Efectivo", icon: Banknote },
-    { id: "transfer", configKey: "transferencia", label: "Transferencia", icon: Smartphone },
-    { id: "card", configKey: "tarjeta", label: "Débito / Crédito", icon: CreditCard },
-    { id: "mp", configKey: "mp", label: "Mercado Pago", icon: Wallet },
-    { id: "cuenta", configKey: "cuentaDni", label: "Cuenta DNI", icon: Smartphone },
-  ] as const).filter((m) => data.paymentMethods[m.configKey]);
-
-  const multiplePaymentOptions = ([
-    { id: "cash", label: "Efectivo", icon: Banknote, enabled: data.paymentMethods.efectivo },
-    { id: "transfer", label: "Transferencia", icon: Smartphone, enabled: data.paymentMethods.transferencia },
-    { id: "card", label: "Tarjeta", icon: CreditCard, enabled: data.paymentMethods.tarjeta },
-  ] as const).filter((m) => m.enabled);
-
-  React.useEffect(() => {
-    if (!enabledPaymentMethods.some((m) => m.id === method) && enabledPaymentMethods[0]) {
-      setMethod(enabledPaymentMethods[0].id);
-    }
-  }, [data.paymentMethods, method]);
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
   const sub = (id: string) =>
@@ -855,7 +909,13 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
               <div>
                 <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-3">MÉTODO DE PAGO</p>
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {enabledPaymentMethods.map((m) => {
+                  {([
+                    { id: "cash", label: "Efectivo", icon: Banknote },
+                    { id: "transfer", label: "Transferencia", icon: Smartphone },
+                    { id: "card", label: "Débito / Crédito", icon: CreditCard },
+                    { id: "mp", label: "Mercado Pago", icon: Wallet },
+                    { id: "qr", label: "QR", icon: Smartphone },
+                  ] as const).map((m) => {
                     const active = method === m.id;
                     return (
                       <button
@@ -895,7 +955,11 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
           ) : (
             <div className="space-y-3">
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
-              {multiplePaymentOptions.map((m) => (
+              {([
+                { id: "cash", label: "Efectivo", icon: Banknote },
+                { id: "transfer", label: "Transferencia", icon: Smartphone },
+                { id: "card", label: "Tarjeta", icon: CreditCard },
+              ] as const).map((m) => (
                 <div key={m.id} className="grid grid-cols-[180px_1fr] gap-3 items-center rounded-xl border border-white/10 bg-white/[0.02] p-3">
                   <div className="flex items-center gap-2 text-sm text-foreground">
                     <m.icon className="size-4 text-amber-200" /> {m.label}

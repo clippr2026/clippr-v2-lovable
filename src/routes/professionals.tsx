@@ -48,11 +48,18 @@ function ProfessionalsPage() {
   const empId = activeId ?? professionals[0]?.id ?? null;
 
   // Load approval_mode from Supabase
-  const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">("auto");
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">(() => {
+    if (typeof window === "undefined") return "auto";
+    const saved = window.localStorage.getItem("clippr_approval_mode");
+    return saved === "manual" || saved === "disabled" || saved === "auto" ? saved : "auto";
+  });
   useEffect(() => {
     if (!businessId) return;
     supabase.from("business_settings").select("approval_mode").eq("business_id", businessId).maybeSingle()
-      .then(({ data }) => { if (data?.approval_mode) setApprovalMode(data.approval_mode as typeof approvalMode); });
+      .then(({ data }) => { if (data?.approval_mode) {
+          setApprovalMode(data.approval_mode as typeof approvalMode);
+          if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", data.approval_mode);
+        } });
   }, [businessId]);
   const active = useMemo(() => professionals.find((p) => p.id === empId) ?? professionals[0] ?? null, [professionals, empId]);
   const activeColor = useMemo(() => COLORS[(professionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [professionals, empId]);
@@ -162,7 +169,7 @@ function ProfessionalsPage() {
       {/* Content */}
       {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} />}
       {tab === "stats" && <StatsView range={range} setRange={setRange} businessId={businessId} empId={empId} />}
-      {tab === "historial" && <HistorialView businessId={businessId} empId={empId} />}
+      {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} />}
       {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} />}
       </div>
     </AppShell>
@@ -182,40 +189,7 @@ function CobroModal({
   const [method, setMethod] = useState<PayMethod>("cash");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [extras, setExtras] = useState<Array<{ id: string; name: string; price: number; category: string | null; stock: number | null }>>([]);
-  const [extraCart, setExtraCart] = useState<Record<string, number>>({});
   const price = Number(turno.service_price ?? 0);
-  const extraItems = Object.entries(extraCart)
-    .map(([id, qty]) => {
-      const item = extras.find((x) => x.id === id);
-      return item ? { item, qty } : null;
-    })
-    .filter((x): x is { item: { id: string; name: string; price: number; category: string | null; stock: number | null }; qty: number } => Boolean(x));
-  const total = price + extraItems.reduce((sum, { item, qty }) => sum + Number(item.price) * qty, 0);
-
-  useEffect(() => {
-    if (mode !== "auto" || !businessId) return;
-    supabase
-      .from("price_catalog")
-      .select("id,name,price,category,stock,active")
-      .eq("business_id", businessId)
-      .eq("active", true)
-      .order("category")
-      .order("name")
-      .then(({ data }) => {
-        setExtras(
-          (data ?? [])
-            .filter((item: any) => item.name !== turno.service_name)
-            .map((item: any) => ({
-              id: item.id,
-              name: item.name,
-              price: Number(item.price ?? 0),
-              category: item.category ?? null,
-              stock: item.stock ?? null,
-            })),
-        );
-      });
-  }, [businessId, mode, turno.service_name]);
 
   async function confirm() {
     setSaving(true);
@@ -225,12 +199,7 @@ function CobroModal({
         await registerPayment({
           businessId, employeeId: empId,
           clientName: turno.client_name ?? "Sin cliente",
-          items: [
-            { serviceName: turno.service_name ?? "Servicio", amount: price },
-            ...extraItems.flatMap(({ item, qty }) =>
-              Array.from({ length: qty }, () => ({ serviceName: item.name, amount: Number(item.price) })),
-            ),
-          ],
+          items: [{ serviceName: turno.service_name ?? "Servicio", amount: price }],
           method,
         });
         // Mark appointment as charged
@@ -268,36 +237,6 @@ function CobroModal({
           <div className="text-sm text-muted-foreground">{turno.service_name ?? "—"}</div>
           {price > 0 && <div className="text-2xl font-display font-light mt-1">${price.toLocaleString("es-AR")}</div>}
         </div>
-
-        {mode === "auto" && (
-          <div className="space-y-2">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Agregar extra opcional</div>
-            {extras.length === 0 ? (
-              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2 text-xs text-muted-foreground">Sin productos o servicios extra.</div>
-            ) : (
-              <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-                {extras.slice(0, 8).map((item) => {
-                  const qty = extraCart[item.id] ?? 0;
-                  return (
-                    <div key={item.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate text-sm font-medium">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">${item.price.toLocaleString("es-AR")}{item.category ? ` · ${item.category}` : ""}</div>
-                      </div>
-                      <button onClick={() => setExtraCart((c) => { const n = (c[item.id] ?? 0) - 1; const { [item.id]: _omit, ...rest } = c; return n <= 0 ? rest : { ...c, [item.id]: n }; })} className="size-7 rounded-lg bg-white/5 text-muted-foreground hover:text-foreground">−</button>
-                      <span className="w-5 text-center text-sm">{qty}</span>
-                      <button onClick={() => setExtraCart((c) => ({ ...c, [item.id]: (c[item.id] ?? 0) + 1 }))} className="size-7 rounded-lg bg-white/5 text-foreground">+</button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <div className="flex justify-between rounded-xl bg-emerald-500/10 ring-1 ring-emerald-400/20 px-3 py-2 text-sm">
-              <span>Total a cobrar</span>
-              <strong>${total.toLocaleString("es-AR")}</strong>
-            </div>
-          </div>
-        )}
 
         {/* Método de pago — solo en auto */}
         {mode === "auto" && (
@@ -392,18 +331,14 @@ function TurnosView({ businessId, empId, approvalMode, profile }: {
                   {statusLabel[t.status] ?? t.status}
                 </span>
                 {/* Cobrar button */}
-                {t.status !== "charged" && t.status !== "cancelled" && (
-                  approvalMode === "disabled" ? (
-                    <span className="text-[11px] text-muted-foreground opacity-50">🚫 bloqueado</span>
-                  ) : (
-                    <button onClick={() => setCobroTurno(t)}
-                      className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
-                        approvalMode === "auto"
-                          ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                          : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
-                      {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                    </button>
-                  )
+                {approvalMode !== "disabled" && t.status !== "charged" && t.status !== "cancelled" && (
+                  <button onClick={() => setCobroTurno(t)}
+                    className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
+                      approvalMode === "auto"
+                        ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                        : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
+                    {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                  </button>
                 )}
               </div>
             </div>
@@ -478,25 +413,23 @@ function StatsView({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <label className="flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground">Desde</span>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex items-center gap-1.5">
+            <span>Desde</span>
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
-              className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30 cursor-pointer"
+              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
             />
           </label>
-          <label className="flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground">Hasta</span>
+          <label className="flex items-center gap-1.5">
+            <span>Hasta</span>
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
-              className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30 cursor-pointer"
+              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
             />
           </label>
         </div>
@@ -792,18 +725,21 @@ function PagosView({ businessId, empId, userEmail }: { businessId: string | null
   );
 }
 
-function HistorialView({ businessId, empId }: { businessId: string | null; empId: string | null }) {
+function HistorialView({ businessId, empId, commissionPct }: { businessId: string | null; empId: string | null; commissionPct: number }) {
   const today = new Date().toISOString().slice(0, 10);
   const weekStart = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
 
   const [filter, setFilter] = useState<"todo" | "hoy" | "semana">("todo");
-  const from = filter === "hoy" ? today : filter === "semana" ? weekStart : "2020-01-01";
-  const { data: sales = [], isLoading } = useProfSales(businessId, empId, from, today);
+  const [fromCustom, setFromCustom] = useState(weekStart);
+  const [toCustom, setToCustom] = useState(today);
+  const from = filter === "hoy" ? today : filter === "semana" ? weekStart : fromCustom || "2020-01-01";
+  const to = filter === "hoy" || filter === "semana" ? today : toCustom || today;
+  const { data: sales = [], isLoading } = useProfSales(businessId, empId, from, to);
 
   return (
     <div className="glass rounded-2xl p-5 animate-fade-up">
       <div className="flex items-center justify-between">
-        <div className="font-medium">Producción y comisiones</div>
+        <div className="font-medium">Historial de ventas y comisiones</div>
         <div className="flex items-center gap-2">
           {(["todo", "hoy", "semana"] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
@@ -812,6 +748,10 @@ function HistorialView({ businessId, empId }: { businessId: string | null; empId
               {f}
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-3 md:mt-0">
+          <label className="flex items-center gap-1.5">Desde<input type="date" value={fromCustom} onChange={(e) => { setFilter("todo"); setFromCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
+          <label className="flex items-center gap-1.5">Hasta<input type="date" value={toCustom} onChange={(e) => { setFilter("todo"); setToCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
         </div>
       </div>
 
@@ -822,18 +762,15 @@ function HistorialView({ businessId, empId }: { businessId: string | null; empId
       ) : (
         <div className="mt-4 space-y-0 overflow-hidden rounded-xl">
           {sales.map((s, i) => (
-            <div key={s.id} className={cn("flex items-center gap-3 py-3", i < sales.length - 1 && "border-b border-white/5")}>
-              <div className="text-xs text-muted-foreground w-20 shrink-0">
-                <div>{new Date(s.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "2-digit" })}</div>
-                <div className="opacity-60">{new Date(s.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div>
+            <div key={s.id} className={cn("flex items-center gap-4 py-3", i < sales.length - 1 && "border-b border-white/5")}>
+              <div className="text-xs text-muted-foreground w-16 shrink-0">
+                {new Date(s.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{s.client_name ?? "Sin cliente"}</div>
                 <div className="text-xs text-muted-foreground truncate">{s.service_name ?? "—"}</div>
               </div>
-              <div className="text-right shrink-0">
-                <div className="text-sm font-semibold tabular-nums">${s.total.toLocaleString("es-AR")}</div>
-              </div>
+              <div className="text-right shrink-0"><div className="text-sm font-semibold tabular-nums">${s.total.toLocaleString("es-AR")}</div><div className="text-[11px] text-emerald-300">Comisión ${Math.round((s.total * commissionPct) / 100).toLocaleString("es-AR")}</div></div>
             </div>
           ))}
         </div>

@@ -1283,7 +1283,8 @@ const emptyPriceForm = (
   criticalStock: "0",
 });
 
-const serviceCategories = ["Servicios"]; // default; PriceCatalogSection overrides for isService
+const defaultServiceCategories = ["Servicios"];
+const serviceCategories = defaultServiceCategories;
 const defaultCatalogCategories = ["Productos", "Bebidas", "Indumentaria"];
 
 function priceToCash(price: string, discount: string) {
@@ -1421,7 +1422,7 @@ function PriceEditorModal({
                 <option>Inactivo</option>
               </select>
             </Field>
-            {!isService && (
+            {(
               <Field label="Categoría">
                 <select
                   value={form.category}
@@ -1541,28 +1542,34 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [form, setForm] = useState<PriceForm>(
     emptyPriceForm(isService ? "Servicios" : "Productos", isService),
   );
-  const storageKey = isService ? "clippr_service_categories" : "clippr_catalog_categories";
-  const defaultForKind = isService ? ["Servicios"] : defaultCatalogCategories;
   const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(() => {
-    if (typeof window === "undefined") return defaultForKind;
+    if (isService || typeof window === "undefined") return [];
     try {
-      const saved = window.localStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) : defaultForKind;
+      const saved = window.localStorage.getItem("clippr_catalog_categories");
+      return saved ? JSON.parse(saved) : defaultCatalogCategories;
     } catch {
-      return defaultForKind;
+      return defaultCatalogCategories;
+    }
+  });
+  const [customServiceCategories, setCustomServiceCategories] = useState<string[]>(() => {
+    if (!isService || typeof window === "undefined") return [];
+    try {
+      const saved = window.localStorage.getItem("clippr_service_categories");
+      return saved ? JSON.parse(saved) : defaultServiceCategories;
+    } catch {
+      return defaultServiceCategories;
     }
   });
 
-  const saveCatalogCategories = useCallback((next: string[]) => {
-    const clean = Array.from(
-      new Set(next.map((c) => c.trim()).filter(Boolean)),
-    );
-    setCustomCatalogCategories(clean);
-    if (typeof window !== "undefined")
-      window.localStorage.setItem(
-        storageKey,
-        JSON.stringify(clean),
-      );
+  const saveCategories = useCallback((next: string[], type: "catalog" | "service") => {
+    const clean = Array.from(new Set(next.map((c) => c.trim()).filter(Boolean)));
+    if (type === "service") {
+      setCustomServiceCategories(clean.length ? clean : defaultServiceCategories);
+      if (typeof window !== "undefined") window.localStorage.setItem("clippr_service_categories", JSON.stringify(clean.length ? clean : defaultServiceCategories));
+    } else {
+      setCustomCatalogCategories(clean.length ? clean : defaultCatalogCategories);
+      if (typeof window !== "undefined") window.localStorage.setItem("clippr_catalog_categories", JSON.stringify(clean.length ? clean : defaultCatalogCategories));
+    }
   }, []);
 
   const load = useCallback(async () => {
@@ -1591,15 +1598,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (isService) return row.duration_min != null;
     return row.duration_min == null && !category.includes("servicio");
   });
-  const categories = Array.from(
-        new Set([
-          ...customCatalogCategories,
-          ...visibleRows.map((r) => r.category || (isService ? "Servicios" : "Productos")),
-        ]),
-      );
-  const filtered = isService
-    ? visibleRows
-    : visibleRows.filter((r) => (r.category || "Productos") === cat);
+  const categories = isService
+    ? Array.from(new Set([...customServiceCategories, ...visibleRows.map((r) => r.category || "Servicios")]))
+    : Array.from(new Set([...customCatalogCategories, ...visibleRows.map((r) => r.category || "Productos")]));
+  const filtered = visibleRows.filter((r) => (r.category || (isService ? "Servicios" : "Productos")) === cat);
 
   function openNew() {
     setEditing(null);
@@ -1621,7 +1623,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       business_id: businessId,
       name: form.name.trim(),
       price: Number(form.price) || 0,
-      category: isService ? "Servicios" : form.category,
+      category: form.category,
       active: form.status === "Activo" && form.reservable,
       duration_min: isService ? Number(form.duration) || 30 : null,
     };
@@ -1660,54 +1662,50 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }
 
-  function addCatalogCategory() {
+  function addCategory() {
     const name = prompt("Nombre de la nueva categoría");
     const clean = name?.trim();
     if (!clean) return;
-    saveCatalogCategories([...customCatalogCategories, clean]);
+    if (isService) saveCategories([...customServiceCategories, clean], "service");
+    else saveCategories([...customCatalogCategories, clean], "catalog");
     setCat(clean);
   }
 
-  async function renameCatalogCategory(category: string) {
+  async function renameCategory(category: string) {
     const name = prompt("Nuevo nombre de la categoría", category);
     const clean = name?.trim();
     if (!clean || clean === category) return;
-    const next = customCatalogCategories.includes(category)
-      ? customCatalogCategories.map((c) => (c === category ? clean : c))
-      : [...customCatalogCategories, clean];
-    saveCatalogCategories(next);
+    if (isService) {
+      const next = customServiceCategories.includes(category)
+        ? customServiceCategories.map((c) => (c === category ? clean : c))
+        : [...customServiceCategories, clean];
+      saveCategories(next, "service");
+    } else {
+      const next = customCatalogCategories.includes(category)
+        ? customCatalogCategories.map((c) => (c === category ? clean : c))
+        : [...customCatalogCategories, clean];
+      saveCategories(next, "catalog");
+    }
     if (businessId) {
-      await supabase
-        .from("price_catalog")
-        .update({ category: clean })
-        .eq("business_id", businessId)
-        .eq("category", category);
+      await supabase.from("price_catalog").update({ category: clean }).eq("business_id", businessId).eq("category", category);
     }
     setCat(clean);
+    toast.success("Categoría actualizada");
     load();
   }
 
-  async function deleteCatalogCategory(category: string) {
+  async function deleteCategory(category: string) {
     const currentCategories = categories.filter((c) => c !== category);
-    if (currentCategories.length === 0) {
-      return toast.error("Debe quedar al menos una categoría en Catálogo");
-    }
-    const fallbackCategory = currentCategories[0] || "Productos";
-    if (
-      !confirm(
-        `Eliminar categoría "${category}"?`,
-      )
-    )
-      return;
-    saveCatalogCategories(customCatalogCategories.filter((c) => c !== category));
+    if (currentCategories.length === 0) return toast.error("Debe quedar al menos una categoría");
+    const fallbackCategory = currentCategories[0] || (isService ? "Servicios" : "Productos");
+    if (!confirm(`¿Eliminar ${category}?`)) return;
+    if (isService) saveCategories(customServiceCategories.filter((c) => c !== category), "service");
+    else saveCategories(customCatalogCategories.filter((c) => c !== category), "catalog");
     if (businessId) {
-      await supabase
-        .from("price_catalog")
-        .update({ category: fallbackCategory })
-        .eq("business_id", businessId)
-        .eq("category", category);
+      await supabase.from("price_catalog").update({ category: fallbackCategory }).eq("business_id", businessId).eq("category", category);
     }
     setCat(fallbackCategory);
+    toast.success("Categoría eliminada");
     load();
   }
 
@@ -1725,12 +1723,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-              onClick={addCatalogCategory}
+          {(
+            <button
+              onClick={addCategory}
               className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
             >
               <Plus className="h-4 w-4" /> Nueva categoría
             </button>
+          )}
           <button
             onClick={openNew}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm"
@@ -1764,14 +1764,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 {(
                   <>
                     <button
-                      onClick={() => renameCatalogCategory(category)}
+                      onClick={() => renameCategory(category)}
                       className="px-1 text-xs opacity-60 hover:opacity-100"
                     >
                       ✎
                     </button>
                     {categories.length > 1 && (
                       <button
-                        onClick={() => deleteCatalogCategory(category)}
+                        onClick={() => deleteCategory(category)}
                         className="pr-2 text-xs text-red-300/80 hover:text-red-300"
                         title="Eliminar categoría"
                       >
@@ -1891,40 +1891,51 @@ function CatalogoSection() {
 // ─────────── Caja ───────────
 function CajaSection() {
   const { businessId } = useAuth();
-  const defaultMethods = {
+  const [mode, setMode] = useState<"auto" | "manual" | "disabled">("auto");
+  const [methods, setMethods] = useState({
     efectivo: true,
     transferencia: true,
     tarjeta: true,
     mp: true,
     cuentaDni: false,
-  };
-  const [methods, setMethods] = useState(defaultMethods);
+  });
   const [autoChange, setAutoChange] = useState(true);
 
+  // Load approval_mode from Supabase
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const saved = window.localStorage.getItem(`clippr_payment_methods_${businessId ?? "default"}`);
-      if (saved) setMethods({ ...defaultMethods, ...JSON.parse(saved) });
-      const savedAutoChange = window.localStorage.getItem(`clippr_auto_change_${businessId ?? "default"}`);
-      if (savedAutoChange != null) setAutoChange(savedAutoChange === "true");
-    } catch {
-      // mantener defaults
-    }
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("approval_mode")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.approval_mode) setMode(data.approval_mode as typeof mode);
+      });
   }, [businessId]);
 
+  async function saveMode(m: typeof mode) {
+    setMode(m);
+    if (!businessId) return;
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert(
+        { business_id: businessId, approval_mode: m },
+        { onConflict: "business_id" },
+      );
+    if (error) console.warn("[CajaSection] saveMode:", error.message);
+  }
+
   async function saveCajaSettings() {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        `clippr_payment_methods_${businessId ?? "default"}`,
-        JSON.stringify(methods),
+    if (!businessId) return toast.error("No se encontró el negocio");
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert(
+        { business_id: businessId, approval_mode: mode },
+        { onConflict: "business_id" },
       );
-      window.localStorage.setItem(
-        `clippr_auto_change_${businessId ?? "default"}`,
-        String(autoChange),
-      );
-    }
-    toast.success("Configuración de caja guardada");
+    if (error) return toast.error("Error guardando caja: " + error.message);
+    toast.success("Configuración guardada");
   }
 
   useEffect(() => {
@@ -1934,7 +1945,7 @@ function CajaSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, methods, autoChange]);
+  }, [businessId, mode]);
 
   const M = [
     {
@@ -1976,8 +1987,67 @@ function CajaSection() {
           Configuración de caja
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Definí métodos de pago y comportamiento de cobro. El modo automático/manual/desactivado se maneja desde Caja & Cobro.
+          Definí cómo funciona el flujo de cobro y aprobación de servicios.
         </p>
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-3 px-1">
+          Modo de aprobación predeterminado
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {(
+            [
+              {
+                id: "auto",
+                icon: Zap,
+                label: "Automático",
+                hint: "El profesional cobra desde su panel y el cobro impacta sin confirmación.",
+              },
+              {
+                id: "manual",
+                icon: Eye,
+                label: "Manual",
+                hint: "El servicio queda pendiente y caja/recepción lo confirma y cobra.",
+              },
+              {
+                id: "disabled",
+                icon: Lock,
+                label: "Desactivado",
+                hint: "El profesional no puede enviar ni cobrar servicios desde su panel.",
+              },
+            ] as const
+          ).map((opt) => {
+            const Icon = opt.icon;
+            const active = mode === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => saveMode(opt.id)}
+                className={cn(
+                  "text-left glass rounded-2xl p-5 ring-1 transition-all",
+                  active
+                    ? "ring-[oklch(0.78_0.17_65/0.5)] bg-gradient-to-br from-[oklch(0.82_0.14_75/0.08)] to-transparent shadow-[0_0_0_1px_oklch(0.78_0.17_65/0.3),0_10px_40px_-15px_oklch(0.78_0.17_65/0.4)]"
+                    : "ring-white/5 hover:ring-white/15",
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-6 w-6 mb-3",
+                    active
+                      ? "text-[oklch(0.82_0.14_75)]"
+                      : "text-muted-foreground",
+                  )}
+                  strokeWidth={2.2}
+                />
+                <div className="font-medium">{opt.label}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {opt.hint}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <SectionCard label="Métodos de pago habilitados">
