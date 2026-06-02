@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useClientsData, useSaveClient, type Client, type ClientStatus } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 
 export const Route = createFileRoute("/clients")({
   component: ClientsPage,
@@ -170,6 +171,7 @@ function Sparkbars({ data }: { data: number[] }) {
 }
 
 function ClientsPage() {
+  const hasAccess = usePermGuard("clientes");
   const { businessId } = useAuth();
   const { data: allClients = [], isLoading } = useClientsData(businessId);
   const [query, setQuery] = useState("");
@@ -210,6 +212,8 @@ function ClientsPage() {
 
   const current = allClients.find((c) => c.id === selected) ?? null;
   const ticket = current && current.visits ? Math.round(current.spent / current.visits) : 0;
+
+  if (!hasAccess) return <AccessDenied />;
 
   return (
     <AppShell>

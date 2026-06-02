@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import React from 'react';
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, ROLE_DEFAULTS, getPermissions, type PermKey } from "@/hooks/use-auth";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import {
@@ -49,6 +49,7 @@ import {
   HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 
 type SectionId =
   | "branding"
@@ -657,6 +658,137 @@ function Field({
   );
 }
 
+
+// ---------------------------------------------------------------------------
+// Permisos Tab
+// ---------------------------------------------------------------------------
+const ROLE_META: Record<string, { label: string; icon: string; desc: string; editable: boolean }> = {
+  admin_general: { label: "Administrador General", icon: "👑", desc: "Acceso total al sistema. Solo puede existir un usuario con este rol y no puede ser eliminado.", editable: false },
+  socio:         { label: "Socio",                 icon: "💛", desc: "Todos los permisos habilitados. Puede haber varios socios y pueden ser eliminados.",         editable: true },
+  admin_local:   { label: "Administrador Local",   icon: "🏠", desc: "Encargado del local o sucursal. Acceso operativo completo.",                                 editable: true },
+  recepcionista: { label: "Recepcionista",          icon: "📋", desc: "Acceso a agenda, caja & cobro y clientes.",                                                  editable: true },
+  profesional:   { label: "Profesional",            icon: "✂️", desc: "Acceso exclusivo al panel profesionales. Se crea desde Equipo, pero sus permisos se pueden editar.", editable: true },
+};
+
+const PERM_LABELS: Array<[PermKey, string]> = [
+  ["dashboard", "Dashboard"], ["agenda", "Agenda"], ["caja", "Caja & Cobro"],
+  ["profesionales", "Panel profesionales"], ["clientes", "Clientes"], ["configuracion", "Configuración"],
+  ["branding", "Branding"], ["horarios", "Horarios"], ["equipo", "Equipo"], ["servicios", "Servicios"],
+  ["catalogo", "Catálogo"], ["config_caja", "Config. caja"], ["senas", "Señas"], ["plan", "Plan & facturación"],
+];
+
+function PermisosTab() {
+  const { businessId } = useAuth();
+  const roles = Object.keys(ROLE_META);
+  const [activeRole, setActiveRole] = useState(roles[0]);
+  const [perms, setPerms] = useState<Record<string, Record<PermKey, boolean>>>(() =>
+    Object.fromEntries(roles.map((r) => [r, { ...ROLE_DEFAULTS[r] ?? ROLE_DEFAULTS.owner }]))
+  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("role_permissions").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.role_permissions) {
+          const saved = data.role_permissions as Record<string, Record<PermKey, boolean>>;
+          setPerms(Object.fromEntries(roles.map((r) => [r, { ...ROLE_DEFAULTS[r] ?? ROLE_DEFAULTS.owner, ...(saved[r] ?? {}) }])));
+        }
+        setLoading(false);
+      });
+  }, [businessId]);
+
+  const toggle = (role: string, key: PermKey) => {
+    if (!ROLE_META[role]?.editable) return;
+    setPerms((prev) => ({ ...prev, [role]: { ...prev[role], [key]: !prev[role][key] } }));
+  };
+
+  const save = async () => {
+    if (!businessId) return;
+    setSaving(true);
+    const { error } = await supabase.from("business_settings")
+      .upsert({ business_id: businessId, role_permissions: perms }, { onConflict: "business_id" });
+    setSaving(false);
+    if (error) toast.error(error.message);
+    else {
+      window.dispatchEvent(new CustomEvent("clippr:role-permissions-updated"));
+      toast.success("Permisos guardados");
+    }
+  };
+
+  if (loading) return <div className="p-8 text-sm text-muted-foreground animate-pulse">Cargando…</div>;
+
+  const meta = ROLE_META[activeRole];
+  const rolePerm = perms[activeRole] ?? ROLE_DEFAULTS[activeRole] ?? ROLE_DEFAULTS.owner;
+  const isAdmin = activeRole === "admin_general";
+
+  return (
+    <div className="space-y-4">
+      {/* Role selector */}
+      <div className="flex flex-wrap gap-2">
+        {roles.map((r) => {
+          const m = ROLE_META[r];
+          return (
+            <button key={r} onClick={() => setActiveRole(r)}
+              className={cn("px-3.5 py-2 rounded-xl text-xs font-semibold ring-1 transition-all",
+                activeRole === r
+                  ? "bg-primary/20 ring-primary/40 text-foreground shadow-[0_0_12px_-4px_oklch(0.66_0.22_265/0.4)]"
+                  : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
+              {m.icon} {m.label.split(" ").slice(-1)[0]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Permissions list */}
+      <div className="rounded-2xl ring-1 ring-white/[0.06] bg-white/[0.02] overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5">
+          <div className="text-sm font-semibold">{meta.icon} {meta.label.toUpperCase()}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{meta.desc}</div>
+        </div>
+        <div className="divide-y divide-white/[0.04]">
+          {PERM_LABELS.map(([key, label]) => {
+            const enabled = isAdmin ? true : rolePerm[key];
+            return (
+              <div key={key} className="flex items-center justify-between px-5 py-3.5">
+                <span className="text-sm">{label}</span>
+                {isAdmin ? (
+                  <span className="text-xs text-emerald-400 font-medium">✓ Habilitado</span>
+                ) : (
+                  <button
+                    onClick={() => toggle(activeRole, key)}
+                    disabled={!meta.editable}
+                    className={cn(
+                      "flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg ring-1 transition-all",
+                      enabled
+                        ? "bg-emerald-400/10 ring-emerald-400/25 text-emerald-400 hover:bg-emerald-400/15"
+                        : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:bg-white/[0.05]",
+                      !meta.editable && "cursor-default opacity-70"
+                    )}>
+                    {enabled ? "✓ Habilitado" : "✗ Sin acceso"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-5 py-4 border-t border-white/5 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {isAdmin ? "Los permisos del Administrador general no son editables." : "Los cambios se guardan al presionar Guardar permisos."}
+          </span>
+          {!isAdmin && (
+            <button onClick={save} disabled={saving}
+              className="px-5 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black disabled:opacity-50">
+              {saving ? "Guardando…" : "Guardar permisos"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EquipoSection() {
   const { businessId } = useAuth();
   const [tab, setTab] = useState<"pros" | "users" | "perms">("pros");
@@ -894,11 +1026,14 @@ function EquipoSection() {
         </div>
       )}
 
-      {tab !== "pros" && (
+      {tab === "users" && (
         <div className="glass rounded-2xl p-10 ring-1 ring-white/5 text-center text-muted-foreground">
-          Sección en construcción.
+          <div className="text-lg font-semibold mb-2">Usuarios</div>
+          <div className="text-sm">Próximamente: gestión de usuarios con roles asignados.</div>
         </div>
       )}
+
+      {tab === "perms" && <PermisosTab />}
 
       {open && (
         <div
@@ -1918,16 +2053,8 @@ function CajaSection() {
       });
   }, [businessId]);
 
-  async function saveMode(m: typeof mode) {
+  function saveMode(m: typeof mode) {
     setMode(m);
-    if (!businessId) return;
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert(
-        { business_id: businessId, approval_mode: m },
-        { onConflict: "business_id" },
-      );
-    if (error) console.warn("[CajaSection] saveMode:", error.message);
   }
 
   async function saveCajaSettings() {
@@ -2155,7 +2282,8 @@ function SenasSection() {
 
   React.useEffect(() => {
     const handler = (e: Event) => {
-      if ((e as CustomEvent).detail?.section === "senas") save();
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "senas") save();
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
@@ -2316,9 +2444,12 @@ function SenasSection() {
 }
 
 function SettingsPage() {
+  const hasAccess = usePermGuard("configuracion");
   const [active, setActive] = useState<SectionId>("branding");
   const [values, setValues] = useState(infoFields.map((f) => f.value));
   const [desc, setDesc] = useState("AURO STYLO");
+
+  if (!hasAccess) return <AccessDenied />;
 
   return (
     <AppShell>
@@ -2327,7 +2458,7 @@ function SettingsPage() {
         subtitle="Personalizá tu negocio"
         action={
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: { section: active } }))}
+            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: {} }))}
             className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition"
           >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />

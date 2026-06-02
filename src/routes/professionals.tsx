@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -39,6 +40,7 @@ const COLORS = [
 ];
 
 function ProfessionalsPage() {
+  const hasAccess = usePermGuard("profesionales");
   const { businessId, profile } = useAuth();
   const { data: professionals = [], isLoading } = useProfessionals(businessId);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -57,6 +59,8 @@ function ProfessionalsPage() {
   const active = useMemo(() => professionals.find((p) => p.id === empId) ?? professionals[0] ?? null, [professionals, empId]);
   const activeColor = useMemo(() => COLORS[(professionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [professionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
+
+  if (!hasAccess) return <AccessDenied />;
 
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />

@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import {
   useDashboardData,
   fmtAR,
@@ -46,12 +47,15 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardRoute() {
+  const hasAccess = usePermGuard("dashboard");
   const { loading, session, businessId, profile } = useAuth();
   const navigate = useNavigate();
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
+
+  if (!hasAccess) return <AccessDenied />;
 
   if (loading || !session) {
     return (

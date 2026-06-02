@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { supabase } from "@/integrations/supabase/client";
 import { useCajaData, type Service } from "@/components/cash-register/use-caja-data";
 import {
@@ -66,6 +67,7 @@ export const Route = createFileRoute("/cash-register")({
 type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales";
 
 function CashRegisterPage() {
+  const hasAccess = usePermGuard("caja");
   const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
@@ -87,6 +89,8 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
+  if (!hasAccess) return <AccessDenied />;
+
   if (authLoading || !session) {
     return (
       <AppShell>
@@ -103,7 +107,7 @@ function CashRegisterPage() {
       <Tabs tab={tab} onChange={setTab} />
       <div className="mt-6">
         {tab === "resumen" && <ResumenTab data={data} />}
-        {tab === "nueva" && <NuevaVentaTab data={data} />}
+        {tab === "nueva" && <NuevaVentaTab data={data} search={search} />}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
@@ -514,7 +518,7 @@ function History({ data }: { data: ReturnType<typeof useCajaData> }) {
 }
 
 // ───────────────────────────── NUEVA VENTA
-function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
+function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>; search: ReturnType<typeof useSearch> }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
@@ -534,6 +538,11 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     card: "",
   });
   const [submitting, setSubmitting] = useState(false);
+
+  const isDepositFlow = Boolean(search.depositAppointmentId);
+  const isFinalAppointmentFlow = Boolean(search.appointmentId);
+  const lockedAmount = Number(search.depositAmount ?? search.finalAmount ?? 0);
+  const lockedServiceName = search.serviceName ?? "Servicio";
 
   const services = data.services;
   const categories = useMemo(() => {
@@ -555,13 +564,23 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     })
     .filter((x): x is { svc: Service; qty: number } => x !== null);
 
-  const total = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
+  const total = (isDepositFlow || isFinalAppointmentFlow)
+    ? lockedAmount
+    : cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
   const receivedNumber = Number(received || 0);
   const change = method === "cash" && receivedNumber > total ? receivedNumber - total : 0;
   const multipleTotal = Object.values(multiplePayments).reduce((sum, value) => sum + Number(value || 0), 0);
   const multipleRemaining = total - multipleTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
+
+  useEffect(() => {
+    if (!isDepositFlow && !isFinalAppointmentFlow) return;
+    setStep(4);
+    setClient(search.clientName ?? "");
+    setEmployeeId(search.employeeId ?? "");
+    setCart({});
+  }, [isDepositFlow, isFinalAppointmentFlow, search.clientName, search.employeeId]);
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
   const sub = (id: string) =>
@@ -618,7 +637,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
       setStep(1);
       return;
     }
-    if (cartItems.length === 0) {
+    if (!isDepositFlow && !isFinalAppointmentFlow && cartItems.length === 0) {
       toast.error("Agregá al menos un servicio.");
       setStep(3);
       return;
@@ -626,12 +645,13 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     setSubmitting(true);
     try {
       await saveClientIfNeeded();
-      const items = cartItems.flatMap(({ svc, qty }) =>
-        Array.from({ length: qty }, () => ({
-          serviceName: svc.name,
-          amount: Number(svc.price),
-        }))
-      );
+      const items = isDepositFlow
+        ? [{ serviceName: `Seña - ${lockedServiceName}`, amount: total }]
+        : isFinalAppointmentFlow
+          ? [{ serviceName: `Cobro final - ${lockedServiceName}`, amount: total }]
+          : cartItems.flatMap(({ svc, qty }) =>
+              Array.from({ length: qty }, () => ({ serviceName: svc.name, amount: Number(svc.price) })),
+            );
 
       if (paymentMode === "multiple") {
         const splits = (["cash", "transfer", "card"] as const)
@@ -657,6 +677,8 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
             method: split.method,
             sessionId: data.cashSessionId,
             chargedBy: data.profileId,
+            appointmentId: isDepositFlow ? search.depositAppointmentId : isFinalAppointmentFlow ? search.appointmentId : null,
+            paymentType: isDepositFlow ? "deposit" : isFinalAppointmentFlow ? "final" : "service",
           });
         }
       } else {
@@ -668,7 +690,24 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
           method,
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
+          appointmentId: isDepositFlow ? search.depositAppointmentId : isFinalAppointmentFlow ? search.appointmentId : null,
+          paymentType: isDepositFlow ? "deposit" : isFinalAppointmentFlow ? "final" : "service",
         });
+      }
+
+      if (isDepositFlow && search.depositAppointmentId) {
+        const { error } = await supabase
+          .from("appointments")
+          .update({ deposit_status: "paid", deposit_amount: total, deposit_paid: total, status: "confirmed", updated_at: new Date().toISOString() })
+          .eq("id", search.depositAppointmentId);
+        if (error) throw new Error(error.message);
+      }
+      if (isFinalAppointmentFlow && search.appointmentId) {
+        const { error } = await supabase
+          .from("appointments")
+          .update({ status: "charged", updated_at: new Date().toISOString() })
+          .eq("id", search.appointmentId);
+        if (error) throw new Error(error.message);
       }
 
       toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
@@ -683,6 +722,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
       setPaymentMode("simple");
       setStep(1);
       await data.refresh();
+      if (isDepositFlow || isFinalAppointmentFlow) navigate({ to: "/agenda", replace: true });
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
     } finally {
@@ -699,6 +739,12 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 
   return (
     <div className="space-y-5">
+      {(isDepositFlow || isFinalAppointmentFlow) && (
+        <Card className="p-4 border-amber-300/20 bg-amber-300/5">
+          <div className="text-sm font-semibold text-amber-200">{isDepositFlow ? "Modo Cobrar seña" : "Modo Cobro final"}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{lockedServiceName} · {search.clientName ?? "Cliente"} · Total a cobrar: ${total.toLocaleString("es-AR")}</div>
+        </Card>
+      )}
       <Card className="p-1.5">
         <div className="grid grid-cols-4 gap-1">
           {stepItems.map((s) => {
