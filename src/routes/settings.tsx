@@ -87,8 +87,8 @@ const groups: { label: string; items: NavItem[] }[] = [
         id: "horarios",
         label: "Horarios",
         icon: CalendarDays,
-        tint: "text-[oklch(0.72_0.2_245)]",
-        glow: "from-[oklch(0.72_0.2_245/0.25)] to-[oklch(0.55_0.22_265/0.05)]",
+        tint: "text-[oklch(0.78_0.2_270)]",
+        glow: "from-[oklch(0.78_0.2_270/0.25)] to-[oklch(0.65_0.22_285/0.05)]",
       },
     ],
   },
@@ -105,9 +105,9 @@ const groups: { label: string; items: NavItem[] }[] = [
       {
         id: "servicios",
         label: "Servicios",
-        icon: Scissors,
-        tint: "text-[oklch(0.78_0.17_140)]",
-        glow: "from-[oklch(0.78_0.17_140/0.25)] to-[oklch(0.7_0.2_160/0.05)]",
+        icon: Zap,
+        tint: "text-[oklch(0.85_0.18_160)]",
+        glow: "from-[oklch(0.85_0.18_160/0.25)] to-[oklch(0.7_0.2_170/0.05)]",
       },
       {
         id: "catalogo",
@@ -125,8 +125,8 @@ const groups: { label: string; items: NavItem[] }[] = [
         id: "caja",
         label: "Caja",
         icon: Banknote,
-        tint: "text-[oklch(0.82_0.14_75)]",
-        glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]",
+        tint: "text-[oklch(0.80_0.18_45)]",
+        glow: "from-[oklch(0.80_0.18_45/0.25)] to-[oklch(0.75_0.2_35/0.05)]",
       },
       {
         id: "senas",
@@ -906,6 +906,7 @@ function EquipoSection() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
+  const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<
     "datos" | "horarios" | "perfil" | "comisiones"
@@ -932,6 +933,7 @@ function EquipoSection() {
   }, [load]);
 
   function openNew() {
+    setEditingEmp(null);
     setForm(EMPTY_FORM);
     setDlgTab("datos");
     setOpen(true);
@@ -946,6 +948,23 @@ function EquipoSection() {
     }
     setSaving(true);
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
+
+    if (editingEmp) {
+      // Update existing
+      const { error } = await supabase.from("employees").update({
+        full_name: name,
+        commission_pct: commission,
+      }).eq("id", editingEmp.id);
+      setSaving(false);
+      if (error) return toast.error("Error: " + error.message);
+      toast.success("Profesional actualizado correctamente");
+      setOpen(false);
+      setEditingEmp(null);
+      load();
+      return;
+    }
+
+    // Insert new
     const { data: inserted, error } = await supabase
       .from("employees")
       .insert({
@@ -1117,7 +1136,7 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => { setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("datos"); setOpen(true); }}
+                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("datos"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
                         Editar
@@ -1563,7 +1582,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     status: row.active === false ? "Inactivo" : "Activo",
     category: row.category || (isService ? "Servicios" : "Productos"),
     description: "",
-    reservable: row.active !== false,
+    reservable: (row as Record<string, unknown>).bookable_online !== false,
     stock: String(row.stock ?? 0),
     warnStock: "0",
     criticalStock: "0",
@@ -1902,7 +1921,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       name: form.name.trim(),
       price: Number(form.price) || 0,
       category: form.category,
-      active: form.status === "Activo" && form.reservable,
+      active: form.status === "Activo",
+      bookable_online: form.reservable,
       duration_min: isService ? Number(form.duration) || 30 : null,
     };
     if (!isService) payload.stock = Number(form.stock) || 0;
@@ -2529,6 +2549,8 @@ function SenasSection() {
             )}
             <input
               type="number"
+              min="0"
+              step={amountType === "percent" ? "0.1" : "1"}
               value={amountValue}
               onChange={e => setAmountValue(e.target.value)}
               placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
@@ -2569,15 +2591,15 @@ function SenasSection() {
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Local</span>
-                  <input type="number" min="0" max="100" value={lostLocal}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostLocal(String(v));setLostProf(String(100-v));}}
+                  <input type="number" min="0" max="100" step="0.1" value={lostLocal}
+                    onChange={e=>{const v=Math.min(100,Math.max(0,parseFloat(e.target.value)||0));setLostLocal(String(v));setLostProf(String(Math.round((100-v)*10)/10));}}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Profesional</span>
-                  <input type="number" min="0" max="100" value={lostProf}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostProf(String(v));setLostLocal(String(100-v));}}
+                  <input type="number" min="0" max="100" step="0.1" value={lostProf}
+                    onChange={e=>{const v=Math.min(100,Math.max(0,parseFloat(e.target.value)||0));setLostProf(String(v));setLostLocal(String(Math.round((100-v)*10)/10));}}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
@@ -2594,7 +2616,7 @@ function SenasSection() {
         </Block>
 
         {/* Bloque 5: Mensaje */}
-        <Block title="Mensaje para el cliente" subtitle="Se envía automáticamente al finalizar una reserva con seña requerida.">
+        <Block title="Mensaje para el cliente" subtitle="Se muestra al cliente al finalizar la reserva cuando se requiere seña. No se envía automáticamente.">
           <div className="relative">
             <textarea
               rows={4}
