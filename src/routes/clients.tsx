@@ -17,17 +17,15 @@ import {
   ArrowUpRight,
   Mail,
   MessageCircle,
-  Gift,
+  Trash2,
   Star,
   TrendingUp,
   Clock3,
-  Filter,
   MoreHorizontal,
   Scissors,
-  Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useClientsData, useDeleteClient, type ClientStatus } from "@/hooks/use-clients-data";
+import { useClientsData, useDeleteClient, useSaveClient, type ClientStatus } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/clients")({
@@ -173,13 +171,17 @@ function ClientsPage() {
   const { businessId } = useAuth();
   const { data: allClients = [], isLoading } = useClientsData(businessId);
   const deleteClient = useDeleteClient(businessId);
+  const saveClient = useSaveClient(businessId);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
   const [selected, setSelected] = useState<string | null>(null);
-  const [tab, setTab] = useState<"resumen" | "historial" | "notas">("resumen");
+  const [tab, setTab] = useState<"resumen" | "historial">("resumen");
   const [daysActive, setDaysActive] = useState(60);
   const [daysInactive, setDaysInactive] = useState(60);
   const [daysLost, setDaysLost] = useState(90);
+  const [newClientOpen, setNewClientOpen] = useState(false);
+  const [clientMenuOpen, setClientMenuOpen] = useState(false);
+  const [newClient, setNewClient] = useState({ name: "", phone: "", email: "", birth_date: "", notes: "" });
 
   // Auto-select first client when data loads
   useMemo(() => {
@@ -211,17 +213,58 @@ function ClientsPage() {
 
   const current = allClients.find((c) => c.id === selected) ?? null;
   const ticket = current && current.visits ? Math.round(current.spent / current.visits) : 0;
+  const avgDaysBetweenVisits = useMemo(() => {
+    const withVisits = allClients.filter((c) => c.lastVisitDays !== null && c.lastVisitDays !== undefined);
+    if (withVisits.length === 0) return 0;
+    return Math.round(withVisits.reduce((sum, c) => sum + Number(c.lastVisitDays ?? 0), 0) / withVisits.length);
+  }, [allClients]);
 
   const handleDeleteClient = async (clientId: string, clientName: string) => {
     const ok = window.confirm(`¿Eliminar cliente ${clientName}? Esta acción no se puede deshacer.`);
     if (!ok) return;
     await deleteClient.mutateAsync(clientId);
+    setClientMenuOpen(false);
     if (selected === clientId) setSelected(null);
+  };
+
+  const handleCreateClient = async () => {
+    if (!newClient.name.trim()) {
+      window.alert("Ingresá el nombre del cliente.");
+      return;
+    }
+
+    await saveClient.mutateAsync({
+      name: newClient.name,
+      phone: newClient.phone,
+      email: newClient.email,
+      birth_date: newClient.birth_date,
+      notes: newClient.notes,
+    });
+
+    setNewClient({ name: "", phone: "", email: "", birth_date: "", notes: "" });
+    setNewClientOpen(false);
   };
 
   return (
     <AppShell>
-      <Topbar title="Clientes" subtitle="Cartera, segmentación y reconquista" />
+      <Topbar
+        title="Clientes"
+        subtitle="Cartera, Segmentación Y Reconquista"
+        action={
+          <button
+            onClick={() => setNewClientOpen(true)}
+            className="h-10 px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
+              boxShadow:
+                "0 10px 26px -10px oklch(0.6 0.28 290 / 0.65), inset 0 1px 0 oklch(1 0 0 / 0.2)",
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo cliente
+          </button>
+        }
+      />
       <div className="space-y-6 animate-fade-up">
       {/* Stats grid */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
@@ -229,11 +272,10 @@ function ClientsPage() {
           featured
           label="Clientes VIP"
           value={String(counts.vip)}
-          caption="mayor gasto + visitas"
+          caption="+ gasto + visita"
           link="Ver todos"
           icon={<Crown className="h-7 w-7 text-violet-300" />}
           glow="bg-violet-500/25"
-          trend={{ val: "+12%", up: true }}
         />
         <StatCard
           label="Clientes nuevos"
@@ -242,12 +284,11 @@ function ClientsPage() {
           link="Ver todos"
           icon={<Sparkles className="h-7 w-7 text-violet-300" />}
           glow="bg-violet-400/20"
-          trend={{ val: "+4", up: true }}
         />
         <StatCard
           label="Frecuencia promedio"
-          value="42"
-          caption="días entre visitas"
+          value={avgDaysBetweenVisits ? String(avgDaysBetweenVisits) : "—"}
+          caption="días desde última visita"
           icon={<CalendarDays className="h-7 w-7 text-cyan-300" />}
           glow="bg-cyan-400/20"
         />
@@ -307,7 +348,6 @@ function ClientsPage() {
           link="Reconquistar"
           icon={<AlertTriangle className="h-7 w-7 text-rose-300" />}
           glow="bg-rose-400/20"
-          trend={{ val: "-2", up: false }}
         />
       </div>
 
@@ -348,7 +388,7 @@ function ClientsPage() {
               return (
                 <button
                   key={c.id}
-                  onClick={() => setSelected(c.id)}
+                  onClick={() => { setSelected(c.id); setClientMenuOpen(false); }}
                   className={cn(
                     "w-full flex items-center gap-3 rounded-xl p-3 ring-1 transition text-left relative overflow-hidden group",
                     active
@@ -449,21 +489,29 @@ function ClientsPage() {
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDeleteClient(current.id, current.name)}
-                        title="Eliminar cliente"
-                        className="rounded-full p-2 hover:bg-rose-500/10 transition"
-                      >
-                        <MoreHorizontal className="h-4 w-4 text-muted-foreground hover:text-rose-300" />
-                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setClientMenuOpen((v) => !v)}
+                          title="Acciones"
+                          className="rounded-full p-2 hover:bg-white/5 transition"
+                        >
+                          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                        {clientMenuOpen && (
+                          <div className="absolute right-0 top-9 z-20 w-44 rounded-xl bg-background/95 ring-1 ring-white/10 shadow-2xl p-1.5 backdrop-blur">
+                            <button
+                              onClick={() => handleDeleteClient(current.id, current.name)}
+                              className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10 transition text-left"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Eliminar cliente
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       {statusBadge(current.status)}
-                      {current.notes && (
-                        <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                          nota
-                        </span>
-                      )}
                       <Rating value={current.rating} />
                     </div>
                   </div>
@@ -474,7 +522,7 @@ function ClientsPage() {
               {/* Tabs */}
               <div className="px-6 pt-4">
                 <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
-                  {(["resumen", "historial", "notas"] as const).map((t) => (
+                  {(["resumen", "historial"] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => setTab(t)}
@@ -502,7 +550,7 @@ function ClientsPage() {
                           ${current.spent.toLocaleString("es-AR")}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 inline-flex items-center gap-1">
-                          <TrendingUp className="h-3 w-3 text-emerald-300" /> Top 10%
+                          <TrendingUp className="h-3 w-3 text-emerald-300" /> gasto total
                         </div>
                       </div>
                       <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
@@ -526,42 +574,40 @@ function ClientsPage() {
                       </div>
                     </div>
 
+                    <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Notas</div>
+                      <div className="text-sm text-muted-foreground">
+                        {current.notes?.trim() || "Sin notas cargadas."}
+                      </div>
+                    </div>
+
                   </>
                 )}
 
                 {tab === "historial" && (
                   <div className="space-y-2">
-                    {[
-                      { d: "12 Mar", s: "Color + corte", p: "Sol", m: 14500 },
-                      { d: "20 Feb", s: "Brushing", p: "Mara", m: 6800 },
-                      { d: "02 Feb", s: "Manicura", p: "Vale", m: 4200 },
-                      { d: "18 Ene", s: "Color", p: "Sol", m: 12900 },
-                    ].map((h, i) => (
-                      <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-lg bg-violet-500/15 ring-1 ring-violet-400/20 grid place-items-center text-violet-200">
-                            <Scissors className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium">{h.s}</div>
-                            <div className="text-[11px] text-muted-foreground">{h.d} · {h.p}</div>
-                          </div>
-                        </div>
-                        <div className="text-sm font-semibold tabular-nums">${h.m.toLocaleString("es-AR")}</div>
+                    {current.history.length === 0 ? (
+                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
+                        Sin cobros registrados para este cliente.
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {tab === "notas" && (
-                  <div className="space-y-3">
-                    <textarea
-                      placeholder="Agregá una nota privada sobre el cliente…"
-                      className="w-full min-h-[120px] rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-violet-400/40"
-                    />
-                    <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-sm text-muted-foreground">
-                      Prefiere turnos a la mañana. Alérgica a amoníaco — usar línea sin.
-                    </div>
+                    ) : (
+                      current.history.map((h) => (
+                        <div key={h.id} className="flex items-center justify-between rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-lg bg-violet-500/15 ring-1 ring-violet-400/20 grid place-items-center text-violet-200">
+                              <Scissors className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium">{h.service}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {new Date(h.date).toLocaleDateString("es-AR")}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-sm font-semibold tabular-nums">${h.amount.toLocaleString("es-AR")}</div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
@@ -582,6 +628,91 @@ function ClientsPage() {
         </div>
       </div>
       </div>
+
+      {newClientOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <div className="text-lg font-display font-semibold">Nuevo cliente</div>
+                <div className="text-xs text-muted-foreground">Guardá un cliente real en la base de datos.</div>
+              </div>
+              <button
+                onClick={() => setNewClientOpen(false)}
+                className="rounded-full px-3 py-1.5 text-sm bg-white/5 hover:bg-white/10 transition"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Nombre *</label>
+                <input
+                  value={newClient.name}
+                  onChange={(e) => setNewClient((v) => ({ ...v, name: e.target.value }))}
+                  className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-violet-400/40"
+                  placeholder="Nombre y apellido"
+                />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Teléfono</label>
+                  <input
+                    value={newClient.phone}
+                    onChange={(e) => setNewClient((v) => ({ ...v, phone: e.target.value }))}
+                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-violet-400/40"
+                    placeholder="WhatsApp"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Email</label>
+                  <input
+                    value={newClient.email}
+                    onChange={(e) => setNewClient((v) => ({ ...v, email: e.target.value }))}
+                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-violet-400/40"
+                    placeholder="email@cliente.com"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Fecha de nacimiento</label>
+                <input
+                  type="date"
+                  value={newClient.birth_date}
+                  onChange={(e) => setNewClient((v) => ({ ...v, birth_date: e.target.value }))}
+                  className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-violet-400/40"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Notas</label>
+                <textarea
+                  value={newClient.notes}
+                  onChange={(e) => setNewClient((v) => ({ ...v, notes: e.target.value }))}
+                  className="mt-1 w-full min-h-[90px] rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-violet-400/40"
+                  placeholder="Preferencias, observaciones, etc."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-4">
+              <button
+                onClick={() => setNewClientOpen(false)}
+                className="rounded-xl px-4 py-2 text-sm bg-white/5 hover:bg-white/10 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateClient}
+                disabled={saveClient.isPending}
+                className="rounded-xl px-4 py-2 text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-background hover:brightness-110 transition disabled:opacity-60"
+              >
+                {saveClient.isPending ? "Guardando…" : "Guardar cliente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
