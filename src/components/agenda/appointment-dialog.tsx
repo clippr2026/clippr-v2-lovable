@@ -48,14 +48,6 @@ type Props = {
   onSaved: () => void;
 };
 
-const STATUS_OPTIONS: { value: ApptStatus; label: string }[] = [
-  { value: "pending", label: "Reservado" },
-  { value: "confirmed", label: "Confirmado" },
-  { value: "completed", label: "En servicio" },
-  { value: "charged", label: "Cobrado" },
-  { value: "cancelled", label: "Cancelado" },
-];
-
 type SenasConfig = {
   enabled: boolean;
   services: string[];
@@ -449,19 +441,6 @@ export function AppointmentDialog({
                 Cargá fecha, cliente, profesional y servicio para crear un turno real en Agenda.
               </DialogDescription>
             </div>
-            <div className="min-w-[180px]">
-              <Label className="text-xs">Estado del turno</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as ApptStatus)}>
-                <SelectTrigger className="mt-1 h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </DialogHeader>
 
@@ -504,7 +483,7 @@ export function AppointmentDialog({
             </div>
             {repeat.enabled && !isEdit && (
               <Badge variant="secondary" className="w-fit">
-                Repite {repeat.weekdays.length} día(s), cada {repeat.everyWeeks} semana(s)
+                Repite {repeat.weekdays.length} día(s)
               </Badge>
             )}
           </section>
@@ -525,7 +504,7 @@ export function AppointmentDialog({
                     className="pl-8 pr-8"
                     placeholder="Buscar por nombre, apellido, teléfono o email"
                     value={clientSearch}
-                    onChange={(e) => { setClientSearch(e.target.value); setShowClientList(true); setClientId(""); setClientName(e.target.value); }}
+                    onChange={(e) => { setClientSearch(e.target.value); setShowClientList(true); setClientId(""); setClientName(""); }}
                     onFocus={() => setShowClientList(true)}
                   />
                   {clientSearch && (
@@ -556,7 +535,7 @@ export function AppointmentDialog({
                   </div>
                 )}
 
-                {clientId ? (
+                {clientId && (
                   <div className="flex items-center gap-2 rounded-lg bg-primary/10 ring-1 ring-primary/20 px-3 py-2">
                     <span className="text-sm font-medium flex-1">{clientName}</span>
                     {clientPhone && <span className="text-xs text-muted-foreground">{clientPhone}</span>}
@@ -564,8 +543,6 @@ export function AppointmentDialog({
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                ) : (
-                  <Input placeholder="O escribí el nombre del cliente" value={clientName} onChange={(e) => setClientName(e.target.value)} />
                 )}
               </div>
             )}
@@ -622,7 +599,6 @@ export function AppointmentDialog({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="grid gap-1.5"><Label>Precio</Label><Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} /></div>
-              <div className="grid gap-1.5"><Label>Duración (min)</Label><Input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} /></div>
             </div>
             {requiresDeposit && (
               <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm">
@@ -648,12 +624,6 @@ export function AppointmentDialog({
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
-          {!isEdit && (
-            <Button variant="outline" onClick={() => submit(true)} disabled={busy}>
-              {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
-              Agregar otra reserva
-            </Button>
-          )}
           <Button onClick={() => submit(false)} disabled={busy}>
             {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
             {isEdit ? "Guardar cambios" : "Guardar reserva"}
@@ -688,17 +658,6 @@ export function AppointmentDialog({
                   </label>
                 ))}
               </div>
-            </div>
-
-            <Separator />
-
-            <div className="grid gap-2">
-              <Label>Repetir</Label>
-              <div className="grid grid-cols-[1fr_110px] gap-2 items-center">
-                <span className="text-sm text-muted-foreground">Cada</span>
-                <Input type="number" min={1} value={repeat.everyWeeks} onChange={(e) => setRepeat((r) => ({ ...r, everyWeeks: Number(e.target.value) || 1 }))} />
-              </div>
-              <p className="text-xs text-muted-foreground">Semanalmente o cada X semanas.</p>
             </div>
 
             <div className="grid gap-2">
