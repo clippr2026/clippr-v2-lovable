@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 import {
   DropdownMenu,
@@ -24,21 +25,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const ALL_NAV: Array<{ label: string; to: string; icon: React.ComponentType<{className?:string}>; permKey?: PermKey }> = [
-  { label: "Dashboard",          to: "/",             icon: LayoutDashboard, permKey: "dashboard" },
-  { label: "Agenda",             to: "/agenda",       icon: Calendar,        permKey: "agenda" },
-  { label: "Caja & Cobro",       to: "/cash-register",icon: Wallet,          permKey: "caja" },
-  { label: "Panel Profesionales",to: "/professionals",icon: UserCog,         permKey: "profesionales" },
-  { label: "Clientes",           to: "/clients",      icon: Users,           permKey: "clientes" },
-  { label: "Configuración",      to: "/settings",     icon: Settings,       permKey: "configuracion" },
+const ALL_NAV: Array<{
+  label: string;
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permKey?: PermKey;
+}> = [
+  { label: "Dashboard", to: "/", icon: LayoutDashboard, permKey: "dashboard" },
+  { label: "Agenda", to: "/agenda", icon: Calendar, permKey: "agenda" },
+  { label: "Caja & Cobro", to: "/cash-register", icon: Wallet, permKey: "caja" },
+  { label: "Panel Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
+  { label: "Clientes", to: "/clients", icon: Users, permKey: "clientes" },
+  { label: "Configuración", to: "/settings", icon: Settings },
 ];
 
 function initialsOf(name?: string | null, email?: string | null) {
   const src = (name || email || "").trim();
   if (!src) return "··";
   const parts = src.split(/[\s@._-]+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() ||
-    src.slice(0, 2).toUpperCase();
+  return (
+    ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || src.slice(0, 2).toUpperCase()
+  );
 }
 
 // Kept for backwards compatibility with components that imported these.
@@ -66,9 +73,7 @@ function Brand() {
       >
         C
       </div>
-      <div className="font-display text-lg font-semibold leading-none tracking-tight">
-        Clippr
-      </div>
+      <div className="font-display text-lg font-semibold leading-none tracking-tight">Clippr</div>
     </Link>
   );
 }
@@ -78,8 +83,8 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
   const { permissions, profile } = useAuth();
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
   const nav = ALL_NAV.filter((item) => {
+    if (!item.permKey) return true; // Configuración always visible
     if (isOwner) return true;
-    if (!item.permKey) return true;
     return permissions[item.permKey] === true;
   });
   return (
@@ -108,8 +113,91 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
   );
 }
 
+function NotificationsButton() {
+  const { businessId } = useAuth();
+  const [items, setItems] = React.useState<Array<{ id: string; title: string; detail: string }>>(
+    [],
+  );
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    async function loadNotifications() {
+      if (!businessId) return;
+
+      const since = new Date();
+      since.setDate(since.getDate() - 7);
+
+      const { data } = await supabase
+        .from("appointments")
+        .select("id,client_name,service_name,status,starts_at,updated_at,created_at")
+        .eq("business_id", businessId)
+        .gte("created_at", since.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(8);
+
+      if (!mounted) return;
+
+      const next = (data ?? []).map((appt: any) => {
+        const isCancelled = appt.status === "cancelled";
+        const when = appt.starts_at
+          ? new Date(appt.starts_at).toLocaleString("es-AR")
+          : "Sin fecha";
+        return {
+          id: appt.id,
+          title: isCancelled ? "Reserva cancelada" : "Nueva reserva",
+          detail: `${appt.client_name || "Cliente"} · ${appt.service_name || "Servicio"} · ${when}`,
+        };
+      });
+
+      setItems(next);
+    }
+
+    loadNotifications();
+    const timer = window.setInterval(loadNotifications, 60_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [businessId]);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="hidden sm:grid h-10 w-10 place-items-center rounded-xl glass glass-hover relative"
+          aria-label="Notificaciones"
+        >
+          <Bell className="h-4 w-4" />
+          {items.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 min-h-4 min-w-4 rounded-full bg-accent px-1 text-[10px] font-bold text-background grid place-items-center">
+              {items.length}
+            </span>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-80">
+        <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {items.length === 0 ? (
+          <div className="px-3 py-6 text-sm text-muted-foreground text-center">
+            Sin reservas ni cancelaciones recientes.
+          </div>
+        ) : (
+          items.map((item) => (
+            <DropdownMenuItem key={item.id} className="flex flex-col items-start gap-1 py-2">
+              <span className="font-medium">{item.title}</span>
+              <span className="text-xs text-muted-foreground whitespace-normal">{item.detail}</span>
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function UserMenu() {
-  const { profile, signOut, permissions } = useAuth();
+  const { profile, signOut } = useAuth();
   const initials = initialsOf(profile?.full_name, profile?.email);
   const displayName = profile?.full_name || profile?.email || "Usuario";
   return (
@@ -133,13 +221,11 @@ function UserMenu() {
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {permissions.configuracion === true || profile?.role === "owner" || profile?.role === "admin_general" ? (
-          <DropdownMenuItem asChild>
-            <Link to="/settings" className="cursor-pointer">
-              <UserIcon className="h-4 w-4 mr-2" /> Configuración
-            </Link>
-          </DropdownMenuItem>
-        ) : null}
+        <DropdownMenuItem asChild>
+          <Link to="/settings" className="cursor-pointer">
+            <UserIcon className="h-4 w-4 mr-2" /> Configuración
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut()}
@@ -168,13 +254,7 @@ export function AppSidebar() {
 
           {/* Right cluster */}
           <div className="ml-auto flex items-center gap-2">
-            <button
-              className="hidden sm:grid h-10 w-10 place-items-center rounded-xl glass glass-hover relative"
-              aria-label="Notificaciones"
-            >
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-accent" />
-            </button>
+            <NotificationsButton />
             <UserMenu />
             <button
               onClick={() => setOpen(true)}
