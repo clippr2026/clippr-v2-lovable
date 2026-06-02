@@ -203,6 +203,11 @@ function ClientsPage() {
     notes: "",
   });
   const [noteDraft, setNoteDraft] = useState("");
+  const [listModal, setListModal] = useState<{
+    title: string;
+    subtitle: string;
+    clients: typeof allClients;
+  } | null>(null);
 
   // Auto-select first client when data loads
   useMemo(() => {
@@ -225,16 +230,67 @@ function ClientsPage() {
     return list;
   }, [allClients, query, sort]);
 
-  const counts = useMemo(
-    () => ({
-      vip: allClients.filter((c) => c.status === "vip").length,
-      nuevos: allClients.filter((c) => c.status === "nuevo").length,
-      activos: allClients.filter((c) => c.status === "activo").length,
-      inactivos: allClients.filter((c) => c.status === "inactivo").length,
-      perdidos: allClients.filter((c) => c.status === "perdido").length,
-    }),
+  const activeDaysNumber = Number(daysActive || 0);
+  const inactiveDaysNumber = Number(daysInactive || 0);
+  const lostDaysNumber = Number(daysLost || 0);
+
+  const clientsVip = useMemo(
+    () => allClients.filter((c) => c.status === "vip"),
     [allClients],
   );
+  const clientsNew = useMemo(
+    () => allClients.filter((c) => c.status === "nuevo"),
+    [allClients],
+  );
+  const clientsActive = useMemo(
+    () =>
+      allClients.filter(
+        (c) =>
+          c.lastVisitDays !== null &&
+          c.lastVisitDays !== undefined &&
+          c.lastVisitDays <= activeDaysNumber,
+      ),
+    [allClients, activeDaysNumber],
+  );
+  const clientsInactive = useMemo(
+    () =>
+      allClients.filter(
+        (c) =>
+          c.lastVisitDays !== null &&
+          c.lastVisitDays !== undefined &&
+          c.lastVisitDays >= inactiveDaysNumber,
+      ),
+    [allClients, inactiveDaysNumber],
+  );
+  const clientsLost = useMemo(
+    () =>
+      allClients.filter(
+        (c) =>
+          c.lastVisitDays !== null &&
+          c.lastVisitDays !== undefined &&
+          c.lastVisitDays >= lostDaysNumber,
+      ),
+    [allClients, lostDaysNumber],
+  );
+
+  const counts = useMemo(
+    () => ({
+      vip: clientsVip.length,
+      nuevos: clientsNew.length,
+      activos: clientsActive.length,
+      inactivos: clientsInactive.length,
+      perdidos: clientsLost.length,
+    }),
+    [clientsVip.length, clientsNew.length, clientsActive.length, clientsInactive.length, clientsLost.length],
+  );
+
+  const openClientList = (title: string, subtitle: string, clients: typeof allClients) => {
+    setListModal({
+      title,
+      subtitle,
+      clients: [...clients].sort((a, b) => b.spent - a.spent),
+    });
+  };
 
   const current = allClients.find((c) => c.id === selected) ?? null;
 
@@ -274,7 +330,12 @@ function ClientsPage() {
 
   const saveClientNotes = async () => {
     if (!current) return;
-    await updateNotes.mutateAsync({ clientId: current.id, notes: noteDraft });
+    try {
+      await updateNotes.mutateAsync({ clientId: current.id, notes: noteDraft });
+      window.alert("Nota guardada correctamente.");
+    } catch (err: any) {
+      window.alert(err?.message || "No se pudo guardar la nota.");
+    }
   };
 
   const handleCreateClient = async () => {
@@ -293,6 +354,7 @@ function ClientsPage() {
 
     setNewClient({ name: "", phone: "", email: "", birth_date: "", notes: "" });
     setNewClientOpen(false);
+    window.alert("Cliente guardado correctamente.");
   };
 
   return (
@@ -324,7 +386,7 @@ function ClientsPage() {
             value={String(counts.vip)}
             caption="+ gasto + visita"
             link="Ver todos"
-            onLinkClick={scrollToList}
+            onLinkClick={() => openClientList("Clientes VIP", "Mayor gasto y más visitas", clientsVip)}
             icon={<Crown className="h-7 w-7 text-violet-300" />}
             glow="bg-violet-500/25"
           />
@@ -333,7 +395,7 @@ function ClientsPage() {
             value={String(counts.nuevos)}
             caption="ingresaron este mes"
             link="Ver todos"
-            onLinkClick={scrollToList}
+            onLinkClick={() => openClientList("Clientes nuevos", "Ingresaron este mes", clientsNew)}
             icon={<Sparkles className="h-7 w-7 text-violet-300" />}
             glow="bg-violet-400/20"
           />
@@ -361,7 +423,7 @@ function ClientsPage() {
               </span>
             }
             link="Ver todos"
-            onLinkClick={scrollToList}
+            onLinkClick={() => openClientList("Clientes activos", `Clientes con visita en los últimos ${daysActive || 0} días`, clientsActive)}
             icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />}
             glow="bg-emerald-400/20"
           />
@@ -382,7 +444,7 @@ function ClientsPage() {
               </span>
             }
             link="Ver todos"
-            onLinkClick={scrollToList}
+            onLinkClick={() => openClientList("Clientes inactivos", `Sin visita hace ${daysInactive || 0} días o más`, clientsInactive)}
             icon={<PauseCircle className="h-7 w-7 text-muted-foreground" />}
             glow="bg-white/10"
           />
@@ -403,7 +465,7 @@ function ClientsPage() {
               </span>
             }
             link="Reconquistar"
-            onLinkClick={scrollToList}
+            onLinkClick={() => openClientList("Clientes para reconquistar", `Sin visita hace ${daysLost || 0} días o más`, clientsLost)}
             icon={<AlertTriangle className="h-7 w-7 text-rose-300" />}
             glow="bg-rose-400/20"
           />
@@ -722,6 +784,58 @@ function ClientsPage() {
           </div>
         </div>
       </div>
+
+      {listModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <div className="text-lg font-display font-semibold">{listModal.title}</div>
+                <div className="text-xs text-muted-foreground">{listModal.subtitle}</div>
+              </div>
+              <button
+                onClick={() => setListModal(null)}
+                className="rounded-full px-3 py-1.5 text-sm bg-white/5 hover:bg-white/10 transition"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
+              {listModal.clients.length === 0 ? (
+                <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground text-center">
+                  No hay clientes para mostrar.
+                </div>
+              ) : (
+                listModal.clients.map((client) => (
+                  <button
+                    key={client.id}
+                    onClick={() => {
+                      setSelected(client.id);
+                      setListModal(null);
+                    }}
+                    className="w-full flex items-center justify-between gap-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-left hover:bg-white/10 transition"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{client.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {client.phone || "sin teléfono"} {client.email ? `· ${client.email}` : ""}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-semibold tabular-nums">
+                        ${client.spent.toLocaleString("es-AR")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {client.visits} visitas · {client.lastVisit ?? "sin visitas"}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {newClientOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
