@@ -53,17 +53,21 @@ export type Expense = {
 export type ApprovalMode = "auto" | "manual" | "disabled";
 export type PaymentMethodsConfig = { efectivo: boolean; transferencia: boolean; tarjeta: boolean; mp: boolean; cuentaDni: boolean };
 
+function normalizePaymentMethods(value: any): PaymentMethodsConfig {
+  return {
+    efectivo: value?.efectivo !== false,
+    transferencia: value?.transferencia !== false,
+    tarjeta: value?.tarjeta !== false,
+    mp: value?.mp !== false,
+    cuentaDni: value?.cuentaDni === true,
+  };
+}
+
 function loadPaymentMethods(): PaymentMethodsConfig {
   if (typeof window === "undefined") return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
   try {
     const saved = JSON.parse(window.localStorage.getItem("clippr_payment_methods") || "null");
-    return {
-      efectivo: saved?.efectivo !== false,
-      transferencia: saved?.transferencia !== false,
-      tarjeta: saved?.tarjeta !== false,
-      mp: saved?.mp !== false,
-      cuentaDni: saved?.cuentaDni === true,
-    };
+    return normalizePaymentMethods(saved);
   } catch {
     return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
   }
@@ -116,8 +120,8 @@ export function useCajaData() {
         .select("id,name,price,duration_min,category,active,stock")
         .eq("business_id", businessId)
         .eq("active", true)
-        .order("category")
-        .order("full_name"),
+        .order("category", { ascending: true })
+        .order("name", { ascending: true }),
       supabase
         .from("employees")
         .select("id,full_name,is_active")
@@ -127,6 +131,7 @@ export function useCajaData() {
       supabase
         .from("payments")
         .select("id,total,amount,method,client_name,service_name,created_at,employee_id,appointment_id")
+        .eq("business_id", businessId)
         .gte("created_at", today.toISOString())
         .lte("created_at", todayEnd.toISOString())
         .order("created_at", { ascending: false }),
@@ -145,7 +150,7 @@ export function useCajaData() {
         .maybeSingle(),
       supabase
         .from("business_settings")
-        .select("approval_mode")
+        .select("approval_mode,schedule")
         .eq("business_id", businessId)
         .maybeSingle(),
       supabase
@@ -226,13 +231,24 @@ export function useCajaData() {
       setPendingAmount(0);
     }
 
-    const mode =
+    const settings =
       bsRes.status === "fulfilled" && !bsRes.value.error
-        ? bsRes.value.data?.approval_mode
+        ? bsRes.value.data
         : null;
+
+    const mode = settings?.approval_mode;
     if (mode === "manual" || mode === "auto" || mode === "disabled") {
       setApprovalModeState(mode as ApprovalMode);
       if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", mode);
+    }
+
+    const cajaSettings = (settings?.schedule as any)?._caja;
+    if (cajaSettings?.methods) {
+      const normalized = normalizePaymentMethods(cajaSettings.methods);
+      setPaymentMethods(normalized);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("clippr_payment_methods", JSON.stringify(normalized));
+      }
     }
 
     setLoading(false);
@@ -251,15 +267,9 @@ export function useCajaData() {
       try {
         const { error: updateError } = await supabase
           .from("business_settings")
-          .update({ approval_mode: m })
-          .eq("business_id", businessId);
+          .upsert({ business_id: businessId, approval_mode: m }, { onConflict: "business_id" });
 
-        if (updateError) {
-          const { error: insertError } = await supabase
-            .from("business_settings")
-            .upsert({ business_id: businessId, approval_mode: m }, { onConflict: "business_id" });
-          if (insertError) throw insertError;
-        }
+        if (updateError) throw updateError;
       } catch (e) {
         console.warn("[caja] setApprovalMode failed:", (e as Error).message);
       }
