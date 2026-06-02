@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import {
   useAgendaData,
   cancelAppointment,
@@ -136,7 +135,6 @@ function fmtTime(d: Date) {
 // Page
 // ---------------------------------------------------------------------------
 function AgendaPage() {
-  const hasAccess = usePermGuard("agenda");
   const navigate = useNavigate();
   const { session, profile, loading: authLoading } = useAuth();
   const [view, setView] = React.useState<"day" | "week" | "month">("day");
@@ -314,8 +312,6 @@ function AgendaPage() {
     setDetailOpen(false);
     data.refresh();
   };
-
-  if (!hasAccess) return <AccessDenied />;
 
   if (authLoading || !session) {
     return (
@@ -519,8 +515,6 @@ function AgendaPage() {
         onChangeStatus={onChangeStatus}
         onMarkDeposit={onMarkDeposit}
         onCancelWithDeposit={onCancelWithDeposit}
-        serviceRequiresDeposit={serviceRequiresDeposit}
-        calcDeposit={calcDeposit}
       />
 
       {data.businessId && (
@@ -915,8 +909,6 @@ function AppointmentDetailDialog({
   onChangeStatus,
   onMarkDeposit,
   onCancelWithDeposit,
-  serviceRequiresDeposit,
-  calcDeposit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -930,8 +922,6 @@ function AppointmentDetailDialog({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return") => void;
-  serviceRequiresDeposit: (serviceName: string | null) => boolean;
-  calcDeposit: (price: number) => number;
 }) {
   if (!appointment) return null;
 
@@ -944,13 +934,7 @@ function AppointmentDetailDialog({
   const phone = client?.phone ?? null;
   const email = client?.email ?? null;
   const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
-  const configuredDeposit = serviceRequiresDeposit(appointment.service_name);
-  const requiresDeposit = configuredDeposit || Boolean(appointment.deposit_status && appointment.deposit_status !== "none");
-  const normalizedDepositStatus = appointment.deposit_status && appointment.deposit_status !== "none"
-    ? appointment.deposit_status
-    : configuredDeposit
-      ? "pending"
-      : "none";
+  const requiresDeposit = Boolean(appointment.deposit_status && appointment.deposit_status !== "none");
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" })} - ${fmtTime(start)} a ${fmtTime(end)}`;
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
@@ -993,9 +977,9 @@ function AppointmentDetailDialog({
             </div>
 
             {/* Deposit info — only when deposit fields exist */}
-            {requiresDeposit && (() => {
-              const ds = appointment.status === "charged" ? "final" : normalizedDepositStatus;
-              const depositAmt = Number(appointment.deposit_amount ?? calcDeposit(Number(appointment.service_price ?? 0)));
+            {appointment.deposit_status && appointment.deposit_status !== "none" && (() => {
+              const ds = appointment.deposit_status;
+              const depositAmt = Number(appointment.deposit_amount ?? 0);
               const depositPaid = Number(appointment.deposit_paid ?? 0);
               const total = Number(appointment.service_price ?? 0);
               const remaining = Math.max(0, total - depositPaid);
@@ -1004,17 +988,16 @@ function AppointmentDetailDialog({
                 paid:    { icon: "🟢", label: "Seña pagada",      color: "text-emerald-300" },
                 lost:    { icon: "🔴", label: "Seña perdida",     color: "text-rose-300" },
                 returned:{ icon: "🔵", label: "Seña devuelta",    color: "text-sky-300" },
-                final:   { icon: "🔵", label: "Cobro final",       color: "text-sky-300" },
               };
               const dsInfo = statusMap[ds] ?? statusMap.pending;
               return (
                 <div className="mt-3 pt-3 border-t border-white/10 space-y-1.5 text-sm">
                   <div className={`font-semibold ${dsInfo.color}`}>{dsInfo.icon} {dsInfo.label}</div>
                   {depositAmt > 0 && <div className="text-muted-foreground">Seña requerida: <span className="text-foreground font-medium">${depositAmt.toLocaleString("es-AR")}</span></div>}
-                  {(ds === "paid" || ds === "final") && depositPaid > 0 && (
+                  {ds === "paid" && depositPaid > 0 && (
                     <>
                       <div className="text-muted-foreground">Seña pagada: <span className="text-emerald-300 font-medium">${depositPaid.toLocaleString("es-AR")}</span></div>
-                      <div className="text-muted-foreground">Pendiente de cobro: <span className="text-foreground font-medium">${(ds === "final" ? 0 : remaining).toLocaleString("es-AR")}</span></div>
+                      <div className="text-muted-foreground">Pendiente de cobro: <span className="text-foreground font-medium">${remaining.toLocaleString("es-AR")}</span></div>
                     </>
                   )}
                 </div>
@@ -1027,7 +1010,7 @@ function AppointmentDetailDialog({
               <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
                 <span>{phone}</span>
                 {whatsappHref && (
-                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/15 transition">
+                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-500/30 transition">
                     <MessageCircle className="h-3.5 w-3.5" /> Hablar por WhatsApp
                   </a>
                 )}
@@ -1046,15 +1029,20 @@ function AppointmentDetailDialog({
             <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
               <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
             </Button>
-            {/* Seña button — only when deposit expected and not yet paid */}
-            {requiresDeposit && normalizedDepositStatus !== "paid" && normalizedDepositStatus !== "lost" && appointment.status !== "charged" && (
-              <Button
-                variant="secondary"
-                onClick={() => onMarkDeposit(appointment)}
-                className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
-              >
-                <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+            {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
+              <Button variant="destructive" onClick={() => onCancel(appointment)}>
+                Cancelar turno
               </Button>
+            ) : (
+              requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
+                <Button
+                  variant="secondary"
+                  onClick={() => onMarkDeposit(appointment)}
+                  className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
+                >
+                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+                </Button>
+              )
             )}
           </div>
 
@@ -1067,7 +1055,6 @@ function AppointmentDetailDialog({
                   ["pending", "Pendiente"],
                   ["confirmed", "Confirmado"],
                   ["completed", "En servicio"],
-                  ["charged", "Cobrado"],
                 ] as [ApptStatus, string][]).map(([status, label]) => {
                   const sMeta = STATUS_META[status] ?? STATUS_META.pending;
                   const isActive = appointment.status === status;
@@ -1095,32 +1082,25 @@ function AppointmentDetailDialog({
             </div>
           </div>
 
-          {appointment.status !== "charged" && appointment.status !== "cancelled" && (() => {
-            const hasDepositPaid = normalizedDepositStatus === "paid";
-            return hasDepositPaid ? (
-              <div className="space-y-3 rounded-2xl bg-rose-500/5 ring-1 ring-rose-400/20 p-4">
-                <div className="text-sm font-semibold text-rose-300">¿Qué querés hacer con la seña?</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onCancelWithDeposit(appointment, "keep")}
-                    className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-rose-400/30 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15 transition"
-                  >
-                    🔴 Mantener seña
-                  </button>
-                  <button
-                    onClick={() => onCancelWithDeposit(appointment, "return")}
-                    className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-sky-400/30 bg-sky-400/10 text-sky-200 hover:bg-sky-400/15 transition"
-                  >
-                    🔵 Devolver seña
-                  </button>
-                </div>
+          {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status === "paid" && (
+            <div className="space-y-3 rounded-2xl bg-rose-500/5 ring-1 ring-rose-400/20 p-4">
+              <div className="text-sm font-semibold text-rose-300">¿Qué querés hacer con la seña?</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onCancelWithDeposit(appointment, "keep")}
+                  className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-rose-400/30 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15 transition"
+                >
+                  🔴 Mantener seña
+                </button>
+                <button
+                  onClick={() => onCancelWithDeposit(appointment, "return")}
+                  className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-sky-400/30 bg-sky-400/10 text-sky-200 hover:bg-sky-400/15 transition"
+                >
+                  🔵 Devolver seña
+                </button>
               </div>
-            ) : (
-              <Button variant="destructive" className="w-full" onClick={() => onCancel(appointment)}>
-                Cancelar turno
-              </Button>
-            );
-          })()}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
