@@ -946,61 +946,46 @@ function EquipoSection() {
       setDlgTab("datos");
       return toast.error("Ingresá el nombre completo");
     }
+
     setSaving(true);
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
 
-    if (editingEmp) {
-      // Update existing
-      const { error } = await supabase.from("employees").update({
-        full_name: name,
-        commission_pct: commission,
-      }).eq("id", editingEmp.id);
+    const result = editingEmp
+      ? await supabase
+          .from("employees")
+          .update({ full_name: name, commission_pct: commission })
+          .eq("business_id", businessId)
+          .eq("id", editingEmp.id)
+          .select("id")
+          .single()
+      : await supabase
+          .from("employees")
+          .insert({
+            business_id: businessId,
+            full_name: name,
+            is_active: true,
+            commission_pct: commission,
+          })
+          .select("id")
+          .single();
+
+    if (result.error || !result.data?.id) {
       setSaving(false);
-      if (error) return toast.error("Error: " + error.message);
-      toast.success("Profesional actualizado correctamente");
-      setOpen(false);
-      setEditingEmp(null);
-      load();
-      return;
+      return toast.error("Error: " + (result.error?.message ?? "no se pudo guardar"));
     }
 
-    // Insert new
-    const { data: inserted, error } = await supabase
-      .from("employees")
-      .insert({
-        business_id: businessId,
-        full_name: name,
-        is_active: true,
-        commission_pct: commission,
-      })
-      .select("id")
-      .single();
-    if (error || !inserted) {
-      setSaving(false);
-      return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
-    }
-    // Persist extras best-effort (ignore missing columns)
-    // Update optional fields that exist in the table
-    const extras: Record<string, unknown> = {};
-    if (form.email) extras.email = form.email;
-    if (form.phone) extras.phone = form.phone;
-    if (Object.keys(extras).length > 0) {
-      try {
-        await supabase.from("employees").update(extras).eq("id", inserted.id);
-      } catch {
-        /* ignore */
-      }
-    }
     setSaving(false);
-    toast.success("Equipo actualizado correctamente");
+    toast.success(editingEmp ? "Profesional actualizado correctamente" : "Equipo actualizado correctamente");
     setOpen(false);
-    load();
+    setEditingEmp(null);
+    void load();
   }
 
   async function toggleActive(emp: EmployeeRow) {
     const { error } = await supabase
       .from("employees")
       .update({ is_active: !(emp.is_active !== false) })
+      .eq("business_id", businessId)
       .eq("id", emp.id);
     if (error) return toast.error("Error: " + error.message);
     load();
@@ -1014,7 +999,7 @@ function EquipoSection() {
     if (!confirmDel) return;
     const emp = confirmDel;
     setConfirmDel(null);
-    const { error } = await supabase.from("employees").delete().eq("id", emp.id);
+    const { error } = await supabase.from("employees").delete().eq("business_id", businessId).eq("id", emp.id);
     if (error) return toast.error("Error: " + error.message);
     toast.success("Equipo actualizado correctamente");
     load();
