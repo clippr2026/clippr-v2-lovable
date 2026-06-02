@@ -1283,7 +1283,7 @@ const emptyPriceForm = (
   criticalStock: "0",
 });
 
-const serviceCategories = ["Servicios"];
+const serviceCategories = ["Servicios"]; // default; PriceCatalogSection overrides for isService
 const defaultCatalogCategories = ["Productos", "Bebidas", "Indumentaria"];
 
 function priceToCash(price: string, discount: string) {
@@ -1541,15 +1541,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [form, setForm] = useState<PriceForm>(
     emptyPriceForm(isService ? "Servicios" : "Productos", isService),
   );
-  const [customCatalogCategories, setCustomCatalogCategories] = useState<
-    string[]
-  >(() => {
-    if (isService || typeof window === "undefined") return [];
+  const storageKey = isService ? "clippr_service_categories" : "clippr_catalog_categories";
+  const defaultForKind = isService ? ["Servicios"] : defaultCatalogCategories;
+  const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(() => {
+    if (typeof window === "undefined") return defaultForKind;
     try {
-      const saved = window.localStorage.getItem("clippr_catalog_categories");
-      return saved ? JSON.parse(saved) : defaultCatalogCategories;
+      const saved = window.localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : defaultForKind;
     } catch {
-      return defaultCatalogCategories;
+      return defaultForKind;
     }
   });
 
@@ -1560,7 +1560,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setCustomCatalogCategories(clean);
     if (typeof window !== "undefined")
       window.localStorage.setItem(
-        "clippr_catalog_categories",
+        storageKey,
         JSON.stringify(clean),
       );
   }, []);
@@ -1591,12 +1591,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (isService) return row.duration_min != null;
     return row.duration_min == null && !category.includes("servicio");
   });
-  const categories = isService
-    ? serviceCategories
-    : Array.from(
+  const categories = Array.from(
         new Set([
           ...customCatalogCategories,
-          ...visibleRows.map((r) => r.category || "Productos"),
+          ...visibleRows.map((r) => r.category || (isService ? "Servicios" : "Productos")),
         ]),
       );
   const filtered = isService
@@ -1697,7 +1695,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const fallbackCategory = currentCategories[0] || "Productos";
     if (
       !confirm(
-        `¿Eliminar la categoría ${category}? Los ítems pasarán a ${fallbackCategory}.`,
+        `Eliminar categoría "${category}"?`,
       )
     )
       return;
@@ -1727,14 +1725,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!isService && (
-            <button
+          <button
               onClick={addCatalogCategory}
               className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
             >
               <Plus className="h-4 w-4" /> Nueva categoría
             </button>
-          )}
           <button
             onClick={openNew}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm"
@@ -1765,7 +1761,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 >
                   <Scissors className="h-3.5 w-3.5" /> {category}
                 </button>
-                {!isService && (
+                {(
                   <>
                     <button
                       onClick={() => renameCatalogCategory(category)}

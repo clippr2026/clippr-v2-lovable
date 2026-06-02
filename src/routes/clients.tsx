@@ -146,11 +146,11 @@ function Rating({ value }: { value: number }) {
 
 function statusBadge(s: ClientStatus) {
   const map = {
-    vip: { label: "VIP", cls: "bg-violet-500/15 text-violet-200 ring-violet-400/40" },
+    vip: { label: "⭐ VIP", cls: "bg-amber-400/15 text-amber-300 ring-amber-400/40 shadow-[0_0_12px_-4px_oklch(0.82_0.18_75/0.5)]" },
     nuevo: { label: "NUEVO", cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30" },
     activo: { label: "ACTIVO", cls: "bg-cyan-400/10 text-cyan-300 ring-cyan-400/30" },
     inactivo: { label: "INACTIVO", cls: "bg-white/5 text-muted-foreground ring-white/10" },
-    perdido: { label: "PERDIDO", cls: "bg-rose-400/10 text-rose-300 ring-rose-400/30" },
+    perdido: { label: "⚠ PERDIDO", cls: "bg-rose-500/20 text-rose-300 ring-rose-500/50 shadow-[0_0_12px_-4px_oklch(0.66_0.24_25/0.4)]" },
   } as const;
   const c = map[s];
   return (

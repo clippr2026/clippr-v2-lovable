@@ -392,14 +392,18 @@ function TurnosView({ businessId, empId, approvalMode, profile }: {
                   {statusLabel[t.status] ?? t.status}
                 </span>
                 {/* Cobrar button */}
-                {approvalMode !== "disabled" && t.status !== "charged" && t.status !== "cancelled" && (
-                  <button onClick={() => setCobroTurno(t)}
-                    className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
-                      approvalMode === "auto"
-                        ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                        : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
-                    {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                  </button>
+                {t.status !== "charged" && t.status !== "cancelled" && (
+                  approvalMode === "disabled" ? (
+                    <span className="text-[11px] text-muted-foreground opacity-50">🚫 bloqueado</span>
+                  ) : (
+                    <button onClick={() => setCobroTurno(t)}
+                      className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
+                        approvalMode === "auto"
+                          ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                          : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
+                      {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                    </button>
+                  )
                 )}
               </div>
             </div>
@@ -474,23 +478,25 @@ function StatsView({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <label className="flex items-center gap-1.5">
-            <span>Desde</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Desde</span>
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
+              onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
+              className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30 cursor-pointer"
             />
           </label>
-          <label className="flex items-center gap-1.5">
-            <span>Hasta</span>
+          <label className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Hasta</span>
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
+              onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
+              className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30 cursor-pointer"
             />
           </label>
         </div>
@@ -797,7 +803,7 @@ function HistorialView({ businessId, empId }: { businessId: string | null; empId
   return (
     <div className="glass rounded-2xl p-5 animate-fade-up">
       <div className="flex items-center justify-between">
-        <div className="font-medium">Historial de servicios</div>
+        <div className="font-medium">Producción y comisiones</div>
         <div className="flex items-center gap-2">
           {(["todo", "hoy", "semana"] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
@@ -816,15 +822,18 @@ function HistorialView({ businessId, empId }: { businessId: string | null; empId
       ) : (
         <div className="mt-4 space-y-0 overflow-hidden rounded-xl">
           {sales.map((s, i) => (
-            <div key={s.id} className={cn("flex items-center gap-4 py-3", i < sales.length - 1 && "border-b border-white/5")}>
-              <div className="text-xs text-muted-foreground w-16 shrink-0">
-                {new Date(s.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+            <div key={s.id} className={cn("flex items-center gap-3 py-3", i < sales.length - 1 && "border-b border-white/5")}>
+              <div className="text-xs text-muted-foreground w-20 shrink-0">
+                <div>{new Date(s.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "2-digit" })}</div>
+                <div className="opacity-60">{new Date(s.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{s.client_name ?? "Sin cliente"}</div>
                 <div className="text-xs text-muted-foreground truncate">{s.service_name ?? "—"}</div>
               </div>
-              <div className="text-sm font-semibold tabular-nums">${s.total.toLocaleString("es-AR")}</div>
+              <div className="text-right shrink-0">
+                <div className="text-sm font-semibold tabular-nums">${s.total.toLocaleString("es-AR")}</div>
+              </div>
             </div>
           ))}
         </div>
