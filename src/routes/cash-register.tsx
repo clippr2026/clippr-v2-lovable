@@ -536,6 +536,23 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const [submitting, setSubmitting] = useState(false);
 
   const services = data.services;
+  const paymentOptions = useMemo(() => {
+    const cfg = data.paymentMethods;
+    return ([
+      { id: "cash", label: "Efectivo", icon: Banknote, enabled: cfg.efectivo },
+      { id: "transfer", label: "Transferencia", icon: Smartphone, enabled: cfg.transferencia },
+      { id: "card", label: "Débito / Crédito", icon: CreditCard, enabled: cfg.tarjeta },
+      { id: "mp", label: "Mercado Pago", icon: Wallet, enabled: cfg.mp },
+      { id: "cuenta", label: "Cuenta DNI", icon: Smartphone, enabled: cfg.cuentaDni },
+    ] as const).filter((m) => m.enabled);
+  }, [data.paymentMethods]);
+
+  useEffect(() => {
+    if (!paymentOptions.some((m) => m.id === method)) {
+      setMethod((paymentOptions[0]?.id ?? "cash") as PayMethod);
+    }
+  }, [paymentOptions, method]);
+
   const categories = useMemo(() => {
     const list = Array.from(new Set(services.map((s) => s.category || "Otros"))).filter(Boolean);
     return ["Todos", ...list];
@@ -909,18 +926,12 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
               <div>
                 <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-3">MÉTODO DE PAGO</p>
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {([
-                    { id: "cash", label: "Efectivo", icon: Banknote },
-                    { id: "transfer", label: "Transferencia", icon: Smartphone },
-                    { id: "card", label: "Débito / Crédito", icon: CreditCard },
-                    { id: "mp", label: "Mercado Pago", icon: Wallet },
-                    { id: "qr", label: "QR", icon: Smartphone },
-                  ] as const).map((m) => {
+                  {paymentOptions.map((m) => {
                     const active = method === m.id;
                     return (
                       <button
                         key={m.id}
-                        onClick={() => setMethod(m.id)}
+                        onClick={() => setMethod(m.id as PayMethod)}
                         className={cn(
                           "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all",
                           active
@@ -956,10 +967,10 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
             <div className="space-y-3">
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
               {([
-                { id: "cash", label: "Efectivo", icon: Banknote },
-                { id: "transfer", label: "Transferencia", icon: Smartphone },
-                { id: "card", label: "Tarjeta", icon: CreditCard },
-              ] as const).map((m) => (
+                { id: "cash", label: "Efectivo", icon: Banknote, enabled: data.paymentMethods.efectivo },
+                { id: "transfer", label: "Transferencia", icon: Smartphone, enabled: data.paymentMethods.transferencia },
+                { id: "card", label: "Tarjeta", icon: CreditCard, enabled: data.paymentMethods.tarjeta },
+              ] as const).filter((m) => m.enabled).map((m) => (
                 <div key={m.id} className="grid grid-cols-[180px_1fr] gap-3 items-center rounded-xl border border-white/10 bg-white/[0.02] p-3">
                   <div className="flex items-center gap-2 text-sm text-foreground">
                     <m.icon className="size-4 text-amber-200" /> {m.label}

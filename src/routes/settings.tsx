@@ -1891,50 +1891,34 @@ function CatalogoSection() {
 // ─────────── Caja ───────────
 function CajaSection() {
   const { businessId } = useAuth();
-  const [mode, setMode] = useState<"auto" | "manual" | "disabled">("auto");
-  const [methods, setMethods] = useState({
-    efectivo: true,
-    transferencia: true,
-    tarjeta: true,
-    mp: true,
-    cuentaDni: false,
+  const [methods, setMethods] = useState(() => {
+    if (typeof window === "undefined") {
+      return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
+    }
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("clippr_payment_methods") || "null");
+      return {
+        efectivo: saved?.efectivo !== false,
+        transferencia: saved?.transferencia !== false,
+        tarjeta: saved?.tarjeta !== false,
+        mp: saved?.mp !== false,
+        cuentaDni: saved?.cuentaDni === true,
+      };
+    } catch {
+      return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
+    }
   });
-  const [autoChange, setAutoChange] = useState(true);
-
-  // Load approval_mode from Supabase
-  useEffect(() => {
-    if (!businessId) return;
-    supabase
-      .from("business_settings")
-      .select("approval_mode")
-      .eq("business_id", businessId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.approval_mode) setMode(data.approval_mode as typeof mode);
-      });
-  }, [businessId]);
-
-  async function saveMode(m: typeof mode) {
-    setMode(m);
-    if (!businessId) return;
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert(
-        { business_id: businessId, approval_mode: m },
-        { onConflict: "business_id" },
-      );
-    if (error) console.warn("[CajaSection] saveMode:", error.message);
-  }
+  const [autoChange, setAutoChange] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("clippr_cash_auto_change") !== "false";
+  });
 
   async function saveCajaSettings() {
-    if (!businessId) return toast.error("No se encontró el negocio");
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert(
-        { business_id: businessId, approval_mode: mode },
-        { onConflict: "business_id" },
-      );
-    if (error) return toast.error("Error guardando caja: " + error.message);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("clippr_payment_methods", JSON.stringify(methods));
+      window.localStorage.setItem("clippr_cash_auto_change", String(autoChange));
+      window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
+    }
     toast.success("Configuración guardada");
   }
 
@@ -1945,7 +1929,7 @@ function CajaSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, mode]);
+  }, [methods, autoChange]);
 
   const M = [
     {
@@ -1987,67 +1971,8 @@ function CajaSection() {
           Configuración de caja
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Definí cómo funciona el flujo de cobro y aprobación de servicios.
+          Definí los medios de pago y comportamiento básico de Caja & Cobro.
         </p>
-      </div>
-
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-3 px-1">
-          Modo de aprobación predeterminado
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(
-            [
-              {
-                id: "auto",
-                icon: Zap,
-                label: "Automático",
-                hint: "El profesional cobra desde su panel y el cobro impacta sin confirmación.",
-              },
-              {
-                id: "manual",
-                icon: Eye,
-                label: "Manual",
-                hint: "El servicio queda pendiente y caja/recepción lo confirma y cobra.",
-              },
-              {
-                id: "disabled",
-                icon: Lock,
-                label: "Desactivado",
-                hint: "El profesional no puede enviar ni cobrar servicios desde su panel.",
-              },
-            ] as const
-          ).map((opt) => {
-            const Icon = opt.icon;
-            const active = mode === opt.id;
-            return (
-              <button
-                key={opt.id}
-                onClick={() => saveMode(opt.id)}
-                className={cn(
-                  "text-left glass rounded-2xl p-5 ring-1 transition-all",
-                  active
-                    ? "ring-[oklch(0.78_0.17_65/0.5)] bg-gradient-to-br from-[oklch(0.82_0.14_75/0.08)] to-transparent shadow-[0_0_0_1px_oklch(0.78_0.17_65/0.3),0_10px_40px_-15px_oklch(0.78_0.17_65/0.4)]"
-                    : "ring-white/5 hover:ring-white/15",
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "h-6 w-6 mb-3",
-                    active
-                      ? "text-[oklch(0.82_0.14_75)]"
-                      : "text-muted-foreground",
-                  )}
-                  strokeWidth={2.2}
-                />
-                <div className="font-medium">{opt.label}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {opt.hint}
-                </div>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       <SectionCard label="Métodos de pago habilitados">
@@ -2323,7 +2248,7 @@ function SettingsPage() {
         subtitle="Personalizá tu negocio"
         action={
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: { section: active } }))}
+            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings"))}
             className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition"
           >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />

@@ -13,6 +13,7 @@ import {
   Mail,
   MoreHorizontal,
   PauseCircle,
+  MessageCircle,
   Phone,
   Plus,
   Search,
@@ -51,11 +52,16 @@ function whatsappHref(phone?: string | null) {
 
 function statusByDays(c: Client, activeDays: number, inactiveDays: number, lostDays: number): ClientStatus {
   if (c.visits === 0 || c.lastVisitDays == null) return "nuevo";
+
+  // Prioridad real de segmentación:
+  // 1) Perdido, 2) Inactivo, 3) VIP, 4) Activo.
+  // Así un cliente para reconquistar nunca aparece también como VIP.
+  if (c.lastVisitDays >= lostDays) return "perdido";
+  if (c.lastVisitDays >= inactiveDays) return "inactivo";
   if ((c.visits >= 8 || c.spent >= 100000) && c.lastVisitDays <= activeDays) return "vip";
   if (c.lastVisitDays <= activeDays) return "activo";
-  if (c.lastVisitDays > lostDays) return "perdido";
-  if (c.lastVisitDays > inactiveDays) return "inactivo";
-  return "activo";
+
+  return "inactivo";
 }
 
 function statusBadge(s: ClientStatus) {
@@ -187,7 +193,7 @@ function ClientsPage() {
           <StatCard featured label="Clientes VIP" value={String(counts.vip)} caption="+ gasto + visita" link="Ver todos" onLinkClick={() => showGroup("Clientes VIP", (c) => c.status === "vip")} icon={<Crown className="h-7 w-7 text-violet-300" />} glow="bg-violet-500/25" />
           <StatCard label="Clientes nuevos" value={String(counts.nuevos)} caption="ingresaron este mes" link="Ver todos" onLinkClick={() => showGroup("Clientes nuevos", (c) => c.status === "nuevo")} icon={<Sparkles className="h-7 w-7 text-violet-300" />} glow="bg-violet-400/20" />
           <StatCard label="Frecuencia promedio" value={avgDays ? String(avgDays) : "—"} caption="días desde última visita" icon={<CalendarDays className="h-7 w-7 text-cyan-300" />} glow="bg-cyan-400/20" />
-          <StatCard label="Clientes activos" value={String(counts.activos)} caption={<span className="inline-flex items-center gap-2">visita en <input type="number" min={1} value={daysActive} onChange={(e) => setDaysActive(sanitizeDays(e.target.value))} className="w-12 rounded-md bg-white/5 ring-1 ring-white/10 px-1.5 py-0.5 text-foreground text-center" /> días</span>} link="Ver todos" onLinkClick={() => showGroup("Clientes activos", (c) => c.status === "activo" || c.status === "vip")} icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />} glow="bg-emerald-400/20" />
+          <StatCard label="Clientes activos" value={String(counts.activos)} caption={<span className="inline-flex items-center gap-2">visita en <input type="number" min={1} value={daysActive} onChange={(e) => setDaysActive(sanitizeDays(e.target.value))} className="w-12 rounded-md bg-white/5 ring-1 ring-white/10 px-1.5 py-0.5 text-foreground text-center" /> días</span>} link="Ver todos" onLinkClick={() => showGroup("Clientes activos", (c) => c.status === "activo")} icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />} glow="bg-emerald-400/20" />
           <StatCard label="Clientes inactivos" value={String(counts.inactivos)} caption={<span className="inline-flex items-center gap-2">sin visita + <input type="number" min={1} value={daysInactive} onChange={(e) => setDaysInactive(sanitizeDays(e.target.value))} className="w-12 rounded-md bg-white/5 ring-1 ring-white/10 px-1.5 py-0.5 text-foreground text-center" /> días</span>} link="Ver todos" onLinkClick={() => showGroup("Clientes inactivos", (c) => c.status === "inactivo")} icon={<PauseCircle className="h-7 w-7 text-muted-foreground" />} glow="bg-white/10" />
           <StatCard label="Clientes perdidos" value={String(counts.perdidos)} caption={<span className="inline-flex items-center gap-2">sin visita + <input type="number" min={1} value={daysLost} onChange={(e) => setDaysLost(sanitizeDays(e.target.value))} className="w-12 rounded-md bg-white/5 ring-1 ring-white/10 px-1.5 py-0.5 text-foreground text-center" /> días</span>} link="Reconquistar" onLinkClick={() => showGroup("Clientes perdidos para reconquistar", (c) => c.status === "perdido")} icon={<AlertTriangle className="h-7 w-7 text-rose-300" />} glow="bg-rose-400/20" />
         </div>
@@ -209,7 +215,7 @@ function ClientsPage() {
                 <div className="relative flex items-start gap-5">
                   <div className="h-20 w-20 rounded-2xl grid place-items-center text-2xl font-display font-semibold bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100">{current.name[0]?.toUpperCase()}</div>
                   <div className="flex-1 min-w-0 space-y-2">
-                    <div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-2xl font-display font-semibold leading-tight">{current.status === "perdido" && <AlertTriangle className="h-5 w-5 text-rose-300" />}{current.status === "vip" && <Crown className="h-5 w-5 text-amber-200" />}{current.name}</div><div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">{current.phone ? <a href={whatsappHref(current.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-emerald-300 transition"><Phone className="h-3 w-3" /> {current.phone}</a> : <span>sin teléfono</span>}{current.email && <><span>·</span><span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {current.email}</span></>}</div></div><div className="relative"><button onClick={() => setClientMenuOpen((v) => !v)} className="rounded-full p-2 hover:bg-white/5 transition"><MoreHorizontal className="h-4 w-4 text-muted-foreground" /></button>{clientMenuOpen && <div className="absolute right-0 top-9 z-20 w-44 rounded-xl bg-background/95 ring-1 ring-white/10 shadow-2xl p-1.5 backdrop-blur"><button onClick={() => handleDeleteClient(current)} className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"><Trash2 className="h-4 w-4" />Eliminar</button></div>}</div></div>
+                    <div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-2xl font-display font-semibold leading-tight">{current.status === "perdido" && <AlertTriangle className="h-5 w-5 text-rose-300" />}{current.status === "vip" && <Crown className="h-5 w-5 text-amber-200" />}{current.name}</div><div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">{current.phone ? <a href={whatsappHref(current.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-300 ring-1 ring-emerald-400/25 hover:bg-emerald-500/20 transition"><MessageCircle className="h-3.5 w-3.5 text-emerald-300" /> WhatsApp {current.phone}</a> : <span>sin teléfono</span>}{current.email && <><span>·</span><span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {current.email}</span></>}</div></div><div className="relative"><button onClick={() => setClientMenuOpen((v) => !v)} className="rounded-full p-2 hover:bg-white/5 transition"><MoreHorizontal className="h-4 w-4 text-muted-foreground" /></button>{clientMenuOpen && <div className="absolute right-0 top-9 z-20 w-44 rounded-xl bg-background/95 ring-1 ring-white/10 shadow-2xl p-1.5 backdrop-blur"><button onClick={() => handleDeleteClient(current)} className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"><Trash2 className="h-4 w-4" />Eliminar</button></div>}</div></div>
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">{statusBadge(current.status)}<Rating value={current.rating} /></div>
                   </div>
                 </div>

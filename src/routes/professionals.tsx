@@ -653,7 +653,11 @@ function LineChart({
 }
 
 function PagosView({ businessId, empId, userEmail }: { businessId: string | null; empId: string | null; userEmail: string | null }) {
-  const { data: payments = [], isLoading } = useProfPayments(businessId, empId);
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const [from, setFrom] = useState(monthStart);
+  const [to, setTo] = useState(today);
+  const { data: payments = [], isLoading } = useProfPayments(businessId, empId, from, to);
   const { mutate: registerPayout, isPending } = useRegisterPayout(businessId);
   const [showForm, setShowForm] = useState(false);
   const [amount, setAmount] = useState("");
@@ -672,6 +676,13 @@ function PagosView({ businessId, empId, userEmail }: { businessId: string | null
 
   return (
     <div className="space-y-4 animate-fade-up">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="text-xs text-muted-foreground">Filtrá los pagos por fecha.</div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex items-center gap-1.5">Desde<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
+          <label className="flex items-center gap-1.5">Hasta<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
+        </div>
+      </div>
       <div className="flex justify-end">
         <button
           onClick={() => setShowForm(!showForm)}
