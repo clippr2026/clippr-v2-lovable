@@ -81,7 +81,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
     .eq("business_id", businessId)
     .order("created_at", { ascending: false });
 
-  if (paymentsError) throw new Error("Error cargando historial de clientes: " + paymentsError.message);
+  if (paymentsError)
+    throw new Error("Error cargando historial de clientes: " + paymentsError.message);
 
   const paymentsByName = new Map<string, ClientPayment[]>();
 
@@ -182,6 +183,32 @@ export function useDeleteClient(businessId: string | null) {
     mutationFn: (clientId: string) => {
       if (!businessId) throw new Error("Sin negocio asignado");
       return deleteClient(businessId, clientId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clients", businessId] });
+    },
+  });
+}
+
+async function updateClientNotes(
+  businessId: string,
+  clientId: string,
+  notes: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("clients")
+    .update({ notes: notes.trim() || null })
+    .eq("business_id", businessId)
+    .eq("id", clientId);
+  if (error) throw new Error("Error al guardar nota: " + error.message);
+}
+
+export function useUpdateClientNotes(businessId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ clientId, notes }: { clientId: string; notes: string }) => {
+      if (!businessId) throw new Error("Sin negocio asignado");
+      return updateClientNotes(businessId, clientId, notes);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clients", businessId] });
