@@ -500,21 +500,7 @@ function StatsView({
 }
 
 function ServiciosDesglose() {
-  const items = [
-    { label: "Cortes", value: 0, color: "oklch(0.78 0.16 200)" },
-    { label: "Barba", value: 0, color: "oklch(0.62 0.22 295)" },
-    { label: "Tratamientos", value: 0, color: "oklch(0.72 0.17 155)" },
-    { label: "Otros", value: 0, color: "oklch(0.72 0.18 55)" },
-  ];
-  const total = items.reduce((s, i) => s + i.value, 0);
-  const display = items.map((i) => i.value);
-  const sum = display.reduce((s, v) => s + v, 0);
-  const hasServiceData = sum > 0;
-
-  const R = 60;
-  const C = 2 * Math.PI * R;
-  let offset = 0;
-
+  // No data yet — will be populated from real appointments once analytics are available
   return (
     <div className="glass rounded-2xl p-5 relative overflow-hidden">
       <div className="absolute -top-16 -left-16 h-56 w-56 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
@@ -523,57 +509,16 @@ function ServiciosDesglose() {
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Servicios</div>
           <div className="mt-0.5 text-2xl font-display font-light tracking-tight">Desglose</div>
         </div>
-        <button className="text-muted-foreground hover:text-foreground text-lg leading-none">···</button>
       </div>
-
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-[180px_1fr] gap-6 items-center">
-        <div className="relative mx-auto">
-          <svg viewBox="0 0 160 160" className="w-44 h-44 -rotate-90">
-            <circle cx="80" cy="80" r={R} fill="none" stroke="oklch(0.25 0.02 270 / 0.4)" strokeWidth="18" />
-            {items.map((it, idx) => {
-              const frac = display[idx] / sum;
-              const len = frac * C;
-              const dasharray = `${len} ${C - len}`;
-              const el = (
-                <circle
-                  key={it.label}
-                  cx="80"
-                  cy="80"
-                  r={R}
-                  fill="none"
-                  stroke={it.color}
-                  strokeWidth="18"
-                  strokeDasharray={dasharray}
-                  strokeDashoffset={-offset}
-                  strokeLinecap="butt"
-                />
-              );
-              offset += len;
-              return el;
-            })}
+      <div className="mt-8 flex flex-col items-center justify-center py-8 text-center text-sm text-muted-foreground gap-2">
+        <div className="h-10 w-10 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center mb-1">
+          <svg viewBox="0 0 24 24" className="h-5 w-5 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 3v16a2 2 0 002 2h16" strokeLinecap="round"/>
+            <path d="M7 16l4-4 4 4 5-5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-2xl font-display font-light">{total} $</div>
-            <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Total</div>
-          </div>
         </div>
-
-        <div className="space-y-3">
-          {items.map((it) => {
-            const pct = total === 0 ? 0 : Math.round((it.value / total) * 100);
-            return (
-              <div key={it.label} className="flex items-center gap-3 text-sm">
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: it.color }} />
-                <span className="flex-1 text-foreground/90">{it.label}</span>
-                <span className="tabular-nums text-muted-foreground w-20 text-right">{it.value} $</span>
-                <span className="tabular-nums font-semibold w-10 text-right">{pct} %</span>
-              </div>
-            );
-          })}
-          <button className="text-sky-300 hover:text-sky-200 text-sm pt-1 inline-flex items-center gap-1">
-            Ver todo <span aria-hidden>›</span>
-          </button>
-        </div>
+        Sin datos aún
+        <span className="text-xs opacity-60">Los datos aparecerán cuando haya turnos registrados</span>
       </div>
     </div>
   );

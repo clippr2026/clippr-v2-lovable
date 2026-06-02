@@ -176,13 +176,14 @@ function BrandingSection() {
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
-    // Load name from businesses (only confirmed column), rest from business_settings.branding_config
+    // Load name from businesses, rest from business_settings.schedule._branding
     Promise.all([
       supabase.from("businesses").select("name").eq("id", businessId).maybeSingle(),
-      supabase.from("business_settings").select("branding_config").eq("business_id", businessId).maybeSingle(),
+      supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
-      const cfg = (settRes.data?.branding_config ?? {}) as Record<string, unknown>;
+      const schedule = (settRes.data?.schedule ?? {}) as Record<string, unknown>;
+      const cfg = (schedule._branding ?? {}) as Record<string, unknown>;
       setData({
         name: (biz?.name as string) ?? "",
         address: (cfg.address as string) ?? "",
@@ -215,12 +216,17 @@ function BrandingSection() {
       const url = await uploadImage(logoFile, `${businessId}/logo`);
       if (url) logo_url = url;
     }
-    // Save name to businesses (safe column)
+
+    // Save name to businesses
     const nameResult = await supabase.from("businesses").update({ name: data.name }).eq("id", businessId);
-    // Save rest to business_settings.branding_config
-    const cfgResult = await supabase.from("business_settings").upsert({
-      business_id: businessId,
-      branding_config: {
+
+    // Save branding fields inside schedule._branding (schedule column exists)
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const newSchedule = {
+      ...existingSchedule,
+      _branding: {
         address: data.address,
         phone: data.phone,
         email: data.email,
@@ -229,7 +235,12 @@ function BrandingSection() {
         description: data.description,
         logo_url,
       },
-    }, { onConflict: "business_id" });
+    };
+    const cfgResult = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: newSchedule },
+      { onConflict: "business_id" },
+    );
+
     setSaving(false);
     if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
@@ -1790,35 +1801,41 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   );
   const [confirmDelItem, setConfirmDelItem] = useState<PriceRow | null>(null);
   const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
-  const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(() => {
-    if (isService || typeof window === "undefined") return [];
-    try {
-      const saved = window.localStorage.getItem("clippr_catalog_categories");
-      return saved ? JSON.parse(saved) : defaultCatalogCategories;
-    } catch {
-      return defaultCatalogCategories;
-    }
-  });
-  const [customServiceCategories, setCustomServiceCategories] = useState<string[]>(() => {
-    if (!isService || typeof window === "undefined") return [];
-    try {
-      const saved = window.localStorage.getItem("clippr_service_categories");
-      return saved ? JSON.parse(saved) : defaultServiceCategories;
-    } catch {
-      return defaultServiceCategories;
-    }
-  });
+  const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(defaultCatalogCategories);
+  const [customServiceCategories, setCustomServiceCategories] = useState<string[]>(defaultServiceCategories);
 
-  const saveCategories = useCallback((next: string[], type: "catalog" | "service") => {
+  // Load categories from Supabase schedule._categories
+  useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const cats = (schedule._categories ?? {}) as Record<string, unknown>;
+        if (isService && Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
+        if (!isService && Array.isArray(cats.catalog)) setCustomCatalogCategories(cats.catalog as string[]);
+      });
+  }, [businessId, isService]);
+
+  const saveCategories = useCallback(async (next: string[], type: "catalog" | "service") => {
     const clean = Array.from(new Set(next.map((c) => c.trim()).filter(Boolean)));
     if (type === "service") {
       setCustomServiceCategories(clean.length ? clean : defaultServiceCategories);
-      if (typeof window !== "undefined") window.localStorage.setItem("clippr_service_categories", JSON.stringify(clean.length ? clean : defaultServiceCategories));
     } else {
       setCustomCatalogCategories(clean.length ? clean : defaultCatalogCategories);
-      if (typeof window !== "undefined") window.localStorage.setItem("clippr_catalog_categories", JSON.stringify(clean.length ? clean : defaultCatalogCategories));
     }
-  }, []);
+    if (!businessId) return;
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingCats = (existingSchedule._categories ?? {}) as Record<string, unknown>;
+    const updatedCats = type === "service"
+      ? { ...existingCats, service: clean.length ? clean : defaultServiceCategories }
+      : { ...existingCats, catalog: clean.length ? clean : defaultCatalogCategories };
+    await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: { ...existingSchedule, _categories: updatedCats } },
+      { onConflict: "business_id" },
+    );
+  }, [businessId, isService]);
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -2250,34 +2267,32 @@ function CatalogoSection() {
 // ─────────── Caja ───────────
 function CajaSection() {
   const { businessId } = useAuth();
-  const [methods, setMethods] = useState(() => {
-    if (typeof window === "undefined") {
-      return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
-    }
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("clippr_payment_methods") || "null");
-      return {
-        efectivo: saved?.efectivo !== false,
-        transferencia: saved?.transferencia !== false,
-        tarjeta: saved?.tarjeta !== false,
-        mp: saved?.mp !== false,
-        cuentaDni: saved?.cuentaDni === true,
-      };
-    } catch {
-      return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
-    }
-  });
-  const [autoChange, setAutoChange] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.localStorage.getItem("clippr_cash_auto_change") !== "false";
-  });
+  const defaultMethods = { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
+  const [methods, setMethods] = useState(defaultMethods);
+  const [autoChange, setAutoChange] = useState(true);
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const caja = (schedule._caja ?? {}) as Record<string, unknown>;
+        if (caja.methods) setMethods(caja.methods as typeof defaultMethods);
+        if (typeof caja.autoChange === "boolean") setAutoChange(caja.autoChange);
+      });
+  }, [businessId]);
 
   async function saveCajaSettings() {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("clippr_payment_methods", JSON.stringify(methods));
-      window.localStorage.setItem("clippr_cash_auto_change", String(autoChange));
-      window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
-    }
+    if (!businessId) return toast.error("No se encontró el negocio");
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const { error } = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: { ...existingSchedule, _caja: { methods, autoChange } } },
+      { onConflict: "business_id" },
+    );
+    if (error) return toast.error("Error guardando: " + error.message);
+    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
     toast.success("Configuración de caja guardada correctamente");
   }
 
