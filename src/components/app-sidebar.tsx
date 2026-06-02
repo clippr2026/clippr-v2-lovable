@@ -30,7 +30,7 @@ const ALL_NAV: Array<{ label: string; to: string; icon: React.ComponentType<{cla
   { label: "Caja & Cobro",       to: "/cash-register",icon: Wallet,          permKey: "caja" },
   { label: "Panel Profesionales",to: "/professionals",icon: UserCog,         permKey: "profesionales" },
   { label: "Clientes",           to: "/clients",      icon: Users,           permKey: "clientes" },
-  { label: "Configuración",      to: "/settings",     icon: Settings },
+  { label: "Configuración",      to: "/settings",     icon: Settings,       permKey: "configuracion" },
 ];
 
 function initialsOf(name?: string | null, email?: string | null) {
@@ -78,8 +78,8 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
   const { permissions, profile } = useAuth();
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
   const nav = ALL_NAV.filter((item) => {
-    if (!item.permKey) return true; // Configuración always visible
     if (isOwner) return true;
+    if (!item.permKey) return true;
     return permissions[item.permKey] === true;
   });
   return (
@@ -109,7 +109,7 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
 }
 
 function UserMenu() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, permissions } = useAuth();
   const initials = initialsOf(profile?.full_name, profile?.email);
   const displayName = profile?.full_name || profile?.email || "Usuario";
   return (
@@ -133,11 +133,13 @@ function UserMenu() {
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link to="/settings" className="cursor-pointer">
-            <UserIcon className="h-4 w-4 mr-2" /> Configuración
-          </Link>
-        </DropdownMenuItem>
+        {permissions.configuracion === true || profile?.role === "owner" || profile?.role === "admin_general" ? (
+          <DropdownMenuItem asChild>
+            <Link to="/settings" className="cursor-pointer">
+              <UserIcon className="h-4 w-4 mr-2" /> Configuración
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut()}
