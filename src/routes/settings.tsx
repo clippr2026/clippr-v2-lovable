@@ -176,12 +176,25 @@ function BrandingSection() {
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
-    supabase.from("businesses").select("name,address,phone,email,instagram,website,description,logo_url")
-      .eq("id", businessId).maybeSingle()
-      .then(({ data: row }) => {
-        if (row) setData({ ...EMPTY_BRANDING, ...row });
-        setLoading(false);
+    // Load name from businesses (only confirmed column), rest from business_settings.branding_config
+    Promise.all([
+      supabase.from("businesses").select("name").eq("id", businessId).maybeSingle(),
+      supabase.from("business_settings").select("branding_config").eq("business_id", businessId).maybeSingle(),
+    ]).then(([bizRes, settRes]) => {
+      const biz = bizRes.data;
+      const cfg = (settRes.data?.branding_config ?? {}) as Record<string, unknown>;
+      setData({
+        name: (biz?.name as string) ?? "",
+        address: (cfg.address as string) ?? "",
+        phone: (cfg.phone as string) ?? "",
+        email: (cfg.email as string) ?? "",
+        instagram: (cfg.instagram as string) ?? "",
+        website: (cfg.website as string) ?? "",
+        description: (cfg.description as string) ?? "",
+        logo_url: (cfg.logo_url as string) ?? "",
       });
+      setLoading(false);
+    });
   }, [businessId]);
 
   const set = (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -202,26 +215,31 @@ function BrandingSection() {
       const url = await uploadImage(logoFile, `${businessId}/logo`);
       if (url) logo_url = url;
     }
-    const payload: Partial<BrandingData> = {
-      name: data.name,
-      address: data.address,
-      phone: data.phone,
-      email: data.email,
-      instagram: data.instagram,
-      website: data.website,
-      description: data.description,
-      logo_url,
-    };
-    const { error } = await supabase.from("businesses").update(payload).eq("id", businessId);
+    // Save name to businesses (safe column)
+    const nameResult = await supabase.from("businesses").update({ name: data.name }).eq("id", businessId);
+    // Save rest to business_settings.branding_config
+    const cfgResult = await supabase.from("business_settings").upsert({
+      business_id: businessId,
+      branding_config: {
+        address: data.address,
+        phone: data.phone,
+        email: data.email,
+        instagram: data.instagram,
+        website: data.website,
+        description: data.description,
+        logo_url,
+      },
+    }, { onConflict: "business_id" });
     setSaving(false);
-    if (error) return toast.error("Error guardando: " + error.message);
+    if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
+    if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
     setData(d => ({ ...d, logo_url }));
     setLogoFile(null);
     toast.success("Branding guardado correctamente");
   }
 
   const saveRef = React.useRef(save);
-  React.useEffect(() => { saveRef.current = save; }, [save]);
+  React.useEffect(() => { saveRef.current = save; }, [businessId, data, logoFile]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1064,9 +1082,7 @@ function EquipoSection() {
                           {displayName}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {emp.commission_pct != null
-                            ? `${emp.commission_pct}% comisión`
-                            : "Profesional"}
+                          Profesional
                         </div>
                       </div>
                       <span
@@ -1090,10 +1106,16 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => toggleActive(emp)}
+                        onClick={() => { setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("datos"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
-                        {active ? "Desactivar" : "Activar"}
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => toggleActive(emp)}
+                        className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs"
+                      >
+                        {active ? "Off" : "On"}
                       </button>
                       <button
                         onClick={() => remove(emp)}
