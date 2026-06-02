@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, type PermKey } from "@/hooks/use-auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,13 +24,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const nav = [
-  { label: "Dashboard", to: "/", icon: LayoutDashboard },
-  { label: "Agenda", to: "/agenda", icon: Calendar },
-  { label: "Caja", to: "/cash-register", icon: Wallet },
-  { label: "Panel Profesionales", to: "/professionals", icon: UserCog },
-  { label: "Clientes", to: "/clients", icon: Users },
-  { label: "Configuración", to: "/settings", icon: Settings },
+const ALL_NAV: Array<{ label: string; to: string; icon: React.ComponentType<{className?:string}>; permKey?: PermKey }> = [
+  { label: "Dashboard",          to: "/",             icon: LayoutDashboard, permKey: "dashboard" },
+  { label: "Agenda",             to: "/agenda",       icon: Calendar,        permKey: "agenda" },
+  { label: "Caja & Cobro",       to: "/cash-register",icon: Wallet,          permKey: "caja" },
+  { label: "Panel Profesionales",to: "/professionals",icon: UserCog,         permKey: "profesionales" },
+  { label: "Clientes",           to: "/clients",      icon: Users,           permKey: "clientes" },
+  { label: "Configuración",      to: "/settings",     icon: Settings },
 ];
 
 function initialsOf(name?: string | null, email?: string | null) {
@@ -75,6 +75,13 @@ function Brand() {
 
 function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { permissions, profile } = useAuth();
+  const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
+  const nav = ALL_NAV.filter((item) => {
+    if (!item.permKey) return true; // Configuración always visible
+    if (isOwner) return true;
+    return permissions[item.permKey] === true;
+  });
   return (
     <nav className={cn(vertical ? "flex flex-col gap-1" : "flex items-center gap-1")}>
       {nav.map((item) => {
