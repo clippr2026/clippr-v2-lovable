@@ -134,8 +134,9 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("starts_at"),
       supabase
         .from("employees")
-        .select("id,full_name")
+        .select("id,full_name,is_active")
         .eq("business_id", businessId)
+        .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("services")
