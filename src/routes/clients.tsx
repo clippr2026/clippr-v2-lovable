@@ -21,7 +21,6 @@ import {
   Star,
   TrendingUp,
   Clock3,
-  Filter,
   MoreHorizontal,
   Scissors,
   Heart,
@@ -29,7 +28,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useClientsData, useSaveClient, type Client, type ClientStatus } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
-import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 
 export const Route = createFileRoute("/clients")({
   component: ClientsPage,
@@ -171,7 +169,6 @@ function Sparkbars({ data }: { data: number[] }) {
 }
 
 function ClientsPage() {
-  const hasAccess = usePermGuard("clientes");
   const { businessId } = useAuth();
   const { data: allClients = [], isLoading } = useClientsData(businessId);
   const [query, setQuery] = useState("");
@@ -213,8 +210,6 @@ function ClientsPage() {
   const current = allClients.find((c) => c.id === selected) ?? null;
   const ticket = current && current.visits ? Math.round(current.spent / current.visits) : 0;
 
-  if (!hasAccess) return <AccessDenied />;
-
   return (
     <AppShell>
       <Topbar title="Clientes" subtitle="Cartera, segmentación y reconquista" />
@@ -238,13 +233,8 @@ function ClientsPage() {
               Segmentá, recordá preferencias y volvé a invitar a los que se alejaron.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="inline-flex items-center gap-1.5 rounded-full bg-white/5 ring-1 ring-white/10 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider hover:bg-white/10 transition">
-              <Filter className="h-3.5 w-3.5" /> Segmentar
-            </button>
-            <button className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-xs font-bold uppercase tracking-wider shadow-[0_0_30px_-5px_rgba(139,92,246,0.55)] hover:brightness-110 transition">
-              <Plus className="h-3.5 w-3.5" /> Nuevo cliente
-            </button>
+          <div className="hidden md:block text-xs text-muted-foreground/80 max-w-xs text-right">
+            Usá el botón superior para crear clientes nuevos.
           </div>
         </div>
       </div>

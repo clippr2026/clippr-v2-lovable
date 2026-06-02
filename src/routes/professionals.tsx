@@ -14,7 +14,6 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -40,7 +39,6 @@ const COLORS = [
 ];
 
 function ProfessionalsPage() {
-  const hasAccess = usePermGuard("profesionales");
   const { businessId, profile } = useAuth();
   const { data: professionals = [], isLoading } = useProfessionals(businessId);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -59,8 +57,6 @@ function ProfessionalsPage() {
   const active = useMemo(() => professionals.find((p) => p.id === empId) ?? professionals[0] ?? null, [professionals, empId]);
   const activeColor = useMemo(() => COLORS[(professionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [professionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
-
-  if (!hasAccess) return <AccessDenied />;
 
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />
@@ -186,7 +182,40 @@ function CobroModal({
   const [method, setMethod] = useState<PayMethod>("cash");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [extras, setExtras] = useState<Array<{ id: string; name: string; price: number; category: string | null; stock: number | null }>>([]);
+  const [extraCart, setExtraCart] = useState<Record<string, number>>({});
   const price = Number(turno.service_price ?? 0);
+  const extraItems = Object.entries(extraCart)
+    .map(([id, qty]) => {
+      const item = extras.find((x) => x.id === id);
+      return item ? { item, qty } : null;
+    })
+    .filter((x): x is { item: { id: string; name: string; price: number; category: string | null; stock: number | null }; qty: number } => Boolean(x));
+  const total = price + extraItems.reduce((sum, { item, qty }) => sum + Number(item.price) * qty, 0);
+
+  useEffect(() => {
+    if (mode !== "auto" || !businessId) return;
+    supabase
+      .from("price_catalog")
+      .select("id,name,price,category,stock,active")
+      .eq("business_id", businessId)
+      .eq("active", true)
+      .order("category")
+      .order("name")
+      .then(({ data }) => {
+        setExtras(
+          (data ?? [])
+            .filter((item: any) => item.name !== turno.service_name)
+            .map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              price: Number(item.price ?? 0),
+              category: item.category ?? null,
+              stock: item.stock ?? null,
+            })),
+        );
+      });
+  }, [businessId, mode, turno.service_name]);
 
   async function confirm() {
     setSaving(true);
@@ -196,7 +225,12 @@ function CobroModal({
         await registerPayment({
           businessId, employeeId: empId,
           clientName: turno.client_name ?? "Sin cliente",
-          items: [{ serviceName: turno.service_name ?? "Servicio", amount: price }],
+          items: [
+            { serviceName: turno.service_name ?? "Servicio", amount: price },
+            ...extraItems.flatMap(({ item, qty }) =>
+              Array.from({ length: qty }, () => ({ serviceName: item.name, amount: Number(item.price) })),
+            ),
+          ],
           method,
         });
         // Mark appointment as charged
@@ -234,6 +268,36 @@ function CobroModal({
           <div className="text-sm text-muted-foreground">{turno.service_name ?? "—"}</div>
           {price > 0 && <div className="text-2xl font-display font-light mt-1">${price.toLocaleString("es-AR")}</div>}
         </div>
+
+        {mode === "auto" && (
+          <div className="space-y-2">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Agregar extra opcional</div>
+            {extras.length === 0 ? (
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2 text-xs text-muted-foreground">Sin productos o servicios extra.</div>
+            ) : (
+              <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+                {extras.slice(0, 8).map((item) => {
+                  const qty = extraCart[item.id] ?? 0;
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate text-sm font-medium">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">${item.price.toLocaleString("es-AR")}{item.category ? ` · ${item.category}` : ""}</div>
+                      </div>
+                      <button onClick={() => setExtraCart((c) => { const n = (c[item.id] ?? 0) - 1; const { [item.id]: _omit, ...rest } = c; return n <= 0 ? rest : { ...c, [item.id]: n }; })} className="size-7 rounded-lg bg-white/5 text-muted-foreground hover:text-foreground">−</button>
+                      <span className="w-5 text-center text-sm">{qty}</span>
+                      <button onClick={() => setExtraCart((c) => ({ ...c, [item.id]: (c[item.id] ?? 0) + 1 }))} className="size-7 rounded-lg bg-white/5 text-foreground">+</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="flex justify-between rounded-xl bg-emerald-500/10 ring-1 ring-emerald-400/20 px-3 py-2 text-sm">
+              <span>Total a cobrar</span>
+              <strong>${total.toLocaleString("es-AR")}</strong>
+            </div>
+          </div>
+        )}
 
         {/* Método de pago — solo en auto */}
         {mode === "auto" && (
