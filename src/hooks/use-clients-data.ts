@@ -152,3 +152,26 @@ export function useSaveClient(businessId: string | null) {
     },
   });
 }
+
+
+async function deleteClient(businessId: string, clientId: string): Promise<void> {
+  const { error } = await supabase
+    .from("clients")
+    .delete()
+    .eq("business_id", businessId)
+    .eq("id", clientId);
+  if (error) throw new Error("Error al eliminar cliente: " + error.message);
+}
+
+export function useDeleteClient(businessId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (clientId: string) => {
+      if (!businessId) throw new Error("Sin negocio asignado");
+      return deleteClient(businessId, clientId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clients", businessId] });
+    },
+  });
+}
