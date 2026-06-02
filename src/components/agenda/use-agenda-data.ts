@@ -40,7 +40,7 @@ export type Appointment = {
   updated_at: string | null;
 };
 
-export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null };
+export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null; is_active?: boolean | null };
 export type Service = {
   id: string;
   name: string;
@@ -136,7 +136,6 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .from("employees")
         .select("id,full_name,is_active")
         .eq("business_id", businessId)
-        .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("services")
@@ -168,7 +167,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     );
     setEmployees(
       eRes.status === "fulfilled" && !eRes.value.error
-        ? ((eRes.value.data ?? []) as Employee[])
+        ? ((eRes.value.data ?? []) as Employee[]).filter((e) => e.is_active !== false)
         : [],
     );
     const svc =
@@ -218,6 +217,11 @@ export type SaveAppointmentInput = {
   notes?: string | null;
   created_by_name?: string | null;
   created_by_role?: string | null;
+  client_phone?: string | null;
+  client_email?: string | null;
+  deposit_amount?: number | null;
+  deposit_paid?: number | null;
+  deposit_status?: string | null;
 };
 
 export async function saveAppointment(input: SaveAppointmentInput) {
@@ -237,6 +241,11 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     duration_min: input.duration_min,
     status: input.status ?? "pending",
     notes: input.notes ?? null,
+    client_phone: input.client_phone ?? null,
+    client_email: input.client_email ?? null,
+    deposit_amount: input.deposit_amount ?? null,
+    deposit_paid: input.deposit_paid ?? null,
+    deposit_status: input.deposit_status ?? null,
     updated_at: new Date().toISOString(),
   };
   if (!input.id) {
