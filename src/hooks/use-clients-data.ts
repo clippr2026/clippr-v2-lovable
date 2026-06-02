@@ -131,7 +131,7 @@ export function useClientsData(businessId: string | null) {
     queryKey: ["clients", businessId],
     queryFn: () => loadClients(businessId!),
     enabled: !!businessId,
-    staleTime: 30_000,
+    staleTime: 0,
   });
 }
 
@@ -164,6 +164,7 @@ export function useSaveClient(businessId: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clients", businessId] });
+      qc.refetchQueries({ queryKey: ["clients", businessId] });
     },
   });
 }
@@ -186,6 +187,7 @@ export function useDeleteClient(businessId: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clients", businessId] });
+      qc.refetchQueries({ queryKey: ["clients", businessId] });
     },
   });
 }
@@ -212,6 +214,7 @@ export function useUpdateClientNotes(businessId: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clients", businessId] });
+      qc.refetchQueries({ queryKey: ["clients", businessId] });
     },
   });
 }

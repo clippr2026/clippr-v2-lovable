@@ -127,16 +127,25 @@ export function useProfStats(
 }
 
 // ── Payment history (all time) ────────────────────────────────────────────
-export function useProfPayments(businessId: string | null, empId: string | null) {
+export function useProfPayments(
+  businessId: string | null,
+  empId: string | null,
+  from?: string,
+  to?: string,
+) {
   return useQuery({
-    queryKey: ["prof-payments", businessId, empId],
+    queryKey: ["prof-payments", businessId, empId, from ?? null, to ?? null],
     queryFn: async (): Promise<ProfPayment[]> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("professional_payouts")
         .select("id,amount,date,method,note,created_by")
         .eq("business_id", businessId!)
-        .eq("employee_id", empId!)
-        .order("date", { ascending: false });
+        .eq("employee_id", empId!);
+
+      if (from) query = query.gte("date", from);
+      if (to) query = query.lte("date", to);
+
+      const { data, error } = await query.order("date", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []) as ProfPayment[];
     },
