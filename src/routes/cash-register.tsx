@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { supabase } from "@/integrations/supabase/client";
 import { useCajaData, type Service } from "@/components/cash-register/use-caja-data";
 import {
@@ -67,7 +66,6 @@ export const Route = createFileRoute("/cash-register")({
 type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales";
 
 function CashRegisterPage() {
-  const hasAccess = usePermGuard("caja");
   const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
@@ -89,8 +87,6 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
-  if (!hasAccess) return <AccessDenied />;
-
   if (authLoading || !session) {
     return (
       <AppShell>
@@ -107,7 +103,7 @@ function CashRegisterPage() {
       <Tabs tab={tab} onChange={setTab} />
       <div className="mt-6">
         {tab === "resumen" && <ResumenTab data={data} />}
-        {tab === "nueva" && <NuevaVentaTab data={data} search={search} />}
+        {tab === "nueva" && <NuevaVentaTab data={data} />}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
@@ -518,7 +514,7 @@ function History({ data }: { data: ReturnType<typeof useCajaData> }) {
 }
 
 // ───────────────────────────── NUEVA VENTA
-function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>; search: ReturnType<typeof useSearch> }) {
+function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
@@ -538,19 +534,25 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
     card: "",
   });
   const [submitting, setSubmitting] = useState(false);
-
-  const isDepositFlow = Boolean(search.depositAppointmentId);
-  const isFinalAppointmentFlow = Boolean(search.appointmentId);
-  const lockedAmount = Number(search.depositAmount ?? search.finalAmount ?? 0);
-  const lockedServiceName = search.serviceName ?? "Servicio";
+  const [itemTab, setItemTab] = useState<"servicios" | "catalogo">("servicios");
 
   const services = data.services;
-  const categories = useMemo(() => {
-    const list = Array.from(new Set(services.map((s) => s.category || "Otros"))).filter(Boolean);
-    return ["Todos", ...list];
-  }, [services]);
+  const isServiceItem = (i: Service) =>
+    i.duration != null || String(i.category ?? "").toLowerCase().includes("servicio");
+  const visibleItems = services.filter((i) =>
+    itemTab === "servicios" ? isServiceItem(i) : !isServiceItem(i)
+  );
 
-  const filtered = services.filter((i) => {
+  const categories = useMemo(() => {
+    const list = Array.from(new Set(visibleItems.map((s) => s.category || "Otros"))).filter(Boolean);
+    return ["Todos", ...list];
+  }, [visibleItems]);
+
+  useEffect(() => {
+    setCategory("Todos");
+  }, [itemTab]);
+
+  const filtered = visibleItems.filter((i) => {
     const q = query.trim().toLowerCase();
     const matchesText = !q || `${i.name} ${i.category ?? ""}`.toLowerCase().includes(q);
     const matchesCategory = category === "Todos" || (i.category || "Otros") === category;
@@ -564,23 +566,29 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
     })
     .filter((x): x is { svc: Service; qty: number } => x !== null);
 
-  const total = (isDepositFlow || isFinalAppointmentFlow)
-    ? lockedAmount
-    : cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
+  const total = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
   const receivedNumber = Number(received || 0);
   const change = method === "cash" && receivedNumber > total ? receivedNumber - total : 0;
   const multipleTotal = Object.values(multiplePayments).reduce((sum, value) => sum + Number(value || 0), 0);
   const multipleRemaining = total - multipleTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
+  const enabledPaymentMethods = useMemo(() => {
+    const cfg = data.paymentMethods;
+    return [
+      { id: "cash" as const, label: "Efectivo", icon: Banknote, enabled: cfg.efectivo },
+      { id: "transfer" as const, label: "Transferencia", icon: Smartphone, enabled: cfg.transferencia },
+      { id: "card" as const, label: "Débito / Crédito", icon: CreditCard, enabled: cfg.tarjeta },
+      { id: "mp" as const, label: "Mercado Pago", icon: Wallet, enabled: cfg.mp },
+      { id: "qr" as const, label: "QR", icon: Smartphone, enabled: cfg.mp || cfg.cuentaDni },
+    ].filter((m) => m.enabled);
+  }, [data.paymentMethods]);
 
   useEffect(() => {
-    if (!isDepositFlow && !isFinalAppointmentFlow) return;
-    setStep(4);
-    setClient(search.clientName ?? "");
-    setEmployeeId(search.employeeId ?? "");
-    setCart({});
-  }, [isDepositFlow, isFinalAppointmentFlow, search.clientName, search.employeeId]);
+    if (!enabledPaymentMethods.some((m) => m.id === method)) {
+      setMethod(enabledPaymentMethods[0]?.id ?? "cash");
+    }
+  }, [enabledPaymentMethods, method]);
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
   const sub = (id: string) =>
@@ -637,7 +645,7 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
       setStep(1);
       return;
     }
-    if (!isDepositFlow && !isFinalAppointmentFlow && cartItems.length === 0) {
+    if (cartItems.length === 0) {
       toast.error("Agregá al menos un servicio.");
       setStep(3);
       return;
@@ -645,13 +653,12 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
     setSubmitting(true);
     try {
       await saveClientIfNeeded();
-      const items = isDepositFlow
-        ? [{ serviceName: `Seña - ${lockedServiceName}`, amount: total }]
-        : isFinalAppointmentFlow
-          ? [{ serviceName: `Cobro final - ${lockedServiceName}`, amount: total }]
-          : cartItems.flatMap(({ svc, qty }) =>
-              Array.from({ length: qty }, () => ({ serviceName: svc.name, amount: Number(svc.price) })),
-            );
+      const items = cartItems.flatMap(({ svc, qty }) =>
+        Array.from({ length: qty }, () => ({
+          serviceName: svc.name,
+          amount: Number(svc.price),
+        }))
+      );
 
       if (paymentMode === "multiple") {
         const splits = (["cash", "transfer", "card"] as const)
@@ -677,8 +684,6 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
             method: split.method,
             sessionId: data.cashSessionId,
             chargedBy: data.profileId,
-            appointmentId: isDepositFlow ? search.depositAppointmentId : isFinalAppointmentFlow ? search.appointmentId : null,
-            paymentType: isDepositFlow ? "deposit" : isFinalAppointmentFlow ? "final" : "service",
           });
         }
       } else {
@@ -690,24 +695,7 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
           method,
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
-          appointmentId: isDepositFlow ? search.depositAppointmentId : isFinalAppointmentFlow ? search.appointmentId : null,
-          paymentType: isDepositFlow ? "deposit" : isFinalAppointmentFlow ? "final" : "service",
         });
-      }
-
-      if (isDepositFlow && search.depositAppointmentId) {
-        const { error } = await supabase
-          .from("appointments")
-          .update({ deposit_status: "paid", deposit_amount: total, deposit_paid: total, status: "confirmed", updated_at: new Date().toISOString() })
-          .eq("id", search.depositAppointmentId);
-        if (error) throw new Error(error.message);
-      }
-      if (isFinalAppointmentFlow && search.appointmentId) {
-        const { error } = await supabase
-          .from("appointments")
-          .update({ status: "charged", updated_at: new Date().toISOString() })
-          .eq("id", search.appointmentId);
-        if (error) throw new Error(error.message);
       }
 
       toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
@@ -722,7 +710,6 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
       setPaymentMode("simple");
       setStep(1);
       await data.refresh();
-      if (isDepositFlow || isFinalAppointmentFlow) navigate({ to: "/agenda", replace: true });
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
     } finally {
@@ -739,12 +726,6 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
 
   return (
     <div className="space-y-5">
-      {(isDepositFlow || isFinalAppointmentFlow) && (
-        <Card className="p-4 border-amber-300/20 bg-amber-300/5">
-          <div className="text-sm font-semibold text-amber-200">{isDepositFlow ? "Modo Cobrar seña" : "Modo Cobro final"}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{lockedServiceName} · {search.clientName ?? "Cliente"} · Total a cobrar: ${total.toLocaleString("es-AR")}</div>
-        </Card>
-      )}
       <Card className="p-1.5">
         <div className="grid grid-cols-4 gap-1">
           {stepItems.map((s) => {
@@ -859,6 +840,26 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
 
       {step === 3 && (
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
+            <button
+              onClick={() => setItemTab("servicios")}
+              className={cn(
+                "rounded-lg py-2.5 text-sm font-semibold transition-all",
+                itemTab === "servicios" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Servicios
+            </button>
+            <button
+              onClick={() => setItemTab("catalogo")}
+              className={cn(
+                "rounded-lg py-2.5 text-sm font-semibold transition-all",
+                itemTab === "catalogo" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Catálogo
+            </button>
+          </div>
           <Card className="px-4 py-3 flex items-center gap-3">
             <Search className="size-4 text-muted-foreground" />
             <input
@@ -955,13 +956,7 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
               <div>
                 <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-3">MÉTODO DE PAGO</p>
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {([
-                    { id: "cash", label: "Efectivo", icon: Banknote },
-                    { id: "transfer", label: "Transferencia", icon: Smartphone },
-                    { id: "card", label: "Débito / Crédito", icon: CreditCard },
-                    { id: "mp", label: "Mercado Pago", icon: Wallet },
-                    { id: "qr", label: "QR", icon: Smartphone },
-                  ] as const).map((m) => {
+                  {enabledPaymentMethods.map((m) => {
                     const active = method === m.id;
                     return (
                       <button
@@ -1002,10 +997,10 @@ function NuevaVentaTab({ data, search }: { data: ReturnType<typeof useCajaData>;
             <div className="space-y-3">
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
               {([
-                { id: "cash", label: "Efectivo", icon: Banknote },
-                { id: "transfer", label: "Transferencia", icon: Smartphone },
-                { id: "card", label: "Tarjeta", icon: CreditCard },
-              ] as const).map((m) => (
+                { id: "cash" as const, label: "Efectivo", icon: Banknote, enabled: data.paymentMethods.efectivo },
+                { id: "transfer" as const, label: "Transferencia", icon: Smartphone, enabled: data.paymentMethods.transferencia },
+                { id: "card" as const, label: "Tarjeta", icon: CreditCard, enabled: data.paymentMethods.tarjeta },
+              ].filter((m) => m.enabled)).map((m) => (
                 <div key={m.id} className="grid grid-cols-[180px_1fr] gap-3 items-center rounded-xl border border-white/10 bg-white/[0.02] p-3">
                   <div className="flex items-center gap-2 text-sm text-foreground">
                     <m.icon className="size-4 text-amber-200" /> {m.label}
