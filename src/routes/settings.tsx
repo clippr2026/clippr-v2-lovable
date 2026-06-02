@@ -1833,26 +1833,31 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       });
   }, [businessId, isService]);
 
-  const saveCategories = useCallback(async (next: string[], type: "catalog" | "service") => {
+  // Save categories to Supabase (called by global save)
+  const persistCategories = useCallback(async () => {
+    if (!businessId) return;
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingCats = (existingSchedule._categories ?? {}) as Record<string, unknown>;
+    const updatedCats = isService
+      ? { ...existingCats, service: customServiceCategories }
+      : { ...existingCats, catalog: customCatalogCategories };
+    await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: { ...existingSchedule, _categories: updatedCats } },
+      { onConflict: "business_id" },
+    );
+  }, [businessId, isService, customServiceCategories, customCatalogCategories]);
+
+  // Local-only category update (no Supabase until global save)
+  const saveCategories = useCallback((next: string[], type: "catalog" | "service") => {
     const clean = Array.from(new Set(next.map((c) => c.trim()).filter(Boolean)));
     if (type === "service") {
       setCustomServiceCategories(clean.length ? clean : defaultServiceCategories);
     } else {
       setCustomCatalogCategories(clean.length ? clean : defaultCatalogCategories);
     }
-    if (!businessId) return;
-    const { data: existingRow } = await supabase.from("business_settings")
-      .select("schedule").eq("business_id", businessId).maybeSingle();
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const existingCats = (existingSchedule._categories ?? {}) as Record<string, unknown>;
-    const updatedCats = type === "service"
-      ? { ...existingCats, service: clean.length ? clean : defaultServiceCategories }
-      : { ...existingCats, catalog: clean.length ? clean : defaultCatalogCategories };
-    await supabase.from("business_settings").upsert(
-      { business_id: businessId, schedule: { ...existingSchedule, _categories: updatedCats } },
-      { onConflict: "business_id" },
-    );
-  }, [businessId, isService]);
+  }, [isService]);
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -1875,12 +1880,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }, [load]);
 
-  // Global Save button: show confirmation toast for this section
+  // Global Save: persist categories + show toast
+  const persistCategoriesRef = useRef(persistCategories);
+  useEffect(() => { persistCategoriesRef.current = persistCategories; }, [persistCategories]);
+
   useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
       const mySection = isService ? "servicios" : "catalogo";
       if (!section || section === mySection) {
+        void persistCategoriesRef.current();
         toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
       }
     };
