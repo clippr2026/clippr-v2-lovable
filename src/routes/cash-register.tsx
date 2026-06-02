@@ -119,46 +119,6 @@ function CashRegisterPage() {
 }
 
 function Header({ data }: { data: ReturnType<typeof useCajaData> }) {
-  const cashSessionId = data.cashSessionId;
-  const open = Boolean(cashSessionId);
-  const [busy, setBusy] = useState(false);
-
-  async function handleOpen() {
-    if (!data.businessId || !data.profileId) {
-      toast.error("Falta identificar negocio o usuario.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await openCashSession({ businessId: data.businessId, openedBy: data.profileId });
-      toast.success("Caja abierta");
-      await data.refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleClose() {
-    if (!cashSessionId || !data.profileId) return;
-    if (!confirm("¿Cerrar la caja del día?")) return;
-    setBusy(true);
-    try {
-      await closeCashSession({
-        sessionId: cashSessionId,
-        closedBy: data.profileId,
-        total: data.revHoy,
-      });
-      toast.success("Caja cerrada");
-      await data.refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="flex items-end justify-between gap-4 flex-wrap">
       <div>
@@ -166,50 +126,17 @@ function Header({ data }: { data: ReturnType<typeof useCajaData> }) {
           Caja & Cobro
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Resumen del día, ventas, precios e inventario en un solo lugar.
+          Resumen del día, ventas, precios, inventario y gastos en un solo lugar.
         </p>
       </div>
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium",
-            open
-              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-              : "border-white/15 bg-white/[0.04] text-muted-foreground"
-          )}
-        >
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              open ? "bg-emerald-400 shadow-[0_0_10px] shadow-emerald-400/70" : "bg-muted-foreground/60"
-            )}
-          />
-          {open ? "Caja abierta" : "Caja sin abrir"}
+      {data.loading && (
+        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" /> Sincronizando…
         </span>
-        {open ? (
-          <button
-            onClick={handleClose}
-            disabled={busy}
-            className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 text-amber-200 px-3 py-1.5 text-xs font-medium hover:bg-amber-300/20 disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Lock className="size-3.5" />}
-            Cerrar caja
-          </button>
-        ) : (
-          <button
-            onClick={handleOpen}
-            disabled={busy}
-            className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 px-3 py-1.5 text-xs font-medium hover:bg-emerald-400/20 disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Unlock className="size-3.5" />}
-            Abrir caja
-          </button>
-        )}
-      </div>
+      )}
     </div>
   );
 }
-
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "resumen", label: "Resumen del día" },
@@ -534,25 +461,14 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     card: "",
   });
   const [submitting, setSubmitting] = useState(false);
-  const [itemTab, setItemTab] = useState<"servicios" | "catalogo">("servicios");
 
   const services = data.services;
-  const isServiceItem = (i: Service) =>
-    i.duration != null || String(i.category ?? "").toLowerCase().includes("servicio");
-  const visibleItems = services.filter((i) =>
-    itemTab === "servicios" ? isServiceItem(i) : !isServiceItem(i)
-  );
-
   const categories = useMemo(() => {
-    const list = Array.from(new Set(visibleItems.map((s) => s.category || "Otros"))).filter(Boolean);
+    const list = Array.from(new Set(services.map((s) => s.category || "Otros"))).filter(Boolean);
     return ["Todos", ...list];
-  }, [visibleItems]);
+  }, [services]);
 
-  useEffect(() => {
-    setCategory("Todos");
-  }, [itemTab]);
-
-  const filtered = visibleItems.filter((i) => {
+  const filtered = services.filter((i) => {
     const q = query.trim().toLowerCase();
     const matchesText = !q || `${i.name} ${i.category ?? ""}`.toLowerCase().includes(q);
     const matchesCategory = category === "Todos" || (i.category || "Otros") === category;
@@ -573,22 +489,25 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const multipleTotal = Object.values(multiplePayments).reduce((sum, value) => sum + Number(value || 0), 0);
   const multipleRemaining = total - multipleTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
-  const enabledPaymentMethods = useMemo(() => {
-    const cfg = data.paymentMethods;
-    return [
-      { id: "cash" as const, label: "Efectivo", icon: Banknote, enabled: cfg.efectivo },
-      { id: "transfer" as const, label: "Transferencia", icon: Smartphone, enabled: cfg.transferencia },
-      { id: "card" as const, label: "Débito / Crédito", icon: CreditCard, enabled: cfg.tarjeta },
-      { id: "mp" as const, label: "Mercado Pago", icon: Wallet, enabled: cfg.mp },
-      { id: "qr" as const, label: "QR", icon: Smartphone, enabled: cfg.mp || cfg.cuentaDni },
-    ].filter((m) => m.enabled);
-  }, [data.paymentMethods]);
+  const enabledPaymentMethods = ([
+    { id: "cash", configKey: "efectivo", label: "Efectivo", icon: Banknote },
+    { id: "transfer", configKey: "transferencia", label: "Transferencia", icon: Smartphone },
+    { id: "card", configKey: "tarjeta", label: "Débito / Crédito", icon: CreditCard },
+    { id: "mp", configKey: "mp", label: "Mercado Pago", icon: Wallet },
+    { id: "cuenta", configKey: "cuentaDni", label: "Cuenta DNI", icon: Smartphone },
+  ] as const).filter((m) => data.paymentMethods[m.configKey]);
 
-  useEffect(() => {
-    if (!enabledPaymentMethods.some((m) => m.id === method)) {
-      setMethod(enabledPaymentMethods[0]?.id ?? "cash");
+  const multiplePaymentOptions = ([
+    { id: "cash", label: "Efectivo", icon: Banknote, enabled: data.paymentMethods.efectivo },
+    { id: "transfer", label: "Transferencia", icon: Smartphone, enabled: data.paymentMethods.transferencia },
+    { id: "card", label: "Tarjeta", icon: CreditCard, enabled: data.paymentMethods.tarjeta },
+  ] as const).filter((m) => m.enabled);
+
+  React.useEffect(() => {
+    if (!enabledPaymentMethods.some((m) => m.id === method) && enabledPaymentMethods[0]) {
+      setMethod(enabledPaymentMethods[0].id);
     }
-  }, [enabledPaymentMethods, method]);
+  }, [data.paymentMethods, method]);
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
   const sub = (id: string) =>
@@ -840,26 +759,6 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 
       {step === 3 && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
-            <button
-              onClick={() => setItemTab("servicios")}
-              className={cn(
-                "rounded-lg py-2.5 text-sm font-semibold transition-all",
-                itemTab === "servicios" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Servicios
-            </button>
-            <button
-              onClick={() => setItemTab("catalogo")}
-              className={cn(
-                "rounded-lg py-2.5 text-sm font-semibold transition-all",
-                itemTab === "catalogo" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Catálogo
-            </button>
-          </div>
           <Card className="px-4 py-3 flex items-center gap-3">
             <Search className="size-4 text-muted-foreground" />
             <input
@@ -996,11 +895,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
           ) : (
             <div className="space-y-3">
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
-              {([
-                { id: "cash" as const, label: "Efectivo", icon: Banknote, enabled: data.paymentMethods.efectivo },
-                { id: "transfer" as const, label: "Transferencia", icon: Smartphone, enabled: data.paymentMethods.transferencia },
-                { id: "card" as const, label: "Tarjeta", icon: CreditCard, enabled: data.paymentMethods.tarjeta },
-              ].filter((m) => m.enabled)).map((m) => (
+              {multiplePaymentOptions.map((m) => (
                 <div key={m.id} className="grid grid-cols-[180px_1fr] gap-3 items-center rounded-xl border border-white/10 bg-white/[0.02] p-3">
                   <div className="flex items-center gap-2 text-sm text-foreground">
                     <m.icon className="size-4 text-amber-200" /> {m.label}

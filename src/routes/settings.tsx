@@ -174,33 +174,6 @@ const infoFields = [
   },
 ];
 
-const settingsStorageKey = (businessId: string | null | undefined) =>
-  `clippr_business_settings_${businessId || "local"}`;
-
-function readLocalSettings<T>(businessId: string | null | undefined, key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(settingsStorageKey(businessId));
-    const parsed = raw ? JSON.parse(raw) : {};
-    return (parsed?.[key] ?? fallback) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeLocalSettings(businessId: string | null | undefined, key: string, value: unknown) {
-  if (typeof window === "undefined") return;
-  try {
-    const storageKey = settingsStorageKey(businessId);
-    const raw = window.localStorage.getItem(storageKey);
-    const parsed = raw ? JSON.parse(raw) : {};
-    window.localStorage.setItem(storageKey, JSON.stringify({ ...parsed, [key]: value }));
-  } catch (error) {
-    console.warn("[settings] local save failed", error);
-  }
-}
-
-
 // ─────────── shared bits ───────────
 function Toggle({
   on,
@@ -1613,17 +1586,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }, [load]);
 
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const section = (event as CustomEvent).detail?.section;
-      if ((isService && section === "servicios") || (!isService && section === "catalogo")) {
-        toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
-      }
-    };
-    window.addEventListener("clippr:save-settings", handler);
-    return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [isService]);
-
   const visibleRows = rows.filter((row) => {
     const category = (row.category || "Productos").toLowerCase();
     if (isService) return row.duration_min != null;
@@ -1933,62 +1895,40 @@ function CatalogoSection() {
 // ─────────── Caja ───────────
 function CajaSection() {
   const { businessId } = useAuth();
-  const [mode, setMode] = useState<"auto" | "manual" | "disabled">("auto");
-  const [methods, setMethods] = useState({
+  const defaultMethods = {
     efectivo: true,
     transferencia: true,
     tarjeta: true,
     mp: true,
     cuentaDni: false,
-  });
+  };
+  const [methods, setMethods] = useState(defaultMethods);
   const [autoChange, setAutoChange] = useState(true);
 
-  // Cargar configuración de caja. Los cambios NO se guardan automáticamente:
-  // quedan en estado local hasta presionar Guardar arriba a la derecha.
   useEffect(() => {
-    if (!businessId) return;
-    const localCaja = readLocalSettings<{
-      approval_mode?: "auto" | "manual" | "disabled";
-      payment_methods?: typeof methods;
-      auto_change?: boolean;
-    }>(businessId, "caja_config", {});
-
-    if (localCaja.approval_mode) setMode(localCaja.approval_mode);
-    if (localCaja.payment_methods) setMethods((prev) => ({ ...prev, ...localCaja.payment_methods }));
-    if (typeof localCaja.auto_change === "boolean") setAutoChange(localCaja.auto_change);
-
-    supabase
-      .from("business_settings")
-      .select("approval_mode")
-      .eq("business_id", businessId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.approval_mode) setMode(data.approval_mode as typeof mode);
-      });
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem(`clippr_payment_methods_${businessId ?? "default"}`);
+      if (saved) setMethods({ ...defaultMethods, ...JSON.parse(saved) });
+      const savedAutoChange = window.localStorage.getItem(`clippr_auto_change_${businessId ?? "default"}`);
+      if (savedAutoChange != null) setAutoChange(savedAutoChange === "true");
+    } catch {
+      // mantener defaults
+    }
   }, [businessId]);
 
   async function saveCajaSettings() {
-    if (!businessId) return toast.error("No se encontró el negocio");
-    const caja_config = { payment_methods: methods, auto_change: autoChange };
-    writeLocalSettings(businessId, "caja_config", { approval_mode: mode, ...caja_config });
-
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert(
-        { business_id: businessId, approval_mode: mode },
-        { onConflict: "business_id" },
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        `clippr_payment_methods_${businessId ?? "default"}`,
+        JSON.stringify(methods),
       );
-    if (error) {
-      console.warn("[CajaSection] Supabase save failed, kept local fallback:", error.message);
-      toast.success("Configuración guardada localmente");
-      return;
+      window.localStorage.setItem(
+        `clippr_auto_change_${businessId ?? "default"}`,
+        String(autoChange),
+      );
     }
-    // Intento opcional para bases que ya tengan columna JSON caja_config.
-    await supabase
-      .from("business_settings")
-      .upsert({ business_id: businessId, caja_config }, { onConflict: "business_id" });
-    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated", { detail: { approval_mode: mode, caja_config } }));
-    toast.success("Configuración guardada correctamente");
+    toast.success("Configuración de caja guardada");
   }
 
   useEffect(() => {
@@ -1998,7 +1938,7 @@ function CajaSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, mode]);
+  }, [businessId, methods, autoChange]);
 
   const M = [
     {
@@ -2040,67 +1980,8 @@ function CajaSection() {
           Configuración de caja
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Definí cómo funciona el flujo de cobro y aprobación de servicios.
+          Definí métodos de pago y comportamiento de cobro. El modo automático/manual/desactivado se maneja desde Caja & Cobro.
         </p>
-      </div>
-
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-3 px-1">
-          Modo de aprobación predeterminado
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(
-            [
-              {
-                id: "auto",
-                icon: Zap,
-                label: "Automático",
-                hint: "El profesional cobra desde su panel y el cobro impacta sin confirmación.",
-              },
-              {
-                id: "manual",
-                icon: Eye,
-                label: "Manual",
-                hint: "El servicio queda pendiente y caja/recepción lo confirma y cobra.",
-              },
-              {
-                id: "disabled",
-                icon: Lock,
-                label: "Desactivado",
-                hint: "El profesional no puede enviar ni cobrar servicios desde su panel.",
-              },
-            ] as const
-          ).map((opt) => {
-            const Icon = opt.icon;
-            const active = mode === opt.id;
-            return (
-              <button
-                key={opt.id}
-                onClick={() => setMode(opt.id)}
-                className={cn(
-                  "text-left glass rounded-2xl p-5 ring-1 transition-all",
-                  active
-                    ? "ring-[oklch(0.78_0.17_65/0.5)] bg-gradient-to-br from-[oklch(0.82_0.14_75/0.08)] to-transparent shadow-[0_0_0_1px_oklch(0.78_0.17_65/0.3),0_10px_40px_-15px_oklch(0.78_0.17_65/0.4)]"
-                    : "ring-white/5 hover:ring-white/15",
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "h-6 w-6 mb-3",
-                    active
-                      ? "text-[oklch(0.82_0.14_75)]"
-                      : "text-muted-foreground",
-                  )}
-                  strokeWidth={2.2}
-                />
-                <div className="font-medium">{opt.label}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {opt.hint}
-                </div>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       <SectionCard label="Métodos de pago habilitados">
@@ -2365,52 +2246,9 @@ function SenasSection() {
 }
 
 function SettingsPage() {
-  const { businessId } = useAuth();
   const [active, setActive] = useState<SectionId>("branding");
   const [values, setValues] = useState(infoFields.map((f) => f.value));
   const [desc, setDesc] = useState("AURO STYLO");
-
-  useEffect(() => {
-    if (!businessId) return;
-    const localBranding = readLocalSettings<{
-      values?: string[];
-      description?: string;
-    }>(businessId, "branding_config", {});
-    if (Array.isArray(localBranding.values)) setValues(localBranding.values);
-    if (typeof localBranding.description === "string") setDesc(localBranding.description);
-
-    supabase
-      .from("business_settings")
-      .select("branding_config")
-      .eq("business_id", businessId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const branding = data?.branding_config as { values?: string[]; description?: string } | null | undefined;
-        if (Array.isArray(branding?.values)) setValues(branding.values);
-        if (typeof branding?.description === "string") setDesc(branding.description);
-      });
-  }, [businessId]);
-
-  useEffect(() => {
-    const handler = async (event: Event) => {
-      const section = (event as CustomEvent).detail?.section;
-      if (section !== "branding") return;
-      if (!businessId) return toast.error("No se encontró el negocio");
-      const branding_config = { values, description: desc };
-      writeLocalSettings(businessId, "branding_config", branding_config);
-      const { error } = await supabase
-        .from("business_settings")
-        .upsert({ business_id: businessId, branding_config }, { onConflict: "business_id" });
-      if (error) {
-        console.warn("[Branding] Supabase save failed, kept local fallback:", error.message);
-        toast.success("Branding guardado localmente");
-        return;
-      }
-      toast.success("Branding guardado correctamente");
-    };
-    window.addEventListener("clippr:save-settings", handler);
-    return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, values, desc]);
 
   return (
     <AppShell>
