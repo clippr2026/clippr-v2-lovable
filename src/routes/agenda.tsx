@@ -97,7 +97,7 @@ const STATUS_META: Record<
 // Helpers de fechas
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
-const ROW_PX = 86;
+const ROW_PX = 98;
 
 function startOfDay(d: Date) {
   const x = new Date(d);

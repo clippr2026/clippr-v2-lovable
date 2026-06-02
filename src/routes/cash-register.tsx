@@ -118,47 +118,7 @@ function CashRegisterPage() {
   );
 }
 
-function Header({ data }: { data: ReturnType<typeof useCajaData> }) {
-  const cashSessionId = data.cashSessionId;
-  const open = Boolean(cashSessionId);
-  const [busy, setBusy] = useState(false);
-
-  async function handleOpen() {
-    if (!data.businessId || !data.profileId) {
-      toast.error("Falta identificar negocio o usuario.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await openCashSession({ businessId: data.businessId, openedBy: data.profileId });
-      toast.success("Caja abierta");
-      await data.refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleClose() {
-    if (!cashSessionId || !data.profileId) return;
-    if (!confirm("¿Cerrar la caja del día?")) return;
-    setBusy(true);
-    try {
-      await closeCashSession({
-        sessionId: cashSessionId,
-        closedBy: data.profileId,
-        total: data.revHoy,
-      });
-      toast.success("Caja cerrada");
-      await data.refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
+function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
   return (
     <div className="flex items-end justify-between gap-4 flex-wrap">
       <div>
@@ -166,56 +126,17 @@ function Header({ data }: { data: ReturnType<typeof useCajaData> }) {
           Caja & Cobro
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Resumen del día, ventas, precios e inventario en un solo lugar.
+          Resumen del día, ventas, precios, inventario y gastos en un solo lugar.
         </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium",
-            open
-              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-              : "border-white/15 bg-white/[0.04] text-muted-foreground"
-          )}
-        >
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              open ? "bg-emerald-400 shadow-[0_0_10px] shadow-emerald-400/70" : "bg-muted-foreground/60"
-            )}
-          />
-          {open ? "Caja abierta" : "Caja sin abrir"}
-        </span>
-        {open ? (
-          <button
-            onClick={handleClose}
-            disabled={busy}
-            className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 text-amber-200 px-3 py-1.5 text-xs font-medium hover:bg-amber-300/20 disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Lock className="size-3.5" />}
-            Cerrar caja
-          </button>
-        ) : (
-          <button
-            onClick={handleOpen}
-            disabled={busy}
-            className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 px-3 py-1.5 text-xs font-medium hover:bg-emerald-400/20 disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Unlock className="size-3.5" />}
-            Abrir caja
-          </button>
-        )}
       </div>
     </div>
   );
 }
 
-
 const TABS: { id: Tab; label: string }[] = [
   { id: "resumen", label: "Resumen del día" },
   { id: "precios", label: "Precios" },
   { id: "inventario", label: "Inventario" },
-  { id: "gastos", label: "Gastos" },
   { id: "profesionales", label: "Profesionales" },
 ];
 
@@ -243,17 +164,25 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           );
         })}
       </div>
-      <button
-        onClick={() => onChange("nueva")}
-        className={cn(
-          "shrink-0 mb-2 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
-          nuevaActive
-            ? "bg-gradient-to-r from-amber-200 to-amber-400 text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.7)] ring-1 ring-amber-300/60"
-            : "bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
-        )}
-      >
-        <span className="text-base leading-none">＋</span> Nueva venta
-      </button>
+      <div className="shrink-0 mb-2 flex items-center gap-2">
+        <button
+          onClick={() => onChange("gastos")}
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
+        >
+          <span className="text-base leading-none">＋</span> Nuevo gasto
+        </button>
+        <button
+          onClick={() => onChange("nueva")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
+            nuevaActive
+              ? "bg-gradient-to-r from-amber-200 to-amber-400 text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.7)] ring-1 ring-amber-300/60"
+              : "bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
+          )}
+        >
+          <span className="text-base leading-none">＋</span> Nueva venta
+        </button>
+      </div>
     </div>
   );
 }
