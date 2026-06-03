@@ -898,9 +898,214 @@ function Field({
   );
 }
 
+type RolePermissionId =
+  | "admin_general"
+  | "socio"
+  | "admin_local"
+  | "recepcionista"
+  | "profesional";
+
+type PermissionKey =
+  | "dashboard"
+  | "agenda"
+  | "caja_cobro"
+  | "panel_profesionales"
+  | "clientes"
+  | "configuracion"
+  | "branding"
+  | "horarios"
+  | "equipo"
+  | "servicios"
+  | "catalogo"
+  | "caja"
+  | "senas"
+  | "plan_facturacion";
+
+type PermissionMap = Record<PermissionKey, boolean>;
+type RolePermissions = Record<RolePermissionId, PermissionMap>;
+
+type AccessStatus = "active" | "inactive";
+
+type AccessUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: RolePermissionId;
+  status: AccessStatus;
+};
+
+const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
+  admin_general: "Admin. General",
+  socio: "Socio",
+  admin_local: "Administrador Local",
+  recepcionista: "Recepcionista",
+  profesional: "Profesional",
+};
+
+const EMPTY_ACCESS_FORM: Omit<AccessUser, "id"> & { password: string } = {
+  name: "",
+  email: "",
+  password: "",
+  role: "profesional",
+  status: "active",
+};
+
+const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
+  { key: "dashboard", label: "Dashboard", desc: "Métricas generales del negocio." },
+  { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },
+  { key: "caja_cobro", label: "Caja & Cobro", desc: "Ventas, cobros y movimientos de caja." },
+  { key: "panel_profesionales", label: "Panel Profesionales", desc: "Vista operativa para profesionales." },
+  { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
+  { key: "configuracion", label: "Configuración", desc: "Acceso a ajustes del negocio." },
+];
+
+const CONFIG_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
+  { key: "branding", label: "Branding", desc: "Identidad visual y datos del negocio." },
+  { key: "horarios", label: "Horarios", desc: "Disponibilidad y reglas de agenda." },
+  { key: "equipo", label: "Equipo", desc: "Profesionales, usuarios y permisos." },
+  { key: "servicios", label: "Servicios", desc: "Servicios, precios y categorías." },
+  { key: "catalogo", label: "Catálogo", desc: "Productos, stock y categorías." },
+  { key: "caja", label: "Caja", desc: "Métodos de pago y reglas de cobro." },
+  { key: "senas", label: "Señas", desc: "Reglas de señas para reservas." },
+  { key: "plan_facturacion", label: "Plan & Facturación", desc: "Suscripción y facturación." },
+];
+
+const ALL_PERMISSION_KEYS: PermissionKey[] = [
+  ...MAIN_PERMISSION_ITEMS.map((item) => item.key),
+  ...CONFIG_PERMISSION_ITEMS.map((item) => item.key),
+];
+
+const allOnPermissions = (): PermissionMap =>
+  ALL_PERMISSION_KEYS.reduce((acc, key) => ({ ...acc, [key]: true }), {} as PermissionMap);
+
+const buildPermissions = (enabled: PermissionKey[]): PermissionMap =>
+  ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: enabled.includes(key) }),
+    {} as PermissionMap,
+  );
+
+const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
+  admin_general: allOnPermissions(),
+  socio: allOnPermissions(),
+  admin_local: buildPermissions([
+    "dashboard",
+    "agenda",
+    "caja_cobro",
+    "panel_profesionales",
+    "clientes",
+    "configuracion",
+    "horarios",
+    "equipo",
+    "servicios",
+    "catalogo",
+    "caja",
+    "senas",
+  ]),
+  recepcionista: buildPermissions(["agenda", "caja_cobro", "clientes"]),
+  profesional: buildPermissions(["panel_profesionales"]),
+};
+
+const ROLE_PERMISSION_OPTIONS: {
+  id: RolePermissionId;
+  label: string;
+  icon: string;
+  desc: string;
+  locked?: boolean;
+}[] = [
+  {
+    id: "admin_general",
+    label: "Admin. General",
+    icon: "👑",
+    desc: "Dueño principal del negocio. Acceso completo.",
+    locked: true,
+  },
+  {
+    id: "socio",
+    label: "Socio",
+    icon: "🤝",
+    desc: "Acceso completo por defecto, editable.",
+  },
+  {
+    id: "admin_local",
+    label: "Administrador Local",
+    icon: "🏢",
+    desc: "Gestión operativa de la sucursal.",
+  },
+  {
+    id: "recepcionista",
+    label: "Recepcionista",
+    icon: "💼",
+    desc: "Agenda, caja y clientes.",
+  },
+  {
+    id: "profesional",
+    label: "Profesional",
+    icon: "✂️",
+    desc: "Accesos para el trabajo diario.",
+  },
+];
+
+function normalizeRolePermissions(value: unknown): RolePermissions {
+  const saved = (value && typeof value === "object" ? value : {}) as Partial<RolePermissions>;
+  return ROLE_PERMISSION_OPTIONS.reduce((acc, role) => {
+    const base = DEFAULT_ROLE_PERMISSIONS[role.id];
+    const incoming = (saved[role.id] ?? {}) as Partial<PermissionMap>;
+    acc[role.id] =
+      role.id === "admin_general"
+        ? allOnPermissions()
+        : ALL_PERMISSION_KEYS.reduce(
+            (roleAcc, key) => ({
+              ...roleAcc,
+              [key]: typeof incoming[key] === "boolean" ? Boolean(incoming[key]) : base[key],
+            }),
+            {} as PermissionMap,
+          );
+    return acc;
+  }, {} as RolePermissions);
+}
+function normalizeAccessUsers(value: unknown): AccessUser[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const row = (item && typeof item === "object" ? item : {}) as Partial<AccessUser>;
+      const role = ROLE_PERMISSION_OPTIONS.some((r) => r.id === row.role)
+        ? (row.role as RolePermissionId)
+        : "profesional";
+      return {
+        id: String(row.id ?? crypto.randomUUID()),
+        name: String(row.name ?? "").trim(),
+        email: String(row.email ?? "").trim(),
+        role,
+        status: row.status === "inactive" ? "inactive" : "active",
+      };
+    })
+    .filter((item) => item.name || item.email);
+}
+
+function normalizeUserPermissions(value: unknown): Record<string, PermissionMap> {
+  const saved = (value && typeof value === "object" ? value : {}) as Record<string, Partial<PermissionMap>>;
+  return Object.entries(saved).reduce((acc, [id, perms]) => {
+    acc[id] = ALL_PERMISSION_KEYS.reduce(
+      (roleAcc, key) => ({
+        ...roleAcc,
+        [key]: typeof perms?.[key] === "boolean" ? Boolean(perms[key]) : false,
+      }),
+      {} as PermissionMap,
+    );
+    return acc;
+  }, {} as Record<string, PermissionMap>);
+}
+
 function EquipoSection() {
   const { businessId } = useAuth();
   const [tab, setTab] = useState<"pros" | "users" | "perms">("pros");
+  const [selectedPermRole, setSelectedPermRole] = useState<RolePermissionId>("admin_general");
+  const [rolePermissions, setRolePermissions] = useState<RolePermissions>(DEFAULT_ROLE_PERMISSIONS);
+  const [individualPermMode, setIndividualPermMode] = useState(false);
+  const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
+  const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
+  const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
+  const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -933,15 +1138,60 @@ function EquipoSection() {
   }, [load]);
 
   useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const loadedUsers = normalizeAccessUsers(schedule._accessUsers);
+        setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
+        setAccessUsers(loadedUsers);
+        setUserPermissions(normalizeUserPermissions(schedule._userPermissions));
+        setSelectedAccessUserId((current) => current || loadedUsers[0]?.id || "");
+      });
+  }, [businessId]);
+
+  async function saveRolePermissions() {
+    if (!businessId) return;
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const cleaned = normalizeRolePermissions(rolePermissions);
+
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        schedule: {
+          ...existingSchedule,
+          _rolePermissions: cleaned,
+          _accessUsers: accessUsers.map(({ id, name, email, role, status }) => ({ id, name, email, role, status })),
+          _userPermissions: userPermissions,
+        },
+      },
+      { onConflict: "business_id" },
+    );
+
+    if (error) return toast.error("Error guardando accesos y permisos: " + error.message);
+    toast.success("Accesos y permisos guardados correctamente");
+  }
+
+  useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
       if (!section || section === "equipo") {
-        toast.success("Equipo guardado correctamente");
+        void saveRolePermissions();
       }
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, []);
+  }, [businessId, rolePermissions, accessUsers, userPermissions]);
 
   function openNew() {
     setEditingEmp(null);
@@ -1026,6 +1276,104 @@ function EquipoSection() {
     }));
   }
 
+  function togglePermission(roleId: RolePermissionId, key: PermissionKey) {
+    if (roleId === "admin_general") return;
+    setRolePermissions((current) => {
+      const nextValue = !current[roleId][key];
+      const nextRole = { ...current[roleId], [key]: nextValue };
+
+      if (key === "configuracion" && !nextValue) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          nextRole[item.key] = false;
+        });
+      }
+
+      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && nextValue) {
+        nextRole.configuracion = true;
+      }
+
+      return { ...current, [roleId]: nextRole };
+    });
+  }
+
+  function addAccessUser() {
+    const name = accessForm.name.trim();
+    const email = accessForm.email.trim();
+    if (!name) return toast.error("Ingresá el nombre del acceso");
+    if (!email) return toast.error("Ingresá el correo electrónico");
+
+    const id = crypto.randomUUID();
+    const newUser: AccessUser = {
+      id,
+      name,
+      email,
+      role: accessForm.role,
+      status: accessForm.status,
+    };
+
+    setAccessUsers((current) => [...current, newUser]);
+    setUserPermissions((current) => ({
+      ...current,
+      [id]: { ...DEFAULT_ROLE_PERMISSIONS[accessForm.role] },
+    }));
+    setAccessForm(EMPTY_ACCESS_FORM);
+    setSelectedPermRole(accessForm.role);
+    setSelectedAccessUserId(id);
+    toast.success("Acceso agregado correctamente");
+  }
+
+  function removeAccessUser(id: string) {
+    setAccessUsers((current) => current.filter((user) => user.id !== id));
+    setUserPermissions((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    if (selectedAccessUserId === id) setSelectedAccessUserId("");
+  }
+
+  function toggleUserPermission(userId: string, key: PermissionKey) {
+    const user = accessUsers.find((item) => item.id === userId);
+    if (!user) return;
+
+    setUserPermissions((current) => {
+      const base = current[userId] ?? DEFAULT_ROLE_PERMISSIONS[user.role];
+      const nextValue = !base[key];
+      const nextUser = { ...base, [key]: nextValue };
+
+      if (key === "configuracion" && !nextValue) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          nextUser[item.key] = false;
+        });
+      }
+
+      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && nextValue) {
+        nextUser.configuracion = true;
+      }
+
+      return { ...current, [userId]: nextUser };
+    });
+  }
+
+  const selectedRole = ROLE_PERMISSION_OPTIONS.find((role) => role.id === selectedPermRole) ?? ROLE_PERMISSION_OPTIONS[0];
+  const selectedRoleUsers = accessUsers.filter((user) => user.role === selectedPermRole);
+  const selectedAccessUser =
+    selectedRoleUsers.find((user) => user.id === selectedAccessUserId) ??
+    selectedRoleUsers[0] ??
+    null;
+  const selectedUserPermissions = selectedAccessUser
+    ? userPermissions[selectedAccessUser.id] ?? DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role]
+    : null;
+  const selectedPermissions = individualPermMode && selectedUserPermissions
+    ? selectedUserPermissions
+    : selectedPermRole === "admin_general"
+      ? allOnPermissions()
+      : rolePermissions[selectedPermRole];
+  const selectedRoleLocked = !individualPermMode && selectedRole.id === "admin_general";
+  const currentPanelTitle = individualPermMode && selectedAccessUser
+    ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
+    : selectedRole.label;
+
   return (
     <>
       <div>
@@ -1039,7 +1387,7 @@ function EquipoSection() {
         {(
           [
             ["pros", "Profesionales"],
-            ["users", "Usuarios"],
+            ["users", "Accesos"],
             ["perms", "Permisos"],
           ] as const
         ).map(([id, label]) => {
@@ -1161,11 +1509,392 @@ function EquipoSection() {
         </div>
       )}
 
-      {tab !== "pros" && (
-        <div className="glass rounded-2xl p-10 ring-1 ring-white/5 text-center text-muted-foreground">
-          Sección en construcción.
+      {tab === "users" && (
+        <div className="space-y-5">
+          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+            <div className="mb-5">
+              <h3 className="font-semibold">Accesos</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Creá los accesos de las personas que van a entrar al sistema. Después podés ajustar sus permisos desde la pestaña Permisos.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-4">
+                <Field label="Nombre">
+                  <input
+                    value={accessForm.name}
+                    onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
+                    className={inputCls}
+                    placeholder="Ej: Alejandro"
+                  />
+                </Field>
+
+                <Field label="Correo electrónico">
+                  <input
+                    type="email"
+                    value={accessForm.email}
+                    onChange={(e) => setAccessForm((f) => ({ ...f, email: e.target.value }))}
+                    className={inputCls}
+                    placeholder="ale@gmail.com"
+                  />
+                </Field>
+
+                <Field label="Contraseña" hint="Se usa para crear el acceso. No se muestra en el listado.">
+                  <input
+                    type="password"
+                    value={accessForm.password}
+                    onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
+                    className={inputCls}
+                    placeholder="********"
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Rol">
+                    <select
+                      value={accessForm.role}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, role: e.target.value as RolePermissionId }))}
+                      className={inputCls}
+                    >
+                      {ROLE_PERMISSION_OPTIONS.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Estado">
+                    <select
+                      value={accessForm.status}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, status: e.target.value as AccessStatus }))}
+                      className={inputCls}
+                    >
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addAccessUser}
+                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)]"
+                >
+                  Confirmar
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+                <div className="text-sm font-semibold mb-3">Accesos creados</div>
+                {accessUsers.length === 0 ? (
+                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
+                    Todavía no hay accesos creados.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {accessUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
+                      >
+                        <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                          {(user.name[0] || "A").toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{user.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {user.email} · {ROLE_LABEL_BY_ID[user.role]}
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-1 text-[10px] ring-1",
+                            user.status === "active"
+                              ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
+                              : "bg-white/5 text-muted-foreground ring-white/10",
+                          )}
+                        >
+                          {user.status === "active" ? "Activo" : "Inactivo"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeAccessUser(user.id)}
+                          className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
+
+      {tab === "perms" && (
+        <div className="space-y-5">
+          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="font-semibold">Roles y permisos</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Primero elegís el rol. Si necesitás un caso especial, activás permisos individuales y elegís el acceso de esa persona.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setIndividualPermMode(false)}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                    !individualPermMode
+                      ? "bg-white/10 text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Permisos por rol
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIndividualPermMode(true)}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                    individualPermMode
+                      ? "bg-white/10 text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Personalizar acceso
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+              {ROLE_PERMISSION_OPTIONS.map((role) => {
+                const active = selectedPermRole === role.id;
+                const locked = role.id === "admin_general" && !individualPermMode;
+                const usersCount = accessUsers.filter((user) => user.role === role.id).length;
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPermRole(role.id);
+                      const firstUser = accessUsers.find((user) => user.role === role.id);
+                      setSelectedAccessUserId(firstUser?.id ?? "");
+                    }}
+                    className={cn(
+                      "text-left rounded-2xl p-4 ring-1 transition-all",
+                      active
+                        ? "bg-[oklch(0.78_0.17_55/0.12)] ring-[oklch(0.78_0.17_55/0.45)]"
+                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-2xl">{role.icon}</div>
+                      {locked ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/8 ring-1 ring-white/10 px-2 py-1 text-[10px] text-muted-foreground">
+                          <Lock className="h-3 w-3" /> Fijo
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1 text-[10px] text-muted-foreground">
+                          {usersCount} accesos
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 font-semibold text-sm">{role.label}</div>
+                    <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      {role.desc}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {individualPermMode && (
+            <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold">Permiso individual</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Estás viendo los accesos con rol {selectedRole.label}. Elegí una persona y modificá solo su panel.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Acceso:</span>
+                  <select
+                    value={selectedAccessUser?.id ?? ""}
+                    onChange={(e) => setSelectedAccessUserId(e.target.value)}
+                    className="min-w-[220px] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none"
+                  >
+                    {selectedRoleUsers.length === 0 ? (
+                      <option value="">No hay accesos con este rol</option>
+                    ) : (
+                      selectedRoleUsers.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name} · {user.email}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {selectedRoleUsers.length === 0 && (
+                <div className="mt-4 rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
+                  Primero creá un acceso con el rol {selectedRole.label} desde la pestaña Accesos.
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-5">
+            <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h3 className="font-semibold">Módulos principales</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Accesos generales para {currentPanelTitle}.
+                  </p>
+                </div>
+                {selectedRoleLocked && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/8 ring-1 ring-white/10 px-2.5 py-1 text-xs text-muted-foreground">
+                    <Lock className="h-3.5 w-3.5" />
+                    No editable
+                  </span>
+                )}
+              </div>
+
+              {selectedRoleLocked && (
+                <div className="mb-4 rounded-xl bg-[oklch(0.78_0.17_55/0.08)] ring-1 ring-[oklch(0.78_0.17_55/0.18)] p-3 text-xs text-muted-foreground">
+                  Administrador principal del negocio. Los permisos de este rol no pueden modificarse.
+                </div>
+              )}
+
+              {individualPermMode && !selectedAccessUser ? (
+                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
+                  Elegí un acceso para personalizar sus permisos.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {MAIN_PERMISSION_ITEMS.map((item) => {
+                    const checked = selectedPermissions[item.key];
+                    const disabled = selectedRoleLocked;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() =>
+                          individualPermMode && selectedAccessUser
+                            ? toggleUserPermission(selectedAccessUser.id, item.key)
+                            : togglePermission(selectedPermRole, item.key)
+                        }
+                        className={cn(
+                          "w-full flex items-center gap-4 rounded-xl p-3 ring-1 text-left transition-all",
+                          checked ? "bg-white/[0.06] ring-white/10" : "bg-white/[0.025] ring-white/5",
+                          !disabled && "hover:bg-white/[0.08]",
+                          disabled && "cursor-not-allowed opacity-80",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-6 w-11 rounded-full relative transition-colors shrink-0",
+                            checked ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                              checked ? "left-[22px]" : "left-0.5",
+                            )}
+                          />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-medium">{item.label}</span>
+                          <span className="block text-xs text-muted-foreground mt-0.5">{item.desc}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h3 className="font-semibold">Configuración</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Permisos internos del módulo Configuración.
+                  </p>
+                </div>
+                {!selectedPermissions.configuracion && (
+                  <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2.5 py-1 text-xs text-muted-foreground">
+                    Módulo apagado
+                  </span>
+                )}
+              </div>
+
+              {individualPermMode && !selectedAccessUser ? (
+                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
+                  Elegí un acceso para personalizar sus permisos.
+                </div>
+              ) : (
+                <div className={cn("space-y-3", !selectedPermissions.configuracion && "opacity-50")}>
+                  {CONFIG_PERMISSION_ITEMS.map((item) => {
+                    const checked = selectedPermissions[item.key];
+                    const disabled = selectedRoleLocked || !selectedPermissions.configuracion;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() =>
+                          individualPermMode && selectedAccessUser
+                            ? toggleUserPermission(selectedAccessUser.id, item.key)
+                            : togglePermission(selectedPermRole, item.key)
+                        }
+                        className={cn(
+                          "w-full flex items-center gap-4 rounded-xl p-3 ring-1 text-left transition-all",
+                          checked ? "bg-white/[0.06] ring-white/10" : "bg-white/[0.025] ring-white/5",
+                          !disabled && "hover:bg-white/[0.08]",
+                          disabled && "cursor-not-allowed",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-6 w-11 rounded-full relative transition-colors shrink-0",
+                            checked ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                              checked ? "left-[22px]" : "left-0.5",
+                            )}
+                          />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-medium">{item.label}</span>
+                          <span className="block text-xs text-muted-foreground mt-0.5">{item.desc}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {open && (
         <div
