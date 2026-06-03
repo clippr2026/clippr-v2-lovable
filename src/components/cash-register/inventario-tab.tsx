@@ -193,22 +193,54 @@ export function InventarioTab({
         </div>
         {movements.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin movimientos.</div>
-        ) : movements.slice(0, 8).map((m) => {
-          const s = mvStyle(m.type);
-          const date = new Date(m.created_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-          return (
-            <div key={m.id} className="flex items-center gap-3 px-5 py-2.5 border-b border-white/5 last:border-0">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-foreground">{m.product_name ?? "—"}</div>
-                <div className="text-[11px] text-muted-foreground">{date} · {m.user_email ?? "—"}{m.note ? ` · ${m.note}` : ""}</div>
-              </div>
-              <div className="text-right">
-                <div className={cn("text-sm font-bold tabular-nums", s.color)}>{s.sign}{m.qty}</div>
-                {m.stock_before != null && <div className="text-[10px] text-muted-foreground">{m.stock_before}→{m.stock_after}</div>}
-              </div>
-            </div>
-          );
-        })}
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-white/10">
+                  {["Fecha", "Producto", "Tipo", "Cant.", "Stock", "Usuario", "Nota"].map((h) => (
+                    <th key={h} className="px-5 py-3 text-left whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {movements.slice(0, 8).map((m) => {
+                  const s = mvStyle(m.type);
+                  return (
+                    <tr key={m.id} className="border-b border-white/5 last:border-0">
+                      <td className="px-5 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(m.created_at).toLocaleString("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-5 py-3 text-foreground whitespace-nowrap">{m.product_name ?? "—"}</td>
+                      <td className="px-5 py-3 text-[10px] whitespace-nowrap">{s.label}</td>
+                      <td className={cn("px-5 py-3 font-bold whitespace-nowrap", s.color)}>
+                        {s.sign}
+                        {m.qty}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        {m.stock_before != null ? `${m.stock_before} → ${m.stock_after}` : "—"}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        {m.user_email ?? "—"}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-muted-foreground">
+                        {m.note ?? "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {modal && (
