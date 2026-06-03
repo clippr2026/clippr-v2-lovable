@@ -163,25 +163,27 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           );
         })}
       </div>
-      <div className="shrink-0 mb-2 flex items-center gap-2">
-        <button
-          onClick={() => onChange("gastos")}
-          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
-        >
-          <span className="text-base leading-none">＋</span> Nuevo gasto
-        </button>
-        <button
-          onClick={() => onChange("nueva")}
-          className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
-            nuevaActive
-              ? "bg-gradient-to-r from-amber-200 to-amber-400 text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.7)] ring-1 ring-amber-300/60"
-              : "bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
-          )}
-        >
-          <span className="text-base leading-none">＋</span> Nueva venta
-        </button>
-      </div>
+      {tab === "resumen" && (
+        <div className="shrink-0 mb-2 flex items-center gap-2">
+          <button
+            onClick={() => onChange("gastos")}
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
+          >
+            <span className="text-base leading-none">＋</span> Nuevo gasto
+          </button>
+          <button
+            onClick={() => onChange("nueva")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
+              nuevaActive
+                ? "bg-gradient-to-r from-amber-200 to-amber-400 text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.7)] ring-1 ring-amber-300/60"
+                : "bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
+            )}
+          >
+            <span className="text-base leading-none">＋</span> Nueva venta
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -233,79 +235,74 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 
   const stats = [
     {
-      label: "COBRADO HOY",
+      label: "💰 Cobrado hoy",
       value: data.revHoy,
-      sub: `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`,
+      sub: "Total cobrado del día.",
       icon: Wallet,
       tint: "from-amber-400/20 to-amber-500/0",
+      money: true,
     },
     {
-      label: "GASTOS HOY",
-      value: data.totalGastos,
-      sub: `${data.expensesToday.length} registrado${data.expensesToday.length === 1 ? "" : "s"}`,
-      icon: ArrowRight,
-      tint: "from-rose-400/25 to-rose-500/0",
-    },
-    {
-      label: "UTILIDAD",
-      value: utilidad,
-      sub: `$${data.revHoy.toLocaleString("es-AR")} − $${data.totalGastos.toLocaleString("es-AR")}`,
-      icon: TrendingUp,
-      tint: "from-emerald-400/25 to-emerald-500/0",
-    },
-    {
-      label: "PENDIENTES",
+      label: "⏳ Pendientes",
       value: data.pendingAmount,
-      sub: `${data.pendingCount} turno${data.pendingCount === 1 ? "" : "s"} sin cobrar`,
+      sub: "Servicios o ventas sin cobrar.",
       icon: Clock,
       tint: "from-violet-400/25 to-violet-500/0",
+      money: true,
     },
     {
-      label: "TICKET PROMEDIO",
-      value: data.ticket,
-      sub: data.cobros === 0 ? "sin cobros" : `sobre ${data.cobros} cobros`,
-      icon: BarChart3,
-      tint: "from-cyan-400/25 to-cyan-500/0",
-    },
-    {
-      label: "PROYECCIÓN DÍA",
-      value: projection,
-      sub: "estimado al cierre",
-      icon: TrendingUp,
+      label: "📅 Turnos de hoy",
+      value: data.appointmentsToday?.length ?? 0,
+      sub: "Total de turnos agendados para hoy.",
+      icon: CalendarDays,
       tint: "from-sky-400/25 to-sky-500/0",
+      money: false,
+    },
+    {
+      label: "👥 Clientes atendidos",
+      value: data.cobros,
+      sub: "Cantidad de clientes que ya pasaron por el local.",
+      icon: BarChart3,
+      tint: "from-emerald-400/25 to-emerald-500/0",
+      money: false,
     },
   ];
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {stats.map((s) => (
-          <Card key={s.label} className="p-5">
+          <Card key={s.label} className="p-4">
             <div
               className={cn(
-                "pointer-events-none absolute -top-16 -right-10 size-40 rounded-full blur-3xl opacity-70 bg-gradient-to-br",
+                "pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br",
                 s.tint
               )}
             />
-            <div className="flex items-start justify-between relative">
-              <div>
-                <p className="text-[11px] tracking-[0.18em] text-muted-foreground/80 font-medium">
+            <div className="flex items-start justify-between relative gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">
                   {s.label}
                 </p>
-                <div className="mt-3">
-                  <Money value={s.value} large />
+                <div className="mt-2">
+                  {s.money ? (
+                    <Money value={Number(s.value)} />
+                  ) : (
+                    <span className="font-display tabular-nums tracking-tight text-2xl font-semibold text-foreground">
+                      {Number(s.value).toLocaleString("es-AR")}
+                    </span>
+                  )}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">{s.sub}</p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>
               </div>
-              <div className="rounded-xl bg-white/[0.04] border border-white/5 p-2.5">
-                <s.icon className="size-4 text-foreground/80" />
+              <div className="rounded-xl bg-white/[0.04] border border-white/5 p-2">
+                <s.icon className="size-3.5 text-foreground/80" />
               </div>
             </div>
           </Card>
         ))}
       </div>
 
-      <ApprovalMode data={data} />
       <History data={data} />
     </div>
   );
@@ -377,58 +374,234 @@ function ApprovalMode({ data }: { data: ReturnType<typeof useCajaData> }) {
 
 function History({ data }: { data: ReturnType<typeof useCajaData> }) {
   const rows = data.paymentsToday.slice(0, 10);
+  const [closeoutOpen, setCloseoutOpen] = React.useState(false);
+  const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
+
+  const closeout = React.useMemo(() => {
+    const groups = data.paymentsToday.reduce((acc, payment) => {
+      const method = String(payment.method ?? payment.payment_method ?? "cash");
+      if (!acc[method]) {
+        acc[method] = {
+          method,
+          total: 0,
+          count: 0,
+          rows: [] as typeof data.paymentsToday,
+        };
+      }
+      acc[method].total += Number(payment.total ?? payment.amount ?? 0);
+      acc[method].count += 1;
+      acc[method].rows.push(payment);
+      return acc;
+    }, {} as Record<string, { method: string; total: number; count: number; rows: typeof data.paymentsToday }>);
+
+    return Object.values(groups).sort((a, b) => b.total - a.total);
+  }, [data.paymentsToday]);
+
+  const totalFacturado = closeout.reduce((sum, group) => sum + group.total, 0);
+  const selectedGroup =
+    closeout.find((group) => group.method === selectedMethod) ?? closeout[0] ?? null;
+
   return (
-    <Card>
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-        <h3 className="text-base font-semibold text-foreground">Historial de cobros</h3>
-        <span className="text-xs text-muted-foreground">
-          {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy
-        </span>
-      </div>
-      <div className="grid grid-cols-[80px_1fr_1.4fr_120px_120px] px-5 py-3 text-[11px] tracking-[0.16em] text-muted-foreground/70 border-b border-white/5">
-        <div>HORA</div>
-        <div>CLIENTE</div>
-        <div>SERVICIO</div>
-        <div>PAGADO</div>
-        <div>MÉTODO</div>
-      </div>
-      {data.loading ? (
-        <div className="px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
-          <Loader2 className="size-4 animate-spin" /> Cargando…
+    <>
+      <Card>
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground">Cobros</h3>
+            <span className="text-[11px] text-muted-foreground">
+              {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMethod(null);
+              setCloseoutOpen(true);
+            }}
+            className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-xs font-medium text-foreground transition"
+          >
+            Cierre de caja
+          </button>
         </div>
-      ) : rows.length === 0 ? (
-        <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros hoy</div>
-      ) : (
-        rows.map((p) => {
-          const hour = new Date(p.created_at).toLocaleTimeString("es-AR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          const method = (p.method ?? "cash") as PayMethod;
-          return (
-            <div
-              key={p.id}
-              className="grid grid-cols-[80px_1fr_1.4fr_120px_120px] px-5 py-3 text-sm border-b border-white/5 last:border-0"
-            >
-              <div className="text-muted-foreground">{hour}</div>
-              <div className="text-foreground">{p.client_name ?? "—"}</div>
-              <div className="text-muted-foreground">{p.service_name ?? "—"}</div>
-              <div className="text-foreground tabular-nums">
-                ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
+        <div className="grid grid-cols-[80px_1fr_1.4fr_120px_120px] px-5 py-3 text-[11px] tracking-[0.16em] text-muted-foreground/70 border-b border-white/5">
+          <div>HORA</div>
+          <div>CLIENTE</div>
+          <div>SERVICIO</div>
+          <div>PAGADO</div>
+          <div>MÉTODO</div>
+        </div>
+        {data.loading ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
+            <Loader2 className="size-4 animate-spin" /> Cargando…
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros hoy</div>
+        ) : (
+          rows.map((p) => {
+            const hour = new Date(p.created_at).toLocaleTimeString("es-AR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            const method = (p.method ?? p.payment_method ?? "cash") as PayMethod;
+            return (
+              <div
+                key={p.id}
+                className="grid grid-cols-[80px_1fr_1.4fr_120px_120px] px-5 py-3 text-sm border-b border-white/5 last:border-0"
+              >
+                <div className="text-muted-foreground">{hour}</div>
+                <div className="text-foreground">{p.client_name ?? "—"}</div>
+                <div className="text-muted-foreground">{p.service_name ?? "—"}</div>
+                <div className="text-foreground tabular-nums">
+                  ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
+                </div>
+                <div className="text-emerald-300 text-xs">
+                  {PAY_METHOD_LABEL[method] ?? method}
+                </div>
               </div>
-              <div className="text-emerald-300 text-xs">
-                {PAY_METHOD_LABEL[method] ?? method}
+            );
+          })
+        )}
+        <div className="px-5 py-3 border-t border-white/5 text-center">
+          <button className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-2">
+            <ClipboardList className="size-3.5" /> Ver historial completo
+          </button>
+        </div>
+      </Card>
+
+      {closeoutOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-5xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold">Cierre de caja</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Detalle de cobros del día por método de pago.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCloseoutOpen(false)}
+                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5 max-h-[78vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-[0.85fr_1.15fr] gap-4">
+                <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Total facturado
+                    </div>
+                    <div className="mt-1 text-3xl font-semibold tabular-nums">
+                      ${totalFacturado.toLocaleString("es-AR")}
+                    </div>
+                  </div>
+
+                  {closeout.length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground text-center">
+                      No hay cobros registrados hoy.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-white/5">
+                      {closeout.map((group) => {
+                        const method = group.method as PayMethod;
+                        const active = selectedGroup?.method === group.method;
+                        return (
+                          <button
+                            key={group.method}
+                            type="button"
+                            onClick={() => setSelectedMethod(group.method)}
+                            className={cn(
+                              "w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition",
+                              active ? "bg-white/[0.07]" : "hover:bg-white/[0.045]",
+                            )}
+                          >
+                            <div>
+                              <div className="text-sm font-semibold">
+                                {PAY_METHOD_LABEL[method] ?? group.method}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {group.count} cobro{group.count === 1 ? "" : "s"}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold tabular-nums text-emerald-300">
+                              ${group.total.toLocaleString("es-AR")}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">
+                        {selectedGroup
+                          ? PAY_METHOD_LABEL[selectedGroup.method as PayMethod] ?? selectedGroup.method
+                          : "Detalle"}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {selectedGroup
+                          ? `${selectedGroup.count} cobro${selectedGroup.count === 1 ? "" : "s"} · $${selectedGroup.total.toLocaleString("es-AR")}`
+                          : "Seleccioná un método de pago."}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!selectedGroup ? (
+                    <div className="p-6 text-sm text-muted-foreground text-center">
+                      Seleccioná un método para ver el detalle.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-white/10">
+                            {["Hora", "Cliente", "Servicio", "Monto"].map((h) => (
+                              <th key={h} className="px-4 py-3 text-left whitespace-nowrap">
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedGroup.rows.map((payment) => {
+                            const hour = new Date(payment.created_at).toLocaleTimeString("es-AR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            });
+                            return (
+                              <tr key={payment.id} className="border-b border-white/5 last:border-0">
+                                <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                                  {hour}
+                                </td>
+                                <td className="px-4 py-3 text-foreground whitespace-nowrap">
+                                  {payment.client_name ?? "—"}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                  {payment.service_name ?? "—"}
+                                </td>
+                                <td className="px-4 py-3 text-emerald-300 font-semibold tabular-nums whitespace-nowrap">
+                                  ${Number(payment.total ?? payment.amount ?? 0).toLocaleString("es-AR")}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          );
-        })
+          </div>
+        </div>
       )}
-      <div className="px-5 py-3 border-t border-white/5 text-center">
-        <button className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-2">
-          <ClipboardList className="size-3.5" /> Ver historial completo
-        </button>
-      </div>
-    </Card>
+    </>
   );
 }
 
