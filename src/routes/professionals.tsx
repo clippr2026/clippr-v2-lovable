@@ -45,7 +45,29 @@ function ProfessionalsPage() {
   const [tab, setTab] = useState<TabKey>("turnos");
   const [range, setRange] = useState<"hoy" | "semana" | "mes">("semana");
 
-  const empId = activeId ?? professionals[0]?.id ?? null;
+  const isProfessionalAccess = profile?.role === "profesional";
+  const ownProfessional = useMemo(() => {
+    if (!isProfessionalAccess) return null;
+    const email = profile?.email?.trim().toLowerCase();
+    const name = profile?.full_name?.trim().toLowerCase();
+
+    return (
+      professionals.find((p) => {
+        const profEmail = (p as { email?: string | null }).email?.trim().toLowerCase();
+        const profName = p.full_name?.trim().toLowerCase();
+        return (email && profEmail === email) || (name && profName === name);
+      }) ?? professionals[0] ?? null
+    );
+  }, [isProfessionalAccess, professionals, profile?.email, profile?.full_name]);
+
+  const visibleProfessionals = useMemo(
+    () => (isProfessionalAccess && ownProfessional ? [ownProfessional] : professionals),
+    [isProfessionalAccess, ownProfessional, professionals],
+  );
+
+  const empId = isProfessionalAccess
+    ? ownProfessional?.id ?? null
+    : activeId ?? visibleProfessionals[0]?.id ?? null;
 
   // Load approval_mode from Supabase
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">(() => {
@@ -54,6 +76,12 @@ function ProfessionalsPage() {
     return saved === "manual" || saved === "disabled" || saved === "auto" ? saved : "auto";
   });
   useEffect(() => {
+    if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
+      setActiveId(ownProfessional.id);
+    }
+  }, [activeId, isProfessionalAccess, ownProfessional?.id]);
+
+  useEffect(() => {
     if (!businessId) return;
     supabase.from("business_settings").select("approval_mode").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => { if (data?.approval_mode) {
@@ -61,8 +89,8 @@ function ProfessionalsPage() {
           if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", data.approval_mode);
         } });
   }, [businessId]);
-  const active = useMemo(() => professionals.find((p) => p.id === empId) ?? professionals[0] ?? null, [professionals, empId]);
-  const activeColor = useMemo(() => COLORS[(professionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [professionals, empId]);
+  const active = useMemo(() => visibleProfessionals.find((p) => p.id === empId) ?? visibleProfessionals[0] ?? null, [visibleProfessionals, empId]);
+  const activeColor = useMemo(() => COLORS[(visibleProfessionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [visibleProfessionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
 
   if (isLoading) return (
@@ -113,19 +141,22 @@ function ProfessionalsPage() {
 
           {/* Barber selector */}
           <div className="flex items-center gap-2 flex-wrap">
-            {professionals.map((p, idx) => {
+            {visibleProfessionals.map((p, idx) => {
               const isActive = p.id === empId;
               const c = COLORS[idx % COLORS.length];
               const ini = (p.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0,2).join("").toUpperCase();
               return (
                 <button
                   key={p.id}
-                  onClick={() => setActiveId(p.id)}
+                  onClick={() => {
+                    if (!isProfessionalAccess) setActiveId(p.id);
+                  }}
                   className={cn(
                     "h-9 w-9 rounded-full grid place-items-center text-[13px] font-semibold transition-all ring-1",
                     isActive
                       ? `bg-gradient-to-br ${c.color} text-background ${c.ring} ring-2 shadow-[0_0_20px_-2px_rgba(251,191,36,0.45)]`
-                      : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20"
+                      : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20",
+                    isProfessionalAccess && "cursor-default"
                   )}
                   aria-label={p.full_name ?? ""}
                 >
@@ -436,38 +467,38 @@ function StatsView({
       </div>
 
       {/* KPI cards: Comisión / Pagado / Pendiente */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass rounded-2xl p-5 ring-1 ring-amber-400/20 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-amber-400/10 blur-3xl" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-400/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>💸</span> Comisión
           </div>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-lg">$</span>
-            <span className="text-5xl font-display font-light tracking-tight">{stats ? stats.comision.toLocaleString("es-AR") : "—"}</span>
+          <div className="mt-1.5 flex items-baseline gap-1">
+            <span className="text-muted-foreground text-sm">$</span>
+            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.comision.toLocaleString("es-AR") : "—"}</span>
           </div>
-          <div className="mt-2 text-xs text-muted-foreground">{stats?.ventasCount ?? 0} ventas</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{stats?.ventasCount ?? 0} ventas</div>
         </div>
-        <div className="glass rounded-2xl p-5 ring-1 ring-emerald-400/30 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-emerald-400/30 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-emerald-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>✅</span> Pagado
           </div>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-lg">$</span>
-            <span className="text-5xl font-display font-light tracking-tight">{stats ? stats.pagado.toLocaleString("es-AR") : "—"}</span>
+          <div className="mt-1.5 flex items-baseline gap-1">
+            <span className="text-muted-foreground text-sm">$</span>
+            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.pagado.toLocaleString("es-AR") : "—"}</span>
           </div>
         </div>
-        <div className="glass rounded-2xl p-5 ring-1 ring-amber-300/20 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-300/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-300/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>⏳</span> Pendiente
           </div>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-lg">$</span>
-            <span className="text-5xl font-display font-light tracking-tight">{stats ? stats.pendiente.toLocaleString("es-AR") : "—"}</span>
+          <div className="mt-1.5 flex items-baseline gap-1">
+            <span className="text-muted-foreground text-sm">$</span>
+            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.pendiente.toLocaleString("es-AR") : "—"}</span>
           </div>
-          <div className="mt-2 text-xs text-emerald-300">{stats && stats.pendiente === 0 ? "✓ al día" : ""}</div>
+          <div className="mt-1 text-[11px] text-emerald-300">{stats && stats.pendiente === 0 ? "✓ al día" : ""}</div>
         </div>
       </div>
 
@@ -628,37 +659,7 @@ function PagosView({ businessId, empId, userEmail }: { businessId: string | null
           <label className="flex items-center gap-1.5">Hasta<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
         </div>
       </div>
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 text-background px-4 py-2.5 text-sm font-semibold hover:brightness-110 transition"
-        >
-          <Plus className="h-4 w-4" strokeWidth={3} /> Registrar pago
-        </button>
-      </div>
 
-      {showForm && (
-        <div className="glass rounded-2xl p-5 space-y-3">
-          <div className="text-sm font-medium">Nuevo pago</div>
-          <div className="grid grid-cols-2 gap-3">
-            <input type="number" placeholder="Monto" value={amount} onChange={e => setAmount(e.target.value)}
-              className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30" />
-            <select value={method} onChange={e => setMethod(e.target.value)}
-              className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none">
-              {["Efectivo","Transferencia","Débito","Crédito","Mercado Pago"].map(m => <option key={m}>{m}</option>)}
-            </select>
-          </div>
-          <input placeholder="Nota (opcional)" value={note} onChange={e => setNote(e.target.value)}
-            className="w-full rounded-lg bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30" />
-          <div className="flex gap-2">
-            <button onClick={handlePay} disabled={isPending}
-              className="flex-1 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-500 text-background py-2 text-sm font-semibold disabled:opacity-50">
-              {isPending ? "Guardando…" : "Confirmar pago"}
-            </button>
-            <button onClick={() => setShowForm(false)} className="px-4 rounded-lg ring-1 ring-white/10 text-sm text-muted-foreground">Cancelar</button>
-          </div>
-        </div>
-      )}
 
       <div className="glass rounded-2xl overflow-hidden">
         {isLoading ? (
@@ -681,6 +682,35 @@ function PagosView({ businessId, empId, userEmail }: { businessId: string | null
   );
 }
 
+
+const METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  efectivo: "Efectivo",
+  transfer: "Transferencia",
+  transferencia: "Transferencia",
+  card: "Tarjeta",
+  tarjeta: "Tarjeta",
+  mercadopago: "Mercado Pago",
+  mercado_pago: "Mercado Pago",
+  mp: "Mercado Pago",
+  cuenta_dni: "Cuenta DNI",
+  cuentaDni: "Cuenta DNI",
+};
+
+function formatSaleDate(value: string) {
+  const date = new Date(value);
+  const day = date.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
+  const formattedDay = day.charAt(0).toUpperCase() + day.slice(1);
+  const datePart = date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  const timePart = date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  return `${formattedDay} ${datePart} ${timePart}`;
+}
+
+function methodLabel(method?: string | null) {
+  if (!method) return "—";
+  return METHOD_LABELS[method] ?? METHOD_LABELS[method.toLowerCase()] ?? method;
+}
+
 function HistorialView({ businessId, empId, commissionPct }: { businessId: string | null; empId: string | null; commissionPct: number }) {
   const today = new Date().toISOString().slice(0, 10);
   const weekStart = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
@@ -692,22 +722,38 @@ function HistorialView({ businessId, empId, commissionPct }: { businessId: strin
   const to = filter === "hoy" || filter === "semana" ? today : toCustom || today;
   const { data: sales = [], isLoading } = useProfSales(businessId, empId, from, to);
 
+  const totalFacturado = sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
+  const totalComisiones = sales.reduce((sum, sale) => sum + Math.round((Number(sale.total ?? 0) * commissionPct) / 100), 0);
+
   return (
     <div className="glass rounded-2xl p-5 animate-fade-up">
-      <div className="flex items-center justify-between">
-        <div className="font-medium">Historial de ventas y comisiones</div>
-        <div className="flex items-center gap-2">
-          {(["todo", "hoy", "semana"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={cn("rounded-full px-3 py-1 text-[11px] font-semibold tracking-wider uppercase transition ring-1",
-                filter === f ? "bg-white/10 text-foreground ring-white/20" : "bg-transparent text-muted-foreground ring-white/10 hover:text-foreground")}>
-              {f}
-            </button>
-          ))}
+      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+        <div>
+          <div className="font-medium">Historial de servicios</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span>Servicios: <strong className="text-foreground">{sales.length}</strong></span>
+            <span className="text-white/20">•</span>
+            <span>Facturación: <strong className="text-emerald-300">${totalFacturado.toLocaleString("es-AR")}</strong></span>
+            <span className="text-white/20">•</span>
+            <span>Comisiones: <strong className="text-amber-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-3 md:mt-0">
-          <label className="flex items-center gap-1.5">Desde<input type="date" value={fromCustom} onChange={(e) => { setFilter("todo"); setFromCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
-          <label className="flex items-center gap-1.5">Hasta<input type="date" value={toCustom} onChange={(e) => { setFilter("todo"); setToCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
+
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex items-center gap-2">
+            {(["todo", "hoy", "semana"] as const).map((f) => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={cn("rounded-full px-3 py-1 text-[11px] font-semibold tracking-wider uppercase transition ring-1",
+                  filter === f ? "bg-white/10 text-foreground ring-white/20" : "bg-transparent text-muted-foreground ring-white/10 hover:text-foreground")}>
+                {f}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <label className="flex items-center gap-1.5">Desde<input type="date" value={fromCustom} onChange={(e) => { setFilter("todo"); setFromCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
+            <label className="flex items-center gap-1.5">Hasta<input type="date" value={toCustom} onChange={(e) => { setFilter("todo"); setToCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
+          </div>
         </div>
       </div>
 
@@ -716,19 +762,34 @@ function HistorialView({ businessId, empId, commissionPct }: { businessId: strin
       ) : sales.length === 0 ? (
         <div className="mt-8 mb-4 text-center text-sm text-muted-foreground">Sin historial en este período</div>
       ) : (
-        <div className="mt-4 space-y-0 overflow-hidden rounded-xl">
-          {sales.map((s, i) => (
-            <div key={s.id} className={cn("flex items-center gap-4 py-3", i < sales.length - 1 && "border-b border-white/5")}>
-              <div className="text-xs text-muted-foreground w-16 shrink-0">
-                {new Date(s.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{s.client_name ?? "Sin cliente"}</div>
-                <div className="text-xs text-muted-foreground truncate">{s.service_name ?? "—"}</div>
-              </div>
-              <div className="text-right shrink-0"><div className="text-sm font-semibold tabular-nums">${s.total.toLocaleString("es-AR")}</div><div className="text-[11px] text-emerald-300">Comisión ${Math.round((s.total * commissionPct) / 100).toLocaleString("es-AR")}</div></div>
-            </div>
-          ))}
+        <div className="mt-4 overflow-x-auto rounded-xl ring-1 ring-white/10">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-white/[0.035] text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
+                <th className="px-4 py-3 text-left whitespace-nowrap">Día / Hora</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Cliente</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Servicio</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Método</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">Total</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">Comisión</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sales.map((sale) => {
+                const commission = Math.round((Number(sale.total ?? 0) * commissionPct) / 100);
+                return (
+                  <tr key={sale.id} className="border-t border-white/5 hover:bg-white/[0.025] transition-colors">
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatSaleDate(sale.created_at)}</td>
+                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{sale.client_name ?? "Sin cliente"}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{sale.service_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs text-emerald-300 whitespace-nowrap">{methodLabel(sale.method)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">${Number(sale.total ?? 0).toLocaleString("es-AR")}</td>
+                    <td className="px-4 py-3 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">${commission.toLocaleString("es-AR")}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
