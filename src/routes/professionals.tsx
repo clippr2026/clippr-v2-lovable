@@ -28,6 +28,31 @@ export const Route = createFileRoute("/professionals")({
 });
 
 type TabKey = "turnos" | "stats" | "historial" | "pagos";
+type RangeKey = "hoy" | "semana" | "mes" | "custom";
+
+function toISODate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getPresetRange(range: Exclude<RangeKey, "custom">) {
+  const now = new Date();
+  const today = toISODate(now);
+
+  if (range === "hoy") return { from: today, to: today };
+
+  if (range === "semana") {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return { from: toISODate(monday), to: toISODate(sunday) };
+  }
+
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { from: toISODate(firstDay), to: toISODate(lastDay) };
+}
+
 
 const COLORS = [
   { color: "from-amber-400 to-amber-600", ring: "ring-amber-400/60" },
@@ -43,7 +68,18 @@ function ProfessionalsPage() {
   const { data: professionals = [], isLoading } = useProfessionals(businessId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("turnos");
-  const [range, setRange] = useState<"hoy" | "semana" | "mes">("semana");
+  const initialRange = useMemo(() => getPresetRange("mes"), []);
+  const [range, setRange] = useState<RangeKey>("mes");
+  const [fromDate, setFromDate] = useState(initialRange.from);
+  const [toDate, setToDate] = useState(initialRange.to);
+
+  function applyRange(nextRange: Exclude<RangeKey, "custom">) {
+    const next = getPresetRange(nextRange);
+    setRange(nextRange);
+    setFromDate(next.from);
+    setToDate(next.to);
+  }
+
 
   const isProfessionalAccess = profile?.role === "profesional";
   const ownProfessional = useMemo(() => {
@@ -197,16 +233,95 @@ function ProfessionalsPage() {
         })}
       </div>
 
+      <UniversalDateFilter
+        range={range}
+        fromDate={fromDate}
+        toDate={toDate}
+        onPreset={applyRange}
+        onFromChange={(value) => {
+          setRange("custom");
+          setFromDate(value);
+        }}
+        onToChange={(value) => {
+          setRange("custom");
+          setToDate(value);
+        }}
+      />
+
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} />}
-      {tab === "stats" && <StatsView range={range} setRange={setRange} businessId={businessId} empId={empId} />}
-      {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} />}
-      {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} from={fromDate} to={toDate} />}
+      {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
+      {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
+      {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
       </div>
     </AppShell>
   );
 }
 
+
+
+function UniversalDateFilter({
+  range,
+  fromDate,
+  toDate,
+  onPreset,
+  onFromChange,
+  onToChange,
+}: {
+  range: RangeKey;
+  fromDate: string;
+  toDate: string;
+  onPreset: (range: Exclude<RangeKey, "custom">) => void;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="flex items-center gap-2">
+        {([
+          ["hoy", "Hoy"],
+          ["semana", "Semana"],
+          ["mes", "Mes"],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onPreset(key)}
+            className={cn(
+              "rounded-full px-4 py-1.5 text-xs font-medium transition ring-1",
+              range === key
+                ? "bg-white/10 text-foreground ring-white/20"
+                : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5">
+          <span>Desde</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => onFromChange(e.target.value)}
+            className="rounded-full bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-foreground focus:outline-none focus:ring-white/30"
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          <span>Hasta</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => onToChange(e.target.value)}
+            className="rounded-full bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-foreground focus:outline-none focus:ring-white/30"
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
 
 
 // ── Cobro modal ────────────────────────────────────────────────────────────
@@ -307,12 +422,14 @@ function CobroModal({
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, profile }: {
+function TurnosView({ businessId, empId, approvalMode, profile, from, to }: {
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
   profile: { id: string; email?: string } | null;
+  from: string;
+  to: string;
 }) {
-  const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId);
+  const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
 
   const statusLabel: Record<string, string> = {
@@ -337,12 +454,12 @@ function TurnosView({ businessId, empId, approvalMode, profile }: {
         {approvalMode === "disabled" && "🚫 Cobro desactivado — los cobros se realizan desde Caja & Cobro."}
       </div>
 
-      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos de hoy</div>
+      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos del período</div>
 
       {isLoading ? (
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
       ) : turnos.length === 0 ? (
-        <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos para hoy.</div>
+        <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
           {turnos.map((t, i) => (
@@ -393,30 +510,13 @@ function TurnosView({ businessId, empId, approvalMode, profile }: {
 }
 
 function StatsView({
-  range, setRange, businessId, empId,
+  businessId, empId, from, to,
 }: {
-  range: "hoy" | "semana" | "mes";
-  setRange: (r: "hoy" | "semana" | "mes") => void;
   businessId: string | null;
   empId: string | null;
+  from: string;
+  to: string;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
-
-  // Sync range presets to dates
-  useMemo(() => {
-    const now = new Date();
-    const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    if (range === "hoy") { setFrom(today); setTo(today); }
-    else if (range === "semana") {
-      const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-      setFrom(toISO(mon)); setTo(today);
-    } else {
-      setFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1))); setTo(today);
-    }
-  }, [range]);
-
   const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
   const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
   const { data: stats } = useProfStats(businessId, empId, validFrom, validTo);
@@ -426,46 +526,6 @@ function StatsView({
 
   return (
     <div className="space-y-4 animate-fade-up">
-      {/* Range chips + dates */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {(["hoy", "semana", "mes"] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                "rounded-full px-4 py-1.5 text-xs font-medium transition ring-1",
-                range === r
-                  ? "bg-white/10 text-foreground ring-white/20"
-                  : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:text-foreground"
-              )}
-            >
-              {r === "hoy" ? "Hoy" : r === "semana" ? "Esta semana" : "Este mes"}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <label className="flex items-center gap-1.5">
-            <span>Desde</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
-            />
-          </label>
-          <label className="flex items-center gap-1.5">
-            <span>Hasta</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
-            />
-          </label>
-        </div>
-      </div>
-
       {/* KPI cards: Comisión / Pagado / Pendiente */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-400/20 relative overflow-hidden">
@@ -628,40 +688,12 @@ function LineChart({
   );
 }
 
-function PagosView({ businessId, empId, userEmail }: { businessId: string | null; empId: string | null; userEmail: string | null }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-  const [from, setFrom] = useState(monthStart);
-  const [to, setTo] = useState(today);
+function PagosView({ businessId, empId, userEmail, from, to }: { businessId: string | null; empId: string | null; userEmail: string | null; from: string; to: string }) {
   const { data: payments = [], isLoading } = useProfPayments(businessId, empId, from, to);
-  const { mutate: registerPayout, isPending } = useRegisterPayout(businessId);
-  const [showForm, setShowForm] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("Efectivo");
-  const [note, setNote] = useState("");
-
-  function handlePay() {
-    const n = parseFloat(amount);
-    if (!n || n <= 0) { toast.error("Ingresá un monto válido"); return; }
-    registerPayout(
-      { empId: empId!, amount: n, method, note, createdBy: userEmail ?? undefined },
-      { onSuccess: () => { setShowForm(false); setAmount(""); setNote(""); toast.success("✓ Pago registrado"); },
-        onError: (e) => toast.error(e.message) }
-    );
-  }
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="text-xs text-muted-foreground">Filtrá los pagos por fecha.</div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <label className="flex items-center gap-1.5">Desde<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
-          <label className="flex items-center gap-1.5">Hasta<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
-        </div>
-      </div>
-
-
-      <div className="glass rounded-2xl overflow-hidden">
+<div className="glass rounded-2xl overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
         ) : payments.length === 0 ? (
@@ -711,15 +743,7 @@ function methodLabel(method?: string | null) {
   return METHOD_LABELS[method] ?? METHOD_LABELS[method.toLowerCase()] ?? method;
 }
 
-function HistorialView({ businessId, empId, commissionPct }: { businessId: string | null; empId: string | null; commissionPct: number }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const weekStart = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
-
-  const [filter, setFilter] = useState<"todo" | "hoy" | "semana">("todo");
-  const [fromCustom, setFromCustom] = useState(weekStart);
-  const [toCustom, setToCustom] = useState(today);
-  const from = filter === "hoy" ? today : filter === "semana" ? weekStart : fromCustom || "2020-01-01";
-  const to = filter === "hoy" || filter === "semana" ? today : toCustom || today;
+function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
   const { data: sales = [], isLoading } = useProfSales(businessId, empId, from, to);
 
   const totalFacturado = sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
@@ -739,23 +763,7 @@ function HistorialView({ businessId, empId, commissionPct }: { businessId: strin
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="flex items-center gap-2">
-            {(["todo", "hoy", "semana"] as const).map((f) => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={cn("rounded-full px-3 py-1 text-[11px] font-semibold tracking-wider uppercase transition ring-1",
-                  filter === f ? "bg-white/10 text-foreground ring-white/20" : "bg-transparent text-muted-foreground ring-white/10 hover:text-foreground")}>
-                {f}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <label className="flex items-center gap-1.5">Desde<input type="date" value={fromCustom} onChange={(e) => { setFilter("todo"); setFromCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
-            <label className="flex items-center gap-1.5">Hasta<input type="date" value={toCustom} onChange={(e) => { setFilter("todo"); setToCustom(e.target.value); }} className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2 py-1 text-foreground" /></label>
-          </div>
-        </div>
-      </div>
+</div>
 
       {isLoading ? (
         <div className="mt-8 mb-4 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
