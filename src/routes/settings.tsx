@@ -843,6 +843,19 @@ type EmployeeRow = {
   commission_pct?: number | null;
 };
 
+type PendingProfessional = {
+  tempId: string;
+  payload: {
+    id?: string;
+    full_name: string;
+    is_active: boolean;
+    commission_pct: number | null;
+    commissions?: Record<string, CommissionConfig>;
+  };
+  isNew: boolean;
+};
+
+
 type CommissionMode = "percent" | "fixed";
 
 type CommissionConfig = {
@@ -1111,15 +1124,21 @@ function normalizeUserPermissions(value: unknown): Record<string, PermissionMap>
 
 function EquipoSection() {
   const { businessId } = useAuth();
-  const [tab, setTab] = useState<"pros" | "users" | "perms">("pros");
+  const [tab, setTab] = useState<"pros" | "users">("pros");
   const [selectedPermRole, setSelectedPermRole] = useState<RolePermissionId>("admin_general");
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(DEFAULT_ROLE_PERMISSIONS);
   const [individualPermMode, setIndividualPermMode] = useState(true);
   const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
+  const [accessTouched, setAccessTouched] = useState(false);
+  const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
   const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
+  const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
   const [rows, setRows] = useState<EmployeeRow[]>([]);
+  const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -1165,21 +1184,104 @@ function EquipoSection() {
     if (!businessId) return;
     supabase
       .from("business_settings")
-      .select("schedule")
+      .select("schedule,approval_mode")
       .eq("business_id", businessId)
       .maybeSingle()
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         const loadedUsers = normalizeAccessUsers(schedule._accessUsers);
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
         setAccessUsers(loadedUsers);
         setUserPermissions(normalizeUserPermissions(schedule._userPermissions));
+        if (typeof caja.approvalModeEnabled === "boolean") setApprovalEnabled(caja.approvalModeEnabled);
+        setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
         setSelectedAccessUserId((current) => current || loadedUsers[0]?.id || "");
       });
   }, [businessId]);
 
   async function saveRolePermissions() {
     if (!businessId) return;
+
+    for (const item of pendingProfessionals) {
+      const payload = item.payload;
+      if (item.isNew) {
+        const { data: inserted, error } = await supabase
+          .from("employees")
+          .insert({
+            business_id: businessId,
+            full_name: payload.full_name,
+            is_active: payload.is_active,
+            commission_pct: payload.commission_pct,
+          })
+          .select("id")
+          .single();
+
+        if (error || !inserted) {
+          return toast.error("Error guardando profesional: " + (error?.message ?? "no se pudo crear"));
+        }
+
+        if (payload.commissions) {
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeCommissions: {
+                  ...existingCommissions,
+                  [inserted.id]: payload.commissions,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+      } else if (payload.id) {
+        const { error } = await supabase
+          .from("employees")
+          .update({
+            full_name: payload.full_name,
+            is_active: payload.is_active,
+            commission_pct: payload.commission_pct,
+          })
+          .eq("id", payload.id);
+
+        if (error) return toast.error("Error guardando profesional: " + error.message);
+
+        if (payload.commissions) {
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeCommissions: {
+                  ...existingCommissions,
+                  [payload.id]: payload.commissions,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+      }
+    }
+
     const { data: existingRow } = await supabase
       .from("business_settings")
       .select("schedule")
@@ -1192,18 +1294,25 @@ function EquipoSection() {
     const { error } = await supabase.from("business_settings").upsert(
       {
         business_id: businessId,
+        approval_mode: approvalMode,
         schedule: {
           ...existingSchedule,
           _rolePermissions: cleaned,
           _accessUsers: accessUsers.map(({ id, name, email, role, status, employee_id }) => ({ id, name, email, role, status, employee_id: employee_id ?? null })),
           _userPermissions: userPermissions,
+          _caja: {
+            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
+            approvalModeEnabled: approvalEnabled,
+          },
         },
       },
       { onConflict: "business_id" },
     );
 
     if (error) return toast.error("Error guardando accesos y permisos: " + error.message);
-    toast.success("Accesos y permisos guardados correctamente");
+    setPendingProfessionals([]);
+    await load();
+    toast.success("Equipo guardado correctamente");
   }
 
   useEffect(() => {
@@ -1215,7 +1324,7 @@ function EquipoSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, rolePermissions, accessUsers, userPermissions]);
+  }, [businessId, rolePermissions, accessUsers, userPermissions, pendingProfessionals, load]);
 
   function openNew() {
     setEditingEmp(null);
@@ -1256,45 +1365,58 @@ function EquipoSection() {
       setDlgTab("datos");
       return toast.error("Ingresá el nombre completo");
     }
-    setSaving(true);
+
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
+    const payload = {
+      id: editingEmp?.id,
+      full_name: name,
+      is_active: editingEmp ? editingEmp.is_active !== false : true,
+      commission_pct: commission,
+      commissions: form.commissions,
+    };
 
     if (editingEmp) {
-      // Update existing
-      const { error } = await supabase.from("employees").update({
-        full_name: name,
-        commission_pct: commission,
-      }).eq("id", editingEmp.id);
-      setSaving(false);
-      if (error) return toast.error("Error: " + error.message);
-      await saveEmployeeCommissionConfig(editingEmp.id);
-      toast.success("Profesional actualizado correctamente");
+      setRows((current) =>
+        current.map((emp) =>
+          emp.id === editingEmp.id
+            ? {
+                ...emp,
+                full_name: name,
+                commission_pct: commission,
+              }
+            : emp,
+        ),
+      );
+
+      setPendingProfessionals((current) => [
+        ...current.filter((item) => item.payload.id !== editingEmp.id),
+        { tempId: editingEmp.id, payload, isNew: false },
+      ]);
+
+      toast.success("Cambio aplicado. Presioná Guardar para confirmarlo.");
       setOpen(false);
       setEditingEmp(null);
-      load();
       return;
     }
 
-    // Insert new
-    const { data: inserted, error } = await supabase
-      .from("employees")
-      .insert({
-        business_id: businessId,
+    const tempId = `temp-${crypto.randomUUID()}`;
+    setRows((current) => [
+      ...current,
+      {
+        id: tempId,
         full_name: name,
         is_active: true,
         commission_pct: commission,
-      })
-      .select("id")
-      .single();
-    if (error || !inserted) {
-      setSaving(false);
-      return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
-    }
-    await saveEmployeeCommissionConfig(inserted.id);
-    setSaving(false);
-    toast.success("Profesional agregado correctamente");
+      },
+    ]);
+
+    setPendingProfessionals((current) => [
+      ...current,
+      { tempId, payload: { ...payload, id: undefined }, isNew: true },
+    ]);
+
+    toast.success("Profesional agregado. Presioná Guardar para confirmarlo.");
     setOpen(false);
-    load();
   }
 
   async function toggleActive(emp: EmployeeRow) {
@@ -1348,6 +1470,7 @@ function EquipoSection() {
   }
 
   function addAccessUser() {
+    setAccessTouched(true);
     const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
     const name =
       accessForm.role === "profesional"
@@ -1359,6 +1482,7 @@ function EquipoSection() {
       return toast.error("Elegí el profesional para este acceso");
     }
     if (!email) return toast.error("Ingresá el correo electrónico");
+    if (!accessForm.password.trim()) return toast.error("Ingresá la contraseña");
 
     const id = crypto.randomUUID();
     const newUser: AccessUser = {
@@ -1373,9 +1497,11 @@ function EquipoSection() {
     setAccessUsers((current) => [...current, newUser]);
     setUserPermissions((current) => ({
       ...current,
-      [id]: { ...DEFAULT_ROLE_PERMISSIONS[accessForm.role] },
+      [id]: { ...accessPermissionsForm },
     }));
     setAccessForm(EMPTY_ACCESS_FORM);
+    setAccessTouched(false);
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
     setSelectedPermRole(accessForm.role);
     setSelectedAccessUserId(id);
     toast.success("Acceso agregado correctamente");
@@ -1411,6 +1537,36 @@ function EquipoSection() {
       }
 
       return { ...current, [userId]: nextUser };
+    });
+  }
+
+  function getRecommendedPermissionKeys(role: RolePermissionId) {
+    return ALL_PERMISSION_KEYS.filter((key) => DEFAULT_ROLE_PERMISSIONS[role][key]);
+  }
+
+  function getAdditionalPermissionKeys(role: RolePermissionId) {
+    return ALL_PERMISSION_KEYS.filter((key) => !DEFAULT_ROLE_PERMISSIONS[role][key]);
+  }
+
+  function getPermissionItem(key: PermissionKey) {
+    return (
+      MAIN_PERMISSION_ITEMS.find((item) => item.key === key) ??
+      CONFIG_PERMISSION_ITEMS.find((item) => item.key === key)
+    );
+  }
+
+  function toggleAccessFormPermission(key: PermissionKey) {
+    setAccessPermissionsForm((current) => {
+      const next = { ...current, [key]: !current[key] };
+      if (key === "configuracion" && !next[key]) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          next[item.key] = false;
+        });
+      }
+      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && next[key]) {
+        next.configuracion = true;
+      }
+      return next;
     });
   }
 
@@ -1456,7 +1612,6 @@ function EquipoSection() {
           [
             ["pros", "Profesionales"],
             ["users", "Accesos"],
-            ["perms", "Permisos"],
           ] as const
         ).map(([id, label]) => {
           const active = tab === id;
@@ -1574,68 +1729,91 @@ function EquipoSection() {
               })}
             </div>
           )}
+        <SectionCard label="Aprobación de cobros profesionales">
+          <div className="space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <ShieldCheck className="h-5 w-5 text-[oklch(0.82_0.14_75)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-base">Habilitar modo de aprobación</div>
+                <div className="text-sm text-muted-foreground mt-0.5">
+                  Activá esta opción para definir si el cobro del profesional impacta automático o queda pendiente para Caja.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovalInfoOpen(true)}
+                className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Info ?
+              </button>
+              <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
+            </div>
+
+            {approvalEnabled && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setApprovalMode("auto")}
+                  className={cn(
+                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    approvalMode === "auto"
+                      ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
+                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                  )}
+                >
+                  <div className="text-lg font-semibold">Automático</div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
+                    <div>✅ El profesional puede cobrar desde su panel.</div>
+                    <div>✅ El cobro impacta automáticamente en los ingresos de Caja.</div>
+                    <div>✅ No requiere revisión ni aprobación previa.</div>
+                  </div>
+                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                    Recomendado cuando los profesionales gestionan sus propios cobros.
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalMode("manual")}
+                  className={cn(
+                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    approvalMode === "manual"
+                      ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
+                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                  )}
+                >
+                  <div className="text-lg font-semibold">Manual</div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
+                    <div>✅ El profesional envía el cobro a Caja y queda pendiente de confirmación.</div>
+                    <div>✅ Caja revisa la información enviada.</div>
+                    <div>✅ El cobro se registra únicamente cuando es aprobado y confirmado.</div>
+                  </div>
+                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                    Recomendado cuando los cobros deben ser revisados antes de registrarse.
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </SectionCard>
+
         </div>
       )}
 
-      {tab === "users" && (
+            {tab === "users" && (
         <div className="space-y-5">
           <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
             <div className="mb-5">
               <h3 className="font-semibold">Accesos</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Creá los accesos de las personas que van a entrar al sistema. Después podés ajustar sus permisos desde la pestaña Permisos.
+                Creá el acceso de cada persona y marcá qué módulos puede usar.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.85fr] gap-4">
               <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-4">
-                {accessForm.role === "profesional" ? (
-                  <Field label="Profesional">
-                    <select
-                      value={accessForm.employee_id ?? ""}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, employee_id: e.target.value || null }))}
-                      className={inputCls}
-                    >
-                      <option value="">Elegí un profesional</option>
-                      {rows.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.full_name || emp.name || "Sin nombre"}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                ) : (
-                  <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                      Acceso
-                    </div>
-                    <div className="mt-1 text-sm font-medium">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      El nombre se asigna automáticamente según el rol.
-                    </div>
-                  </div>
-                )}
-
-                <Field label="Correo electrónico">
-                  <input
-                    type="email"
-                    value={accessForm.email}
-                    onChange={(e) => setAccessForm((f) => ({ ...f, email: e.target.value }))}
-                    className={inputCls}
-                    placeholder="ale@gmail.com"
-                  />
-                </Field>
-
-                <Field label="Contraseña" hint="Se usa para crear el acceso. No se muestra en el listado.">
-                  <input
-                    type="password"
-                    value={accessForm.password}
-                    onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
-                    className={inputCls}
-                    placeholder="********"
-                  />
-                </Field>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Rol">
                     <select
@@ -1646,8 +1824,12 @@ function EquipoSection() {
                           ...f,
                           role,
                           name: "",
-                          employee_id: role === "profesional" ? f.employee_id : null,
+                          employee_id: null,
+                          email: "",
+                          password: "",
                         }));
+                        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[role]);
+                        setAccessTouched(false);
                       }}
                       className={inputCls}
                     >
@@ -1669,6 +1851,168 @@ function EquipoSection() {
                       <option value="inactive">Inactivo</option>
                     </select>
                   </Field>
+                </div>
+
+                {accessForm.role === "profesional" && (
+                  <div>
+                    <Field label="Profesional">
+                      <select
+                        value={accessForm.employee_id ?? ""}
+                        onChange={(e) => setAccessForm((f) => ({ ...f, employee_id: e.target.value || null }))}
+                        className={cn(
+                          inputCls,
+                          accessTouched && !accessForm.employee_id && "ring-red-500/70 focus:ring-red-500/70",
+                        )}
+                      >
+                        <option value="">Elegí un profesional</option>
+                        {rows.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name || emp.name || "Sin nombre"}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    {accessTouched && !accessForm.employee_id && (
+                      <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                    )}
+                  </div>
+                )}
+
+                {accessForm.role !== "profesional" && (
+                  <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Acceso
+                    </div>
+                    <div className="mt-1 text-sm font-medium">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Este acceso se creará con el rol seleccionado.
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <Field label="Correo electrónico">
+                    <input
+                      type="email"
+                      autoComplete="off"
+                      name="clippr-access-email"
+                      value={accessForm.email}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, email: e.target.value }))}
+                      className={cn(
+                        inputCls,
+                        accessTouched && !accessForm.email.trim() && "ring-red-500/70 focus:ring-red-500/70",
+                      )}
+                      placeholder="ejemplo@correo.com"
+                    />
+                  </Field>
+                  {accessTouched && !accessForm.email.trim() && (
+                    <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                  )}
+                </div>
+
+                <div>
+                  <Field label="Contraseña" hint="Se usa para crear el acceso. No se muestra en el listado.">
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      name="clippr-access-password"
+                      value={accessForm.password}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
+                      className={cn(
+                        inputCls,
+                        accessTouched && !accessForm.password.trim() && "ring-red-500/70 focus:ring-red-500/70",
+                      )}
+                      placeholder="********"
+                    />
+                  </Field>
+                  {accessTouched && !accessForm.password.trim() && (
+                    <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="font-semibold text-sm">Permisos</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Los recomendados vienen marcados según el rol. Podés sumar accesos adicionales.
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                        Accesos recomendados marcados
+                      </div>
+                      <div className="space-y-2">
+                        {getRecommendedPermissionKeys(accessForm.role).map((key) => {
+                          const item = getPermissionItem(key);
+                          if (!item) return null;
+                          const checked = accessPermissionsForm[key];
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => toggleAccessFormPermission(key)}
+                              className={cn(
+                                "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                checked
+                                  ? "bg-[oklch(0.78_0.17_55/0.12)] ring-[oklch(0.78_0.17_55/0.24)]"
+                                  : "bg-white/[0.03] ring-white/10",
+                              )}
+                            >
+                              <div>
+                                <div className="text-sm font-medium">{item.label}</div>
+                                <div className="text-xs text-muted-foreground">{item.desc}</div>
+                              </div>
+                              <span className={cn(
+                                "h-5 w-5 rounded-md grid place-items-center ring-1",
+                                checked ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent" : "bg-white/5 ring-white/15",
+                              )}>
+                                {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                        Adicionales
+                      </div>
+                      <div className="space-y-2">
+                        {getAdditionalPermissionKeys(accessForm.role).map((key) => {
+                          const item = getPermissionItem(key);
+                          if (!item) return null;
+                          const checked = accessPermissionsForm[key];
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => toggleAccessFormPermission(key)}
+                              className={cn(
+                                "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                checked
+                                  ? "bg-[oklch(0.78_0.17_55/0.12)] ring-[oklch(0.78_0.17_55/0.24)]"
+                                  : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                              )}
+                            >
+                              <div>
+                                <div className="text-sm font-medium">{item.label}</div>
+                                <div className="text-xs text-muted-foreground">{item.desc}</div>
+                              </div>
+                              <span className={cn(
+                                "h-5 w-5 rounded-md grid place-items-center ring-1",
+                                checked ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent" : "bg-white/5 ring-white/15",
+                              )}>
+                                {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <button
@@ -1729,255 +2073,85 @@ function EquipoSection() {
         </div>
       )}
 
-      {tab === "perms" && (
-        <div className="space-y-5">
-          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
-            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
+      {approvalInfoOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-3xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="font-semibold">Personalizar acceso</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Elegí un rol para filtrar los accesos y después seleccioná la persona que querés configurar.
+                <h3 className="text-lg font-semibold">¿Cómo funciona la aprobación de cobros?</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Esta configuración define qué sucede cuando un profesional registra un cobro desde su panel.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-[oklch(0.78_0.17_55/0.12)] ring-1 ring-[oklch(0.78_0.17_55/0.24)] px-3 py-1.5 text-xs text-[oklch(0.86_0.14_75)]">
-                <Star className="h-3.5 w-3.5" />
-                Configuración recomendada por rol
-              </div>
+              <button
+                type="button"
+                onClick={() => setApprovalInfoOpen(false)}
+                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+              >
+                Cerrar
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-              {ROLE_PERMISSION_OPTIONS.map((role) => {
-                const active = selectedPermRole === role.id;
-                const locked = role.id === "admin_general" && !individualPermMode;
-                const usersCount = accessUsers.filter((user) => user.role === role.id).length;
-                return (
-                  <button
-                    key={role.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedPermRole(role.id);
-                      const firstUser = accessUsers.find((user) => user.role === role.id);
-                      setSelectedAccessUserId(firstUser?.id ?? "");
-                    }}
-                    className={cn(
-                      "text-left rounded-2xl p-4 ring-1 transition-all",
-                      active
-                        ? "bg-[oklch(0.78_0.17_55/0.12)] ring-[oklch(0.78_0.17_55/0.45)]"
-                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-2xl">{role.icon}</div>
-                      <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1 text-[10px] text-muted-foreground">
-                        {usersCount} accesos
-                      </span>
-                    </div>
-                    <div className="mt-3 font-semibold text-sm">{role.label}</div>
-                    <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      {role.desc}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-semibold">Acceso seleccionado</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Estás viendo los accesos con rol {selectedRole.label}. Elegí una persona y modificá solo su panel.
-                </p>
+            <div className="p-5 space-y-4 text-sm text-muted-foreground max-h-[75vh] overflow-y-auto">
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                <h4 className="font-semibold text-foreground mb-2">Modo Automático</h4>
+                <p>Cuando un profesional registra un cobro:</p>
+                <ul className="mt-2 space-y-1">
+                  <li>✅ El ingreso se registra automáticamente en Caja.</li>
+                  <li>✅ El movimiento impacta inmediatamente en reportes, ingresos y estadísticas.</li>
+                  <li>✅ No requiere revisión ni confirmación adicional.</li>
+                </ul>
+                <div className="mt-3 rounded-lg bg-black/20 p-3">
+                  <div className="font-medium text-foreground">Ejemplo</div>
+                  <p className="mt-1">Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.</p>
+                  <p className="mt-2 text-foreground">Resultado: el cobro queda registrado, aparece automáticamente en Caja y se actualizan los ingresos del día.</p>
+                </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-xs text-muted-foreground">Acceso:</span>
-                <select
-                  value={selectedAccessUser?.id ?? ""}
-                  onChange={(e) => setSelectedAccessUserId(e.target.value)}
-                  className="min-w-[220px] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none"
-                >
-                  {selectedRoleUsers.length === 0 ? (
-                    <option value="">No hay accesos con este rol</option>
-                  ) : (
-                    selectedRoleUsers.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name} · {user.email}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-            </div>
-
-            {selectedRoleUsers.length === 0 ? (
-              <div className="mt-4 rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
-                Primero creá un acceso con el rol {selectedRole.label} desde la pestaña Accesos.
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
-                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                  <Star className="h-3.5 w-3.5 text-[oklch(0.86_0.14_75)]" />
-                  <span>
-                    Configuración recomendada para {selectedAccessUser ? ROLE_LABEL_BY_ID[selectedAccessUser.role] : selectedRole.label}
-                  </span>
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                <h4 className="font-semibold text-foreground mb-2">Modo Manual</h4>
+                <p>Cuando un profesional registra un cobro:</p>
+                <ul className="mt-2 space-y-1">
+                  <li>✅ El cobro se envía a Caja como pendiente.</li>
+                  <li>✅ No impacta en ingresos hasta ser aprobado.</li>
+                  <li>✅ Caja o Administración revisa y confirma el cobro.</li>
+                </ul>
+                <div className="mt-3 rounded-lg bg-black/20 p-3">
+                  <div className="font-medium text-foreground">Ejemplo</div>
+                  <p className="mt-1">Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.</p>
+                  <p className="mt-2 text-foreground">Resultado: el cobro queda pendiente. Caja revisa la información y, al aprobarlo, el ingreso se registra oficialmente.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={resetSelectedAccessPermissions}
-                  disabled={!selectedAccessUser}
-                  className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Restablecer permisos recomendados
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-5">
-            <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <h3 className="font-semibold">Módulos principales</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Accesos generales para {currentPanelTitle}.
-                  </p>
-                </div>
-                {selectedRoleLocked && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/8 ring-1 ring-white/10 px-2.5 py-1 text-xs text-muted-foreground">
-                    <Lock className="h-3.5 w-3.5" />
-                    No editable
-                  </span>
-                )}
               </div>
 
-              {selectedRoleLocked && (
-                <div className="mb-4 rounded-xl bg-[oklch(0.78_0.17_55/0.08)] ring-1 ring-[oklch(0.78_0.17_55/0.18)] p-3 text-xs text-muted-foreground">
-                  Administrador principal del negocio. Los permisos de este rol no pueden modificarse.
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                <h4 className="font-semibold text-foreground mb-2">Modo Desactivado</h4>
+                <p>Cuando esta opción está desactivada:</p>
+                <ul className="mt-2 space-y-1">
+                  <li>✅ Los profesionales no pueden registrar cobros.</li>
+                  <li>✅ Todos los cobros deben realizarse desde Caja o Administración.</li>
+                  <li>✅ Sólo los usuarios autorizados pueden registrar ingresos.</li>
+                </ul>
+                <div className="mt-3 rounded-lg bg-black/20 p-3">
+                  <div className="font-medium text-foreground">Ejemplo</div>
+                  <p className="mt-1">Juan finaliza un servicio.</p>
+                  <p className="mt-2 text-foreground">Resultado: no puede cobrar desde su panel. Caja debe registrar el cobro manualmente.</p>
                 </div>
-              )}
-
-              {individualPermMode && !selectedAccessUser ? (
-                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
-                  Elegí un acceso para personalizar sus permisos.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {MAIN_PERMISSION_ITEMS.map((item) => {
-                    const checked = selectedPermissions[item.key];
-                    const disabled = selectedRoleLocked;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() =>
-                          individualPermMode && selectedAccessUser
-                            ? toggleUserPermission(selectedAccessUser.id, item.key)
-                            : togglePermission(selectedPermRole, item.key)
-                        }
-                        className={cn(
-                          "w-full flex items-center gap-4 rounded-xl p-3 ring-1 text-left transition-all",
-                          checked ? "bg-white/[0.06] ring-white/10" : "bg-white/[0.025] ring-white/5",
-                          !disabled && "hover:bg-white/[0.08]",
-                          disabled && "cursor-not-allowed opacity-80",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-6 w-11 rounded-full relative transition-colors shrink-0",
-                            checked ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
-                              checked ? "left-[22px]" : "left-0.5",
-                            )}
-                          />
-                        </span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-medium">{item.label}</span>
-                          <span className="block text-xs text-muted-foreground mt-0.5">{item.desc}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <h3 className="font-semibold">Configuración</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Permisos internos del módulo Configuración.
-                  </p>
-                </div>
-                {!selectedPermissions.configuracion && (
-                  <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2.5 py-1 text-xs text-muted-foreground">
-                    Módulo apagado
-                  </span>
-                )}
               </div>
 
-              {individualPermMode && !selectedAccessUser ? (
-                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
-                  Elegí un acceso para personalizar sus permisos.
+              <div className="rounded-xl bg-[oklch(0.78_0.17_55/0.10)] ring-1 ring-[oklch(0.78_0.17_55/0.25)] p-4">
+                <h4 className="font-semibold text-foreground mb-2">¿Qué modo debería usar?</h4>
+                <div className="space-y-1">
+                  <div><strong className="text-foreground">Automático:</strong> mayor velocidad y menos pasos en la operación diaria.</div>
+                  <div><strong className="text-foreground">Manual:</strong> mayor control y validación de ambas partes.</div>
+                  <div><strong className="text-foreground">Desactivado:</strong> control total de los cobros desde Caja o Administración.</div>
                 </div>
-              ) : (
-                <div className={cn("space-y-3", !selectedPermissions.configuracion && "opacity-50")}>
-                  {CONFIG_PERMISSION_ITEMS.map((item) => {
-                    const checked = selectedPermissions[item.key];
-                    const disabled = selectedRoleLocked || !selectedPermissions.configuracion;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() =>
-                          individualPermMode && selectedAccessUser
-                            ? toggleUserPermission(selectedAccessUser.id, item.key)
-                            : togglePermission(selectedPermRole, item.key)
-                        }
-                        className={cn(
-                          "w-full flex items-center gap-4 rounded-xl p-3 ring-1 text-left transition-all",
-                          checked ? "bg-white/[0.06] ring-white/10" : "bg-white/[0.025] ring-white/5",
-                          !disabled && "hover:bg-white/[0.08]",
-                          disabled && "cursor-not-allowed",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-6 w-11 rounded-full relative transition-colors shrink-0",
-                            checked ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
-                              checked ? "left-[22px]" : "left-0.5",
-                            )}
-                          />
-                        </span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-medium">{item.label}</span>
-                          <span className="block text-xs text-muted-foreground mt-0.5">{item.desc}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-
-      {open && (
+{open && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => !saving && setOpen(false)}
@@ -2341,7 +2515,7 @@ function EquipoSection() {
                 disabled={saving}
                 className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
               >
-                {saving ? "Guardando…" : "Guardar profesional"}
+                {saving ? "Guardando…" : "Aceptar"}
               </button>
               <button
                 onClick={() => setOpen(false)}
@@ -3205,8 +3379,6 @@ function CajaSection() {
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         if (caja.methods) setMethods(caja.methods as typeof defaultMethods);
         if (typeof caja.autoChange === "boolean") setAutoChange(caja.autoChange);
-        if (typeof caja.approvalModeEnabled === "boolean") setApprovalEnabled(caja.approvalModeEnabled);
-        setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
       });
   }, [businessId]);
 
@@ -3218,10 +3390,13 @@ function CajaSection() {
     const { error } = await supabase.from("business_settings").upsert(
       {
         business_id: businessId,
-        approval_mode: approvalMode,
         schedule: {
           ...existingSchedule,
-          _caja: { methods, autoChange, approvalModeEnabled: approvalEnabled },
+          _caja: {
+            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
+            methods,
+            autoChange,
+          },
         },
       },
       { onConflict: "business_id" },
@@ -3238,7 +3413,7 @@ function CajaSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [methods, autoChange, approvalEnabled, approvalMode, businessId]);
+  }, [methods, autoChange, businessId]);
 
   const M = [
     {
@@ -3272,19 +3447,6 @@ function CajaSection() {
       tint: "text-[oklch(0.7_0.25_300)]",
     },
   ] as const;
-
-  const modeOptions: { id: "auto" | "manual"; title: string; description: string }[] = [
-    {
-      id: "auto",
-      title: "Automático",
-      description: "El profesional cobra desde su panel y el cobro impacta en Caja sin aprobación de recepción.",
-    },
-    {
-      id: "manual",
-      title: "Manual",
-      description: "El profesional envía el cobro como pendiente y Caja/recepción lo revisa, confirma y cobra.",
-    },
-  ];
 
   return (
     <>
@@ -3320,54 +3482,6 @@ function CajaSection() {
         </div>
       </SectionCard>
 
-      <SectionCard label="Aprobación de cobros profesionales">
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
-              <ShieldCheck className="h-4.5 w-4.5 text-[oklch(0.82_0.14_75)]" />
-            </div>
-            <div className="flex-1">
-              <div className="font-medium text-sm">Habilitar modo de aprobación</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                Activá esta opción para definir si el cobro del profesional impacta automático o queda pendiente para Caja.
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setApprovalInfoOpen(true)}
-              className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              Info
-            </button>
-            <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
-          </div>
-
-          {approvalEnabled && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
-              {modeOptions.map((option) => {
-                const active = approvalMode === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setApprovalMode(option.id)}
-                    className={cn(
-                      "text-left rounded-lg px-3 py-3 transition-all",
-                      active
-                        ? "bg-gradient-to-b from-white/[0.08] to-white/[0.02] text-foreground ring-1 ring-[oklch(0.82_0.14_75/0.35)]"
-                        : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
-                    )}
-                  >
-                    <div className="text-sm font-semibold">{option.title}</div>
-                    <div className="text-xs mt-1 leading-relaxed">{option.description}</div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </SectionCard>
-
       <SectionCard label="Comportamiento de caja">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
@@ -3385,35 +3499,7 @@ function CajaSection() {
         </div>
       </SectionCard>
 
-      {approvalInfoOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div>
-                <h3 className="text-lg font-semibold">Cómo funciona el modo de aprobación</h3>
-                <p className="text-xs text-muted-foreground mt-1">Elegí entre automático o manual según cómo trabaja tu caja.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setApprovalInfoOpen(false)}
-                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
-              >
-                Cerrar
-              </button>
-            </div>
-            <div className="p-5 space-y-4 text-sm text-muted-foreground">
-              <div className="rounded-xl bg-emerald-400/10 border border-emerald-400/20 p-4">
-                <div className="font-semibold text-emerald-300 mb-1">Automático</div>
-                <p>El profesional puede cobrar desde su panel. Cuando confirma el cobro, el movimiento impacta directamente en Caja & Cobro sin aprobación de recepción.</p>
-              </div>
-              <div className="rounded-xl bg-amber-300/10 border border-amber-300/20 p-4">
-                <div className="font-semibold text-amber-200 mb-1">Manual</div>
-                <p>El profesional envía el servicio/cobro como pendiente. Caja o recepción lo revisa y recién al confirmarlo se registra el cobro.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
     </>
   );
 }
