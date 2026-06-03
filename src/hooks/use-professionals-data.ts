@@ -36,6 +36,7 @@ export type ProfSale = {
   service_name: string | null;
   total: number;
   created_at: string;
+  method: string | null;
 };
 
 export type ProfTurno = {
@@ -167,7 +168,7 @@ export function useProfSales(
       if (!from || !to || isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) return [];
       const { data, error } = await supabase
         .from("payments")
-        .select("id,client_name,service_name,total,amount,created_at")
+        .select("id,client_name,service_name,total,amount,method,payment_method,created_at")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
         .gte("created_at", from + "T00:00:00")
@@ -179,6 +180,7 @@ export function useProfSales(
         client_name: p.client_name,
         service_name: p.service_name,
         total: Number(p.total ?? p.amount ?? 0),
+        method: (p.method ?? p.payment_method ?? null) as string | null,
         created_at: p.created_at,
       }));
     },
