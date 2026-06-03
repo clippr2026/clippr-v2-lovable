@@ -2343,15 +2343,20 @@ function CajaSection() {
   const defaultMethods = { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
   const [methods, setMethods] = useState(defaultMethods);
   const [autoChange, setAutoChange] = useState(true);
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
+  const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
 
   useEffect(() => {
     if (!businessId) return;
-    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
+    supabase.from("business_settings").select("approval_mode,schedule").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         if (caja.methods) setMethods(caja.methods as typeof defaultMethods);
         if (typeof caja.autoChange === "boolean") setAutoChange(caja.autoChange);
+        if (typeof caja.approvalModeEnabled === "boolean") setApprovalEnabled(caja.approvalModeEnabled);
+        setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
       });
   }, [businessId]);
 
@@ -2361,7 +2366,14 @@ function CajaSection() {
       .select("schedule").eq("business_id", businessId).maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
     const { error } = await supabase.from("business_settings").upsert(
-      { business_id: businessId, schedule: { ...existingSchedule, _caja: { methods, autoChange } } },
+      {
+        business_id: businessId,
+        approval_mode: approvalMode,
+        schedule: {
+          ...existingSchedule,
+          _caja: { methods, autoChange, approvalModeEnabled: approvalEnabled },
+        },
+      },
       { onConflict: "business_id" },
     );
     if (error) return toast.error("Error guardando: " + error.message);
@@ -2376,7 +2388,7 @@ function CajaSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [methods, autoChange]);
+  }, [methods, autoChange, approvalEnabled, approvalMode, businessId]);
 
   const M = [
     {
@@ -2410,6 +2422,19 @@ function CajaSection() {
       tint: "text-[oklch(0.7_0.25_300)]",
     },
   ] as const;
+
+  const modeOptions: { id: "auto" | "manual"; title: string; description: string }[] = [
+    {
+      id: "auto",
+      title: "Automático",
+      description: "El profesional cobra desde su panel y el cobro impacta en Caja sin aprobación de recepción.",
+    },
+    {
+      id: "manual",
+      title: "Manual",
+      description: "El profesional envía el cobro como pendiente y Caja/recepción lo revisa, confirma y cobra.",
+    },
+  ];
 
   return (
     <>
@@ -2445,6 +2470,54 @@ function CajaSection() {
         </div>
       </SectionCard>
 
+      <SectionCard label="Aprobación de cobros profesionales">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+              <ShieldCheck className="h-4.5 w-4.5 text-[oklch(0.82_0.14_75)]" />
+            </div>
+            <div className="flex-1">
+              <div className="font-medium text-sm">Habilitar modo de aprobación</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Activá esta opción para definir si el cobro del profesional impacta automático o queda pendiente para Caja.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setApprovalInfoOpen(true)}
+              className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Info
+            </button>
+            <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
+          </div>
+
+          {approvalEnabled && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
+              {modeOptions.map((option) => {
+                const active = approvalMode === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setApprovalMode(option.id)}
+                    className={cn(
+                      "text-left rounded-lg px-3 py-3 transition-all",
+                      active
+                        ? "bg-gradient-to-b from-white/[0.08] to-white/[0.02] text-foreground ring-1 ring-[oklch(0.82_0.14_75/0.35)]"
+                        : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                    )}
+                  >
+                    <div className="text-sm font-semibold">{option.title}</div>
+                    <div className="text-xs mt-1 leading-relaxed">{option.description}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
       <SectionCard label="Comportamiento de caja">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
@@ -2461,6 +2534,36 @@ function CajaSection() {
           <Toggle on={autoChange} onChange={setAutoChange} />
         </div>
       </SectionCard>
+
+      {approvalInfoOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold">Cómo funciona el modo de aprobación</h3>
+                <p className="text-xs text-muted-foreground mt-1">Elegí entre automático o manual según cómo trabaja tu caja.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovalInfoOpen(false)}
+                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="p-5 space-y-4 text-sm text-muted-foreground">
+              <div className="rounded-xl bg-emerald-400/10 border border-emerald-400/20 p-4">
+                <div className="font-semibold text-emerald-300 mb-1">Automático</div>
+                <p>El profesional puede cobrar desde su panel. Cuando confirma el cobro, el movimiento impacta directamente en Caja & Cobro sin aprobación de recepción.</p>
+              </div>
+              <div className="rounded-xl bg-amber-300/10 border border-amber-300/20 p-4">
+                <div className="font-semibold text-amber-200 mb-1">Manual</div>
+                <p>El profesional envía el servicio/cobro como pendiente. Caja o recepción lo revisa y recién al confirmarlo se registra el cobro.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
