@@ -1524,6 +1524,7 @@ type PriceRow = {
   category: string | null;
   active: boolean | null;
   stock?: number | null;
+  cash_discount?: number | null;
 };
 
 type PriceForm = {
@@ -1871,7 +1872,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock")
+      .select("id,name,price,duration_min,category,active,stock,cash_discount")
       .eq("business_id", businessId)
       .order("category")
       .order("name");
@@ -1963,6 +1964,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       business_id: businessId,
       name: form.name.trim(),
       price: Number(form.price) || 0,
+      cash_discount: Number(form.discount) || 0,
       category: form.category,
       active: form.status === "Activo",
       duration_min: isService ? Number(form.duration) || 30 : null,
