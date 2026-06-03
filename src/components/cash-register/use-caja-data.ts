@@ -2,11 +2,6 @@ import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
-/**
- * Portado de loadDashboard + loadSettings de app.js
- * Tablas: services, employees, payments, expenses, cash_sessions, business_settings
- */
-
 export type Service = {
   id: string;
   name: string;
@@ -15,12 +10,13 @@ export type Service = {
   category?: string | null;
   is_active?: boolean;
   stock?: number | null;
+  is_catalog?: boolean; // true = producto del catálogo
 };
 
 export type Employee = {
   id: string;
   name: string;
-  
+  commission_pct: number | null;
 };
 
 export type ClientLite = {
@@ -51,37 +47,21 @@ export type Expense = {
 };
 
 export type ApprovalMode = "auto" | "manual" | "disabled";
-export type PaymentMethodsConfig = { efectivo: boolean; transferencia: boolean; tarjeta: boolean; mp: boolean; cuentaDni: boolean };
-
-function normalizePaymentMethods(value: any): PaymentMethodsConfig {
-  return {
-    efectivo: value?.efectivo !== false,
-    transferencia: value?.transferencia !== false,
-    tarjeta: value?.tarjeta !== false,
-    mp: value?.mp !== false,
-    cuentaDni: value?.cuentaDni === true,
-  };
-}
-
-function loadPaymentMethods(): PaymentMethodsConfig {
-  if (typeof window === "undefined") return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
-  try {
-    const saved = JSON.parse(window.localStorage.getItem("clippr_payment_methods") || "null");
-    return normalizePaymentMethods(saved);
-  } catch {
-    return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
-  }
-}
+export type PaymentMethodsConfig = {
+  efectivo: boolean;
+  transferencia: boolean;
+  tarjeta: boolean;
+  mp: boolean;
+  cuentaDni: boolean;
+};
 
 export function useCajaData() {
   const { businessId, profile } = useAuth();
   const [loading, setLoading] = React.useState(true);
-  const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>(() => {
-    if (typeof window === "undefined") return "auto";
-    const saved = window.localStorage.getItem("clippr_approval_mode");
-    return saved === "manual" || saved === "disabled" || saved === "auto" ? saved : "auto";
+  const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>("auto");
+  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethodsConfig>({
+    efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false,
   });
-  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethodsConfig>(() => loadPaymentMethods());
   const [services, setServices] = React.useState<Service[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [clients, setClients] = React.useState<ClientLite[]>([]);
@@ -91,27 +71,12 @@ export function useCajaData() {
   const [pendingCount, setPendingCount] = React.useState(0);
   const [pendingAmount, setPendingAmount] = React.useState(0);
 
-  React.useEffect(() => {
-    const refreshPaymentMethods = () => setPaymentMethods(loadPaymentMethods());
-    window.addEventListener("clippr:caja-settings-updated", refreshPaymentMethods);
-    window.addEventListener("storage", refreshPaymentMethods);
-    return () => {
-      window.removeEventListener("clippr:caja-settings-updated", refreshPaymentMethods);
-      window.removeEventListener("storage", refreshPaymentMethods);
-    };
-  }, []);
-
   const load = React.useCallback(async () => {
-    if (!businessId) {
-      setLoading(false);
-      return;
-    }
+    if (!businessId) { setLoading(false); return; }
     setLoading(true);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
     const dateStr = new Date().toISOString().slice(0, 10);
 
     const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes] = await Promise.allSettled([
@@ -120,18 +85,17 @@ export function useCajaData() {
         .select("id,name,price,duration_min,category,active,stock")
         .eq("business_id", businessId)
         .eq("active", true)
-        .order("category", { ascending: true })
-        .order("name", { ascending: true }),
+        .order("category")
+        .order("name"),
       supabase
         .from("employees")
-        .select("id,full_name,is_active")
+        .select("id,full_name,is_active,commission_pct")
         .eq("business_id", businessId)
         .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")
         .select("id,total,amount,method,client_name,service_name,created_at,employee_id,appointment_id")
-        .eq("business_id", businessId)
         .gte("created_at", today.toISOString())
         .lte("created_at", todayEnd.toISOString())
         .order("created_at", { ascending: false }),
@@ -160,57 +124,62 @@ export function useCajaData() {
         .order("full_name"),
     ]);
 
-    const svcRaw =
-      svcRes.status === "fulfilled" && !svcRes.value.error
-        ? (svcRes.value.data ?? [])
-        : [];
+    // Services — separate services (has duration_min) from catalog products
+    const svcRaw = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
     setServices(
-      (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null }>).map((r) => ({
-        id: r.id,
-        name: r.name,
-        price: Number(r.price ?? 0),
-        duration: r.duration_min,
-        category: r.category,
-        is_active: r.active !== false,
-        stock: r.stock,
-      })),
-    );
-    setEmployees(
-      empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; is_active?: boolean | null }>).map((r) => ({
-            id: r.id,
-            name: r.full_name ?? "Sin nombre",
-          }))
-        : []
-    );
-    setClients(
-      cliRes.status === "fulfilled" && !cliRes.value.error
-        ? ((cliRes.value.data ?? []) as Array<{ id: string; full_name?: string | null; name?: string | null; phone: string | null; email?: string | null; birth_date?: string | null }>).map((r) => ({
-            id: r.id,
-            name: r.full_name ?? r.name ?? "Sin nombre",
-            phone: r.phone,
-            email: r.email,
-            birth_date: r.birth_date,
-          }))
-        : []
-    );
-    setPaymentsToday(
-      payRes.status === "fulfilled" && !payRes.value.error
-        ? ((payRes.value.data ?? []) as Payment[])
-        : []
-    );
-    setExpensesToday(
-      expRes.status === "fulfilled" && !expRes.value.error
-        ? ((expRes.value.data ?? []) as Expense[])
-        : []
-    );
-    setCashSessionId(
-      sessRes.status === "fulfilled" && !sessRes.value.error
-        ? (sessRes.value.data?.id ?? null)
-        : null
+      (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null }>)
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          price: Number(r.price ?? 0),
+          duration: r.duration_min,
+          category: r.category,
+          is_active: r.active !== false,
+          stock: r.stock,
+          is_catalog: r.duration_min == null, // no duration = catalog product
+        })),
     );
 
-    // Turnos del día pendientes de cobro (no cobrados / no cancelados)
+    // Employees with commission
+    setEmployees(
+      empRes.status === "fulfilled" && !empRes.value.error
+        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; commission_pct: number | null }>)
+            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null }))
+        : []
+    );
+
+    // Clients
+    setClients(
+      cliRes.status === "fulfilled" && !cliRes.value.error
+        ? ((cliRes.value.data ?? []) as Array<{ id: string; full_name?: string | null; phone: string | null; email?: string | null; birth_date?: string | null }>)
+            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", phone: r.phone, email: r.email, birth_date: r.birth_date }))
+        : []
+    );
+
+    setPaymentsToday(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
+    setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
+    setCashSessionId(sessRes.status === "fulfilled" && !sessRes.value.error ? (sessRes.value.data?.id ?? null) : null);
+
+    // Approval mode + payment methods from schedule._caja
+    if (bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data) {
+      const row = bsRes.value.data;
+      const mode = row.approval_mode;
+      if (mode === "manual" || mode === "auto" || mode === "disabled") setApprovalModeState(mode);
+      const schedule = (row.schedule ?? {}) as Record<string, unknown>;
+      const caja = (schedule._caja ?? {}) as Record<string, unknown>;
+      if (caja.methods && typeof caja.methods === "object") {
+        const m = caja.methods as Record<string, boolean>;
+        setPaymentMethods({
+          efectivo: m.efectivo !== false,
+          transferencia: m.transferencia !== false,
+          tarjeta: m.tarjeta !== false,
+          mp: m.mp !== false,
+          cuentaDni: m.cuentaDni === true,
+        });
+      }
+    }
+
+    // Pending appointments
     try {
       const { data: appts } = await supabase
         .from("appointments")
@@ -218,96 +187,46 @@ export function useCajaData() {
         .eq("business_id", businessId)
         .gte("starts_at", today.toISOString())
         .lte("starts_at", todayEnd.toISOString());
-      const pend = (appts ?? []).filter(
-        (a: { status: string }) =>
-          !["charged", "cancelled", "blocked"].includes(a.status),
-      );
+      const pend = (appts ?? []).filter((a: { status: string }) => !["charged", "cancelled", "blocked"].includes(a.status));
       setPendingCount(pend.length);
-      setPendingAmount(
-        pend.reduce((s, a: { service_price: number | null }) => s + Number(a.service_price ?? 0), 0),
-      );
-    } catch {
-      setPendingCount(0);
-      setPendingAmount(0);
-    }
-
-    const settings =
-      bsRes.status === "fulfilled" && !bsRes.value.error
-        ? bsRes.value.data
-        : null;
-
-    const mode = settings?.approval_mode;
-    if (mode === "manual" || mode === "auto" || mode === "disabled") {
-      setApprovalModeState(mode as ApprovalMode);
-      if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", mode);
-    }
-
-    const cajaSettings = (settings?.schedule as any)?._caja;
-    if (cajaSettings?.methods) {
-      const normalized = normalizePaymentMethods(cajaSettings.methods);
-      setPaymentMethods(normalized);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("clippr_payment_methods", JSON.stringify(normalized));
-      }
-    }
+      setPendingAmount(pend.reduce((s, a: { service_price: number | null }) => s + Number(a.service_price ?? 0), 0));
+    } catch { setPendingCount(0); setPendingAmount(0); }
 
     setLoading(false);
   }, [businessId]);
 
+  React.useEffect(() => { load(); }, [load]);
+
+  // Listen for caja settings updates (from Configuración → Caja)
   React.useEffect(() => {
-    load();
+    const refresh = () => load();
+    window.addEventListener("clippr:caja-settings-updated", refresh);
+    return () => window.removeEventListener("clippr:caja-settings-updated", refresh);
   }, [load]);
 
-  const setApprovalMode = React.useCallback(
-    async (m: ApprovalMode) => {
-      setApprovalModeState(m);
-      if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", m);
-      if (!businessId) return;
+  const setApprovalMode = React.useCallback(async (m: ApprovalMode) => {
+    setApprovalModeState(m);
+    if (!businessId) return;
+    try {
+      const { error } = await supabase.from("business_settings")
+        .upsert({ business_id: businessId, approval_mode: m }, { onConflict: "business_id" });
+      if (error) throw error;
+    } catch (e) { console.warn("[caja] setApprovalMode failed:", (e as Error).message); }
+  }, [businessId]);
 
-      try {
-        const { error: updateError } = await supabase
-          .from("business_settings")
-          .upsert({ business_id: businessId, approval_mode: m }, { onConflict: "business_id" });
-
-        if (updateError) throw updateError;
-      } catch (e) {
-        console.warn("[caja] setApprovalMode failed:", (e as Error).message);
-      }
-    },
-    [businessId]
-  );
-
-  // KPIs (portados de loadDashboard / updateCajaKpis)
-  const revHoy = paymentsToday.reduce(
-    (s, p) => s + Number(p.total ?? p.amount ?? 0),
-    0
-  );
+  const revHoy = paymentsToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
   const cobros = paymentsToday.length;
   const ticket = cobros > 0 ? Math.round(revHoy / cobros) : 0;
-  const totalGastos = expensesToday.reduce(
-    (s, e) => s + Number(e.amount ?? 0),
-    0
-  );
+  const totalGastos = expensesToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
   return {
-    loading,
-    businessId,
-    profileId: profile?.id ?? null,
-    approvalMode,
-    setApprovalMode,
+    loading, businessId, profileId: profile?.id ?? null,
+    approvalMode, setApprovalMode,
     paymentMethods,
-    services,
-    employees,
-    clients,
-    paymentsToday,
-    expensesToday,
-    cashSessionId,
-    revHoy,
-    cobros,
-    ticket,
-    totalGastos,
-    pendingCount,
-    pendingAmount,
+    services, employees, clients,
+    paymentsToday, expensesToday, cashSessionId,
+    revHoy, cobros, ticket, totalGastos,
+    pendingCount, pendingAmount,
     refresh: load,
   };
 }
