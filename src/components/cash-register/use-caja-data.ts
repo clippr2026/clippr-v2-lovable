@@ -46,7 +46,7 @@ export type Expense = {
   payment_method: string | null;
 };
 
-export type ApprovalMode = "auto" | "manual" | "disabled";
+export type ApprovalMode = "auto" | "manual";
 export type PaymentMethodsConfig = {
   efectivo: boolean;
   transferencia: boolean;
@@ -59,6 +59,7 @@ export function useCajaData() {
   const { businessId, profile } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>("auto");
+  const [approvalModeEnabled, setApprovalModeEnabled] = React.useState(false);
   const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethodsConfig>({
     efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false,
   });
@@ -164,9 +165,10 @@ export function useCajaData() {
     if (bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data) {
       const row = bsRes.value.data;
       const mode = row.approval_mode;
-      if (mode === "manual" || mode === "auto" || mode === "disabled") setApprovalModeState(mode);
+      setApprovalModeState(mode === "manual" ? "manual" : "auto");
       const schedule = (row.schedule ?? {}) as Record<string, unknown>;
       const caja = (schedule._caja ?? {}) as Record<string, unknown>;
+      if (typeof caja.approvalModeEnabled === "boolean") setApprovalModeEnabled(caja.approvalModeEnabled);
       if (caja.methods && typeof caja.methods === "object") {
         const m = caja.methods as Record<string, boolean>;
         setPaymentMethods({
@@ -221,7 +223,7 @@ export function useCajaData() {
 
   return {
     loading, businessId, profileId: profile?.id ?? null,
-    approvalMode, setApprovalMode,
+    approvalMode, setApprovalMode, approvalModeEnabled,
     paymentMethods,
     services, employees, clients,
     paymentsToday, expensesToday, cashSessionId,

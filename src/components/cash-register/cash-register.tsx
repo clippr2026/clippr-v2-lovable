@@ -38,7 +38,6 @@ import {
   Smartphone,
   Check,
   Loader2,
-  Lock,
   Unlock,
 } from "lucide-react";
 
@@ -313,31 +312,28 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 }
 
 function ApprovalMode({ data }: { data: ReturnType<typeof useCajaData> }) {
+  if (!data.approvalModeEnabled) return null;
+
   const mode = data.approvalMode;
   const desc: Record<typeof mode, string> = {
     auto: "Automático — el profesional cobra desde su panel y el cobro impacta sin confirmación.",
     manual: "Manual — el servicio queda pendiente y caja/recepción lo confirma y cobra.",
-    disabled: "Desactivado — el profesional no puede cobrar desde su panel.",
   };
   const labelMap: Record<typeof mode, string> = {
     auto: "AUTOMÁTICO",
     manual: "MANUAL",
-    disabled: "DESACTIVADO",
   };
   const chipCls: Record<typeof mode, string> = {
     auto: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
     manual: "border-amber-300/30 bg-amber-300/10 text-amber-200",
-    disabled: "border-rose-400/30 bg-rose-400/10 text-rose-300",
   };
   const dotCls: Record<typeof mode, string> = {
     auto: "bg-emerald-400",
     manual: "bg-amber-300",
-    disabled: "bg-rose-400",
   };
   const options: { id: typeof mode; label: string; icon: typeof Zap }[] = [
     { id: "auto", label: "Automático", icon: Zap },
     { id: "manual", label: "Manual", icon: Hand },
-    { id: "disabled", label: "Desactivado", icon: Lock },
   ];
   return (
     <Card className="p-5">
@@ -356,7 +352,7 @@ function ApprovalMode({ data }: { data: ReturnType<typeof useCajaData> }) {
           {labelMap[mode]}
         </span>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
+      <div className="mt-4 grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
         {options.map((o) => {
           const active = mode === o.id;
           return (
@@ -370,13 +366,7 @@ function ApprovalMode({ data }: { data: ReturnType<typeof useCajaData> }) {
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <o.icon
-                className={cn(
-                  "size-4",
-                  o.id === "disabled" ? "text-rose-300" : "text-amber-300",
-                )}
-              />{" "}
-              {o.label}
+              <o.icon className="size-4 text-amber-300" /> {o.label}
             </button>
           );
         })}
