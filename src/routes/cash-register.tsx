@@ -254,7 +254,7 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     {
       label: "📅 Turnos de hoy",
       value: data.appointmentsToday?.length ?? 0,
-      sub: "Total de turnos agendados para hoy.",
+      sub: "Turnos agendados.",
       icon: CalendarDays,
       tint: "from-sky-400/25 to-sky-500/0",
       money: false,
@@ -262,7 +262,7 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     {
       label: "👥 Clientes atendidos",
       value: data.cobros,
-      sub: "Cantidad de clientes que ya pasaron por el local.",
+      sub: "Cantidad de clientes.",
       icon: BarChart3,
       tint: "from-emerald-400/25 to-emerald-500/0",
       money: false,
@@ -304,6 +304,7 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         ))}
       </div>
 
+      {data.approvalModeEnabled && <ApprovalMode data={data} />}
       <History data={data} />
     </div>
   );
