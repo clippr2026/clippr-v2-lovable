@@ -1128,7 +1128,7 @@ function EquipoSection() {
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<
-    "datos" | "horarios" | "perfil" | "comisiones"
+    "datos" | "horarios" | "comisiones"
   >("datos");
 
   const load = useCallback(async () => {
@@ -2009,7 +2009,6 @@ function EquipoSection() {
                 [
                   ["datos", "Datos"],
                   ["horarios", "Horarios"],
-                  ["perfil", "Perfil"],
                   ["comisiones", "Comisiones"],
                 ] as const
               ).map(([id, label]) => {
@@ -2103,6 +2102,16 @@ function EquipoSection() {
                       </div>
                     </div>
                   </label>
+                  <Field label="Descripción (opcional)">
+                    <textarea
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                      className={cn(inputCls, "min-h-[90px] resize-y")}
+                      placeholder="Especialidades, experiencia, estilo…"
+                    />
+                  </Field>
                 </div>
               )}
 
@@ -2191,44 +2200,7 @@ function EquipoSection() {
                 </div>
               )}
 
-              {dlgTab === "perfil" && (
-                <div className="space-y-4">
-                  <Field label="Nombre público">
-                    <input
-                      value={form.publicName}
-                      onChange={(e) =>
-                        setForm({ ...form, publicName: e.target.value })
-                      }
-                      className={inputCls}
-                      placeholder={
-                        form.fullName || "Nombre que verán los clientes"
-                      }
-                    />
-                  </Field>
-                  <Field label="Descripción (opcional)">
-                    <textarea
-                      value={form.description}
-                      onChange={(e) =>
-                        setForm({ ...form, description: e.target.value })
-                      }
-                      className={cn(inputCls, "min-h-[90px] resize-y")}
-                      placeholder="Especialidades, experiencia, estilo…"
-                    />
-                  </Field>
-                  <Field label="Especialidad destacada">
-                    <input
-                      value={form.specialty}
-                      onChange={(e) =>
-                        setForm({ ...form, specialty: e.target.value })
-                      }
-                      className={inputCls}
-                      placeholder="Ej: Degradados, Color, Barba clásica"
-                    />
-                  </Field>
-                </div>
-              )}
-
-              {dlgTab === "comisiones" && (
+                            {dlgTab === "comisiones" && (
                 <div className="space-y-5">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="font-semibold text-sm">Comisiones y servicios que realiza</div>
