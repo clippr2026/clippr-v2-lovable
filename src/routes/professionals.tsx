@@ -8,7 +8,6 @@ import {
   BarChart3,
   Clock,
   DollarSign,
-  Plus,
   ArrowRight,
 } from "lucide-react";
 
@@ -104,6 +103,8 @@ function ProfessionalsPage() {
   const empId = isProfessionalAccess
     ? ownProfessional?.id ?? null
     : activeId ?? visibleProfessionals[0]?.id ?? null;
+
+  const canOperateSelectedPanel = isProfessionalAccess && ownProfessional?.id === empId;
 
   // Load approval_mode from Supabase
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">(() => {
@@ -249,7 +250,7 @@ function ProfessionalsPage() {
       />
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} from={fromDate} to={toDate} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
       {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -422,12 +423,13 @@ function CobroModal({
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, profile, from, to }: {
+function TurnosView({ businessId, empId, approvalMode, profile, from, to, canOperate }: {
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
   profile: { id: string; email?: string } | null;
   from: string;
   to: string;
+  canOperate: boolean;
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
@@ -444,15 +446,21 @@ function TurnosView({ businessId, empId, approvalMode, profile, from, to }: {
   return (
     <div className="space-y-4 animate-fade-up">
       {/* Mode explanation banner */}
-      <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
-        approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
-        approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
-        approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
-      )}>
-        {approvalMode === "auto" && "⚡ Cobro automático — podés cobrar directamente desde tu panel."}
-        {approvalMode === "manual" && "👁 Cobro manual — enviás el cobro a Caja para que recepción lo confirme."}
-        {approvalMode === "disabled" && "🚫 Cobro desactivado — los cobros se realizan desde Caja & Cobro."}
-      </div>
+      {canOperate ? (
+        <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
+          approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
+          approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
+          approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
+        )}>
+          {approvalMode === "auto" && "⚡ Cobro automático — podés cobrar directamente desde tu panel."}
+          {approvalMode === "manual" && "👁 Cobro manual — enviás el cobro a Caja para que recepción lo confirme."}
+          {approvalMode === "disabled" && "🚫 Cobro desactivado — los cobros se realizan desde Caja & Cobro."}
+        </div>
+      ) : (
+        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-white/[0.035] ring-white/10 text-muted-foreground">
+          👀 Modo consulta — podés ver turnos, historial, pagos, estadísticas y comisiones, pero no enviar ni cobrar servicios desde Panel Profesionales.
+        </div>
+      )}
 
       <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos del período</div>
 
@@ -479,7 +487,7 @@ function TurnosView({ businessId, empId, approvalMode, profile, from, to }: {
                   {statusLabel[t.status] ?? t.status}
                 </span>
                 {/* Cobrar button */}
-                {approvalMode !== "disabled" && t.status !== "charged" && t.status !== "cancelled" && (
+                {canOperate && approvalMode !== "disabled" && t.status !== "charged" && t.status !== "cancelled" && (
                   <button onClick={() => setCobroTurno(t)}
                     className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
                       approvalMode === "auto"
@@ -494,7 +502,7 @@ function TurnosView({ businessId, empId, approvalMode, profile, from, to }: {
         </div>
       )}
 
-      {cobroTurno && businessId && empId && (
+      {canOperate && cobroTurno && businessId && empId && (
         <CobroModal
           turno={cobroTurno}
           empId={empId}
