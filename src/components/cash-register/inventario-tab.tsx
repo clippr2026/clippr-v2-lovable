@@ -64,46 +64,24 @@ export function InventarioTab({
     if (!businessId) return;
     setLoading(true);
 
-    // Fetch valid category slugs from business_settings (same as Catálogo)
-    let validSlugs: string[] = [];
-    try {
-      const { data: bsData } = await supabase
-        .from("business_settings")
-        .select("cat_custom_tabs")
-        .eq("business_id", businessId)
-        .maybeSingle();
-      if (Array.isArray(bsData?.cat_custom_tabs)) {
-        validSlugs = (bsData.cat_custom_tabs as Array<string | { slug: string }>)
-          .map((c) => (typeof c === "string" ? c : c.slug))
-          .filter(Boolean);
-      }
-    } catch (e) {
-      console.warn("[InventarioTab] cat_custom_tabs:", (e as Error).message);
-    }
-
     const [{ data: items }, { data: movs }] = await Promise.all([
       supabase
         .from("price_catalog")
         .select("id,name,category,price,stock,stock_min,stock_critical,active")
         .eq("business_id", businessId)
+        .is("duration_min", null) // catalog products only (services have duration_min)
+        .eq("active", true)
         .order("category")
         .order("name"),
       supabase
         .from("stock_movements")
-        .select(
-          "id,product_id,product_name,type,qty,stock_before,stock_after,user_email,note,created_at"
-        )
+        .select("id,product_id,product_name,type,qty,stock_before,stock_after,user_email,note,created_at")
         .eq("business_id", businessId)
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
 
-    // Filter: active + only categories that exist in Catálogo tabs
-    let filtered = ((items ?? []) as Product[]).filter((p) => p.active !== false);
-    if (validSlugs.length > 0) {
-      filtered = filtered.filter((p) => p.category && validSlugs.includes(p.category));
-    }
-    setProducts(filtered);
+    setProducts((items ?? []) as Product[]);
     setMovements((movs ?? []) as Movement[]);
     setLoading(false);
   }, [businessId]);
@@ -134,7 +112,7 @@ export function InventarioTab({
     <div className="space-y-5">
       {products.length === 0 ? (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground">
-          Sin productos en el catálogo. Cargá bebidas/productos en la pestaña Precios.
+          Sin productos en el catálogo. Cargá productos en Configuración → Catálogo.
         </div>
       ) : (
         byCat.map(([cat, items]) => (
