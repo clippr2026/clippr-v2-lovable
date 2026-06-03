@@ -24,7 +24,6 @@ type Row = {
 
 function cashPrice(price: number, discount: number | null) {
   const d = Number(discount ?? 0);
-  if (d <= 0) return null;
   return Math.round(price - (price * d) / 100);
 }
 
@@ -124,21 +123,13 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                           <div className="text-[11px] text-muted-foreground mt-0.5">{r.duration_min} min</div>
                         )}
                       </div>
-                      <div className="text-right shrink-0">
-                        {cash != null ? (
-                          <>
-                            <div className="text-[11px] text-muted-foreground line-through tabular-nums">
-                              ${Number(r.price).toLocaleString("es-AR")}
-                            </div>
-                            <div className="text-sm font-semibold text-amber-200 tabular-nums">
-                              ${cash.toLocaleString("es-AR")}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-sm font-semibold text-foreground tabular-nums">
-                            ${Number(r.price).toLocaleString("es-AR")}
-                          </div>
-                        )}
+                      <div className="text-right shrink-0 space-y-0.5">
+                        <div className="text-[11px] text-muted-foreground tabular-nums">
+                          Lista ${Number(r.price).toLocaleString("es-AR")}
+                        </div>
+                        <div className="text-sm font-semibold text-amber-200 tabular-nums">
+                          Ef. ${cash.toLocaleString("es-AR")}
+                        </div>
                       </div>
                     </div>
                   );
@@ -181,21 +172,13 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                           </div>
                         )}
                       </div>
-                      <div className="text-right shrink-0">
-                        {cash != null ? (
-                          <>
-                            <div className="text-[11px] text-muted-foreground line-through tabular-nums">
-                              ${Number(r.price).toLocaleString("es-AR")}
-                            </div>
-                            <div className="text-sm font-semibold text-amber-200 tabular-nums">
-                              ${cash.toLocaleString("es-AR")}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-sm font-semibold text-foreground tabular-nums">
-                            ${Number(r.price).toLocaleString("es-AR")}
-                          </div>
-                        )}
+                      <div className="text-right shrink-0 space-y-0.5">
+                        <div className="text-[11px] text-muted-foreground tabular-nums">
+                          Lista ${Number(r.price).toLocaleString("es-AR")}
+                        </div>
+                        <div className="text-sm font-semibold text-amber-200 tabular-nums">
+                          Ef. ${cash.toLocaleString("es-AR")}
+                        </div>
                       </div>
                     </div>
                   );
