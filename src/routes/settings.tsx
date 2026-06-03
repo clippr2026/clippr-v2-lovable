@@ -1572,7 +1572,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
   return {
     name: row.name ?? "",
     price: String(row.price ?? 0),
-    discount: "0",
+    discount: String(row.cash_discount ?? 0),   // ← read real value
     duration: row.duration_min
       ? String(row.duration_min)
       : isService
