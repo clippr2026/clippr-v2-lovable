@@ -168,7 +168,7 @@ export function useCajaData() {
       setApprovalModeState(mode === "manual" ? "manual" : "auto");
       const schedule = (row.schedule ?? {}) as Record<string, unknown>;
       const caja = (schedule._caja ?? {}) as Record<string, unknown>;
-      if (typeof caja.approvalModeEnabled === "boolean") setApprovalModeEnabled(caja.approvalModeEnabled);
+      setApprovalModeEnabled(caja.approvalModeEnabled === true);
       if (caja.methods && typeof caja.methods === "object") {
         const m = caja.methods as Record<string, boolean>;
         setPaymentMethods({
@@ -210,10 +210,27 @@ export function useCajaData() {
     setApprovalModeState(m);
     if (!businessId) return;
     try {
+      const { data: existingRow } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+
       const { error } = await supabase.from("business_settings")
-        .upsert({ business_id: businessId, approval_mode: m }, { onConflict: "business_id" });
+        .upsert(
+          {
+            business_id: businessId,
+            approval_mode: m,
+            schedule: existingRow?.schedule ?? {},
+          },
+          { onConflict: "business_id" },
+        );
+
       if (error) throw error;
-    } catch (e) { console.warn("[caja] setApprovalMode failed:", (e as Error).message); }
+      window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
+    } catch (e) {
+      console.warn("[caja] setApprovalMode failed:", (e as Error).message);
+    }
   }, [businessId]);
 
   const revHoy = paymentsToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
