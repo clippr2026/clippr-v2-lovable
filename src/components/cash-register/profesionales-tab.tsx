@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Loader2, Wallet, Eye, BarChart3, X, CalendarDays } from "lucide-react";
+import { Loader2, BarChart3, X, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -241,22 +241,10 @@ export function ProfesionalesTab({
                 <div>
                   <h3 className="text-base font-semibold text-foreground">{emp.full_name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    Comisión {commPct}% · {empPays.length} venta{empPays.length === 1 ? "" : "s"}
+                    {empPays.length} venta{empPays.length === 1 ? "" : "s"} en el período
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setPayModal({ emp, pendiente })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-xs"
-                  >
-                    <Wallet className="size-3.5" /> Pagar
-                  </button>
-                  <button
-                    onClick={() => setDetailModal({ type: "pagos", emp })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs"
-                  >
-                    <Eye className="size-3.5" /> Ver pagos
-                  </button>
                   <button
                     onClick={() => setDetailModal({ type: "produccion", emp })}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs"
@@ -265,15 +253,10 @@ export function ProfesionalesTab({
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {[
-                  ["Comisión", `$${comision.toLocaleString("es-AR")}`, "text-amber-200"],
-                  ["Pagado", `$${pagado.toLocaleString("es-AR")}`, "text-emerald-300"],
-                  [
-                    "Pendiente",
-                    `$${pendiente.toLocaleString("es-AR")}`,
-                    pendiente > 0 ? "text-amber-300" : "text-emerald-300",
-                  ],
+                  ["Ventas", `${empPays.length}`, "text-foreground"],
+                  ["Producción", `$${facturacion.toLocaleString("es-AR")}`, "text-emerald-300"],
                 ].map(([label, val, color]) => (
                   <div
                     key={label}
@@ -286,41 +269,6 @@ export function ProfesionalesTab({
                   </div>
                 ))}
               </div>
-              {empPayouts.length > 0 && (
-                <div className="mt-4">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground/80 mb-2">
-                    Pagos registrados
-                  </div>
-                  <div className="rounded-lg bg-white/[0.03] border border-white/5 overflow-hidden">
-                    {empPayouts.map((p, i) => (
-                      <div
-                        key={p.id}
-                        className={cn(
-                          "flex items-center justify-between px-3 py-2",
-                          i < empPayouts.length - 1 && "border-b border-white/5"
-                        )}
-                      >
-                        <div>
-                          <div className="text-xs text-foreground">
-                            {new Date(p.date + "T12:00:00").toLocaleDateString("es-AR", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "2-digit",
-                            })}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {p.method ?? "—"}
-                            {p.note ? ` · ${p.note}` : ""}
-                          </div>
-                        </div>
-                        <div className="text-sm font-semibold text-emerald-300 tabular-nums">
-                          ${Number(p.amount).toLocaleString("es-AR")}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           );
         })
