@@ -4,79 +4,83 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 /**
- * Vista sincronizada de Configuración → Servicios y Catálogo.
- * Sin formulario propio. Fuente única: price_catalog.
- * Estructura:
- *   SERVICIOS → subcategorías de servicios (ej: Servicios, Color)
- *   luego tabs de catálogo (ej: Productos, Bebidas, Indumentaria)
+ * Vista de Precios — misma query y misma lógica de categorías que Configuración → Servicios/Catálogo.
+ * Fuente: price_catalog, mismas columnas, mismo filtro.
+ * Servicios:  duration_min != null
+ * Catálogo:   duration_min == null && category no incluye "servicio"
+ * Categorías: business_settings.schedule._categories (igual que Configuración)
  */
 
 type Row = {
   id: string;
   name: string;
   price: number;
-  cash_discount: number | null; // % descuento efectivo
+  cash_discount: number | null;
   duration_min: number | null;
   category: string | null;
-  active: boolean;
+  active: boolean | null;
   stock: number | null;
 };
 
-function cashPrice(price: number, discountPct: number | null) {
-  const d = Number(discountPct ?? 0);
+function cashPrice(price: number, discount: number | null) {
+  const d = Number(discount ?? 0);
   if (d <= 0) return null;
   return Math.round(price - (price * d) / 100);
 }
 
+const DEFAULT_SERVICE_CATS = ["Servicios"];
+const DEFAULT_CATALOG_CATS = ["Productos", "Bebidas", "Indumentaria"];
+
 export function PreciosTab({ businessId }: { businessId: string | null }) {
   const [rows, setRows] = React.useState<Row[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [tab, setTab] = React.useState<string>("");
+  const [serviceCats, setServiceCats] = React.useState<string[]>(DEFAULT_SERVICE_CATS);
+  const [catalogCats, setCatalogCats] = React.useState<string[]>(DEFAULT_CATALOG_CATS);
 
   const load = React.useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
     setLoading(true);
-    const { data } = await supabase
-      .from("price_catalog")
-      .select("id,name,price,cash_discount,duration_min,category,active,stock")
-      .eq("business_id", businessId)
-      .eq("active", true)
-      .order("name");
-    // cash_discount may not exist in schema — handle gracefully
-    const safe = (data ?? []).map((r: Record<string, unknown>) => ({
-      id: r.id as string,
-      name: r.name as string,
-      price: Number(r.price ?? 0),
-      cash_discount: typeof r.cash_discount === "number" ? r.cash_discount : null,
-      duration_min: r.duration_min as number | null,
-      category: r.category as string | null,
-      active: r.active !== false,
-      stock: typeof r.stock === "number" ? r.stock : null,
-    }));
-    setRows(safe);
+
+    // Exact same query as PriceCatalogSection in settings.tsx
+    const [rowsRes, scheduleRes] = await Promise.all([
+      supabase
+        .from("price_catalog")
+        .select("id,name,price,cash_discount,duration_min,category,active,stock")
+        .eq("business_id", businessId)
+        .order("category")
+        .order("name"),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
+    ]);
+
+    setRows((rowsRes.data ?? []) as Row[]);
+
+    // Exact same category loading as PriceCatalogSection
+    const schedule = (scheduleRes.data?.schedule ?? {}) as Record<string, unknown>;
+    const cats = (schedule._categories ?? {}) as Record<string, unknown>;
+    if (Array.isArray(cats.service) && cats.service.length > 0)
+      setServiceCats(cats.service as string[]);
+    if (Array.isArray(cats.catalog) && cats.catalog.length > 0)
+      setCatalogCats(cats.catalog as string[]);
+
     setLoading(false);
   }, [businessId]);
 
   React.useEffect(() => { load(); }, [load]);
 
-  // Build tab structure:
-  // Services: group by their category (e.g. "Servicios", "Color")
-  // Catalog: each category becomes a tab (e.g. "Productos", "Bebidas")
+  // Exact same visibleRows logic as PriceCatalogSection
   const serviceRows = rows.filter((r) => r.duration_min != null);
-  const catalogRows = rows.filter((r) => r.duration_min == null);
+  const catalogRows = rows.filter((r) => {
+    const cat = (r.category || "Productos").toLowerCase();
+    return r.duration_min == null && !cat.includes("servicio");
+  });
 
-  const serviceCats = Array.from(new Set(serviceRows.map((r) => r.category || "Servicios")));
-  const catalogCats = Array.from(new Set(catalogRows.map((r) => r.category || "Productos")));
-  const allTabs = [...serviceCats, ...catalogCats];
-
-  React.useEffect(() => {
-    if (allTabs.length > 0 && !allTabs.includes(tab)) setTab(allTabs[0]);
-  }, [allTabs.join(",")]);
-
-  const isServiceTab = serviceCats.includes(tab);
-  const filtered = isServiceTab
-    ? serviceRows.filter((r) => (r.category || "Servicios") === tab)
-    : catalogRows.filter((r) => (r.category || "Productos") === tab);
+  // Categories exactly as in PriceCatalogSection
+  const finalServiceCats = Array.from(new Set([...serviceCats, ...serviceRows.map((r) => r.category || "Servicios")]));
+  const finalCatalogCats = Array.from(new Set([...catalogCats, ...catalogRows.map((r) => r.category || "Productos")]));
 
   if (loading) {
     return (
@@ -95,86 +99,117 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Section labels + tabs */}
-      <div className="space-y-2">
-        {serviceCats.length > 0 && (
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 w-20 shrink-0">Servicios</span>
-            {serviceCats.map((c) => (
-              <button key={c} onClick={() => setTab(c)}
-                className={cn("rounded-full border px-4 py-1.5 text-xs whitespace-nowrap font-medium transition-colors",
-                  tab === c ? "border-amber-300/50 bg-amber-300/10 text-amber-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground")}>
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
-        {catalogCats.length > 0 && (
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 w-20 shrink-0">Catálogo</span>
-            {catalogCats.map((c) => (
-              <button key={c} onClick={() => setTab(c)}
-                className={cn("rounded-full border px-4 py-1.5 text-xs whitespace-nowrap font-medium transition-colors",
-                  tab === c ? "border-amber-300/50 bg-amber-300/10 text-amber-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground")}>
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Items table */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin ítems en esta categoría.</div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {/* Header */}
-            <div className={cn("grid px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase",
-              isServiceTab ? "grid-cols-[1fr_110px_110px_90px]" : "grid-cols-[1fr_110px_110px_60px]")}>
-              <div>Nombre</div>
-              <div className="text-right">Lista</div>
-              <div className="text-right text-amber-200/70">Efectivo</div>
-              <div className="text-right">{isServiceTab ? "Min" : "Stock"}</div>
+    <div className="grid md:grid-cols-2 gap-5">
+      {/* ── COLUMNA SERVICIOS ── */}
+      <div className="space-y-3">
+        <div className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/70 px-1">
+          Servicios
+        </div>
+        {finalServiceCats.map((catName) => {
+          const items = serviceRows.filter((r) => (r.category || "Servicios") === catName);
+          if (items.length === 0) return null;
+          return (
+            <div key={catName} className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+              <div className="px-4 py-2.5 text-[11px] uppercase tracking-[0.16em] font-semibold text-muted-foreground/60 border-b border-white/5">
+                {catName}
+              </div>
+              <div className="divide-y divide-white/5">
+                {items.map((r) => {
+                  const cash = cashPrice(r.price, r.cash_discount);
+                  return (
+                    <div key={r.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-white/[0.02] transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-foreground truncate">{r.name}</div>
+                        {r.duration_min && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">{r.duration_min} min</div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        {cash != null ? (
+                          <>
+                            <div className="text-[11px] text-muted-foreground line-through tabular-nums">
+                              ${Number(r.price).toLocaleString("es-AR")}
+                            </div>
+                            <div className="text-sm font-semibold text-amber-200 tabular-nums">
+                              ${cash.toLocaleString("es-AR")}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-sm font-semibold text-foreground tabular-nums">
+                            ${Number(r.price).toLocaleString("es-AR")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            {filtered.map((r) => {
-              const cash = cashPrice(r.price, r.cash_discount);
-              return (
-                <div key={r.id}
-                  className={cn("grid px-5 py-4 items-center hover:bg-white/[0.02] transition-colors",
-                    isServiceTab ? "grid-cols-[1fr_110px_110px_90px]" : "grid-cols-[1fr_110px_110px_60px]")}>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{r.name}</div>
-                  </div>
-                  <div className="text-right text-sm tabular-nums text-muted-foreground">
-                    ${Number(r.price).toLocaleString("es-AR")}
-                  </div>
-                  <div className="text-right tabular-nums">
-                    {cash != null ? (
-                      <span className="text-sm font-semibold text-amber-200">
-                        ${cash.toLocaleString("es-AR")}
-                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">({r.cash_discount}%)</span>
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground/40">—</span>
-                    )}
-                  </div>
-                  <div className="text-right text-sm text-muted-foreground tabular-nums">
-                    {isServiceTab
-                      ? r.duration_min ? `${r.duration_min} min` : "—"
-                      : r.stock != null ? r.stock : "—"}
-                  </div>
-                </div>
-              );
-            })}
+          );
+        })}
+        {serviceRows.length === 0 && (
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted-foreground">
+            Sin servicios. Cargalos en Configuración → Servicios.
           </div>
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground text-center">
-        Editá precios en <strong>Configuración → Servicios</strong> o <strong>Configuración → Catálogo</strong>.
-      </p>
+      {/* ── COLUMNA CATÁLOGO ── */}
+      <div className="space-y-3">
+        <div className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/70 px-1">
+          Catálogo
+        </div>
+        {finalCatalogCats.map((catName) => {
+          const items = catalogRows.filter((r) => (r.category || "Productos") === catName);
+          if (items.length === 0) return null;
+          return (
+            <div key={catName} className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+              <div className="px-4 py-2.5 text-[11px] uppercase tracking-[0.16em] font-semibold text-muted-foreground/60 border-b border-white/5">
+                {catName}
+              </div>
+              <div className="divide-y divide-white/5">
+                {items.map((r) => {
+                  const cash = cashPrice(r.price, r.cash_discount);
+                  return (
+                    <div key={r.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-white/[0.02] transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-foreground truncate">{r.name}</div>
+                        {typeof r.stock === "number" && (
+                          <div className={cn("text-[11px] mt-0.5",
+                            r.stock === 0 ? "text-rose-300" : r.stock <= 3 ? "text-amber-300" : "text-muted-foreground")}>
+                            Stock: {r.stock}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        {cash != null ? (
+                          <>
+                            <div className="text-[11px] text-muted-foreground line-through tabular-nums">
+                              ${Number(r.price).toLocaleString("es-AR")}
+                            </div>
+                            <div className="text-sm font-semibold text-amber-200 tabular-nums">
+                              ${cash.toLocaleString("es-AR")}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-sm font-semibold text-foreground tabular-nums">
+                            ${Number(r.price).toLocaleString("es-AR")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+        {catalogRows.length === 0 && (
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted-foreground">
+            Sin productos. Cargalos en Configuración → Catálogo.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
