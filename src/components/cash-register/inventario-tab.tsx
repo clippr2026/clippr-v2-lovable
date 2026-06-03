@@ -54,22 +54,19 @@ export function InventarioTab({
   const [products, setProducts] = React.useState<Product[]>([]);
   const [movements, setMovements] = React.useState<Movement[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [modal, setModal] = React.useState<{
-    product: Product;
-    direction: -1 | 0 | 1;
-  } | null>(null);
+  const [activeCat, setActiveCat] = React.useState<string>("");
+  const [modal, setModal] = React.useState<{ product: Product; direction: -1 | 0 | 1 } | null>(null);
   const [showHistory, setShowHistory] = React.useState(false);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
-
     const [{ data: items }, { data: movs }] = await Promise.all([
       supabase
         .from("price_catalog")
         .select("id,name,category,price,stock,stock_min,stock_critical,active")
         .eq("business_id", businessId)
-        .is("duration_min", null) // catalog products only (services have duration_min)
+        .is("duration_min", null) // catalog products only
         .eq("active", true)
         .order("category")
         .order("name"),
@@ -80,97 +77,101 @@ export function InventarioTab({
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
-
     setProducts((items ?? []) as Product[]);
     setMovements((movs ?? []) as Movement[]);
     setLoading(false);
   }, [businessId]);
 
-  React.useEffect(() => {
-    load();
-  }, [load]);
+  React.useEffect(() => { load(); }, [load]);
 
-  const byCat = React.useMemo(() => {
-    const map = new Map<string, Product[]>();
-    for (const p of products) {
-      const cat = p.category ?? "otros";
-      if (!map.has(cat)) map.set(cat, []);
-      map.get(cat)!.push(p);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [products]);
+  // Categories from actual data
+  const categories = React.useMemo(
+    () => Array.from(new Set(products.map((p) => p.category ?? "Productos"))),
+    [products]
+  );
+
+  React.useEffect(() => {
+    if (categories.length > 0 && !categories.includes(activeCat)) setActiveCat(categories[0]);
+  }, [categories.join(",")]);
+
+  const filtered = products.filter((p) => (p.category ?? "Productos") === activeCat);
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground flex items-center justify-center gap-2 w-full">
         <Loader2 className="size-4 animate-spin" /> Cargando inventario…
+      </div>
+    );
+  }
+
+  if (products.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground">
+        Sin productos en el catálogo. Cargá productos en <strong>Configuración → Catálogo</strong>.
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      {products.length === 0 ? (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground">
-          Sin productos en el catálogo. Cargá productos en Configuración → Catálogo.
-        </div>
-      ) : (
-        byCat.map(([cat, items]) => (
-          <div
-            key={cat}
-            className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden"
-          >
-            <div className="px-5 py-3 text-[11px] tracking-[0.18em] font-semibold text-muted-foreground/80 border-b border-white/5 uppercase">
-              {cat}
+      {/* Horizontal category tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {categories.map((c) => (
+          <button key={c} onClick={() => setActiveCat(c)}
+            className={cn(
+              "rounded-full border px-4 py-1.5 text-xs whitespace-nowrap font-medium transition-colors",
+              activeCat === c
+                ? "border-amber-300/50 bg-amber-300/10 text-amber-200"
+                : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground"
+            )}>
+            {c}
+          </button>
+        ))}
+      </div>
+
+      {/* Products in active category */}
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin productos en esta categoría.</div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            <div className="grid grid-cols-[1fr_80px_80px_100px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">
+              <div>Producto</div>
+              <div className="text-center">Stock</div>
+              <div className="text-center">Estado</div>
+              <div />
             </div>
-            {items.map((p) => {
+            {filtered.map((p) => {
               const stock = Number(p.stock ?? 0);
               const min = Number(p.stock_min ?? 0);
               const crit = Number(p.stock_critical ?? 0);
               let badge: { cls: string; label: string } | null = null;
               let stockCls = "text-foreground";
-              if (stock === 0) {
-                badge = { cls: "bg-rose-400/15 text-rose-300", label: "SIN STOCK" };
-                stockCls = "text-rose-300";
-              } else if (crit > 0 && stock <= crit) {
-                badge = { cls: "bg-rose-400/15 text-rose-300", label: "CRÍTICO" };
-                stockCls = "text-rose-300";
-              } else if (min > 0 && stock <= min) {
-                badge = { cls: "bg-amber-400/15 text-amber-300", label: "BAJO" };
-                stockCls = "text-amber-300";
-              }
+              if (stock === 0) { badge = { cls: "bg-rose-400/15 text-rose-300 ring-rose-400/20", label: "SIN STOCK" }; stockCls = "text-rose-300"; }
+              else if (crit > 0 && stock <= crit) { badge = { cls: "bg-rose-400/15 text-rose-300 ring-rose-400/20", label: "CRÍTICO" }; stockCls = "text-rose-300"; }
+              else if (min > 0 && stock <= min) { badge = { cls: "bg-amber-400/15 text-amber-300 ring-amber-400/20", label: "BAJO" }; stockCls = "text-amber-300"; }
+              else { badge = { cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20", label: "OK" }; }
               return (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-3 px-5 py-3 border-b border-white/5 last:border-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground">{p.name}</div>
+                <div key={p.id} className="grid grid-cols-[1fr_80px_80px_100px] px-5 py-3.5 items-center hover:bg-white/[0.02] transition-colors">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">{p.name}</div>
                     {(min > 0 || crit > 0) && (
                       <div className="text-[11px] text-muted-foreground">
-                        {min > 0 && <>Avisar en {min}</>}
-                        {min > 0 && crit > 0 && " · "}
-                        {crit > 0 && <>Crítico en {crit}</>}
+                        {min > 0 && `Avisar ≤${min}`}{min > 0 && crit > 0 && " · "}{crit > 0 && `Crítico ≤${crit}`}
                       </div>
                     )}
                   </div>
-                  <div className={cn("text-lg font-bold tabular-nums", stockCls)}>{stock}</div>
-                  {badge && (
-                    <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", badge.cls)}>
-                      {badge.label}
-                    </span>
-                  )}
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setModal({ product: p, direction: -1 })}
-                      className="size-8 grid place-items-center rounded-md border border-white/10 text-muted-foreground hover:text-foreground"
-                    >
+                  <div className={cn("text-center text-xl font-bold tabular-nums", stockCls)}>{stock}</div>
+                  <div className="flex justify-center">
+                    {badge && <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium ring-1", badge.cls)}>{badge.label}</span>}
+                  </div>
+                  <div className="flex gap-1 justify-end">
+                    <button onClick={() => setModal({ product: p, direction: -1 })}
+                      className="size-8 grid place-items-center rounded-md border border-white/10 text-muted-foreground hover:text-foreground transition-colors">
                       <Minus className="size-4" />
                     </button>
-                    <button
-                      onClick={() => setModal({ product: p, direction: 1 })}
-                      className="size-8 grid place-items-center rounded-md bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950"
-                    >
+                    <button onClick={() => setModal({ product: p, direction: 1 })}
+                      className="size-8 grid place-items-center rounded-md bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950">
                       <Plus className="size-4" />
                     </button>
                   </div>
@@ -178,77 +179,44 @@ export function InventarioTab({
               );
             })}
           </div>
-        ))
-      )}
+        )}
+      </div>
 
-      {/* Últimos movimientos */}
+      {/* Recent movements */}
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="text-base font-semibold text-foreground">Últimos movimientos</h3>
-          <button
-            onClick={() => setShowHistory(true)}
-            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
-          >
+          <button onClick={() => setShowHistory(true)}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5">
             <History className="size-3.5" /> Ver todo
           </button>
         </div>
         {movements.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin movimientos.</div>
-        ) : (
-          movements.slice(0, 8).map((m) => {
-            const s = mvStyle(m.type);
-            const date = new Date(m.created_at).toLocaleString("es-AR", {
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-            return (
-              <div
-                key={m.id}
-                className="flex items-center gap-3 px-5 py-2.5 border-b border-white/5 last:border-0"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-foreground">{m.product_name ?? "—"}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {date} · {m.user_email ?? "—"}
-                    {m.note ? ` · ${m.note}` : ""}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className={cn("text-sm font-bold tabular-nums", s.color)}>
-                    {s.sign}
-                    {m.qty}
-                  </div>
-                  {m.stock_before != null && (
-                    <div className="text-[10px] text-muted-foreground">
-                      {m.stock_before}→{m.stock_after}
-                    </div>
-                  )}
-                </div>
+        ) : movements.slice(0, 8).map((m) => {
+          const s = mvStyle(m.type);
+          const date = new Date(m.created_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+          return (
+            <div key={m.id} className="flex items-center gap-3 px-5 py-2.5 border-b border-white/5 last:border-0">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-foreground">{m.product_name ?? "—"}</div>
+                <div className="text-[11px] text-muted-foreground">{date} · {m.user_email ?? "—"}{m.note ? ` · ${m.note}` : ""}</div>
               </div>
-            );
-          })
-        )}
+              <div className="text-right">
+                <div className={cn("text-sm font-bold tabular-nums", s.color)}>{s.sign}{m.qty}</div>
+                {m.stock_before != null && <div className="text-[10px] text-muted-foreground">{m.stock_before}→{m.stock_after}</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {modal && (
-        <StockModal
-          product={modal.product}
-          direction={modal.direction}
-          businessId={businessId!}
-          userEmail={userEmail}
-          onClose={() => setModal(null)}
-          onSaved={() => {
-            setModal(null);
-            load();
-          }}
-        />
+        <StockModal product={modal.product} direction={modal.direction}
+          businessId={businessId!} userEmail={userEmail}
+          onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />
       )}
-
-      {showHistory && (
-        <HistoryModal businessId={businessId!} onClose={() => setShowHistory(false)} />
-      )}
+      {showHistory && <HistoryModal businessId={businessId!} onClose={() => setShowHistory(false)} />}
     </div>
   );
 }
