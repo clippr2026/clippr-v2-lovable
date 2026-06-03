@@ -269,7 +269,6 @@ function BrandingSection() {
     { icon: Phone, label: "Teléfono de contacto", hint: "Para confirmaciones y WhatsApp", key: "phone" },
     { icon: Mail, label: "Email de contacto", hint: "Para notificaciones y comunicaciones", key: "email", type: "email" },
     { icon: Instagram, label: "Instagram / Redes", hint: "Aparece en el pie de los tickets", key: "instagram" },
-    { icon: Globe, label: "Sitio web", hint: "URL del sitio web del negocio", key: "website" },
   ];
 
   return (
@@ -1764,7 +1763,14 @@ function EquipoSection() {
                       : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
                   )}
                 >
-                  <div className="text-lg font-semibold">Automático</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-lg font-semibold">Automático</div>
+                    {approvalMode === "auto" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        ✓ Modo predeterminado
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
                     <div>✅ El profesional puede cobrar desde su panel.</div>
                     <div>✅ El cobro impacta automáticamente en los ingresos de Caja.</div>
@@ -1785,7 +1791,14 @@ function EquipoSection() {
                       : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
                   )}
                 >
-                  <div className="text-lg font-semibold">Manual</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-lg font-semibold">Manual</div>
+                    {approvalMode === "manual" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        ✓ Modo predeterminado
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
                     <div>✅ El profesional envía el cobro a Caja y queda pendiente de confirmación.</div>
                     <div>✅ Caja revisa la información enviada.</div>
