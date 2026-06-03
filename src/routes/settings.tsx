@@ -1194,7 +1194,7 @@ function EquipoSection() {
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
         setAccessUsers(loadedUsers);
         setUserPermissions(normalizeUserPermissions(schedule._userPermissions));
-        if (typeof caja.approvalModeEnabled === "boolean") setApprovalEnabled(caja.approvalModeEnabled);
+        setApprovalEnabled(caja.approvalModeEnabled === true);
         setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
         setSelectedAccessUserId((current) => current || loadedUsers[0]?.id || "");
       });
@@ -1310,6 +1310,7 @@ function EquipoSection() {
     );
 
     if (error) return toast.error("Error guardando accesos y permisos: " + error.message);
+    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
     setPendingProfessionals([]);
     await load();
     toast.success("Equipo guardado correctamente");
@@ -1324,7 +1325,7 @@ function EquipoSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [businessId, rolePermissions, accessUsers, userPermissions, pendingProfessionals, load]);
+  }, [businessId, rolePermissions, accessUsers, userPermissions, pendingProfessionals, load, approvalEnabled, approvalMode]);
 
   function openNew() {
     setEditingEmp(null);
