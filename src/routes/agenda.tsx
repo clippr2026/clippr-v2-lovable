@@ -68,7 +68,7 @@ const STATUS_META: Record<
     dot: "oklch(0.72 0.25 300)",
   },
   completed: {
-    label: "En servicio",
+    label: "Confirmado",
     bg: "oklch(0.42 0.18 80 / 0.5)",
     border: "oklch(0.82 0.2 75)",
     dot: "oklch(0.88 0.2 75)",
@@ -254,14 +254,9 @@ function AgendaPage() {
   };
 
   const goToCobro = async (a: Appointment) => {
-    if (a.status !== "completed" && a.status !== "charged") {
-      try {
-        await setAppointmentStatus(a.id, "completed");
-        data.refresh();
-      } catch (e) {
-        toast.error((e as Error).message);
-        return;
-      }
+    if (a.status === "cancelled") {
+      toast.error("No se puede cobrar un turno cancelado.");
+      return;
     }
     const depositPaid = Number(a.deposit_paid ?? 0);
     const totalPrice  = Number(a.service_price ?? 0);
@@ -326,7 +321,6 @@ function AgendaPage() {
   const counts = {
     pending: data.appointments.filter((a) => a.status === "pending").length,
     confirmed: data.appointments.filter((a) => a.status === "confirmed").length,
-    inService: data.appointments.filter((a) => a.status === "completed").length,
     seña: data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || "")).length,
     charged: data.appointments.filter((a) => a.status === "charged").length,
     cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
@@ -399,11 +393,10 @@ function AgendaPage() {
       </div>
 
       {/* Quick stats */}
-      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 animate-fade-up">
+      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-up">
         {([
           ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
           ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
-          ["inService", "En servicio",  "oklch(0.92 0.18 100)"],
           ["charged",   "Cobrados",     "oklch(0.76 0.2 155)"],
           ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
         ] as [string,string,string][]).map(([k, label, color]) => (
@@ -429,8 +422,8 @@ function AgendaPage() {
 
       {/* Filter modal */}
       {filterModal && (() => {
-        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", inService:"completed", charged:"charged", cancelled:"cancelled" };
-        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", inService:"En servicio", charged:"Cobrados", cancelled:"Cancelados" };
+        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", charged:"charged", cancelled:"cancelled" };
+        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", charged:"Cobrados", cancelled:"Cancelados" };
         const filtered = filterModal === "seña"
           ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
           : data.appointments.filter((a) => a.status === statusMap[filterModal]);
@@ -1054,7 +1047,6 @@ function AppointmentDetailDialog({
                 return ([
                   ["pending", "Pendiente"],
                   ["confirmed", "Confirmado"],
-                  ["completed", "En servicio"],
                 ] as [ApptStatus, string][]).map(([status, label]) => {
                   const sMeta = STATUS_META[status] ?? STATUS_META.pending;
                   const isActive = appointment.status === status;
