@@ -843,6 +843,14 @@ type EmployeeRow = {
   commission_pct?: number | null;
 };
 
+type CommissionMode = "percent" | "fixed";
+
+type CommissionConfig = {
+  enabled: boolean;
+  mode: CommissionMode;
+  value: string;
+};
+
 type NewProForm = {
   fullName: string;
   email: string;
@@ -855,6 +863,7 @@ type NewProForm = {
   description: string;
   specialty: string;
   commissionPct: string;
+  commissions: Record<string, CommissionConfig>;
 };
 
 const EMPTY_FORM: NewProForm = {
@@ -869,6 +878,7 @@ const EMPTY_FORM: NewProForm = {
   description: "",
   specialty: "",
   commissionPct: "",
+  commissions: {},
 };
 
 const inputCls =
@@ -932,6 +942,7 @@ type AccessUser = {
   email: string;
   role: RolePermissionId;
   status: AccessStatus;
+  employee_id?: string | null;
 };
 
 const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
@@ -948,6 +959,7 @@ const EMPTY_ACCESS_FORM: Omit<AccessUser, "id"> & { password: string } = {
   password: "",
   role: "profesional",
   status: "active",
+  employee_id: null,
 };
 
 const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
@@ -1077,6 +1089,7 @@ function normalizeAccessUsers(value: unknown): AccessUser[] {
         email: String(row.email ?? "").trim(),
         role,
         status: row.status === "inactive" ? "inactive" : "active",
+        employee_id: typeof row.employee_id === "string" ? row.employee_id : null,
       };
     })
     .filter((item) => item.name || item.email);
@@ -1107,6 +1120,7 @@ function EquipoSection() {
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
   const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
   const [rows, setRows] = useState<EmployeeRow[]>([]);
+  const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1123,13 +1137,23 @@ function EquipoSection() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase
-      .from("employees")
-      .select("id,full_name,is_active,commission_pct")
-      .eq("business_id", businessId)
-      .order("full_name", { ascending: true });
+    const [{ data, error }, catalogResult] = await Promise.all([
+      supabase
+        .from("employees")
+        .select("id,full_name,is_active,commission_pct")
+        .eq("business_id", businessId)
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("price_catalog")
+        .select("id,name,price,duration_min,category,active,stock,cash_discount")
+        .eq("business_id", businessId)
+        .order("category")
+        .order("name"),
+    ]);
     if (error) toast.error("Error cargando profesionales: " + error.message);
+    if (catalogResult.error) toast.error("Error cargando servicios y catálogo: " + catalogResult.error.message);
     setRows((data ?? []) as EmployeeRow[]);
+    setCommissionItems((catalogResult.data ?? []) as PriceRow[]);
     setLoading(false);
   }, [businessId]);
 
@@ -1171,7 +1195,7 @@ function EquipoSection() {
         schedule: {
           ...existingSchedule,
           _rolePermissions: cleaned,
-          _accessUsers: accessUsers.map(({ id, name, email, role, status }) => ({ id, name, email, role, status })),
+          _accessUsers: accessUsers.map(({ id, name, email, role, status, employee_id }) => ({ id, name, email, role, status, employee_id: employee_id ?? null })),
           _userPermissions: userPermissions,
         },
       },
@@ -1200,6 +1224,31 @@ function EquipoSection() {
     setOpen(true);
   }
 
+  async function saveEmployeeCommissionConfig(employeeId: string) {
+    if (!businessId) return;
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+
+    await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        schedule: {
+          ...existingSchedule,
+          _employeeCommissions: {
+            ...existingCommissions,
+            [employeeId]: form.commissions,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+  }
+
   async function saveProfessional() {
     if (!businessId) return;
     const name = form.fullName.trim();
@@ -1218,6 +1267,7 @@ function EquipoSection() {
       }).eq("id", editingEmp.id);
       setSaving(false);
       if (error) return toast.error("Error: " + error.message);
+      await saveEmployeeCommissionConfig(editingEmp.id);
       toast.success("Profesional actualizado correctamente");
       setOpen(false);
       setEditingEmp(null);
@@ -1240,6 +1290,7 @@ function EquipoSection() {
       setSaving(false);
       return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
     }
+    await saveEmployeeCommissionConfig(inserted.id);
     setSaving(false);
     toast.success("Profesional agregado correctamente");
     setOpen(false);
@@ -1297,9 +1348,16 @@ function EquipoSection() {
   }
 
   function addAccessUser() {
-    const name = accessForm.name.trim();
+    const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
+    const name =
+      accessForm.role === "profesional"
+        ? (selectedEmployee?.full_name || selectedEmployee?.name || "").trim()
+        : ROLE_LABEL_BY_ID[accessForm.role];
     const email = accessForm.email.trim();
-    if (!name) return toast.error("Ingresá el nombre del acceso");
+
+    if (accessForm.role === "profesional" && !selectedEmployee) {
+      return toast.error("Elegí el profesional para este acceso");
+    }
     if (!email) return toast.error("Ingresá el correo electrónico");
 
     const id = crypto.randomUUID();
@@ -1309,6 +1367,7 @@ function EquipoSection() {
       email,
       role: accessForm.role,
       status: accessForm.status,
+      employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
     };
 
     setAccessUsers((current) => [...current, newUser]);
@@ -1530,14 +1589,32 @@ function EquipoSection() {
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
               <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-4">
-                <Field label="Nombre">
-                  <input
-                    value={accessForm.name}
-                    onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
-                    className={inputCls}
-                    placeholder="Ej: Alejandro"
-                  />
-                </Field>
+                {accessForm.role === "profesional" ? (
+                  <Field label="Profesional">
+                    <select
+                      value={accessForm.employee_id ?? ""}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, employee_id: e.target.value || null }))}
+                      className={inputCls}
+                    >
+                      <option value="">Elegí un profesional</option>
+                      {rows.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.full_name || emp.name || "Sin nombre"}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ) : (
+                  <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Acceso
+                    </div>
+                    <div className="mt-1 text-sm font-medium">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      El nombre se asigna automáticamente según el rol.
+                    </div>
+                  </div>
+                )}
 
                 <Field label="Correo electrónico">
                   <input
@@ -1563,10 +1640,18 @@ function EquipoSection() {
                   <Field label="Rol">
                     <select
                       value={accessForm.role}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, role: e.target.value as RolePermissionId }))}
+                      onChange={(e) => {
+                        const role = e.target.value as RolePermissionId;
+                        setAccessForm((f) => ({
+                          ...f,
+                          role,
+                          name: "",
+                          employee_id: role === "profesional" ? f.employee_id : null,
+                        }));
+                      }}
                       className={inputCls}
                     >
-                      {ROLE_PERMISSION_OPTIONS.map((role) => (
+                      {ROLE_PERMISSION_OPTIONS.filter((role) => role.id !== "admin_general").map((role) => (
                         <option key={role.id} value={role.id}>
                           {role.label}
                         </option>
@@ -1962,20 +2047,6 @@ function EquipoSection() {
                       placeholder="Ej: Alejandro"
                     />
                   </Field>
-                  <Field
-                    label="Email de acceso *"
-                    hint="Este email se usará para ingresar a la plataforma."
-                  >
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) =>
-                        setForm({ ...form, email: e.target.value })
-                      }
-                      className={inputCls}
-                      placeholder="ale@gmail.com"
-                    />
-                  </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Teléfono">
                       <input
@@ -2032,27 +2103,6 @@ function EquipoSection() {
                       </div>
                     </div>
                   </label>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                      Color en agenda
-                    </div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      {AGENDA_COLORS.map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => setForm({ ...form, color: c })}
-                          className={cn(
-                            "h-8 w-8 rounded-full transition-all ring-2",
-                            form.color === c
-                              ? "ring-white scale-110"
-                              : "ring-white/10",
-                          )}
-                          style={{ background: c }}
-                          aria-label={c}
-                        />
-                      ))}
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -2179,33 +2229,136 @@ function EquipoSection() {
               )}
 
               {dlgTab === "comisiones" && (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Activá la comisión general. Podés ajustar por servicio luego
-                    de crear al profesional.
-                  </p>
-                  <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">
-                        Comisión general
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Aplicada a todos los servicios.
-                      </div>
-                    </div>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={form.commissionPct}
-                      onChange={(e) =>
-                        setForm({ ...form, commissionPct: e.target.value })
-                      }
-                      className="w-20 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-sm text-right focus:outline-none"
-                      placeholder="0"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
+                <div className="space-y-5">
+                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                    <div className="font-semibold text-sm">Comisiones y servicios que realiza</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Marcá qué servicios/productos realiza o vende este profesional y configurá si cobra porcentaje o monto fijo por cada uno.
+                    </p>
                   </div>
+
+                  {(["servicios", "catalogo"] as const).map((kind) => {
+                    const isServiceKind = kind === "servicios";
+                    const filtered = commissionItems.filter((item) =>
+                      isServiceKind ? item.duration_min != null : item.duration_min == null
+                    );
+                    const grouped = filtered.reduce((acc, item) => {
+                      const category = item.category || (isServiceKind ? "Servicios" : "Productos");
+                      if (!acc[category]) acc[category] = [];
+                      acc[category].push(item);
+                      return acc;
+                    }, {} as Record<string, PriceRow[]>);
+
+                    return (
+                      <div key={kind} className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-white/5">
+                          <div className="text-sm font-semibold">
+                            {isServiceKind ? "Servicios" : "Catálogo"}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {isServiceKind
+                              ? "Servicios cargados en Configuración → Servicios."
+                              : "Productos cargados en Configuración → Catálogo."}
+                          </div>
+                        </div>
+
+                        {Object.keys(grouped).length === 0 ? (
+                          <div className="p-4 text-sm text-muted-foreground">
+                            No hay {isServiceKind ? "servicios" : "productos"} cargados.
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-white/5">
+                            {Object.entries(grouped).map(([category, items]) => (
+                              <div key={category} className="p-4 space-y-3">
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                                  {category}
+                                </div>
+                                <div className="space-y-2">
+                                  {items.map((item) => {
+                                    const cfg = form.commissions[item.id] ?? {
+                                      enabled: false,
+                                      mode: "percent" as CommissionMode,
+                                      value: "",
+                                    };
+                                    const updateCfg = (patch: Partial<CommissionConfig>) =>
+                                      setForm({
+                                        ...form,
+                                        commissions: {
+                                          ...form.commissions,
+                                          [item.id]: { ...cfg, ...patch },
+                                        },
+                                      });
+
+                                    return (
+                                      <div
+                                        key={item.id}
+                                        className={cn(
+                                          "rounded-xl ring-1 p-3 transition-all",
+                                          cfg.enabled ? "bg-white/[0.06] ring-white/10" : "bg-white/[0.025] ring-white/5 opacity-75",
+                                        )}
+                                      >
+                                        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                                          <button
+                                            type="button"
+                                            onClick={() => updateCfg({ enabled: !cfg.enabled })}
+                                            className={cn(
+                                              "h-6 w-11 rounded-full relative transition-colors shrink-0",
+                                              cfg.enabled ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                                            )}
+                                          >
+                                            <span
+                                              className={cn(
+                                                "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                cfg.enabled ? "left-[22px]" : "left-0.5",
+                                              )}
+                                            />
+                                          </button>
+
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-medium truncate">{item.name}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                              ${Number(item.price ?? 0).toLocaleString("es-AR")}
+                                              {isServiceKind && item.duration_min ? ` · ${item.duration_min} min` : ""}
+                                            </div>
+                                          </div>
+
+                                          <div className="flex items-center gap-2">
+                                            <select
+                                              value={cfg.mode}
+                                              disabled={!cfg.enabled}
+                                              onChange={(e) => updateCfg({ mode: e.target.value as CommissionMode })}
+                                              className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                                            >
+                                              <option value="percent">% comisión</option>
+                                              <option value="fixed">Monto fijo</option>
+                                            </select>
+                                            <div className="flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                disabled={!cfg.enabled}
+                                                value={cfg.value}
+                                                onChange={(e) => updateCfg({ value: e.target.value })}
+                                                className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
+                                                placeholder="0"
+                                              />
+                                              <span className="text-xs text-muted-foreground">
+                                                {cfg.mode === "percent" ? "%" : "$"}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
