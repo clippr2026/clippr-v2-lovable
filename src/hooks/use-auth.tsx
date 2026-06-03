@@ -212,20 +212,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [hydrate]);
 
   const signIn = React.useCallback(async (email: string, password: string, remember = false) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const cleanEmail = email.trim();
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
     if (!error) {
       if (remember) {
         localStorage.setItem("clippr_remember_login", "1");
-        localStorage.setItem("clippr_remember_email", email);
+        localStorage.setItem("clippr_remember_email", cleanEmail);
       } else {
         localStorage.removeItem("clippr_remember_login");
         localStorage.removeItem("clippr_remember_email");
       }
+
+      // Fuerza la lectura de la sesión persistida por Supabase.
+      // Con persistSession activo, mientras el usuario no cierre sesión desde la app,
+      // al volver a entrar se hidrata la sesión y no vuelve a pedir login.
+      const { data } = await supabase.auth.getSession();
+      await hydrate(data.session);
     }
+
     return { error: error?.message ?? null };
-  }, []);
+  }, [hydrate]);
 
   const signOut = React.useCallback(async () => {
+    localStorage.removeItem("clippr_remember_login");
+    localStorage.removeItem("clippr_remember_email");
     await supabase.auth.signOut();
   }, []);
 
