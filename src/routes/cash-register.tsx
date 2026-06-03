@@ -39,6 +39,7 @@ import {
   Check,
   Loader2,
   Unlock,
+  CalendarDays
 } from "lucide-react";
 
 export const Route = createFileRoute("/cash-register")({
