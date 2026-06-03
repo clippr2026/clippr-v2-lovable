@@ -1101,7 +1101,7 @@ function EquipoSection() {
   const [tab, setTab] = useState<"pros" | "users" | "perms">("pros");
   const [selectedPermRole, setSelectedPermRole] = useState<RolePermissionId>("admin_general");
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(DEFAULT_ROLE_PERMISSIONS);
-  const [individualPermMode, setIndividualPermMode] = useState(false);
+  const [individualPermMode, setIndividualPermMode] = useState(true);
   const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
@@ -1355,6 +1355,15 @@ function EquipoSection() {
     });
   }
 
+  function resetSelectedAccessPermissions() {
+    if (!selectedAccessUser) return;
+    setUserPermissions((current) => ({
+      ...current,
+      [selectedAccessUser.id]: { ...DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role] },
+    }));
+    toast.success("Permisos recomendados restablecidos");
+  }
+
   const selectedRole = ROLE_PERMISSION_OPTIONS.find((role) => role.id === selectedPermRole) ?? ROLE_PERMISSION_OPTIONS[0];
   const selectedRoleUsers = accessUsers.filter((user) => user.role === selectedPermRole);
   const selectedAccessUser =
@@ -1369,7 +1378,7 @@ function EquipoSection() {
     : selectedPermRole === "admin_general"
       ? allOnPermissions()
       : rolePermissions[selectedPermRole];
-  const selectedRoleLocked = !individualPermMode && selectedRole.id === "admin_general";
+  const selectedRoleLocked = selectedAccessUser?.role === "admin_general";
   const currentPanelTitle = individualPermMode && selectedAccessUser
     ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
     : selectedRole.label;
@@ -1640,36 +1649,14 @@ function EquipoSection() {
           <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
             <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
               <div>
-                <h3 className="font-semibold">Roles y permisos</h3>
+                <h3 className="font-semibold">Personalizar acceso</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Primero elegís el rol. Si necesitás un caso especial, activás permisos individuales y elegís el acceso de esa persona.
+                  Elegí un rol para filtrar los accesos y después seleccioná la persona que querés configurar.
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 p-1">
-                <button
-                  type="button"
-                  onClick={() => setIndividualPermMode(false)}
-                  className={cn(
-                    "rounded-lg px-3 py-2 text-xs font-medium transition-colors",
-                    !individualPermMode
-                      ? "bg-white/10 text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Permisos por rol
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIndividualPermMode(true)}
-                  className={cn(
-                    "rounded-lg px-3 py-2 text-xs font-medium transition-colors",
-                    individualPermMode
-                      ? "bg-white/10 text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Personalizar acceso
-                </button>
+              <div className="inline-flex items-center gap-2 rounded-full bg-[oklch(0.78_0.17_55/0.12)] ring-1 ring-[oklch(0.78_0.17_55/0.24)] px-3 py-1.5 text-xs text-[oklch(0.86_0.14_75)]">
+                <Star className="h-3.5 w-3.5" />
+                Configuración recomendada por rol
               </div>
             </div>
 
@@ -1696,15 +1683,9 @@ function EquipoSection() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-2xl">{role.icon}</div>
-                      {locked ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/8 ring-1 ring-white/10 px-2 py-1 text-[10px] text-muted-foreground">
-                          <Lock className="h-3 w-3" /> Fijo
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1 text-[10px] text-muted-foreground">
-                          {usersCount} accesos
-                        </span>
-                      )}
+                      <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1 text-[10px] text-muted-foreground">
+                        {usersCount} accesos
+                      </span>
                     </div>
                     <div className="mt-3 font-semibold text-sm">{role.label}</div>
                     <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
@@ -1716,43 +1697,58 @@ function EquipoSection() {
             </div>
           </div>
 
-          {individualPermMode && (
-            <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-semibold">Permiso individual</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Estás viendo los accesos con rol {selectedRole.label}. Elegí una persona y modificá solo su panel.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Acceso:</span>
-                  <select
-                    value={selectedAccessUser?.id ?? ""}
-                    onChange={(e) => setSelectedAccessUserId(e.target.value)}
-                    className="min-w-[220px] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none"
-                  >
-                    {selectedRoleUsers.length === 0 ? (
-                      <option value="">No hay accesos con este rol</option>
-                    ) : (
-                      selectedRoleUsers.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name} · {user.email}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
+          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-semibold">Acceso seleccionado</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Estás viendo los accesos con rol {selectedRole.label}. Elegí una persona y modificá solo su panel.
+                </p>
               </div>
 
-              {selectedRoleUsers.length === 0 && (
-                <div className="mt-4 rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
-                  Primero creá un acceso con el rol {selectedRole.label} desde la pestaña Accesos.
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="text-xs text-muted-foreground">Acceso:</span>
+                <select
+                  value={selectedAccessUser?.id ?? ""}
+                  onChange={(e) => setSelectedAccessUserId(e.target.value)}
+                  className="min-w-[220px] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none"
+                >
+                  {selectedRoleUsers.length === 0 ? (
+                    <option value="">No hay accesos con este rol</option>
+                  ) : (
+                    selectedRoleUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} · {user.email}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
             </div>
-          )}
+
+            {selectedRoleUsers.length === 0 ? (
+              <div className="mt-4 rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
+                Primero creá un acceso con el rol {selectedRole.label} desde la pestaña Accesos.
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <Star className="h-3.5 w-3.5 text-[oklch(0.86_0.14_75)]" />
+                  <span>
+                    Configuración recomendada para {selectedAccessUser ? ROLE_LABEL_BY_ID[selectedAccessUser.role] : selectedRole.label}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetSelectedAccessPermissions}
+                  disabled={!selectedAccessUser}
+                  className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Restablecer permisos recomendados
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-5">
             <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
