@@ -190,22 +190,26 @@ export function useProfSales(
 }
 
 // ── Today's appointments for one professional ─────────────────────────────
-export function useProfTurnos(businessId: string | null, empId: string | null) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+export function useProfTurnos(
+  businessId: string | null,
+  empId: string | null,
+  from?: string,
+  to?: string,
+) {
+  const today = new Date().toISOString().slice(0, 10);
+  const validFrom = from || today;
+  const validTo = to || today;
 
   return useQuery({
-    queryKey: ["prof-turnos", businessId, empId, today.toISOString().slice(0, 10)],
+    queryKey: ["prof-turnos", businessId, empId, validFrom, validTo],
     queryFn: async (): Promise<ProfTurno[]> => {
       const { data, error } = await supabase
         .from("appointments")
         .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
-        .gte("starts_at", today.toISOString())
-        .lte("starts_at", todayEnd.toISOString())
+        .gte("starts_at", validFrom + "T00:00:00")
+        .lte("starts_at", validTo + "T23:59:59")
         .order("starts_at", { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []) as ProfTurno[];
