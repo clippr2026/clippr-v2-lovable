@@ -135,7 +135,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("starts_at"),
       supabase
         .from("employees")
-        .select("id,full_name")
+        .select("id,full_name,avatar_url")
         .eq("business_id", businessId)
         .order("full_name", { ascending: true }),
       supabase
@@ -235,6 +235,7 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     client_id: input.client_id ?? null,
     client_name: input.client_name,
     client_phone: input.client_phone ?? null,
+    client_email: input.client_email ?? null,
     employee_id: input.employee_id,
     service_name: input.service_name,
     service_price: input.service_price,
