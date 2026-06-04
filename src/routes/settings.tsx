@@ -3751,7 +3751,7 @@ function SenasSection() {
   const [lostLocal, setLostLocal] = React.useState("100");
   const [lostProf, setLostProf] = React.useState("0");
   const [msg, setMsg] = React.useState(
-    "Hola 👋\nPara confirmar tu turno debés abonar una seña.\nTitular: [Nombre]\nAlias: [alias]\nCBU: [cbu]\nBanco: [banco]"
+    "¡Hola! 👋\n\nPara confirmar tu turno es necesario abonar una seña.\n\nDatos para realizar el pago:\nTitular: [Nombre]\nAlias: [Alias]\nCBU: [CBU]\n\nUna vez realizado el pago, envianos el comprobante por WhatsApp al:\n📲 [WhatsApp del local]\n\nIMPORTANTE:\n• La seña se descuenta del valor total del servicio.\n• Podés cancelar o reprogramar tu turno hasta 24 horas antes sin perder la seña.\n• Si cancelás con menos de 24 horas de anticipación o no asistís al turno, la seña no será reembolsable.\n• La reserva queda confirmada únicamente una vez acreditado el pago.\n• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.\n\n¡Muchas gracias! Te esperamos. 🙌"
   );
   const [loading, setLoading] = React.useState(true);
 
@@ -4007,7 +4007,7 @@ function SenasSection() {
         </Block>
 
         {/* Bloque 5: Mensaje */}
-        <Block title="Mensaje para el cliente" subtitle="Se muestra al cliente al finalizar la reserva cuando se requiere seña. No se envía automáticamente.">
+        <Block title="Mensaje para el cliente" subtitle="Este mensaje se muestra automáticamente en el sitio web luego de que el cliente agenda un turno que requiere seña. Podés personalizarlo con los datos de tu cuenta bancaria y las condiciones de reserva.">
           <div className="relative">
             <textarea
               rows={4}
@@ -4015,9 +4015,6 @@ function SenasSection() {
               onChange={e => setMsg(e.target.value)}
               className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
             />
-            <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground/50">
-              {msg.length} car.
-            </div>
           </div>
           <div className="text-xs text-muted-foreground">
             Podés usar saltos de línea. El mensaje se puede copiar y enviar por WhatsApp o mensaje de texto.
