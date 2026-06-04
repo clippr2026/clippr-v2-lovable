@@ -57,7 +57,7 @@ export const Route = createFileRoute("/cash-register")({
   head: () => ({
     meta: [
       { title: "Caja — Clippr" },
-      { name: "description", content: "Caja del día, nueva venta, precios e inventario." },
+      { name: "description", content: "Cobros, gastos y liquidaciones." },
     ],
   }),
   component: CashRegisterPage,
@@ -125,6 +125,9 @@ function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
           Caja
         </h1>
+        <p className="mt-2 text-sm md:text-base text-muted-foreground">
+          Cobros, gastos y liquidaciones
+        </p>
       </div>
     </div>
   );
@@ -288,7 +291,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
                     </span>
                   )}
                 </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>
+                {s.sub && <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>}
               </div>
               <div className="rounded-xl bg-white/[0.04] border border-white/5 p-2">
                 <s.icon className="size-3.5 text-foreground/80" />
