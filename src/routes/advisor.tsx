@@ -61,7 +61,7 @@ function AdvisorRoute() {
     <AppShell>
       <Topbar
         title="Asesor IA"
-        subtitle="Recomendaciones y oportunidades"
+        subtitle="Decisiones para mejorar el negocio"
         action={<div />}
       />
       <AdvisorContent businessId={businessId} />
@@ -100,6 +100,10 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
   const emptySlots = data ? Math.max(data.totalSlots - data.usedSlots, 0) : 0;
   const revenueDelta = data ? pctDelta(data.revHoy, data.revAyer) : null;
   const ticketDelta = data ? pctDelta(data.ticket, data.ticketAyer) : null;
+  const estimatedTicket = Math.max(data?.ticket ?? 12000, 12000);
+  const recoveryImpact = inactiveClients.length * estimatedTicket;
+  const emptySlotsImpact = emptySlots * estimatedTicket;
+  const ticketImpact = (data?.cobros ?? 0) * 1000;
 
   const health = React.useMemo(() => {
     if (!data) return 0;
@@ -116,8 +120,8 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
   const dailyAlerts: Insight[] = [
     inactiveClients.length > 0
       ? {
-          title: `${inactiveClients.length} clientes para recuperar`,
-          detail: "Hace más de 60 días que no vuelven.",
+          title: `Recuperar ${inactiveClients.length} clientes`,
+          detail: `Impacto estimado: ${fmtAR(recoveryImpact)}.`,
           tone: "warning",
         }
       : {
@@ -127,8 +131,8 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
         },
     emptySlots > 0
       ? {
-          title: `${emptySlots} espacios libres hoy`,
-          detail: "Podés llenarlos con una promo rápida.",
+          title: `Tenés ${emptySlots} espacios libres hoy`,
+          detail: `Podrías generar hasta ${fmtAR(emptySlotsImpact)}.`,
           tone: "warning",
         }
       : {
@@ -139,7 +143,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
     noShowRisk > 0
       ? {
           title: `${noShowRisk} cancelaciones recientes`,
-          detail: "Revisá si conviene reforzar señas o recordatorios.",
+          detail: "Reforzá señas o recordatorios para reducir ausencias.",
           tone: "warning",
         }
       : {
@@ -224,6 +228,21 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
     return <div className="text-sm text-muted-foreground">Analizando métricas del negocio…</div>;
   }
 
+  const healthTone = health >= 76 ? "good" : health >= 51 ? "warning" : "danger";
+  const healthColorClass =
+    healthTone === "good"
+      ? "text-emerald-400"
+      : healthTone === "warning"
+        ? "text-amber-300"
+        : "text-red-400";
+  const healthBarClass =
+    healthTone === "good"
+      ? "from-emerald-500 to-primary"
+      : healthTone === "warning"
+        ? "from-amber-400 to-accent"
+        : "from-red-500 to-amber-400";
+  const healthLabel = healthTone === "good" ? "Salud fuerte" : healthTone === "warning" ? "Hay oportunidades" : "Requiere atención";
+
   return (
     <div className="space-y-6">
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -238,14 +257,15 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
               <p className="mt-1 text-sm text-muted-foreground">Lectura rápida de ingresos, ocupación, clientes y caja.</p>
             </div>
             <div className="text-right">
-              <div className="font-display text-5xl font-semibold tracking-tight">{health}</div>
+              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthColorClass)}>{health}</div>
               <div className="text-sm text-muted-foreground">sobre 100</div>
+              <div className={cn("mt-1 text-xs font-medium", healthColorClass)}>{healthLabel}</div>
             </div>
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all"
+              className={cn("h-full rounded-full bg-gradient-to-r transition-all", healthBarClass)}
               style={{ width: `${health}%` }}
             />
           </div>
@@ -269,7 +289,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
 
       <section className="grid gap-4 lg:grid-cols-3">
         <GlassCard className="p-5">
-          <SectionTitle icon={Target} title="Qué hacer hoy" />
+          <SectionTitle icon={Target} title="Prioridad de hoy" />
           <div className="mt-4 space-y-3">
             {todayTasks.map((item, index) => (
               <div key={item.title} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -286,9 +306,9 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
         <GlassCard className="p-5">
           <SectionTitle icon={DollarSign} title="Oportunidades" />
           <div className="mt-4 space-y-3">
-            <Opportunity label="Recuperar inactivos" value={fmtAR(inactiveClients.length * Math.max(data?.ticket ?? 12000, 12000))} />
-            <Opportunity label="Llenar espacios libres" value={fmtAR(emptySlots * Math.max(data?.ticket ?? 12000, 12000))} />
-            <Opportunity label="Subir ticket +$1.000" value={fmtAR((data?.cobros ?? 0) * 1000)} />
+            <Opportunity label="Recuperar inactivos" value={fmtAR(recoveryImpact)} />
+            <Opportunity label="Llenar espacios libres" value={fmtAR(emptySlotsImpact)} />
+            <Opportunity label="Subir ticket +$1.000" value={fmtAR(ticketImpact)} />
           </div>
         </GlassCard>
 
@@ -335,7 +355,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <SectionTitle icon={Sparkles} title="Análisis mensual" />
-            <p className="mt-2 text-sm text-muted-foreground">Resumen con fortalezas, mejoras y acciones recomendadas del mes.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Generá un cierre simple con fortalezas, mejoras y acciones para el próximo mes.</p>
           </div>
           <button
             type="button"
