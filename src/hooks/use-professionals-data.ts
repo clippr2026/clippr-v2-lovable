@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type Professional = {
   id: string;
   full_name: string;
+  avatar_url?: string | null;
   commission_pct: number;
   is_active: boolean;
 };
@@ -57,11 +58,11 @@ export function useProfessionals(businessId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,commission_pct,is_active")
+        .select("id,full_name,avatar_url,commission_pct,is_active")
         .eq("business_id", businessId!)
         .order("full_name", { ascending: true });
       if (error) throw new Error(error.message);
-      return (data ?? []).filter((e) => e.is_active !== false) as Professional[];
+      return (data ?? []) as Professional[];
     },
     enabled: !!businessId,
     staleTime: 60_000,
