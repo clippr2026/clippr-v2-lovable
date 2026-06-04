@@ -196,6 +196,7 @@ function AgendaPage() {
     employeeId?: string | null;
     startsAt?: Date | null;
   }>({});
+  const [filterModal, setFilterModal] = React.useState<string | null>(null);
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
     const target = startsAt ?? cursor;
@@ -325,7 +326,6 @@ function AgendaPage() {
     charged: data.appointments.filter((a) => a.status === "charged").length,
     cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
   };
-  const [filterModal, setFilterModal] = React.useState<string|null>(null);
 
   const move = (delta: number) => {
     const step = view === "day" ? 1 : view === "week" ? 7 : 30;
