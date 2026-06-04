@@ -3905,7 +3905,7 @@ function SenasSection() {
   return (
     <div className="space-y-4">
       {/* Bloque 1: Activar */}
-      <SenasBlock title="¿Activar señas?" subtitle="Cuando está activado podés requerir una seña para confirmar turnos.">
+      <SenasBlock title="¿Activar señas?">
         <div className="flex gap-3">
           <SenasToggleBtn label="Sí" active={enabled} onClick={() => setEnabled(true)} />
           <SenasToggleBtn label="No" active={!enabled} onClick={() => setEnabled(false)} />
@@ -3914,7 +3914,7 @@ function SenasSection() {
 
       {enabled && (<>
         {/* Bloque 2: Servicios */}
-        <SenasBlock title="Servicios que requieren seña" subtitle="Se cargan automáticamente desde Configuración → Servicios. Activá los que deben pedir seña al reservar.">
+        <SenasBlock title="Servicios que requieren seña">
           <div className="space-y-2">
             {services.length > 0 && (
               <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
@@ -3990,7 +3990,7 @@ function SenasSection() {
         </SenasBlock>
 
         {/* Bloque 3: Monto */}
-        <SenasBlock title="Monto de la seña" subtitle="Definí si la seña es un monto fijo o un porcentaje del servicio.">
+        <SenasBlock title="Monto de la seña">
           <div className="flex gap-3">
             <SenasToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
             <SenasToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
@@ -4022,7 +4022,7 @@ function SenasSection() {
         </SenasBlock>
 
         {/* Bloque 4: Distribución si se pierde */}
-        <SenasBlock title="Si el cliente pierde la seña" subtitle="Definí cómo se distribuye el dinero de la seña perdida.">
+        <SenasBlock title="Si el cliente pierde la seña">
           <div className="flex flex-wrap gap-3">
             {([
               ["local",  "100% para el local"],
