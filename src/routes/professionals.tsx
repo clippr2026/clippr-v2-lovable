@@ -80,23 +80,16 @@ function ProfessionalsPage() {
   }
 
 
-  const isProfessionalAccess = profile?.role === "profesional";
-  const ownProfessional = useMemo(() => {
-    if (!isProfessionalAccess) return null;
-    const email = profile?.email?.trim().toLowerCase();
-    const name = profile?.full_name?.trim().toLowerCase();
+  const profileEmployeeId = (profile as { employee_id?: string | null } | null)?.employee_id ?? null;
+  const isProfessionalAccess = profile?.role === "profesional" && !!profileEmployeeId;
 
-    return (
-      professionals.find((p) => {
-        const profEmail = (p as { email?: string | null }).email?.trim().toLowerCase();
-        const profName = p.full_name?.trim().toLowerCase();
-        return (email && profEmail === email) || (name && profName === name);
-      }) ?? professionals[0] ?? null
-    );
-  }, [isProfessionalAccess, professionals, profile?.email, profile?.full_name]);
+  const ownProfessional = useMemo(() => {
+    if (!isProfessionalAccess || !profileEmployeeId) return null;
+    return professionals.find((p) => p.id === profileEmployeeId) ?? null;
+  }, [isProfessionalAccess, professionals, profileEmployeeId]);
 
   const visibleProfessionals = useMemo(
-    () => (isProfessionalAccess && ownProfessional ? [ownProfessional] : professionals),
+    () => (isProfessionalAccess ? (ownProfessional ? [ownProfessional] : []) : professionals),
     [isProfessionalAccess, ownProfessional, professionals],
   );
 
@@ -116,7 +109,10 @@ function ProfessionalsPage() {
     if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
       setActiveId(ownProfessional.id);
     }
-  }, [activeId, isProfessionalAccess, ownProfessional?.id]);
+    if (!isProfessionalAccess && !activeId && visibleProfessionals[0]?.id) {
+      setActiveId(visibleProfessionals[0].id);
+    }
+  }, [activeId, isProfessionalAccess, ownProfessional?.id, visibleProfessionals]);
 
   useEffect(() => {
     if (!businessId) return;
@@ -152,11 +148,15 @@ function ProfessionalsPage() {
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <div
               className={cn(
-                "h-16 w-16 md:h-[68px] md:w-[68px] rounded-full grid place-items-center text-2xl font-display font-semibold text-background bg-gradient-to-br shadow-[0_0_40px_-4px_rgba(251,191,36,0.55)]",
+                "h-16 w-16 md:h-[68px] md:w-[68px] rounded-full overflow-hidden grid place-items-center text-2xl font-display font-semibold text-background bg-gradient-to-br shadow-[0_0_40px_-4px_rgba(251,191,36,0.55)] ring-1 ring-white/10",
                 activeColor.color
               )}
             >
-              {initials}
+              {active.avatar_url ? (
+                <img src={active.avatar_url} alt={active.full_name} className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                initials
+              )}
             </div>
             <div className="min-w-0">
               <div className="text-2xl md:text-[26px] font-display font-semibold tracking-tight leading-tight">
@@ -189,7 +189,7 @@ function ProfessionalsPage() {
                     if (!isProfessionalAccess) setActiveId(p.id);
                   }}
                   className={cn(
-                    "h-9 w-9 rounded-full grid place-items-center text-[13px] font-semibold transition-all ring-1",
+                    "h-9 w-9 rounded-full overflow-hidden grid place-items-center text-[13px] font-semibold transition-all ring-1",
                     isActive
                       ? `bg-gradient-to-br ${c.color} text-background ${c.ring} ring-2 shadow-[0_0_20px_-2px_rgba(251,191,36,0.45)]`
                       : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20",
@@ -197,7 +197,11 @@ function ProfessionalsPage() {
                   )}
                   aria-label={p.full_name ?? ""}
                 >
-                  {ini}
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt={p.full_name ?? "Profesional"} className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    ini
+                  )}
                 </button>
               );
             })}
@@ -233,6 +237,12 @@ function ProfessionalsPage() {
           );
         })}
       </div>
+
+      {profile?.role === "profesional" && !profileEmployeeId && (
+        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-amber-500/8 ring-amber-400/15 text-amber-300">
+          Este acceso profesional no tiene un profesional asociado. Asignalo desde Configuración → Equipo → Accesos para ver su panel.
+        </div>
+      )}
 
       <UniversalDateFilter
         range={range}
