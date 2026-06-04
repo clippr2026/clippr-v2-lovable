@@ -104,6 +104,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
   const recoveryImpact = inactiveClients.length * estimatedTicket;
   const emptySlotsImpact = emptySlots * estimatedTicket;
   const ticketImpact = (data?.cobros ?? 0) * 1000;
+  const hasEnoughData = Boolean((data?.cobros ?? 0) > 0 || (data?.clientes ?? 0) > 0 || appointments.length > 0);
 
   const health = React.useMemo(() => {
     if (!data) return 0;
@@ -257,16 +258,25 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
               <p className="mt-1 text-sm text-muted-foreground">Lectura rápida de ingresos, ocupación, clientes y caja.</p>
             </div>
             <div className="text-right">
-              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthColorClass)}>{health}</div>
-              <div className="text-sm text-muted-foreground">sobre 100</div>
-              <div className={cn("mt-1 text-xs font-medium", healthColorClass)}>{healthLabel}</div>
+              {hasEnoughData ? (
+                <>
+                  <div className={cn("font-display text-6xl font-semibold tracking-tight", healthColorClass)}>{health}</div>
+                  <div className="text-sm text-muted-foreground">sobre 100</div>
+                  <div className={cn("mt-1 text-xs font-medium", healthColorClass)}>{healthLabel}</div>
+                </>
+              ) : (
+                <>
+                  <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">En análisis</div>
+                  <div className="mt-1 text-xs font-medium text-muted-foreground">Faltan movimientos para puntuar</div>
+                </>
+              )}
             </div>
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
             <div
               className={cn("h-full rounded-full bg-gradient-to-r transition-all", healthBarClass)}
-              style={{ width: `${health}%` }}
+              style={{ width: hasEnoughData ? `${health}%` : "18%" }}
             />
           </div>
 
@@ -306,9 +316,9 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
         <GlassCard className="p-5">
           <SectionTitle icon={DollarSign} title="Oportunidades" />
           <div className="mt-4 space-y-3">
-            <Opportunity label="Recuperar inactivos" value={recoveryImpact > 0 ? fmtAR(recoveryImpact) : "No hay clientes para recuperar"} />
-            <Opportunity label="Llenar espacios libres" value={emptySlotsImpact > 0 ? fmtAR(emptySlotsImpact) : "Sin espacios disponibles"} />
-            <Opportunity label="Subir ticket +$1.000" value={ticketImpact > 0 ? fmtAR(ticketImpact) : "Sin ventas para proyectar"} />
+            <Opportunity label="Recuperar inactivos" value={recoveryImpact > 0 ? fmtAR(recoveryImpact) : "Sin clientes para recuperar"} />
+            <Opportunity label="Llenar espacios libres" value={emptySlotsImpact > 0 ? fmtAR(emptySlotsImpact) : "Sin huecos libres"} />
+            <Opportunity label="Subir ticket +$1.000" value={ticketImpact > 0 ? fmtAR(ticketImpact) : "Necesita ventas registradas"} />
           </div>
         </GlassCard>
 
