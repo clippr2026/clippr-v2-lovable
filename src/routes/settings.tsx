@@ -3777,8 +3777,7 @@ function SenasSection() {
       .select("id,name,category,price,duration_min,active,stock")
       .eq("business_id", businessId)
       .eq("active", true)
-      .is("stock", null)
-      .order("category")
+            .order("category")
       .order("name")
       .then(({ data, error }) => {
         if (error) {
