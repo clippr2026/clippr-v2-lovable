@@ -4,38 +4,37 @@ import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
-import { useDashboardData, fmtAR, pctDelta } from "@/components/dashboard/use-dashboard-data";
+import { useDashboardData, fmtAR } from "@/components/dashboard/use-dashboard-data";
 import { useClientsData } from "@/hooks/use-clients-data";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
-  ArrowUpRight,
+  BarChart3,
   Bell,
   Brain,
   CheckCircle2,
   ClipboardList,
-  DollarSign,
-  Lightbulb,
+  HeartPulse,
   Sparkles,
-  Target,
-  Trophy,
-  Users,
+  TrendingUp,
 } from "lucide-react";
 
 export const Route = createFileRoute("/advisor")({
   head: () => ({
     meta: [
       { title: "Asesor IA — Clippr" },
-      { name: "description", content: "Recomendaciones inteligentes para mejorar el negocio." },
+      { name: "description", content: "Análisis inteligente para mejorar el negocio." },
     ],
   }),
   component: AdvisorRoute,
 });
 
-type Insight = {
+type AlertTone = "good" | "warning" | "danger" | "neutral";
+
+type AlertItem = {
   title: string;
   detail: string;
-  tone?: "good" | "warning" | "neutral";
+  tone: AlertTone;
 };
 
 function AdvisorRoute() {
@@ -59,17 +58,15 @@ function AdvisorRoute() {
 
   return (
     <AppShell>
-      <Topbar
-        title="Asesor IA"
-        subtitle="Decisiones para mejorar el negocio"
-        action={<div />}
-      />
+      <Topbar title="Asesor IA" subtitle="Decisiones para mejorar el negocio" action={<div />} />
       <AdvisorContent businessId={businessId} />
     </AppShell>
   );
 }
 
 function AdvisorContent({ businessId }: { businessId: string | null }) {
+  const [monthlyGenerated, setMonthlyGenerated] = React.useState(false);
+
   const todayRange = React.useMemo(() => {
     const from = new Date();
     from.setHours(0, 0, 0, 0);
@@ -87,191 +84,132 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
     return { from, to };
   }, []);
 
-  const dashboard = useDashboardData(businessId, todayRange);
-  const monthDashboard = useDashboardData(businessId, monthRange);
-  const clients = useClientsData(businessId);
+  const previousMonthRange = React.useMemo(() => {
+    const from = new Date();
+    from.setMonth(from.getMonth() - 1, 1);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setMonth(to.getMonth() + 1, 0);
+    to.setHours(23, 59, 59, 999);
+    return { from, to };
+  }, []);
 
-  const data = dashboard.data;
-  const month = monthDashboard.data;
-  const allClients = clients.data ?? [];
-  const inactiveClients = allClients.filter((client) => client.status === "inactivo" || client.status === "perdido");
-  const vipClients = allClients.filter((client) => client.status === "vip");
-  const noShowRisk = data?.recentCancellations.length ?? 0;
-  const emptySlots = data ? Math.max(data.totalSlots - data.usedSlots, 0) : 0;
-  const revenueDelta = data ? pctDelta(data.revHoy, data.revAyer) : null;
-  const ticketDelta = data ? pctDelta(data.ticket, data.ticketAyer) : null;
-  const estimatedTicket = Math.max(data?.ticket ?? 12000, 12000);
-  const recoveryImpact = inactiveClients.length * estimatedTicket;
-  const emptySlotsImpact = emptySlots * estimatedTicket;
-  const ticketImpact = (data?.cobros ?? 0) * 1000;
-  const monthRevenue = month?.revMes ?? data?.revMes ?? 0;
-  const monthClients = month?.clientes ?? data?.clientes ?? 0;
-  const monthCobros = month?.cobros ?? data?.cobros ?? 0;
-  const monthTicket = month?.ticket ?? data?.ticket ?? 0;
-  const hasEnoughData = Boolean(monthCobros > 0 || monthClients > 0 || monthRevenue > 0);
+  const todayQuery = useDashboardData(businessId, todayRange);
+  const monthQuery = useDashboardData(businessId, monthRange);
+  const previousMonthQuery = useDashboardData(businessId, previousMonthRange);
+  const clientsQuery = useClientsData(businessId);
+
+  const today = todayQuery.data;
+  const month = monthQuery.data;
+  const previousMonth = previousMonthQuery.data;
+  const clients = clientsQuery.data ?? [];
+
+  const activeClients = clients.filter((client) => client.status === "activo" || client.status === "vip").length;
+  const inactiveClients = clients.filter((client) => client.status === "inactivo" || client.status === "perdido").length;
+  const vipClients = clients.filter((client) => client.status === "vip").length;
+
+  const revenue = month?.revHoy ?? 0;
+  const expenses = month?.totalGastos ?? 0;
+  const profit = month?.utilidad ?? 0;
+  const ticket = month?.ticket ?? 0;
+  const occupancy = month?.occ ?? 0;
+  const payments = month?.cobros ?? 0;
+  const pendingRisk = today ? Math.max((today.usedSlots ?? 0) - (today.cobros ?? 0), 0) : 0;
+  const cancellations = month?.recentCancellations?.length ?? 0;
+  const hasMonthData = revenue > 0 || payments > 0 || activeClients > 0;
 
   const health = React.useMemo(() => {
-    if (!data) return 0;
-    let score = 55;
-    if (data.revHoy > 0) score += 10;
-    if (data.utilidad > 0) score += 10;
-    if (data.occ >= 50) score += 10;
-    if (data.ticket >= data.ticketAyer && data.ticket > 0) score += 5;
-    if (inactiveClients.length <= Math.max(allClients.length * 0.35, 5)) score += 5;
-    if (noShowRisk === 0) score += 5;
-    return Math.max(0, Math.min(100, score));
-  }, [allClients.length, data, inactiveClients.length, noShowRisk]);
+    if (!hasMonthData) return null;
 
-  const dailyAlerts: Insight[] = [
-    inactiveClients.length > 0
-      ? {
-          title: `Recuperar ${inactiveClients.length} clientes`,
-          detail: `Impacto estimado: ${fmtAR(recoveryImpact)}.`,
-          tone: "warning",
-        }
-      : {
-          title: "Clientes al día",
-          detail: "No hay una alerta fuerte de recuperación.",
-          tone: "good",
-        },
-    emptySlots > 0
-      ? {
-          title: `Hay ${emptySlots} espacios libres disponibles`,
-          detail: `Podrías generar hasta ${fmtAR(emptySlotsImpact)}.`,
-          tone: "warning",
-        }
-      : {
-          title: "Agenda completa",
-          detail: "Buen nivel de ocupación para hoy.",
-          tone: "good",
-        },
-    noShowRisk > 0
-      ? {
-          title: `${noShowRisk} cancelaciones recientes`,
-          detail: "Reforzá señas o recordatorios para reducir ausencias.",
-          tone: "warning",
-        }
-      : {
-          title: "Cancelaciones controladas",
-          detail: "El mes viene estable.",
-          tone: "good",
-        },
-  ];
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const profitScore = clamp(margin * 2.5, 0, 100);
+    const clientsScore = clamp(activeClients * 3, 0, 100);
+    const occupancyScore = clamp(occupancy, 0, 100);
+    const recoveryScore = clients.length > 0 ? clamp(100 - (inactiveClients / clients.length) * 100, 0, 100) : 70;
+    const cashScore = pendingRisk === 0 ? 100 : clamp(100 - pendingRisk * 12, 0, 100);
 
-  const todayTasks: Insight[] = [
-    {
-      title: "Contactar clientes inactivos",
-      detail: inactiveClients.length > 0 ? `Prioridad: ${Math.min(inactiveClients.length, 20)} clientes.` : "Mantené activa la fidelización.",
-    },
-    {
-      title: "Mejorar ocupación",
-      detail: emptySlots > 0 ? "Usá WhatsApp e historias para llenar espacios libres." : "La agenda de hoy está bien cubierta.",
-    },
-    {
-      title: "Ordenar cobros pendientes",
-      detail: data && data.cobros === 0 ? "Revisá si quedaron servicios sin cobrar." : "Controlá que todo servicio quede cobrado.",
-    },
-  ];
+    return Math.round(
+      profitScore * 0.4 +
+        clientsScore * 0.2 +
+        occupancyScore * 0.2 +
+        recoveryScore * 0.1 +
+        cashScore * 0.1,
+    );
+  }, [activeClients, clients.length, hasMonthData, inactiveClients, occupancy, pendingRisk, profit, revenue]);
 
-  const strengths: Insight[] = [
-    {
-      title: "Clientes VIP",
-      detail: `${vipClients.length} clientes de alto valor detectados.`,
-      tone: vipClients.length > 0 ? "good" : "neutral",
-    },
-    {
-      title: "Ticket promedio",
-      detail: data?.ticket ? `${fmtAR(data.ticket)} por cobro.` : "Aún no hay cobros suficientes.",
-      tone: data?.ticket ? "good" : "neutral",
-    },
-    {
-      title: "Utilidad del mes",
-      detail: data ? `${fmtAR(data.utilidad)} estimados.` : "Cargando datos.",
-      tone: data && data.utilidad >= 0 ? "good" : "warning",
-    },
-    {
-      title: "Servicios destacados",
-      detail: data?.topServices?.[0]?.name ? `${data.topServices[0].name} lidera el día.` : "Aún no hay servicio destacado.",
-      tone: data?.topServices?.[0]?.name ? "good" : "neutral",
-    },
-    {
-      title: "Clientes del mes",
-      detail: data ? `${data.clientsCount} clientes con cobros hoy.` : "Cargando datos.",
-      tone: data?.clientsCount ? "good" : "neutral",
-    },
-  ];
+  const growth = React.useMemo(() => {
+    if (!previousMonth || !hasMonthData) return null;
 
-  const improvements: Insight[] = [
-    {
-      title: "Recuperación",
-      detail: `${inactiveClients.length} clientes pueden volver con una campaña simple.`,
-      tone: inactiveClients.length > 0 ? "warning" : "good",
-    },
-    {
-      title: "Ocupación",
-      detail: data ? `${data.occ}% de ocupación estimada hoy.` : "Cargando datos.",
-      tone: data && data.occ < 60 ? "warning" : "good",
-    },
-    {
-      title: "Cancelaciones",
-      detail: noShowRisk > 0 ? "Revisá señas y recordatorios." : "Sin alerta fuerte de cancelaciones.",
-      tone: noShowRisk > 0 ? "warning" : "good",
-    },
-    {
-      title: "Ticket promedio",
-      detail: ticketDelta === null ? "Comparación disponible con más cobros." : `${ticketDelta >= 0 ? "+" : ""}${ticketDelta}% vs período anterior.`,
-      tone: ticketDelta !== null && ticketDelta < 0 ? "warning" : "good",
-    },
-    {
-      title: "Facturación mensual",
-      detail: month ? `${fmtAR(month.revHoy)} acumulado mensual.` : "Cargando mes.",
-      tone: month?.revHoy ? "good" : "neutral",
-    },
-  ];
+    const profitGrowth = percentChange(profit, previousMonth.utilidad);
+    const revenueGrowth = percentChange(revenue, previousMonth.revHoy);
+    const ticketGrowth = percentChange(ticket, previousMonth.ticket);
+    const occupancyGrowth = percentChange(occupancy, previousMonth.occ);
+    const valid = [profitGrowth, revenueGrowth, ticketGrowth, occupancyGrowth].filter((n): n is number => n !== null);
 
-  if (dashboard.isLoading || clients.isLoading) {
+    if (!valid.length) return null;
+    return Math.round(valid.reduce((sum, n) => sum + n, 0) / valid.length);
+  }, [hasMonthData, occupancy, previousMonth, profit, revenue, ticket]);
+
+  const healthTone = getHealthTone(health);
+  const healthReasons = buildHealthReasons({
+    profit,
+    revenue,
+    occupancy,
+    activeClients,
+    inactiveClients,
+    pendingRisk,
+    cancellations,
+  });
+
+  const dailyAlerts = buildDailyAlerts({
+    today,
+    month,
+    inactiveClients,
+    vipClients,
+    pendingRisk,
+    ticket,
+  });
+
+  const monthlySummary = buildMonthlySummary({
+    revenue,
+    expenses,
+    profit,
+    payments,
+    activeClients,
+    inactiveClients,
+    occupancy,
+    ticket,
+    growth,
+  });
+
+  if (todayQuery.isLoading || monthQuery.isLoading || clientsQuery.isLoading) {
     return <div className="text-sm text-muted-foreground">Analizando métricas del negocio…</div>;
   }
 
-  const healthTone = health >= 76 ? "good" : health >= 51 ? "warning" : "danger";
-  const healthColorClass =
-    healthTone === "good"
-      ? "text-emerald-400"
-      : healthTone === "warning"
-        ? "text-amber-300"
-        : "text-red-400";
-  const healthBarClass =
-    healthTone === "good"
-      ? "from-emerald-500 to-primary"
-      : healthTone === "warning"
-        ? "from-amber-400 to-accent"
-        : "from-red-500 to-amber-400";
-  const healthLabel = healthTone === "good" ? "Salud fuerte" : healthTone === "warning" ? "Hay oportunidades" : "Requiere atención";
-
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <GlassCard className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary ring-1 ring-primary/20">
-                <Brain className="h-3.5 w-3.5" />
-                Análisis del mes
-              </div>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Salud del negocio</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Resumen de lo que va del mes.</p>
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div className="min-w-0">
+              <Badge icon={HeartPulse}>Salud del negocio</Badge>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Cómo viene tu negocio</h2>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                Basado en utilidad, clientes, ocupación, recuperación y caja.
+              </p>
             </div>
+
             <div className="text-right">
-              {hasEnoughData ? (
+              {health === null ? (
                 <>
-                  <div className={cn("font-display text-6xl font-semibold tracking-tight", healthColorClass)}>{health}</div>
-                  <div className="text-sm text-muted-foreground">sobre 100</div>
-                  <div className={cn("mt-1 text-xs font-medium", healthColorClass)}>{healthLabel}</div>
+                  <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">En análisis</div>
+                  <div className="mt-1 text-xs font-medium text-muted-foreground">Faltan movimientos del mes</div>
                 </>
               ) : (
                 <>
-                  <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">En análisis</div>
-                  <div className="mt-1 text-xs font-medium text-muted-foreground">Faltan movimientos para puntuar</div>
+                  <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{health}</div>
+                  <div className="text-sm text-muted-foreground">sobre 100</div>
+                  <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
                 </>
               )}
             </div>
@@ -279,88 +217,41 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
             <div
-              className={cn("h-full rounded-full bg-gradient-to-r transition-all", healthBarClass)}
-              style={{ width: hasEnoughData ? `${health}%` : "18%" }}
+              className={cn("h-full rounded-full bg-gradient-to-r transition-all", healthTone.bar)}
+              style={{ width: health === null ? "16%" : `${health}%` }}
             />
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <Metric label="Facturación del mes" value={fmtAR(data?.revHoy ?? 0)} delta={revenueDelta} />
-            <Metric label="Ocupación" value={`${data?.occ ?? 0}%`} />
-            <Metric label="Clientes" value={`${data?.clientsCount ?? 0}`} />
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-sm font-semibold">¿Por qué?</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {healthReasons.map((reason) => (
+                <ReasonItem key={reason.text} tone={reason.tone} text={reason.text} />
+              ))}
+            </div>
           </div>
         </GlassCard>
 
         <GlassCard className="p-5 sm:p-6">
-          <SectionTitle icon={Bell} title="Alertas del mes" />
-          <div className="mt-4 space-y-3">
-            {dailyAlerts.map((item) => (
-              <InsightRow key={item.title} item={item} />
-            ))}
-          </div>
-        </GlassCard>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <GlassCard className="p-5">
-          <SectionTitle icon={Target} title="Prioridad del mes" />
-          <div className="mt-4 space-y-3">
-            {todayTasks.map((item, index) => (
-              <div key={item.title} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{index + 1}</div>
-                <div>
-                  <div className="text-sm font-medium">{item.title}</div>
-                  <div className="text-xs text-muted-foreground">{item.detail}</div>
+          <Badge icon={TrendingUp}>Crecimiento</Badge>
+          <div className="mt-4">
+            {growth === null ? (
+              <>
+                <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">Sin comparación</div>
+                <p className="mt-2 text-sm text-muted-foreground">Se calcula cuando exista información del mes anterior.</p>
+              </>
+            ) : (
+              <>
+                <div className={cn("font-display text-6xl font-semibold tracking-tight", growth >= 0 ? "text-emerald-400" : "text-amber-300")}>
+                  {growth > 0 ? "+" : ""}{growth}%
                 </div>
-              </div>
-            ))}
+                <p className="mt-2 text-sm text-muted-foreground">Comparado con el mes anterior.</p>
+              </>
+            )}
           </div>
-        </GlassCard>
 
-        <GlassCard className="p-5">
-          <SectionTitle icon={DollarSign} title="Oportunidades" />
-          <div className="mt-4 space-y-3">
-            <Opportunity label="Recuperar inactivos" value={recoveryImpact > 0 ? fmtAR(recoveryImpact) : "Sin clientes para recuperar"} />
-            <Opportunity label="Llenar espacios libres" value={emptySlotsImpact > 0 ? fmtAR(emptySlotsImpact) : "Sin huecos libres"} />
-            <Opportunity label="Subir ticket +$1.000" value={ticketImpact > 0 ? fmtAR(ticketImpact) : "Necesita ventas registradas"} />
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-5">
-          <SectionTitle icon={Trophy} title="Equipo" />
-          <div className="mt-4 space-y-3 text-sm">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="font-medium">Profesional destacado</div>
-              <div className="text-xs text-muted-foreground">Disponible cuando haya más datos de rendimiento.</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="font-medium">Espacios vacíos</div>
-              <div className="text-xs text-muted-foreground">{emptySlots} turnos potenciales para completar hoy.</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="font-medium">Cobros del mes</div>
-              <div className="text-xs text-muted-foreground">{data?.cobros ?? 0} movimientos en caja.</div>
-            </div>
-          </div>
-        </GlassCard>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <GlassCard className="p-5">
-          <SectionTitle icon={CheckCircle2} title="5 cosas buenas" />
-          <div className="mt-4 space-y-3">
-            {strengths.map((item) => (
-              <InsightRow key={item.title} item={item} />
-            ))}
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-5">
-          <SectionTitle icon={AlertTriangle} title="5 puntos a mejorar" />
-          <div className="mt-4 space-y-3">
-            {improvements.map((item) => (
-              <InsightRow key={item.title} item={item} />
-            ))}
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+            Crecimiento se calcula mirando utilidad, facturación, ticket promedio y ocupación.
           </div>
         </GlassCard>
       </section>
@@ -368,87 +259,246 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <SectionTitle icon={Sparkles} title="Análisis mensual" />
-            <p className="mt-2 text-sm text-muted-foreground">Generá un cierre simple con fortalezas, mejoras y acciones para el próximo mes.</p>
+            <Badge icon={Bell}>Notificaciones del día</Badge>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Máximo 5 avisos importantes</h2>
           </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-5">
+          {dailyAlerts.map((alert) => (
+            <AlertCard key={alert.title} alert={alert} />
+          ))}
+        </div>
+      </GlassCard>
+
+      <GlassCard className="p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <Badge icon={Sparkles}>Análisis mensual</Badge>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Informe de cierre del mes</h2>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+              Generá un resumen con lo mejor, lo que hay que mejorar y acciones recomendadas.
+            </p>
+          </div>
+
           <button
             type="button"
+            onClick={() => setMonthlyGenerated(true)}
             className="inline-flex h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
           >
             <ClipboardList className="h-4 w-4" />
-            Generar análisis
+            Generar análisis mensual
           </button>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <Metric label="Mes actual" value={fmtAR(month?.revHoy ?? 0)} />
-          <Metric label="Ticket promedio" value={fmtAR(month?.ticket ?? 0)} />
-          <Metric label="Clientes activos" value={`${allClients.filter((client) => client.status === "activo" || client.status === "vip").length}`} />
-        </div>
+        {monthlyGenerated ? (
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            <MonthlyBlock title="Resumen" items={monthlySummary.summary} />
+            <MonthlyBlock title="Lo mejor" items={monthlySummary.good} />
+            <MonthlyBlock title="A mejorar" items={monthlySummary.improve} />
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+            Todavía no generaste el análisis mensual. Cuando lo generes, Clippr va a resumir cómo viene el negocio y qué conviene hacer.
+          </div>
+        )}
       </GlassCard>
     </div>
   );
+}
+
+function buildHealthReasons(input: {
+  profit: number;
+  revenue: number;
+  occupancy: number;
+  activeClients: number;
+  inactiveClients: number;
+  pendingRisk: number;
+  cancellations: number;
+}) {
+  const reasons: Array<{ text: string; tone: "good" | "warning" }> = [];
+
+  if (input.profit > 0) reasons.push({ text: "La utilidad del mes es positiva", tone: "good" });
+  else reasons.push({ text: "Falta utilidad registrada este mes", tone: "warning" });
+
+  if (input.activeClients > 0) reasons.push({ text: "Hay clientes activos en movimiento", tone: "good" });
+  else reasons.push({ text: "Todavía falta movimiento de clientes", tone: "warning" });
+
+  if (input.occupancy >= 60) reasons.push({ text: "La ocupación viene bien", tone: "good" });
+  else reasons.push({ text: "La ocupación puede mejorar", tone: "warning" });
+
+  if (input.inactiveClients > 0) reasons.push({ text: "Hay clientes para recuperar", tone: "warning" });
+  else reasons.push({ text: "No hay alerta fuerte de clientes perdidos", tone: "good" });
+
+  if (input.pendingRisk > 0) reasons.push({ text: "Revisar servicios pendientes de cobro", tone: "warning" });
+  else reasons.push({ text: "Caja y cobros se ven ordenados", tone: "good" });
+
+  if (input.cancellations > 0) reasons.push({ text: "Hubo cancelaciones para revisar", tone: "warning" });
+
+  return reasons.slice(0, 6);
+}
+
+function buildDailyAlerts(input: {
+  today?: { usedSlots: number; totalSlots: number; cobros: number; recentCancellations: unknown[]; ticket: number };
+  month?: { occ: number; revHoy: number; utilidad: number };
+  inactiveClients: number;
+  vipClients: number;
+  pendingRisk: number;
+  ticket: number;
+}): AlertItem[] {
+  const alerts: AlertItem[] = [];
+  const emptyToday = input.today ? Math.max(input.today.totalSlots - input.today.usedSlots, 0) : 0;
+  const cancellations = input.today?.recentCancellations?.length ?? 0;
+
+  if (input.inactiveClients > 0) {
+    alerts.push({
+      title: `${input.inactiveClients} clientes para recuperar`,
+      detail: "Podés contactarlos por WhatsApp.",
+      tone: "warning",
+    });
+  } else {
+    alerts.push({ title: "Clientes al día", detail: "No hay alerta fuerte de recuperación.", tone: "good" });
+  }
+
+  if (emptyToday > 0) {
+    alerts.push({ title: `${emptyToday} espacios libres hoy`, detail: "Ideal para mover promos rápidas.", tone: "warning" });
+  } else {
+    alerts.push({ title: "Agenda cubierta", detail: "Buen nivel de ocupación para hoy.", tone: "good" });
+  }
+
+  if (input.pendingRisk > 0) {
+    alerts.push({ title: `${input.pendingRisk} servicios por revisar`, detail: "Controlá que todo quede cobrado.", tone: "danger" });
+  } else {
+    alerts.push({ title: "Caja ordenada", detail: "No se detectan pendientes fuertes.", tone: "good" });
+  }
+
+  if (cancellations > 0) {
+    alerts.push({ title: `${cancellations} cancelaciones recientes`, detail: "Revisá señas y recordatorios.", tone: "warning" });
+  } else {
+    alerts.push({ title: "Sin cancelaciones fuertes", detail: "El día viene estable.", tone: "good" });
+  }
+
+  if (input.vipClients > 0) {
+    alerts.push({ title: `${input.vipClients} clientes VIP`, detail: "Cuidalos con atención personalizada.", tone: "good" });
+  } else if (input.ticket > 0) {
+    alerts.push({ title: `Ticket promedio ${fmtAR(input.ticket)}`, detail: "Revisá si podés sumar productos.", tone: "neutral" });
+  } else {
+    alerts.push({ title: "Faltan datos de ticket", detail: "Se completa con más cobros.", tone: "neutral" });
+  }
+
+  return alerts.slice(0, 5);
+}
+
+function buildMonthlySummary(input: {
+  revenue: number;
+  expenses: number;
+  profit: number;
+  payments: number;
+  activeClients: number;
+  inactiveClients: number;
+  occupancy: number;
+  ticket: number;
+  growth: number | null;
+}) {
+  return {
+    summary: [
+      input.revenue > 0 ? `Facturación acumulada: ${fmtAR(input.revenue)}` : "Aún falta facturación registrada.",
+      input.profit > 0 ? `Utilidad estimada: ${fmtAR(input.profit)}` : "La utilidad todavía no está clara.",
+      input.growth !== null ? `Crecimiento vs mes anterior: ${input.growth > 0 ? "+" : ""}${input.growth}%` : "Sin comparación completa con el mes anterior.",
+    ],
+    good: [
+      input.payments > 0 ? `${input.payments} cobros registrados.` : "La caja está lista para registrar movimientos.",
+      input.ticket > 0 ? `Ticket promedio: ${fmtAR(input.ticket)}.` : "El ticket promedio se completa con más cobros.",
+      input.activeClients > 0 ? `${input.activeClients} clientes activos.` : "Todavía faltan clientes activos este mes.",
+    ],
+    improve: [
+      input.occupancy < 60 ? "Mejorar ocupación de horarios libres." : "Mantener la ocupación actual.",
+      input.inactiveClients > 0 ? `Recuperar ${input.inactiveClients} clientes inactivos.` : "Seguir cuidando la recurrencia.",
+      input.expenses > 0 ? "Revisar gastos para proteger la utilidad." : "Registrar gastos para medir mejor la utilidad.",
+    ],
+  };
+}
+
+function percentChange(now: number, prev: number) {
+  if (!prev || !Number.isFinite(prev)) return null;
+  return Math.round(((now - prev) / prev) * 100);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getHealthTone(health: number | null) {
+  if (health === null) {
+    return {
+      label: "En análisis",
+      text: "text-muted-foreground",
+      bar: "from-muted-foreground/40 to-muted-foreground/20",
+    };
+  }
+
+  if (health >= 85) return { label: "Excelente", text: "text-emerald-400", bar: "from-emerald-500 to-primary" };
+  if (health >= 70) return { label: "Bueno", text: "text-lime-300", bar: "from-lime-400 to-primary" };
+  if (health >= 50) return { label: "Regular", text: "text-amber-300", bar: "from-amber-400 to-accent" };
+  return { label: "Requiere atención", text: "text-red-400", bar: "from-red-500 to-amber-400" };
 }
 
 function GlassCard({ className, children }: { className?: string; children: React.ReactNode }) {
   return <div className={cn("glass rounded-3xl", className)}>{children}</div>;
 }
 
-function SectionTitle({ icon: Icon, title }: { icon: React.ComponentType<{ className?: string }>; title: string }) {
+function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/20">
-        <Icon className="h-4 w-4" />
-      </div>
-      <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>
+    <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary ring-1 ring-primary/20">
+      <Icon className="h-3.5 w-3.5" />
+      {children}
     </div>
   );
 }
 
-function InsightRow({ item }: { item: Insight }) {
+function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+    <div className="flex items-start gap-2 text-sm">
+      {tone === "good" ? (
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+      ) : (
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+      )}
+      <span className="text-muted-foreground">{text}</span>
+    </div>
+  );
+}
+
+function AlertCard({ alert }: { alert: AlertItem }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div
         className={cn(
-          "mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full",
-          item.tone === "good" && "bg-emerald-400",
-          item.tone === "warning" && "bg-amber-400",
-          (!item.tone || item.tone === "neutral") && "bg-primary",
+          "mb-3 h-2.5 w-2.5 rounded-full",
+          alert.tone === "good" && "bg-emerald-400",
+          alert.tone === "warning" && "bg-amber-400",
+          alert.tone === "danger" && "bg-red-400",
+          alert.tone === "neutral" && "bg-primary",
         )}
       />
-      <div className="min-w-0">
-        <div className="text-sm font-medium">{item.title}</div>
-        <div className="text-xs text-muted-foreground">{item.detail}</div>
-      </div>
+      <div className="text-sm font-semibold">{alert.title}</div>
+      <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{alert.detail}</div>
     </div>
   );
 }
 
-function Metric({ label, value, delta }: { label: string; value: string; delta?: number | null }) {
+function MonthlyBlock({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 flex items-center gap-2 font-display text-xl font-semibold tracking-tight">
-        {value}
-        {delta !== undefined && delta !== null && (
-          <span className={cn("inline-flex items-center gap-0.5 text-xs font-medium", delta >= 0 ? "text-emerald-400" : "text-amber-400")}>
-            <ArrowUpRight className={cn("h-3 w-3", delta < 0 && "rotate-90")} />
-            {delta >= 0 ? "+" : ""}{delta}%
-          </span>
-        )}
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <BarChart3 className="h-4 w-4 text-primary" />
+        {title}
       </div>
-    </div>
-  );
-}
-
-function Opportunity({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <Lightbulb className="h-4 w-4 text-primary" />
-        {label}
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item} className="text-sm text-muted-foreground">• {item}</div>
+        ))}
       </div>
-      <div className="text-sm font-semibold">{value}</div>
     </div>
   );
 }
