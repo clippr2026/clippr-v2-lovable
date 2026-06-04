@@ -1,3 +1,27 @@
+const DEFAULT_SENA_MESSAGE = `¡Hola! 👋
+
+Para confirmar tu turno es necesario abonar una seña.
+
+Datos para realizar el pago:
+
+Titular: [Nombre]
+Alias: [Alias]
+CBU: [CBU]
+
+Una vez realizado el pago, envianos el comprobante por WhatsApp al:
+
+📲 [WhatsApp del local]
+
+IMPORTANTE:
+
+• La seña se descuenta del valor total del servicio.
+• Podés cancelar o reprogramar tu turno hasta 24 horas antes sin perder la seña.
+• Si cancelás con menos de 24 horas de anticipación o no asistís al turno, la seña no será reembolsable.
+• La reserva queda confirmada únicamente una vez acreditado el pago.
+• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.
+
+¡Muchas gracias! Te esperamos. 🙌`;
+
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
@@ -3768,7 +3792,7 @@ function SenasSection() {
           setLostDist((c.lost_dist as "local"|"prof"|"custom") ?? "local");
           setLostLocal(String(c.lost_local ?? "100"));
           setLostProf(String(c.lost_prof ?? "0"));
-          setMsg(String(c.msg ?? msg));
+          setMsg(String(c.msg ?? DEFAULT_SENA_MESSAGE));
         }
         setLoading(false);
       });
@@ -3777,7 +3801,8 @@ function SenasSection() {
       .select("id,name,category,price,duration_min,active,stock")
       .eq("business_id", businessId)
       .eq("active", true)
-            .order("category")
+      .is("stock", null)
+      .order("category")
       .order("name")
       .then(({ data, error }) => {
         if (error) {
@@ -3791,8 +3816,18 @@ function SenasSection() {
 
   const save = React.useCallback(async () => {
     if (!businessId) return;
-    const localPct = parseInt(lostLocal) || 0;
-    const profPct  = lostDist === "custom" ? (100 - localPct) : lostDist === "prof" ? 100 : 0;
+    const localPct = parseFloat(lostLocal) || 0;
+    const typedProfPct = parseFloat(lostProf) || 0;
+
+    if (lostDist === "custom") {
+      const totalPct = Math.round((localPct + typedProfPct) * 10) / 10;
+      if (totalPct !== 100) {
+        toast.error("La distribución personalizada debe sumar 100%");
+        return;
+      }
+    }
+
+    const profPct = lostDist === "custom" ? typedProfPct : lostDist === "prof" ? 100 : 0;
     const { error } = await supabase.from("business_settings").upsert({
       business_id: businessId,
       senas_config: {
@@ -3982,24 +4017,20 @@ function SenasSection() {
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Local</span>
                   <input type="number" min="0" max="100" step="0.1" value={lostLocal}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseFloat(e.target.value)||0));setLostLocal(String(v));setLostProf(String(Math.round((100-v)*10)/10));}}
+                    onChange={e=>setLostLocal(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Profesional</span>
                   <input type="number" min="0" max="100" step="0.1" value={lostProf}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseFloat(e.target.value)||0));setLostProf(String(v));setLostLocal(String(Math.round((100-v)*10)/10));}}
+                    onChange={e=>setLostProf(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
-                <div className={cn("text-xs font-semibold px-3 py-1 rounded-full",
-                  parseInt(lostLocal)+parseInt(lostProf)===100
-                    ? "bg-emerald-400/10 text-emerald-400 ring-1 ring-emerald-400/20"
-                    : "bg-destructive/10 text-destructive ring-1 ring-destructive/20")}>
-                  Total: {parseInt(lostLocal)+parseInt(lostProf)}%
-                  {parseInt(lostLocal)+parseInt(lostProf)===100 ? " ✓" : " (debe ser 100%)"}
-                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Podés escribir los porcentajes libremente. Se validan cuando tocás Guardar.
               </div>
             </div>
           )}
