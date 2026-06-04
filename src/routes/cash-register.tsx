@@ -56,7 +56,7 @@ export const Route = createFileRoute("/cash-register")({
   }),
   head: () => ({
     meta: [
-      { title: "Caja & Cobro — Clippr" },
+      { title: "Caja — Clippr" },
       { name: "description", content: "Caja del día, nueva venta, precios e inventario." },
     ],
   }),
@@ -232,35 +232,29 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
 
   const stats = [
     {
-      label: "💰 Cobrado hoy",
+      label: "Cobrado",
       value: data.revHoy,
-      sub: "Total cobrado del día.",
       icon: Wallet,
       tint: "from-amber-400/20 to-amber-500/0",
       money: true,
     },
     {
-      label: "⏳ Pendiente de cobro",
+      label: "Pendiente",
       value: data.pendingAmount,
-      sub: "Servicios sin cobrar.",
       icon: Clock,
       tint: "from-violet-400/25 to-violet-500/0",
       money: true,
     },
     {
-      label: "🧾 Cantidad de cobros",
+      label: "Cobros",
       value: data.cobros,
-      sub: `Ticket promedio $${data.ticket?.toLocaleString("es-AR") ?? 0}`,
       icon: ClipboardList,
       tint: "from-sky-400/25 to-sky-500/0",
       money: false,
     },
     {
-      label: "👥 Clientes atendidos",
+      label: "Clientes",
       value: data.cobros,
-      sub: topMethods.length
-        ? topMethods.map(([m, c]) => `${PAY_METHOD_LABEL[m as PayMethod] ?? m} (${c})`).join(" · ")
-        : "Sin cobros hoy.",
       icon: BarChart3,
       tint: "from-emerald-400/25 to-emerald-500/0",
       money: false,
@@ -290,7 +284,6 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
                     </span>
                   )}
                 </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>
               </div>
               <div className="rounded-xl bg-white/[0.04] border border-white/5 p-2">
                 <s.icon className="size-3.5 text-foreground/80" />
@@ -563,7 +556,7 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
                 <Loader2 className="size-4 animate-spin" /> Cargando…
               </div>
             ) : visibleRows.length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros hoy</div>
+              <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros</div>
             ) : (
               visibleRows.map((p) => {
                 const dt = new Date(p.created_at);

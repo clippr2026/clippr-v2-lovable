@@ -288,11 +288,11 @@ function BrandingSection() {
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
   const infoRows: { icon: React.ComponentType<{className?:string}>; label: string; hint: string; key: keyof BrandingData; type?: string }[] = [
-    { icon: Building2, label: "Nombre del local", hint: "Aparece en tickets, reportes y la pantalla de login", key: "name" },
-    { icon: MapPin, label: "Dirección", hint: "Dirección del local principal", key: "address" },
-    { icon: Phone, label: "Teléfono de contacto", hint: "Para confirmaciones y WhatsApp", key: "phone" },
-    { icon: Mail, label: "Email de contacto", hint: "Para notificaciones y comunicaciones", key: "email", type: "email" },
-    { icon: Instagram, label: "Instagram / Redes", hint: "Aparece en el pie de los tickets", key: "instagram" },
+    { icon: Building2, label: "Nombre",    hint: "", key: "name" },
+    { icon: MapPin,    label: "Dirección", hint: "", key: "address" },
+    { icon: Phone,     label: "WhatsApp",  hint: "", key: "phone" },
+    { icon: Mail,      label: "Email",     hint: "", key: "email", type: "email" },
+    { icon: Instagram, label: "Instagram", hint: "", key: "instagram" },
   ];
 
   return (
@@ -300,7 +300,7 @@ function BrandingSection() {
       <div>
         <h2 className="text-xl font-display font-semibold">Branding</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Logo, nombre y datos del negocio.
+          Información del negocio.
         </p>
       </div>
 
@@ -332,7 +332,6 @@ function BrandingSection() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm">Descripción</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Cuéntale a tus clientes sobre tu empresa</div>
             </div>
             <textarea
               value={data.description}
@@ -1005,7 +1004,7 @@ const EMPTY_ACCESS_FORM: Omit<AccessUser, "id"> & { password: string } = {
 const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
   { key: "dashboard", label: "Dashboard", desc: "Métricas generales del negocio." },
   { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },
-  { key: "caja_cobro", label: "Caja & Cobro", desc: "Ventas, cobros y movimientos de caja." },
+  { key: "caja_cobro", label: "Caja", desc: "Cobros y medios de pago." },
   { key: "panel_profesionales", label: "Panel Profesionales", desc: "Vista operativa para profesionales." },
   { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
   { key: "configuracion", label: "Configuración", desc: "Acceso a ajustes del negocio." },
