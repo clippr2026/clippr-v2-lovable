@@ -8,6 +8,7 @@ import {
   Settings,
   UserCog,
   Bell,
+  Brain,
   LogOut,
   User as UserIcon,
   Menu,
@@ -30,11 +31,13 @@ const ALL_NAV: Array<{
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   permKey?: PermKey;
+  badge?: string;
 }> = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard, permKey: "dashboard" },
   { label: "Agenda", to: "/agenda", icon: Calendar, permKey: "agenda" },
   { label: "Caja", to: "/cash-register", icon: Wallet, permKey: "caja" },
-  { label: "Panel Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
+  { label: "Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
+  { label: "Asesor IA", to: "/advisor", icon: Brain, badge: "Nuevo" },
   { label: "Clientes", to: "/clients", icon: Users, permKey: "clientes" },
   { label: "Configuración", to: "/settings", icon: Settings },
 ];
@@ -106,6 +109,11 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
           >
             <Icon className={cn("h-4 w-4", active && "text-primary")} />
             <span>{item.label}</span>
+            {item.badge && (
+              <span className="ml-1 rounded-full border border-primary/30 bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                {item.badge}
+              </span>
+            )}
           </Link>
         );
       })}
