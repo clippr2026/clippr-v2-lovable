@@ -176,7 +176,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
     },
     {
       title: "Ticket promedio",
-      detail: data?.ticket ? `${fmtAR(data.ticket)} por cobro.` : "Sin cobros registrados todavía.",
+      detail: data?.ticket ? `${fmtAR(data.ticket)} por cobro.` : "Aún no hay cobros suficientes.",
       tone: data?.ticket ? "good" : "neutral",
     },
     {
@@ -306,9 +306,9 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
         <GlassCard className="p-5">
           <SectionTitle icon={DollarSign} title="Oportunidades" />
           <div className="mt-4 space-y-3">
-            <Opportunity label="Recuperar inactivos" value={fmtAR(recoveryImpact)} />
-            <Opportunity label="Llenar espacios libres" value={fmtAR(emptySlotsImpact)} />
-            <Opportunity label="Subir ticket +$1.000" value={fmtAR(ticketImpact)} />
+            <Opportunity label="Recuperar inactivos" value={recoveryImpact > 0 ? fmtAR(recoveryImpact) : "No hay clientes para recuperar"} />
+            <Opportunity label="Llenar espacios libres" value={emptySlotsImpact > 0 ? fmtAR(emptySlotsImpact) : "Sin espacios disponibles"} />
+            <Opportunity label="Subir ticket +$1.000" value={ticketImpact > 0 ? fmtAR(ticketImpact) : "Sin ventas para proyectar"} />
           </div>
         </GlassCard>
 
