@@ -132,19 +132,19 @@ function ProfessionalsPage() {
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
 
   if (isLoading) return (
-    <AppShell><Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />
+    <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando profesionales…</div>
     </AppShell>
   );
   if (!active) return (
-    <AppShell><Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />
+    <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground">Sin profesionales configurados.</div>
     </AppShell>
   );
 
   return (
     <AppShell>
-      <Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />
+      <Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="space-y-6 animate-fade-up">
       {/* Header card */}
       <div className="glass rounded-3xl p-5 md:p-6 relative overflow-hidden">
@@ -223,7 +223,7 @@ function ProfessionalsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {([
           { key: "turnos", label: "Turnos", Icon: ClipboardList, tint: "text-amber-300" },
-          { key: "stats", label: "Dashboards", Icon: BarChart3, tint: "text-sky-300" },
+          { key: "stats", label: "Rendimiento", Icon: BarChart3, tint: "text-sky-300" },
           { key: "historial", label: "Historial", Icon: Clock, tint: "text-violet-300" },
           { key: "pagos", label: "Pagos", Icon: DollarSign, tint: "text-emerald-300" },
         ] as const).map(({ key, label, Icon, tint }) => {
@@ -496,8 +496,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           {approvalMode === "disabled" && "🚫 Cobro desactivado — el profesional solo consulta turnos; Caja realiza todos los cobros."}
         </div>
       ) : (
-        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-white/[0.035] ring-white/10 text-muted-foreground">
-          👀 Modo consulta — podés ver turnos, historial, pagos, estadísticas y comisiones, pero no enviar ni cobrar servicios desde Panel Profesionales.
+        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-white/[0.035] ring-white/10 text-muted-foreground inline-flex items-center gap-2">
+          <span className="size-1.5 rounded-full bg-white/30 shrink-0" /> Solo lectura
         </div>
       )}
 

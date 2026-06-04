@@ -123,21 +123,18 @@ function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
     <div className="flex items-end justify-between gap-4 flex-wrap">
       <div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-          Caja & Cobro
+          Caja
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Resumen del día, ventas, precios, inventario y gastos en un solo lugar.
-        </p>
       </div>
     </div>
   );
 }
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "resumen", label: "Resumen del día" },
+  { id: "resumen", label: "Resumen" },
   { id: "precios", label: "Precios" },
   { id: "inventario", label: "Inventario" },
-  { id: "profesionales", label: "Profesionales" },
+  { id: "profesionales", label: "Liquidaciones" },
 ];
 
 function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {

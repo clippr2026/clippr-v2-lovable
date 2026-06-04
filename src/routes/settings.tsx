@@ -300,7 +300,7 @@ function BrandingSection() {
       <div>
         <h2 className="text-xl font-display font-semibold">Branding</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Personalizá la identidad visual de tu barbería en el sistema.
+          Logo, nombre y datos del negocio.
         </p>
       </div>
 
@@ -640,7 +640,7 @@ function HorariosSection() {
             Horarios de atención
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Configurá los días y horarios en que tu barbería atiende clientes.
+            Días y horarios de atención.
           </p>
         </div>
       </div>
@@ -1777,7 +1777,7 @@ function EquipoSection() {
       <div>
         <h2 className="text-xl font-display font-semibold">Equipo</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Profesionales sincronizados con Agenda y Caja en tiempo real.
+          Administrá tu equipo.
         </p>
       </div>
 
@@ -1999,9 +1999,6 @@ function EquipoSection() {
           <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
             <div className="mb-5">
               <h3 className="font-semibold">Accesos</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Creá el acceso de cada persona y marcá qué módulos puede usar.
-              </p>
               {editingAccessUserId && (
                 <div className="mt-3 rounded-xl bg-amber-500/10 ring-1 ring-amber-400/20 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-3">
                   <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
@@ -2290,9 +2287,6 @@ function EquipoSection() {
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
                 <h3 className="text-lg font-semibold">¿Cómo funciona la aprobación de cobros?</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Esta configuración define qué sucede cuando un profesional registra un cobro desde su panel.
-                </p>
               </div>
               <button
                 type="button"
@@ -2547,8 +2541,7 @@ function EquipoSection() {
               {dlgTab === "horarios" && (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Configurá los días y horarios de trabajo. Los días
-                    desactivados no recibirán turnos.
+                    Días desactivados no recibirán turnos.
                   </p>
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
@@ -2633,9 +2626,6 @@ function EquipoSection() {
                 <div className="space-y-5">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="font-semibold text-sm">Comisiones y servicios que realiza</div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Marcá qué servicios/productos realiza o vende este profesional y configurá si cobra porcentaje o monto fijo por cada uno.
-                    </p>
                   </div>
 
                   {(["servicios", "catalogo"] as const).map((kind) => {
@@ -3387,8 +3377,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             {isService
-              ? "Administrá únicamente los servicios que se reservan y se cobran en Caja."
-              : "Administrá productos, bebidas, indumentaria y otros ítems del negocio."}
+              ? "Servicios que ofrecés."
+              : "Productos para la venta."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -3707,10 +3697,10 @@ function CajaSection() {
     <>
       <div>
         <h2 className="text-xl font-display font-semibold">
-          Configuración de caja
+          Caja
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Definí los medios de pago y comportamiento básico de Caja & Cobro.
+          Cobros y medios de pago.
         </p>
       </div>
 
@@ -4089,7 +4079,7 @@ function SettingsPage() {
     <AppShell>
       <Topbar
         title="Configuración"
-        subtitle="Personalizá tu negocio"
+        subtitle="Tu negocio"
         action={
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings"))}

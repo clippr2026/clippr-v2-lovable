@@ -70,12 +70,8 @@ function DashboardRoute() {
   return (
     <AppShell>
       <Topbar
-        title={`Hola, ${firstName}`}
-        subtitle={new Date().toLocaleDateString("es-AR", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-        })}
+        title="Dashboard"
+        subtitle="Resumen del negocio"
         action={<div />}
       />
       <DashboardContent businessId={businessId} />

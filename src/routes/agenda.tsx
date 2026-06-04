@@ -397,7 +397,7 @@ function AgendaPage() {
         {([
           ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
           ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
-          ["charged",   "Cobrados",     "oklch(0.76 0.2 155)"],
+          ["charged",   "Finalizados",     "oklch(0.76 0.2 155)"],
           ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
         ] as [string,string,string][]).map(([k, label, color]) => (
           <div key={k} className="group">
@@ -423,7 +423,7 @@ function AgendaPage() {
       {/* Filter modal */}
       {filterModal && (() => {
         const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", charged:"charged", cancelled:"cancelled" };
-        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", charged:"Cobrados", cancelled:"Cancelados" };
+        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", charged:"Finalizados", cancelled:"Cancelados" };
         const filtered = filterModal === "seña"
           ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
           : data.appointments.filter((a) => a.status === statusMap[filterModal]);
