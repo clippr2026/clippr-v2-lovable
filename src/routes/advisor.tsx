@@ -104,7 +104,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
   const recoveryImpact = inactiveClients.length * estimatedTicket;
   const emptySlotsImpact = emptySlots * estimatedTicket;
   const ticketImpact = (data?.cobros ?? 0) * 1000;
-  const hasEnoughData = Boolean((data?.cobros ?? 0) > 0 || (data?.clientes ?? 0) > 0 || appointments.length > 0);
+  const hasEnoughData = Boolean((data?.cobros ?? 0) > 0 || (data?.clientes ?? 0) > 0 || (data?.usedSlots ?? 0) > 0 || (data?.revMes ?? 0) > 0);
 
   const health = React.useMemo(() => {
     if (!data) return 0;
