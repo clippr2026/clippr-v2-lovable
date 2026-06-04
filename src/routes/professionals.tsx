@@ -63,7 +63,7 @@ const COLORS = [
 ];
 
 function ProfessionalsPage() {
-  const { businessId, profile } = useAuth();
+  const { businessId, profile, permissions } = useAuth();
   const { data: professionals = [], isLoading } = useProfessionals(businessId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("turnos");
@@ -165,7 +165,7 @@ function ProfessionalsPage() {
               <div className="text-sm text-muted-foreground mt-0.5">
                 Profesional {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
               </div>
-              <div className={cn(
+              {permissions.equipo && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
                 approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
                 approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
@@ -174,7 +174,7 @@ function ProfessionalsPage() {
                 {approvalMode === "auto" && <><Zap className="h-3 w-3 fill-emerald-300" /> Automático</>}
                 {approvalMode === "manual" && <>👁 Manual</>}
                 {approvalMode === "disabled" && <>🚫 Desactivado</>}
-              </div>
+              </div>}
             </div>
           </div>
 
@@ -265,7 +265,7 @@ function ProfessionalsPage() {
       />
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={permissions.equipo} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
       {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -438,13 +438,14 @@ function CobroModal({
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, profile, from, to, canOperate }: {
+function TurnosView({ businessId, empId, approvalMode, profile, from, to, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
   profile: { id: string; email?: string } | null;
   from: string;
   to: string;
   canOperate: boolean;
+  equipoEnabled: boolean;
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
@@ -461,7 +462,7 @@ function TurnosView({ businessId, empId, approvalMode, profile, from, to, canOpe
   return (
     <div className="space-y-4 animate-fade-up">
       {/* Mode explanation banner */}
-      {canOperate ? (
+      {equipoEnabled && canOperate ? (
         <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
           approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
           approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
