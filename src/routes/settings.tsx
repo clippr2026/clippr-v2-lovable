@@ -3977,7 +3977,7 @@ function SenasSection() {
               type="text"
               inputMode="decimal"
               value={amountValue}
-              onChange={(e) => setAmountValue(e.target.value.replace(",", "."))}
+              onChange={(e) => setAmountValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
               placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
               className="w-44 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-white/30 transition"
@@ -4017,14 +4017,14 @@ function SenasSection() {
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Local</span>
-                  <input type="number" min="0" max="100" step="0.1" value={lostLocal}
+                  <input type="text" inputMode="decimal" value={lostLocal}
                     onChange={e=>setLostLocal(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Profesional</span>
-                  <input type="number" min="0" max="100" step="0.1" value={lostProf}
+                  <input type="text" inputMode="decimal" value={lostProf}
                     onChange={e=>setLostProf(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
@@ -4044,7 +4044,7 @@ function SenasSection() {
               rows={4}
               value={msg}
               onChange={e => setMsg(e.target.value)}
-              className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
+              className="min-h-[360px] resize-y w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
             />
           </div>
           <div className="text-xs text-muted-foreground">
