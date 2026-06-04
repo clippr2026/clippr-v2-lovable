@@ -8,7 +8,6 @@ const ACTION_BY_PATH: Record<string, { label: string; to: string }> = {
   "/clients": { label: "Nuevo cliente", to: "/clients" },
   "/services": { label: "Nuevo servicio", to: "/services" },
   "/inventory": { label: "Nuevo producto", to: "/inventory" },
-  "/professionals": { label: "Nuevo profesional", to: "/professionals" },
 };
 
 export function Topbar({
