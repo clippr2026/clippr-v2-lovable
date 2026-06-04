@@ -188,7 +188,7 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
           </div>
         ) : rows.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-            Sin gastos registrados hoy.
+            Sin gastos registrados.
           </div>
         ) : (
           rows.map((g) => (

@@ -198,7 +198,7 @@ export function InventarioTab({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-white/10">
-                  {["Fecha", "Producto", "Tipo", "Cant.", "Stock", "Usuario", "Nota"].map((h) => (
+                  {["Fecha", "Producto", "Tipo", "Cant.", "Stock", "Nota"].map((h) => (
                     <th key={h} className="px-5 py-3 text-left whitespace-nowrap">
                       {h}
                     </th>
@@ -227,9 +227,6 @@ export function InventarioTab({
                       </td>
                       <td className="px-5 py-3 text-xs text-muted-foreground whitespace-nowrap">
                         {m.stock_before != null ? `${m.stock_before} → ${m.stock_after}` : "—"}
-                      </td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {m.user_email ?? "—"}
                       </td>
                       <td className="px-5 py-3 text-xs text-muted-foreground">
                         {m.note ?? "—"}
@@ -397,7 +394,7 @@ function HistoryModal({ businessId, onClose }: { businessId: string; onClose: ()
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-white/10">
-                  {["Fecha", "Producto", "Tipo", "Cant.", "Stock", "Usuario", "Nota"].map((h) => (
+                  {["Fecha", "Producto", "Tipo", "Cant.", "Stock", "Nota"].map((h) => (
                     <th key={h} className="px-2 py-2 text-left">
                       {h}
                     </th>
@@ -426,9 +423,6 @@ function HistoryModal({ businessId, onClose }: { businessId: string; onClose: ()
                       </td>
                       <td className="px-2 py-2 text-xs text-muted-foreground">
                         {m.stock_before != null ? `${m.stock_before} → ${m.stock_after}` : "—"}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-muted-foreground">
-                        {m.user_email ?? "—"}
                       </td>
                       <td className="px-2 py-2 text-xs text-muted-foreground">{m.note ?? "—"}</td>
                     </tr>

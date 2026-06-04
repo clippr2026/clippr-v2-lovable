@@ -55,7 +55,7 @@ export const Route = createFileRoute("/cash-register")({
   }),
   head: () => ({
     meta: [
-      { title: "Caja & Cobro — Clippr" },
+      { title: "Caja — Clippr" },
       { name: "description", content: "Caja del día, nueva venta, precios e inventario." },
     ],
   }),
@@ -122,7 +122,7 @@ function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
     <div className="flex items-end justify-between gap-4 flex-wrap">
       <div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-          Caja & Cobro
+          Caja
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Resumen del día, ventas, precios, inventario y gastos en un solo lugar.
@@ -263,7 +263,7 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     {
       label: "TICKET PROMEDIO",
       value: data.ticket,
-      sub: data.cobros === 0 ? "sin cobros" : `sobre ${data.cobros} cobros`,
+      sub: "",
       icon: BarChart3,
       tint: "from-cyan-400/25 to-cyan-500/0",
     },
@@ -397,7 +397,7 @@ function History({ data }: { data: ReturnType<typeof useCajaData> }) {
           <Loader2 className="size-4 animate-spin" /> Cargando…
         </div>
       ) : rows.length === 0 ? (
-        <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros hoy</div>
+        <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros</div>
       ) : (
         rows.map((p) => {
           const hour = new Date(p.created_at).toLocaleTimeString("es-AR", {
