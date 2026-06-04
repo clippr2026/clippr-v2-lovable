@@ -288,10 +288,10 @@ function BrandingSection() {
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
   const infoRows: { icon: React.ComponentType<{className?:string}>; label: string; hint: string; key: keyof BrandingData; type?: string }[] = [
-    { icon: Building2, label: "Nombre",    hint: "", key: "name" },
-    { icon: MapPin,    label: "Dirección", hint: "", key: "address" },
-    { icon: Phone,     label: "WhatsApp",  hint: "", key: "phone" },
-    { icon: Mail,      label: "Email",     hint: "", key: "email", type: "email" },
+    { icon: Building2, label: "Nombre", hint: "", key: "name" },
+    { icon: MapPin, label: "Dirección", hint: "", key: "address" },
+    { icon: Phone, label: "WhatsApp", hint: "", key: "phone" },
+    { icon: Mail, label: "Email", hint: "", key: "email", type: "email" },
     { icon: Instagram, label: "Instagram", hint: "", key: "instagram" },
   ];
 
@@ -300,7 +300,7 @@ function BrandingSection() {
       <div>
         <h2 className="text-xl font-display font-semibold">Branding</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Información del negocio.
+          Información del negocio
         </p>
       </div>
 
@@ -332,6 +332,7 @@ function BrandingSection() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm">Descripción</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Cuéntale a tus clientes sobre tu empresa</div>
             </div>
             <textarea
               value={data.description}

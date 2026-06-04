@@ -198,7 +198,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("ingresos")}
           label="Ingresos"
           value={fmtAR(data.revHoy)}
-          sub={`${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`}
           icon={DollarSign}
           tone="primary"
           spark={data.revByDay}
@@ -208,11 +207,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("gastos")}
           label="Gastos"
           value={data.totalGastos > 0 ? `-${fmtAR(data.totalGastos)}` : "$0"}
-          sub={
-            data.gastosCount > 0
-              ? `${data.gastosCount} gasto${data.gastosCount !== 1 ? "s" : ""}`
-              : "Sin gastos registrados"
-          }
           icon={ArrowDownCircle}
           tone="danger"
           spark={data.revByDay.map((v) => v * 0.25)}
@@ -222,7 +216,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("utilidad")}
           label="Utilidad"
           value={fmtAR(utilidad)}
-          sub={`Ingresos ${fmtAR(data.revHoy)} − Gastos ${fmtAR(data.totalGastos)}`}
           icon={Wallet}
           tone="success"
           spark={data.revByDay.map((v, i) => v - (data.revByDay[i] || 0) * 0.25)}
@@ -234,9 +227,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
         <Stat
           active={activeMetric === "clientes"}
           onClick={() => setActiveMetric("clientes")}
-          label="Clientes"
+          label="Clientes atendidos"
           value={String(data.clientsCount)}
-          sub="atendidos hoy"
           icon={Users}
           tone="neutral"
           spark={data.doneByDay}
@@ -246,7 +238,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("ticket")}
           label="Ticket promedio"
           value={fmtAR(data.ticket)}
-          sub={data.cobros === 0 ? "sin cobros" : `sobre ${data.cobros} cobros`}
           icon={Receipt}
           tone="neutral"
           spark={data.tickByDay}
@@ -256,22 +247,27 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("ocupacion")}
           label="Ocupación"
           value={`${data.occ}%`}
-          sub={`${data.usedSlots} de ${data.totalSlots} slots`}
           icon={Activity}
           tone="neutral"
           spark={data.occByDay}
         />
       </section>
 
-      {/* Revenue chart + donut */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Revenue chart full width */}
+      <section>
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
+      </section>
+
+      {/* Activity + services */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <ActivityPanel items={data.recentPayments} />
+        </div>
         <ServicesDonut data={data} />
       </section>
 
-      {/* Activity + cancellations */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ActivityPanel items={data.recentPayments} />
+      {/* Cancellations */}
+      <section>
         <CancellationsPanel items={data.recentCancellations} />
       </section>
     </div>

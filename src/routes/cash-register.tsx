@@ -234,6 +234,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Cobrado",
       value: data.revHoy,
+      sub: "",
       icon: Wallet,
       tint: "from-amber-400/20 to-amber-500/0",
       money: true,
@@ -241,6 +242,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Pendiente",
       value: data.pendingAmount,
+      sub: "",
       icon: Clock,
       tint: "from-violet-400/25 to-violet-500/0",
       money: true,
@@ -248,6 +250,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Cobros",
       value: data.cobros,
+      sub: "",
       icon: ClipboardList,
       tint: "from-sky-400/25 to-sky-500/0",
       money: false,
@@ -255,6 +258,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Clientes",
       value: data.cobros,
+      sub: "",
       icon: BarChart3,
       tint: "from-emerald-400/25 to-emerald-500/0",
       money: false,
@@ -284,6 +288,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
                     </span>
                   )}
                 </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>
               </div>
               <div className="rounded-xl bg-white/[0.04] border border-white/5 p-2">
                 <s.icon className="size-3.5 text-foreground/80" />

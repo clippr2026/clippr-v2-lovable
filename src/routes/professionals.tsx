@@ -147,13 +147,13 @@ function ProfessionalsPage() {
       <Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="space-y-6 animate-fade-up">
       {/* Header card */}
-      <div className="glass rounded-2xl px-4 py-3 md:px-5 md:py-4 relative overflow-hidden">
-        <div className="absolute -top-16 -left-10 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
-        <div className="flex items-center gap-4 relative flex-wrap">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className="glass rounded-3xl p-5 md:p-6 relative overflow-hidden">
+        <div className="absolute -top-24 -left-16 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center gap-5 md:gap-6 relative">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
             <div
               className={cn(
-                "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-display font-semibold text-background bg-gradient-to-br ring-1 ring-white/10 shrink-0",
+                "h-16 w-16 md:h-[68px] md:w-[68px] rounded-full overflow-hidden grid place-items-center text-2xl font-display font-semibold text-background bg-gradient-to-br shadow-[0_0_40px_-4px_rgba(251,191,36,0.55)] ring-1 ring-white/10",
                 activeColor.color
               )}
             >
@@ -164,21 +164,22 @@ function ProfessionalsPage() {
               )}
             </div>
             <div className="min-w-0">
-              <div className="text-base font-display font-semibold tracking-tight leading-tight flex items-center gap-2 flex-wrap">
+              <div className="text-2xl md:text-[26px] font-display font-semibold tracking-tight leading-tight">
                 {active.full_name}
-                {active.is_active === false && <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
-                {permissions.equipo && approvalModeEnabled && <div className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1",
-                  approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
-                  approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
-                  approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
-                )}>
-                  {approvalMode === "auto" && <><Zap className="h-2.5 w-2.5 fill-emerald-300" /> Automático</>}
-                  {approvalMode === "manual" && <>👁 Manual</>}
-                  {approvalMode === "disabled" && <>🚫 Desactivado</>}
-                </div>}
               </div>
-              <div className="text-xs text-muted-foreground">Profesional</div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                Profesional {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
+              </div>
+              {permissions.equipo && approvalModeEnabled && <div className={cn(
+                "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
+                approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
+                approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
+                approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
+              )}>
+                {approvalMode === "auto" && <><Zap className="h-3 w-3 fill-emerald-300" /> Automático</>}
+                {approvalMode === "manual" && <>👁 Manual</>}
+                {approvalMode === "disabled" && <>🚫 Desactivado</>}
+              </div>}
             </div>
           </div>
 
@@ -219,12 +220,12 @@ function ProfessionalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-white/5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {([
-          { key: "turnos",   label: "Turnos",      Icon: ClipboardList, tint: "text-amber-300" },
-          { key: "stats",    label: "Rendimiento", Icon: BarChart3,     tint: "text-sky-300" },
-          { key: "historial",label: "Historial",   Icon: Clock,         tint: "text-violet-300" },
-          { key: "pagos",    label: "Pagos",       Icon: DollarSign,    tint: "text-emerald-300" },
+          { key: "turnos", label: "Turnos", Icon: ClipboardList, tint: "text-amber-300" },
+          { key: "stats", label: "Rendimiento", Icon: BarChart3, tint: "text-sky-300" },
+          { key: "historial", label: "Historial", Icon: Clock, tint: "text-violet-300" },
+          { key: "pagos", label: "Pagos", Icon: DollarSign, tint: "text-emerald-300" },
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
           return (
@@ -232,14 +233,16 @@ function ProfessionalsPage() {
               key={key}
               onClick={() => setTab(key)}
               className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px",
+                "glass rounded-2xl py-4 flex flex-col items-center gap-1.5 transition-all",
                 isActive
-                  ? `border-primary/70 ${tint}`
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "ring-1 ring-primary/40 shadow-[0_0_30px_-10px_var(--neon-blue)] bg-white/[0.04]"
+                  : "hover:bg-white/[0.04]"
               )}
             >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
+              <Icon className={cn("h-5 w-5", isActive ? tint : "text-muted-foreground")} />
+              <span className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>
+                {label}
+              </span>
             </button>
           );
         })}
