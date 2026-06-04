@@ -650,7 +650,7 @@ export function AppointmentDialog({
             </div>
           </div>
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
-            <div>Cliente: <span className="text-foreground">{fullClientName || "Sin cliente"}</span></div>
+            <div>Cliente: <span className="text-foreground">{previewClientName || "Sin cliente"}</span></div>
             <div>Profesional: <span className="text-foreground">{employees.find((e) => e.id === employeeId)?.full_name ?? employees.find((e) => e.id === employeeId)?.name ?? "Sin asignar"}</span></div>
           </div>
         </div>
