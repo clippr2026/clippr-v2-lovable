@@ -25,15 +25,11 @@ export function Topbar({
   return (
     <header className="flex flex-wrap items-end gap-3 justify-between mb-6 md:mb-8">
       <div className="min-w-0">
-        <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-success pulse-dot" />
-          En vivo · sincronizado hace un momento
-        </div>
         <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight truncate">
           {title}
         </h1>
         {subtitle && (
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1 capitalize truncate">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">
             {subtitle}
           </p>
         )}
