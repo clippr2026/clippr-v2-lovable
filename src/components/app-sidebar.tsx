@@ -33,7 +33,7 @@ const ALL_NAV: Array<{
 }> = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard, permKey: "dashboard" },
   { label: "Agenda", to: "/agenda", icon: Calendar, permKey: "agenda" },
-  { label: "Caja & Cobro", to: "/cash-register", icon: Wallet, permKey: "caja" },
+  { label: "Caja", to: "/cash-register", icon: Wallet, permKey: "caja" },
   { label: "Panel Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
   { label: "Clientes", to: "/clients", icon: Users, permKey: "clientes" },
   { label: "Configuración", to: "/settings", icon: Settings },
