@@ -343,7 +343,22 @@ function AgendaPage() {
     <AppShell>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5 animate-fade-up">
-        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Agenda</h1>
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Agenda</h1>
+          <div className="mt-1.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                data.realtimeStatus === "disconnected" ? "bg-destructive" : "bg-success pulse-dot",
+              )}
+            />
+            <span>
+              {data.realtimeStatus === "disconnected"
+                ? "Sin conexión. Los cambios pueden no reflejarse inmediatamente."
+                : "Sincronizada en tiempo real"}
+            </span>
+          </div>
+        </div>
 
         {/* All nav controls grouped together */}
         <div className="flex items-center gap-1.5 glass rounded-2xl px-2 py-1.5">
