@@ -66,7 +66,7 @@ export const Route = createFileRoute("/cash-register")({
 type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales";
 
 function CashRegisterPage() {
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, permissions } = useAuth();
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
@@ -102,7 +102,7 @@ function CashRegisterPage() {
       <Header data={data} />
       <Tabs tab={tab} onChange={setTab} />
       <div className="mt-6">
-        {tab === "resumen" && <ResumenTab data={data} />}
+        {tab === "resumen" && <ResumenTab data={data} equipoEnabled={permissions.equipo} />}
         {tab === "nueva" && <NuevaVentaTab data={data} />}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
@@ -222,7 +222,7 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
 }
 
 // ───────────────────────────── RESUMEN
-function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
+function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
   // Proyección Día = revHoy / fracción del horario laboral transcurrido (8h-22h)
   const projection = useMemo(() => {
     const now = new Date();
@@ -305,13 +305,13 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         ))}
       </div>
 
-      <History data={data} />
+      <History data={data} equipoEnabled={equipoEnabled} />
     </div>
   );
 }
 
-function ApprovalMode({ data }: { data: ReturnType<typeof useCajaData> }) {
-  if (!data.approvalModeEnabled) return null;
+function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
+  if (!data.approvalModeEnabled || !equipoEnabled) return null;
 
   const mode = data.approvalMode;
   const desc: Record<typeof mode, string> = {
@@ -387,7 +387,7 @@ function CierreCajaBtn() {
   );
 }
 
-function History({ data }: { data: ReturnType<typeof useCajaData> }) {
+function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
   const rows = data.paymentsToday.slice(0, 10);
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
@@ -428,16 +428,15 @@ function History({ data }: { data: ReturnType<typeof useCajaData> }) {
           </div>
 
           {/* Approval mode compact */}
-          {data.approvalModeEnabled && (
+          {data.approvalModeEnabled && equipoEnabled && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Modo:</span>
               <div className="flex gap-1">
                 {([
-                  { id: "auto",     label: "Automático" },
-                  { id: "manual",   label: "Manual" },
-                  { id: "disabled", label: "Desactivado" },
+                  { id: "auto",   label: "Automático", title: "El profesional cobra desde su panel sin confirmación" },
+                  { id: "manual", label: "Manual",      title: "Caja/recepción confirma y cobra cada servicio" },
                 ] as const).map((opt) => (
-                  <button key={opt.id} onClick={() => data.setApprovalMode(opt.id)}
+                  <button key={opt.id} onClick={() => data.setApprovalMode(opt.id)} title={opt.title}
                     className={cn("px-2.5 py-1 rounded-lg text-xs font-medium ring-1 transition",
                       data.approvalMode === opt.id
                         ? "bg-primary/20 ring-primary/40 text-foreground"
