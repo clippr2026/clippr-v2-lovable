@@ -1,3 +1,27 @@
+const DEFAULT_SENA_MESSAGE = `¡Hola! 👋
+
+Para confirmar tu turno es necesario abonar una seña.
+
+Datos para realizar el pago:
+
+Titular: [Nombre]
+Alias: [Alias]
+CBU: [CBU]
+
+Una vez realizado el pago, envianos el comprobante por WhatsApp al:
+
+📲 [WhatsApp del local]
+
+IMPORTANTE:
+
+• La seña se descuenta del valor total del servicio.
+• Podés cancelar o reprogramar tu turno hasta 24 horas antes sin perder la seña.
+• Si cancelás con menos de 24 horas de anticipación o no asistís al turno, la seña no será reembolsable.
+• La reserva queda confirmada únicamente una vez acreditado el pago.
+• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.
+
+¡Muchas gracias! Te esperamos. 🙌`;
+
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
@@ -87,8 +111,8 @@ const groups: { label: string; items: NavItem[] }[] = [
         id: "horarios",
         label: "Horarios",
         icon: CalendarDays,
-        tint: "text-[oklch(0.72_0.2_245)]",
-        glow: "from-[oklch(0.72_0.2_245/0.25)] to-[oklch(0.55_0.22_265/0.05)]",
+        tint: "text-[oklch(0.78_0.2_270)]",
+        glow: "from-[oklch(0.78_0.2_270/0.25)] to-[oklch(0.65_0.22_285/0.05)]",
       },
     ],
   },
@@ -105,9 +129,9 @@ const groups: { label: string; items: NavItem[] }[] = [
       {
         id: "servicios",
         label: "Servicios",
-        icon: Scissors,
-        tint: "text-[oklch(0.78_0.17_140)]",
-        glow: "from-[oklch(0.78_0.17_140/0.25)] to-[oklch(0.7_0.2_160/0.05)]",
+        icon: Zap,
+        tint: "text-[oklch(0.85_0.18_160)]",
+        glow: "from-[oklch(0.85_0.18_160/0.25)] to-[oklch(0.7_0.2_170/0.05)]",
       },
       {
         id: "catalogo",
@@ -125,8 +149,8 @@ const groups: { label: string; items: NavItem[] }[] = [
         id: "caja",
         label: "Caja",
         icon: Banknote,
-        tint: "text-[oklch(0.82_0.14_75)]",
-        glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]",
+        tint: "text-[oklch(0.80_0.18_45)]",
+        glow: "from-[oklch(0.80_0.18_45/0.25)] to-[oklch(0.75_0.2_35/0.05)]",
       },
       {
         id: "senas",
@@ -176,13 +200,14 @@ function BrandingSection() {
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
-    // Load name from businesses (only confirmed column), rest from business_settings.branding_config
+    // Load name from businesses, rest from business_settings.schedule._branding
     Promise.all([
       supabase.from("businesses").select("name").eq("id", businessId).maybeSingle(),
-      supabase.from("business_settings").select("branding_config").eq("business_id", businessId).maybeSingle(),
+      supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
-      const cfg = (settRes.data?.branding_config ?? {}) as Record<string, unknown>;
+      const schedule = (settRes.data?.schedule ?? {}) as Record<string, unknown>;
+      const cfg = (schedule._branding ?? {}) as Record<string, unknown>;
       setData({
         name: (biz?.name as string) ?? "",
         address: (cfg.address as string) ?? "",
@@ -215,12 +240,17 @@ function BrandingSection() {
       const url = await uploadImage(logoFile, `${businessId}/logo`);
       if (url) logo_url = url;
     }
-    // Save name to businesses (safe column)
+
+    // Save name to businesses
     const nameResult = await supabase.from("businesses").update({ name: data.name }).eq("id", businessId);
-    // Save rest to business_settings.branding_config
-    const cfgResult = await supabase.from("business_settings").upsert({
-      business_id: businessId,
-      branding_config: {
+
+    // Save branding fields inside schedule._branding (schedule column exists)
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const newSchedule = {
+      ...existingSchedule,
+      _branding: {
         address: data.address,
         phone: data.phone,
         email: data.email,
@@ -229,7 +259,12 @@ function BrandingSection() {
         description: data.description,
         logo_url,
       },
-    }, { onConflict: "business_id" });
+    };
+    const cfgResult = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: newSchedule },
+      { onConflict: "business_id" },
+    );
+
     setSaving(false);
     if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
@@ -258,7 +293,6 @@ function BrandingSection() {
     { icon: Phone, label: "Teléfono de contacto", hint: "Para confirmaciones y WhatsApp", key: "phone" },
     { icon: Mail, label: "Email de contacto", hint: "Para notificaciones y comunicaciones", key: "email", type: "email" },
     { icon: Instagram, label: "Instagram / Redes", hint: "Aparece en el pie de los tickets", key: "instagram" },
-    { icon: Globe, label: "Sitio web", hint: "URL del sitio web del negocio", key: "website" },
   ];
 
   return (
@@ -828,8 +862,31 @@ type EmployeeRow = {
   id: string;
   name?: string | null;
   full_name?: string | null;
+  avatar_url?: string | null;
   is_active?: boolean | null;
   commission_pct?: number | null;
+};
+
+type PendingProfessional = {
+  tempId: string;
+  payload: {
+    id?: string;
+    full_name: string;
+    is_active: boolean;
+    commission_pct: number | null;
+    avatar_url?: string | null;
+    commissions?: Record<string, CommissionConfig>;
+  };
+  isNew: boolean;
+};
+
+
+type CommissionMode = "percent" | "fixed";
+
+type CommissionConfig = {
+  enabled: boolean;
+  mode: CommissionMode;
+  value: string;
 };
 
 type NewProForm = {
@@ -844,6 +901,8 @@ type NewProForm = {
   description: string;
   specialty: string;
   commissionPct: string;
+  avatarUrl: string;
+  commissions: Record<string, CommissionConfig>;
 };
 
 const EMPTY_FORM: NewProForm = {
@@ -858,6 +917,8 @@ const EMPTY_FORM: NewProForm = {
   description: "",
   specialty: "",
   commissionPct: "",
+  avatarUrl: "",
+  commissions: {},
 };
 
 const inputCls =
@@ -887,18 +948,235 @@ function Field({
   );
 }
 
+type RolePermissionId =
+  | "admin_general"
+  | "socio"
+  | "admin_local"
+  | "recepcionista"
+  | "profesional";
+
+type PermissionKey =
+  | "dashboard"
+  | "agenda"
+  | "caja_cobro"
+  | "panel_profesionales"
+  | "clientes"
+  | "configuracion"
+  | "branding"
+  | "horarios"
+  | "equipo"
+  | "servicios"
+  | "catalogo"
+  | "caja"
+  | "senas"
+  | "plan_facturacion";
+
+type PermissionMap = Record<PermissionKey, boolean>;
+type RolePermissions = Record<RolePermissionId, PermissionMap>;
+
+type AccessStatus = "active" | "inactive";
+
+type AccessUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: RolePermissionId;
+  status: AccessStatus;
+  employee_id?: string | null;
+};
+
+const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
+  admin_general: "Admin. General",
+  socio: "Socio",
+  admin_local: "Administrador Local",
+  recepcionista: "Recepcionista",
+  profesional: "Profesional",
+};
+
+const EMPTY_ACCESS_FORM: Omit<AccessUser, "id"> & { password: string } = {
+  name: "",
+  email: "",
+  password: "",
+  role: "profesional",
+  status: "active",
+  employee_id: null,
+};
+
+const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
+  { key: "dashboard", label: "Dashboard", desc: "Métricas generales del negocio." },
+  { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },
+  { key: "caja_cobro", label: "Caja & Cobro", desc: "Ventas, cobros y movimientos de caja." },
+  { key: "panel_profesionales", label: "Panel Profesionales", desc: "Vista operativa para profesionales." },
+  { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
+  { key: "configuracion", label: "Configuración", desc: "Acceso a ajustes del negocio." },
+];
+
+const CONFIG_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
+  { key: "branding", label: "Branding", desc: "Identidad visual y datos del negocio." },
+  { key: "horarios", label: "Horarios", desc: "Disponibilidad y reglas de agenda." },
+  { key: "equipo", label: "Equipo", desc: "Profesionales, usuarios y permisos." },
+  { key: "servicios", label: "Servicios", desc: "Servicios, precios y categorías." },
+  { key: "catalogo", label: "Catálogo", desc: "Productos, stock y categorías." },
+  { key: "caja", label: "Caja", desc: "Métodos de pago y reglas de cobro." },
+  { key: "senas", label: "Señas", desc: "Reglas de señas para reservas." },
+  { key: "plan_facturacion", label: "Plan & Facturación", desc: "Suscripción y facturación." },
+];
+
+const ALL_PERMISSION_KEYS: PermissionKey[] = [
+  ...MAIN_PERMISSION_ITEMS.map((item) => item.key),
+  ...CONFIG_PERMISSION_ITEMS.map((item) => item.key),
+];
+
+const allOnPermissions = (): PermissionMap =>
+  ALL_PERMISSION_KEYS.reduce((acc, key) => ({ ...acc, [key]: true }), {} as PermissionMap);
+
+const buildPermissions = (enabled: PermissionKey[]): PermissionMap =>
+  ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: enabled.includes(key) }),
+    {} as PermissionMap,
+  );
+
+const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
+  admin_general: allOnPermissions(),
+  socio: allOnPermissions(),
+  admin_local: buildPermissions([
+    "dashboard",
+    "agenda",
+    "caja_cobro",
+    "panel_profesionales",
+    "clientes",
+    "configuracion",
+    "horarios",
+    "equipo",
+    "servicios",
+    "catalogo",
+    "caja",
+    "senas",
+  ]),
+  recepcionista: buildPermissions(["agenda", "caja_cobro", "clientes"]),
+  profesional: buildPermissions(["panel_profesionales"]),
+};
+
+const ROLE_PERMISSION_OPTIONS: {
+  id: RolePermissionId;
+  label: string;
+  icon: string;
+  desc: string;
+  locked?: boolean;
+}[] = [
+  {
+    id: "admin_general",
+    label: "Admin. General",
+    icon: "👑",
+    desc: "Dueño principal del negocio. Acceso completo.",
+    locked: true,
+  },
+  {
+    id: "socio",
+    label: "Socio",
+    icon: "🤝",
+    desc: "Acceso completo por defecto, editable.",
+  },
+  {
+    id: "admin_local",
+    label: "Administrador Local",
+    icon: "🏢",
+    desc: "Gestión operativa de la sucursal.",
+  },
+  {
+    id: "recepcionista",
+    label: "Recepcionista",
+    icon: "💼",
+    desc: "Agenda, caja y clientes.",
+  },
+  {
+    id: "profesional",
+    label: "Profesional",
+    icon: "✂️",
+    desc: "Accesos para el trabajo diario.",
+  },
+];
+
+function normalizeRolePermissions(value: unknown): RolePermissions {
+  const saved = (value && typeof value === "object" ? value : {}) as Partial<RolePermissions>;
+  return ROLE_PERMISSION_OPTIONS.reduce((acc, role) => {
+    const base = DEFAULT_ROLE_PERMISSIONS[role.id];
+    const incoming = (saved[role.id] ?? {}) as Partial<PermissionMap>;
+    acc[role.id] =
+      role.id === "admin_general"
+        ? allOnPermissions()
+        : ALL_PERMISSION_KEYS.reduce(
+            (roleAcc, key) => ({
+              ...roleAcc,
+              [key]: typeof incoming[key] === "boolean" ? Boolean(incoming[key]) : base[key],
+            }),
+            {} as PermissionMap,
+          );
+    return acc;
+  }, {} as RolePermissions);
+}
+function normalizeAccessUsers(value: unknown): AccessUser[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const row = (item && typeof item === "object" ? item : {}) as Partial<AccessUser>;
+      const role = ROLE_PERMISSION_OPTIONS.some((r) => r.id === row.role)
+        ? (row.role as RolePermissionId)
+        : "profesional";
+      return {
+        id: String(row.id ?? crypto.randomUUID()),
+        name: String(row.name ?? "").trim(),
+        email: String(row.email ?? "").trim(),
+        role,
+        status: row.status === "inactive" ? "inactive" : "active",
+        employee_id: typeof row.employee_id === "string" ? row.employee_id : null,
+      };
+    })
+    .filter((item) => item.name || item.email);
+}
+
+function normalizeUserPermissions(value: unknown): Record<string, PermissionMap> {
+  const saved = (value && typeof value === "object" ? value : {}) as Record<string, Partial<PermissionMap>>;
+  return Object.entries(saved).reduce((acc, [id, perms]) => {
+    acc[id] = ALL_PERMISSION_KEYS.reduce(
+      (roleAcc, key) => ({
+        ...roleAcc,
+        [key]: typeof perms?.[key] === "boolean" ? Boolean(perms[key]) : false,
+      }),
+      {} as PermissionMap,
+    );
+    return acc;
+  }, {} as Record<string, PermissionMap>);
+}
+
 function EquipoSection() {
   const { businessId } = useAuth();
-  const [tab, setTab] = useState<"pros" | "users" | "perms">("pros");
+  const [tab, setTab] = useState<"pros" | "users">("pros");
+  const [selectedPermRole, setSelectedPermRole] = useState<RolePermissionId>("admin_general");
+  const [rolePermissions, setRolePermissions] = useState<RolePermissions>(DEFAULT_ROLE_PERMISSIONS);
+  const [individualPermMode, setIndividualPermMode] = useState(true);
+  const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
+  const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
+  const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
+  const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(null);
+  const [accessTouched, setAccessTouched] = useState(false);
+  const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
+  const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
+  const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
   const [rows, setRows] = useState<EmployeeRow[]>([]);
+  const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
+  const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
+  const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<
-    "datos" | "horarios" | "perfil" | "comisiones"
-  >("datos");
+    "perfil" | "horarios" | "comisiones"
+  >("perfil");
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -906,13 +1184,23 @@ function EquipoSection() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase
-      .from("employees")
-      .select("id,full_name,is_active,commission_pct")
-      .eq("business_id", businessId)
-      .order("full_name", { ascending: true });
+    const [{ data, error }, catalogResult] = await Promise.all([
+      supabase
+        .from("employees")
+        .select("id,full_name,avatar_url,is_active,commission_pct")
+        .eq("business_id", businessId)
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("price_catalog")
+        .select("id,name,price,duration_min,category,active,stock,cash_discount")
+        .eq("business_id", businessId)
+        .order("category")
+        .order("name"),
+    ]);
     if (error) toast.error("Error cargando profesionales: " + error.message);
+    if (catalogResult.error) toast.error("Error cargando servicios y catálogo: " + catalogResult.error.message);
     setRows((data ?? []) as EmployeeRow[]);
+    setCommissionItems((catalogResult.data ?? []) as PriceRow[]);
     setLoading(false);
   }, [businessId]);
 
@@ -920,51 +1208,335 @@ function EquipoSection() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule,approval_mode")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const caja = (schedule._caja ?? {}) as Record<string, unknown>;
+        const loadedUsers = normalizeAccessUsers(schedule._accessUsers);
+        setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
+        setAccessUsers(loadedUsers);
+        setUserPermissions(normalizeUserPermissions(schedule._userPermissions));
+        setApprovalEnabled(caja.approvalModeEnabled === true);
+        setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
+        setSelectedAccessUserId((current) => current || loadedUsers[0]?.id || "");
+      });
+  }, [businessId]);
+
+  async function saveRolePermissions() {
+    if (!businessId) return;
+
+    for (const item of pendingProfessionals) {
+      const payload = item.payload;
+      if (item.isNew) {
+        const { data: inserted, error } = await supabase
+          .from("employees")
+          .insert({
+            business_id: businessId,
+            full_name: payload.full_name,
+            is_active: payload.is_active,
+            commission_pct: payload.commission_pct,
+            avatar_url: payload.avatar_url ?? null,
+          })
+          .select("id")
+          .single();
+
+        if (error || !inserted) {
+          return toast.error("Error guardando profesional: " + (error?.message ?? "no se pudo crear"));
+        }
+
+        if (payload.commissions) {
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeCommissions: {
+                  ...existingCommissions,
+                  [inserted.id]: payload.commissions,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+      } else if (payload.id) {
+        const { error } = await supabase
+          .from("employees")
+          .update({
+            full_name: payload.full_name,
+            is_active: payload.is_active,
+            commission_pct: payload.commission_pct,
+            avatar_url: payload.avatar_url ?? null,
+          })
+          .eq("id", payload.id);
+
+        if (error) return toast.error("Error guardando profesional: " + error.message);
+
+        if (payload.commissions) {
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeCommissions: {
+                  ...existingCommissions,
+                  [payload.id]: payload.commissions,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+      }
+    }
+
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const cleaned = normalizeRolePermissions(rolePermissions);
+
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        approval_mode: approvalMode,
+        schedule: {
+          ...existingSchedule,
+          _rolePermissions: cleaned,
+          _accessUsers: accessUsers.map(({ id, name, email, role, status, employee_id }) => ({ id, name, email, role, status, employee_id: employee_id ?? null })),
+          _userPermissions: userPermissions,
+          _caja: {
+            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
+            approvalModeEnabled: approvalEnabled,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+
+    if (error) return toast.error("Error guardando accesos y permisos: " + error.message);
+    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
+    setPendingProfessionals([]);
+    await load();
+    toast.success("Equipo guardado correctamente");
+  }
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "equipo") {
+        void saveRolePermissions();
+      }
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, [businessId, rolePermissions, accessUsers, userPermissions, pendingProfessionals, load, approvalEnabled, approvalMode]);
+
+  async function compressProfessionalAvatar(file: File): Promise<Blob> {
+    const imageUrl = URL.createObjectURL(file);
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("No se pudo leer la imagen"));
+        img.src = imageUrl;
+      });
+
+      const size = 200;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("No se pudo preparar la imagen");
+
+      const sourceSize = Math.min(image.width, image.height);
+      const sourceX = Math.max(0, (image.width - sourceSize) / 2);
+      const sourceY = Math.max(0, (image.height - sourceSize) / 2);
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+
+      const toBlob = (quality: number) =>
+        new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) reject(new Error("No se pudo comprimir la imagen"));
+              else resolve(blob);
+            },
+            "image/webp",
+            quality,
+          );
+        });
+
+      let quality = 0.75;
+      let blob = await toBlob(quality);
+
+      while (blob.size > 80 * 1024 && quality > 0.45) {
+        quality -= 0.08;
+        blob = await toBlob(quality);
+      }
+
+      if (blob.size > 80 * 1024) {
+        toast.info("La imagen quedó optimizada, pero puede superar levemente los 80 KB por el formato original.");
+      }
+
+      return blob;
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  }
+
+  async function uploadProfessionalAvatar(file: File) {
+    if (!businessId) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Subí una imagen JPG, PNG o WEBP");
+      return;
+    }
+
+    const compressed = await compressProfessionalAvatar(file);
+    const safeId = editingEmp?.id ?? `new-${crypto.randomUUID()}`;
+    const path = `${businessId}/${safeId}-${Date.now()}.webp`;
+
+    const { error } = await supabase.storage
+      .from("professionals")
+      .upload(path, compressed, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: "image/webp",
+      });
+
+    if (error) {
+      toast.error("Error subiendo la foto: " + error.message);
+      return;
+    }
+
+    const { data } = supabase.storage.from("professionals").getPublicUrl(path);
+    setForm((current) => ({ ...current, avatarUrl: data.publicUrl }));
+    toast.success("Foto comprimida y cargada. Tocá Aceptar y luego Guardar para confirmar.");
+  }
+
   function openNew() {
+    setEditingEmp(null);
     setForm(EMPTY_FORM);
-    setDlgTab("datos");
+    setDlgTab("perfil");
     setOpen(true);
+  }
+
+  async function saveEmployeeCommissionConfig(employeeId: string) {
+    if (!businessId) return;
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+
+    await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        schedule: {
+          ...existingSchedule,
+          _employeeCommissions: {
+            ...existingCommissions,
+            [employeeId]: form.commissions,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
   }
 
   async function saveProfessional() {
     if (!businessId) return;
     const name = form.fullName.trim();
     if (!name) {
-      setDlgTab("datos");
+      setDlgTab("perfil");
       return toast.error("Ingresá el nombre completo");
     }
-    setSaving(true);
+
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
-    const { data: inserted, error } = await supabase
-      .from("employees")
-      .insert({
-        business_id: businessId,
+    const payload = {
+      id: editingEmp?.id,
+      full_name: name,
+      is_active: editingEmp ? editingEmp.is_active !== false : true,
+      commission_pct: commission,
+      avatar_url: form.avatarUrl || null,
+      commissions: form.commissions,
+    };
+
+    if (editingEmp) {
+      setRows((current) =>
+        current.map((emp) =>
+          emp.id === editingEmp.id
+            ? {
+                ...emp,
+                full_name: name,
+                commission_pct: commission,
+                avatar_url: form.avatarUrl || null,
+              }
+            : emp,
+        ),
+      );
+
+      setPendingProfessionals((current) => [
+        ...current.filter((item) => item.payload.id !== editingEmp.id),
+        { tempId: editingEmp.id, payload, isNew: false },
+      ]);
+
+      toast.success("Cambio aplicado. Presioná Guardar para confirmarlo.");
+      setOpen(false);
+      setEditingEmp(null);
+      return;
+    }
+
+    const tempId = `temp-${crypto.randomUUID()}`;
+    setRows((current) => [
+      ...current,
+      {
+        id: tempId,
         full_name: name,
+        avatar_url: form.avatarUrl || null,
         is_active: true,
         commission_pct: commission,
-      })
-      .select("id")
-      .single();
-    if (error || !inserted) {
-      setSaving(false);
-      return toast.error("Error: " + (error?.message ?? "no se pudo crear"));
-    }
-    // Persist extras best-effort (ignore missing columns)
-    // Update optional fields that exist in the table
-    const extras: Record<string, unknown> = {};
-    if (form.email) extras.email = form.email;
-    if (form.phone) extras.phone = form.phone;
-    if (Object.keys(extras).length > 0) {
-      try {
-        await supabase.from("employees").update(extras).eq("id", inserted.id);
-      } catch {
-        /* ignore */
-      }
-    }
-    setSaving(false);
-    toast.success("Equipo actualizado correctamente");
+      },
+    ]);
+
+    setPendingProfessionals((current) => [
+      ...current,
+      { tempId, payload: { ...payload, id: undefined }, isNew: true },
+    ]);
+
+    toast.success("Profesional agregado. Presioná Guardar para confirmarlo.");
     setOpen(false);
-    load();
   }
 
   async function toggleActive(emp: EmployeeRow) {
@@ -997,6 +1569,209 @@ function EquipoSection() {
     }));
   }
 
+  function togglePermission(roleId: RolePermissionId, key: PermissionKey) {
+    if (roleId === "admin_general") return;
+    setRolePermissions((current) => {
+      const nextValue = !current[roleId][key];
+      const nextRole = { ...current[roleId], [key]: nextValue };
+
+      if (key === "configuracion" && !nextValue) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          nextRole[item.key] = false;
+        });
+      }
+
+      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && nextValue) {
+        nextRole.configuracion = true;
+      }
+
+      return { ...current, [roleId]: nextRole };
+    });
+  }
+
+  function saveAccessUser() {
+    setAccessTouched(true);
+    const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
+    const name =
+      accessForm.role === "profesional"
+        ? (selectedEmployee?.full_name || selectedEmployee?.name || "").trim()
+        : ROLE_LABEL_BY_ID[accessForm.role];
+    const email = accessForm.email.trim();
+
+    if (accessForm.role === "profesional" && !selectedEmployee) {
+      return toast.error("Elegí el profesional para este acceso");
+    }
+    if (!email) return toast.error("Ingresá el correo electrónico");
+    if (!editingAccessUserId && !accessForm.password.trim()) return toast.error("Ingresá la contraseña");
+
+    if (editingAccessUserId) {
+      setAccessUsers((current) =>
+        current.map((user) =>
+          user.id === editingAccessUserId
+            ? {
+                ...user,
+                name,
+                email,
+                role: accessForm.role,
+                status: accessForm.status,
+                employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
+              }
+            : user,
+        ),
+      );
+      setUserPermissions((current) => ({
+        ...current,
+        [editingAccessUserId]: { ...accessPermissionsForm },
+      }));
+      setSelectedPermRole(accessForm.role);
+      setSelectedAccessUserId(editingAccessUserId);
+      setEditingAccessUserId(null);
+      setAccessForm(EMPTY_ACCESS_FORM);
+      setAccessTouched(false);
+      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+      toast.success("Acceso actualizado correctamente");
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    const newUser: AccessUser = {
+      id,
+      name,
+      email,
+      role: accessForm.role,
+      status: accessForm.status,
+      employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
+    };
+
+    setAccessUsers((current) => [...current, newUser]);
+    setUserPermissions((current) => ({
+      ...current,
+      [id]: { ...accessPermissionsForm },
+    }));
+    setAccessForm(EMPTY_ACCESS_FORM);
+    setAccessTouched(false);
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+    setSelectedPermRole(accessForm.role);
+    setSelectedAccessUserId(id);
+    toast.success("Acceso agregado correctamente");
+  }
+
+  function editAccessUser(user: AccessUser) {
+    setEditingAccessUserId(user.id);
+    setAccessForm({
+      name: user.name,
+      email: user.email,
+      password: "",
+      role: user.role,
+      status: user.status,
+      employee_id: user.employee_id ?? null,
+    });
+    setAccessPermissionsForm(userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role]);
+    setSelectedPermRole(user.role);
+    setSelectedAccessUserId(user.id);
+    setAccessTouched(false);
+  }
+
+  function cancelEditAccessUser() {
+    setEditingAccessUserId(null);
+    setAccessForm(EMPTY_ACCESS_FORM);
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+    setAccessTouched(false);
+  }
+
+
+  function removeAccessUser(id: string) {
+    setAccessUsers((current) => current.filter((user) => user.id !== id));
+    setUserPermissions((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    if (selectedAccessUserId === id) setSelectedAccessUserId("");
+    if (editingAccessUserId === id) cancelEditAccessUser();
+  }
+
+  function toggleUserPermission(userId: string, key: PermissionKey) {
+    const user = accessUsers.find((item) => item.id === userId);
+    if (!user) return;
+
+    setUserPermissions((current) => {
+      const base = current[userId] ?? DEFAULT_ROLE_PERMISSIONS[user.role];
+      const nextValue = !base[key];
+      const nextUser = { ...base, [key]: nextValue };
+
+      if (key === "configuracion" && !nextValue) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          nextUser[item.key] = false;
+        });
+      }
+
+      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && nextValue) {
+        nextUser.configuracion = true;
+      }
+
+      return { ...current, [userId]: nextUser };
+    });
+  }
+
+  function getRecommendedPermissionKeys(role: RolePermissionId) {
+    return ALL_PERMISSION_KEYS.filter((key) => DEFAULT_ROLE_PERMISSIONS[role][key]);
+  }
+
+  function getAdditionalPermissionKeys(role: RolePermissionId) {
+    return ALL_PERMISSION_KEYS.filter((key) => !DEFAULT_ROLE_PERMISSIONS[role][key]);
+  }
+
+  function getPermissionItem(key: PermissionKey) {
+    return (
+      MAIN_PERMISSION_ITEMS.find((item) => item.key === key) ??
+      CONFIG_PERMISSION_ITEMS.find((item) => item.key === key)
+    );
+  }
+
+  function toggleAccessFormPermission(key: PermissionKey) {
+    setAccessPermissionsForm((current) => {
+      const next = { ...current, [key]: !current[key] };
+      if (key === "configuracion" && !next[key]) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          next[item.key] = false;
+        });
+      }
+      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && next[key]) {
+        next.configuracion = true;
+      }
+      return next;
+    });
+  }
+
+  function resetSelectedAccessPermissions() {
+    if (!selectedAccessUser) return;
+    setUserPermissions((current) => ({
+      ...current,
+      [selectedAccessUser.id]: { ...DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role] },
+    }));
+    toast.success("Permisos recomendados restablecidos");
+  }
+
+  const selectedRole = ROLE_PERMISSION_OPTIONS.find((role) => role.id === selectedPermRole) ?? ROLE_PERMISSION_OPTIONS[0];
+  const selectedRoleUsers = accessUsers.filter((user) => user.role === selectedPermRole);
+  const selectedAccessUser =
+    selectedRoleUsers.find((user) => user.id === selectedAccessUserId) ??
+    selectedRoleUsers[0] ??
+    null;
+  const selectedUserPermissions = selectedAccessUser
+    ? userPermissions[selectedAccessUser.id] ?? DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role]
+    : null;
+  const selectedPermissions = individualPermMode && selectedUserPermissions
+    ? selectedUserPermissions
+    : selectedPermRole === "admin_general"
+      ? allOnPermissions()
+      : rolePermissions[selectedPermRole];
+  const selectedRoleLocked = selectedAccessUser?.role === "admin_general";
+  const currentPanelTitle = individualPermMode && selectedAccessUser
+    ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
+    : selectedRole.label;
+
   return (
     <>
       <div>
@@ -1010,8 +1785,7 @@ function EquipoSection() {
         {(
           [
             ["pros", "Profesionales"],
-            ["users", "Usuarios"],
-            ["perms", "Permisos"],
+            ["users", "Accesos"],
           ] as const
         ).map(([id, label]) => {
           const active = tab === id;
@@ -1071,11 +1845,15 @@ function EquipoSection() {
                     <div className="flex items-center gap-3">
                       <div
                         className={cn(
-                          "h-10 w-10 rounded-full grid place-items-center text-sm font-semibold text-black bg-gradient-to-br",
+                          "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br ring-1 ring-white/10",
                           PRO_TINTS[i % PRO_TINTS.length],
                         )}
                       >
-                        {displayName[0]?.toUpperCase()}
+                        {emp.avatar_url ? (
+                          <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          displayName[0]?.toUpperCase()
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm truncate">
@@ -1106,7 +1884,7 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => { setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("datos"); setOpen(true); }}
+                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("perfil"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
                         Editar
@@ -1129,16 +1907,462 @@ function EquipoSection() {
               })}
             </div>
           )}
+        <SectionCard label="Aprobación de cobros profesionales">
+          <div className="space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <ShieldCheck className="h-5 w-5 text-[oklch(0.82_0.14_75)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-base">Habilitar modo de aprobación</div>
+                <div className="text-sm text-muted-foreground mt-0.5">
+                  Activá esta opción para definir si el cobro del profesional impacta automático o queda pendiente para Caja.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovalInfoOpen(true)}
+                className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Info ?
+              </button>
+              <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
+            </div>
+
+            {approvalEnabled && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setApprovalMode("auto")}
+                  className={cn(
+                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    approvalMode === "auto"
+                      ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
+                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-lg font-semibold">Automático</div>
+                    {approvalMode === "auto" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        ✓ Modo predeterminado
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
+                    <div>✅ El profesional puede cobrar desde su panel.</div>
+                    <div>✅ El cobro impacta automáticamente en los ingresos de Caja.</div>
+                    <div>✅ No requiere revisión ni aprobación previa.</div>
+                  </div>
+                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                    Recomendado cuando los profesionales gestionan sus propios cobros.
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalMode("manual")}
+                  className={cn(
+                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    approvalMode === "manual"
+                      ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
+                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-lg font-semibold">Manual</div>
+                    {approvalMode === "manual" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        ✓ Modo predeterminado
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
+                    <div>✅ El profesional envía el cobro a Caja y queda pendiente de confirmación.</div>
+                    <div>✅ Caja revisa la información enviada.</div>
+                    <div>✅ El cobro se registra únicamente cuando es aprobado y confirmado.</div>
+                  </div>
+                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                    Recomendado cuando los cobros deben ser revisados antes de registrarse.
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </SectionCard>
+
         </div>
       )}
 
-      {tab !== "pros" && (
-        <div className="glass rounded-2xl p-10 ring-1 ring-white/5 text-center text-muted-foreground">
-          Sección en construcción.
+            {tab === "users" && (
+        <div className="space-y-5">
+          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+            <div className="mb-5">
+              <h3 className="font-semibold">Accesos</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Creá el acceso de cada persona y marcá qué módulos puede usar.
+              </p>
+              {editingAccessUserId && (
+                <div className="mt-3 rounded-xl bg-amber-500/10 ring-1 ring-amber-400/20 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-3">
+                  <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
+                  <button
+                    type="button"
+                    onClick={cancelEditAccessUser}
+                    className="rounded-lg bg-white/10 hover:bg-white/15 px-2 py-1 text-[11px] text-foreground"
+                  >
+                    Cancelar edición
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.85fr] gap-4">
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Rol">
+                    <select
+                      value={accessForm.role}
+                      onChange={(e) => {
+                        const role = e.target.value as RolePermissionId;
+                        setAccessForm((f) => ({
+                          ...f,
+                          role,
+                          name: "",
+                          employee_id: null,
+                          email: "",
+                          password: "",
+                        }));
+                        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[role]);
+                        setAccessTouched(false);
+                      }}
+                      className={inputCls}
+                    >
+                      {ROLE_PERMISSION_OPTIONS.filter((role) => role.id !== "admin_general").map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Estado">
+                    <select
+                      value={accessForm.status}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, status: e.target.value as AccessStatus }))}
+                      className={inputCls}
+                    >
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                    </select>
+                  </Field>
+                </div>
+
+                {accessForm.role === "profesional" && (
+                  <div>
+                    <Field label="Profesional">
+                      <select
+                        value={accessForm.employee_id ?? ""}
+                        onChange={(e) => setAccessForm((f) => ({ ...f, employee_id: e.target.value || null }))}
+                        className={cn(
+                          inputCls,
+                          accessTouched && !accessForm.employee_id && "ring-red-500/70 focus:ring-red-500/70",
+                        )}
+                      >
+                        <option value="">Elegí un profesional</option>
+                        {rows.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name || emp.name || "Sin nombre"}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    {accessTouched && !accessForm.employee_id && (
+                      <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                    )}
+                  </div>
+                )}
+
+                {accessForm.role !== "profesional" && (
+                  <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                      Acceso
+                    </div>
+                    <div className="mt-1 text-sm font-medium">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Este acceso se creará con el rol seleccionado.
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <Field label="Correo electrónico">
+                    <input
+                      type="email"
+                      autoComplete="off"
+                      name="clippr-access-email"
+                      value={accessForm.email}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, email: e.target.value }))}
+                      className={cn(
+                        inputCls,
+                        accessTouched && !accessForm.email.trim() && "ring-red-500/70 focus:ring-red-500/70",
+                      )}
+                      placeholder="ejemplo@correo.com"
+                    />
+                  </Field>
+                  {accessTouched && !accessForm.email.trim() && (
+                    <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                  )}
+                </div>
+
+                <div>
+                  <Field label="Contraseña" hint={editingAccessUserId ? "Dejala vacía para mantener la contraseña actual." : "Se usa para crear el acceso. No se muestra en el listado."}>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      name="clippr-access-password"
+                      value={accessForm.password}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
+                      className={cn(
+                        inputCls,
+                        accessTouched && !editingAccessUserId && !accessForm.password.trim() && "ring-red-500/70 focus:ring-red-500/70",
+                      )}
+                      placeholder="********"
+                    />
+                  </Field>
+                  {accessTouched && !accessForm.password.trim() && (
+                    <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="font-semibold text-sm">Permisos</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Los recomendados vienen marcados según el rol. Podés sumar accesos adicionales.
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                        Accesos recomendados marcados
+                      </div>
+                      <div className="space-y-2">
+                        {getRecommendedPermissionKeys(accessForm.role).map((key) => {
+                          const item = getPermissionItem(key);
+                          if (!item) return null;
+                          const checked = accessPermissionsForm[key];
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => toggleAccessFormPermission(key)}
+                              className={cn(
+                                "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                checked
+                                  ? "bg-[oklch(0.78_0.17_55/0.12)] ring-[oklch(0.78_0.17_55/0.24)]"
+                                  : "bg-white/[0.03] ring-white/10",
+                              )}
+                            >
+                              <div>
+                                <div className="text-sm font-medium">{item.label}</div>
+                                <div className="text-xs text-muted-foreground">{item.desc}</div>
+                              </div>
+                              <span className={cn(
+                                "h-5 w-5 rounded-md grid place-items-center ring-1",
+                                checked ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent" : "bg-white/5 ring-white/15",
+                              )}>
+                                {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                        Adicionales
+                      </div>
+                      <div className="space-y-2">
+                        {getAdditionalPermissionKeys(accessForm.role).map((key) => {
+                          const item = getPermissionItem(key);
+                          if (!item) return null;
+                          const checked = accessPermissionsForm[key];
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => toggleAccessFormPermission(key)}
+                              className={cn(
+                                "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                checked
+                                  ? "bg-[oklch(0.78_0.17_55/0.12)] ring-[oklch(0.78_0.17_55/0.24)]"
+                                  : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                              )}
+                            >
+                              <div>
+                                <div className="text-sm font-medium">{item.label}</div>
+                                <div className="text-xs text-muted-foreground">{item.desc}</div>
+                              </div>
+                              <span className={cn(
+                                "h-5 w-5 rounded-md grid place-items-center ring-1",
+                                checked ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent" : "bg-white/5 ring-white/15",
+                              )}>
+                                {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveAccessUser}
+                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)]"
+                >
+                  {editingAccessUserId ? "Guardar cambios" : "Confirmar"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+                <div className="text-sm font-semibold mb-3">Accesos creados</div>
+                {accessUsers.length === 0 ? (
+                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
+                    Todavía no hay accesos creados.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {accessUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
+                      >
+                        <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                          {(user.name[0] || "A").toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{user.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {user.email} · {ROLE_LABEL_BY_ID[user.role]}
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-1 text-[10px] ring-1",
+                            user.status === "active"
+                              ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
+                              : "bg-white/5 text-muted-foreground ring-white/10",
+                          )}
+                        >
+                          {user.status === "active" ? "Activo" : "Inactivo"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => editAccessUser(user)}
+                          className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeAccessUser(user.id)}
+                          className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {open && (
+      {approvalInfoOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-3xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold">¿Cómo funciona la aprobación de cobros?</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Esta configuración define qué sucede cuando un profesional registra un cobro desde su panel.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovalInfoOpen(false)}
+                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-sm text-muted-foreground max-h-[75vh] overflow-y-auto">
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                <h4 className="font-semibold text-foreground mb-2">Modo Automático</h4>
+                <p>Cuando un profesional registra un cobro:</p>
+                <ul className="mt-2 space-y-1">
+                  <li>✅ El ingreso se registra automáticamente en Caja.</li>
+                  <li>✅ El movimiento impacta inmediatamente en reportes, ingresos y estadísticas.</li>
+                  <li>✅ No requiere revisión ni confirmación adicional.</li>
+                </ul>
+                <div className="mt-3 rounded-lg bg-black/20 p-3">
+                  <div className="font-medium text-foreground">Ejemplo</div>
+                  <p className="mt-1">Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.</p>
+                  <p className="mt-2 text-foreground">Resultado: el cobro queda registrado, aparece automáticamente en Caja y se actualizan los ingresos del día.</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                <h4 className="font-semibold text-foreground mb-2">Modo Manual</h4>
+                <p>Cuando un profesional registra un cobro:</p>
+                <ul className="mt-2 space-y-1">
+                  <li>✅ El cobro se envía a Caja como pendiente.</li>
+                  <li>✅ No impacta en ingresos hasta ser aprobado.</li>
+                  <li>✅ Caja o Administración revisa y confirma el cobro.</li>
+                </ul>
+                <div className="mt-3 rounded-lg bg-black/20 p-3">
+                  <div className="font-medium text-foreground">Ejemplo</div>
+                  <p className="mt-1">Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.</p>
+                  <p className="mt-2 text-foreground">Resultado: el cobro queda pendiente. Caja revisa la información y, al aprobarlo, el ingreso se registra oficialmente.</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                <h4 className="font-semibold text-foreground mb-2">Modo Desactivado</h4>
+                <p>Cuando esta opción está desactivada:</p>
+                <ul className="mt-2 space-y-1">
+                  <li>✅ Los profesionales no pueden registrar cobros.</li>
+                  <li>✅ Todos los cobros deben realizarse desde Caja o Administración.</li>
+                  <li>✅ Sólo los usuarios autorizados pueden registrar ingresos.</li>
+                </ul>
+                <div className="mt-3 rounded-lg bg-black/20 p-3">
+                  <div className="font-medium text-foreground">Ejemplo</div>
+                  <p className="mt-1">Juan finaliza un servicio.</p>
+                  <p className="mt-2 text-foreground">Resultado: no puede cobrar desde su panel. Caja debe registrar el cobro manualmente.</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-[oklch(0.78_0.17_55/0.10)] ring-1 ring-[oklch(0.78_0.17_55/0.25)] p-4">
+                <h4 className="font-semibold text-foreground mb-2">¿Qué modo debería usar?</h4>
+                <div className="space-y-1">
+                  <div><strong className="text-foreground">Automático:</strong> mayor velocidad y menos pasos en la operación diaria.</div>
+                  <div><strong className="text-foreground">Manual:</strong> mayor control y validación de ambas partes.</div>
+                  <div><strong className="text-foreground">Desactivado:</strong> control total de los cobros desde Caja o Administración.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+{open && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => !saving && setOpen(false)}
@@ -1148,11 +2372,15 @@ function EquipoSection() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 p-5 border-b border-white/5">
-              <div className="h-10 w-10 rounded-full grid place-items-center text-sm font-semibold text-black bg-gradient-to-br from-red-400 to-rose-500">
-                {(form.fullName[0] || "A").toUpperCase()}
+              <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
+                {form.avatarUrl ? (
+                  <img src={form.avatarUrl} alt={form.fullName || "Profesional"} className="h-full w-full object-cover" />
+                ) : (
+                  (form.fullName[0] || "A").toUpperCase()
+                )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold">Nuevo profesional</div>
+                <div className="font-semibold">{editingEmp ? "Editar profesional" : "Nuevo profesional"}</div>
                 <div className="text-xs text-muted-foreground">
                   {form.role || "Barbero"}
                 </div>
@@ -1168,9 +2396,8 @@ function EquipoSection() {
             <div className="flex items-center gap-6 px-5 border-b border-white/5">
               {(
                 [
-                  ["datos", "Datos"],
-                  ["horarios", "Horarios"],
                   ["perfil", "Perfil"],
+                  ["horarios", "Horarios"],
                   ["comisiones", "Comisiones"],
                 ] as const
               ).map(([id, label]) => {
@@ -1196,8 +2423,48 @@ function EquipoSection() {
             </div>
 
             <div className="p-5 space-y-4">
-              {dlgTab === "datos" && (
+              {dlgTab === "perfil" && (
                 <div className="space-y-4">
+                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-zinc-950 font-semibold text-xl ring-1 ring-white/10">
+                        {form.avatarUrl ? (
+                          <img src={form.avatarUrl} alt={form.fullName || "Profesional"} className="h-full w-full object-cover" />
+                        ) : (
+                          (form.fullName[0] || "A").toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">Foto del profesional</div>
+                        <div className="text-xs text-muted-foreground mt-1">JPG, PNG o WEBP. La app la recorta a 200x200, la convierte a WebP y la comprime antes de subirla.</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-3 py-2 text-xs font-medium">
+                            Subir imagen
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) void uploadProfessionalAvatar(file);
+                                e.currentTarget.value = "";
+                              }}
+                            />
+                          </label>
+                          {form.avatarUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setForm({ ...form, avatarUrl: "" })}
+                              className="rounded-xl bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 px-3 py-2 text-xs text-red-300"
+                            >
+                              Quitar foto
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <Field label="Nombre completo *">
                     <input
                       value={form.fullName}
@@ -1206,20 +2473,6 @@ function EquipoSection() {
                       }
                       className={inputCls}
                       placeholder="Ej: Alejandro"
-                    />
-                  </Field>
-                  <Field
-                    label="Email de acceso *"
-                    hint="Este email se usará para ingresar a la plataforma."
-                  >
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) =>
-                        setForm({ ...form, email: e.target.value })
-                      }
-                      className={inputCls}
-                      placeholder="ale@gmail.com"
                     />
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
@@ -1278,27 +2531,16 @@ function EquipoSection() {
                       </div>
                     </div>
                   </label>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                      Color en agenda
-                    </div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      {AGENDA_COLORS.map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => setForm({ ...form, color: c })}
-                          className={cn(
-                            "h-8 w-8 rounded-full transition-all ring-2",
-                            form.color === c
-                              ? "ring-white scale-110"
-                              : "ring-white/10",
-                          )}
-                          style={{ background: c }}
-                          aria-label={c}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  <Field label="Descripción (opcional)">
+                    <textarea
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                      className={cn(inputCls, "min-h-[90px] resize-y")}
+                      placeholder="Especialidades, experiencia, estilo…"
+                    />
+                  </Field>
                 </div>
               )}
 
@@ -1387,71 +2629,137 @@ function EquipoSection() {
                 </div>
               )}
 
-              {dlgTab === "perfil" && (
-                <div className="space-y-4">
-                  <Field label="Nombre público">
-                    <input
-                      value={form.publicName}
-                      onChange={(e) =>
-                        setForm({ ...form, publicName: e.target.value })
-                      }
-                      className={inputCls}
-                      placeholder={
-                        form.fullName || "Nombre que verán los clientes"
-                      }
-                    />
-                  </Field>
-                  <Field label="Descripción (opcional)">
-                    <textarea
-                      value={form.description}
-                      onChange={(e) =>
-                        setForm({ ...form, description: e.target.value })
-                      }
-                      className={cn(inputCls, "min-h-[90px] resize-y")}
-                      placeholder="Especialidades, experiencia, estilo…"
-                    />
-                  </Field>
-                  <Field label="Especialidad destacada">
-                    <input
-                      value={form.specialty}
-                      onChange={(e) =>
-                        setForm({ ...form, specialty: e.target.value })
-                      }
-                      className={inputCls}
-                      placeholder="Ej: Degradados, Color, Barba clásica"
-                    />
-                  </Field>
-                </div>
-              )}
-
-              {dlgTab === "comisiones" && (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Activá la comisión general. Podés ajustar por servicio luego
-                    de crear al profesional.
-                  </p>
-                  <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">
-                        Comisión general
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Aplicada a todos los servicios.
-                      </div>
-                    </div>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={form.commissionPct}
-                      onChange={(e) =>
-                        setForm({ ...form, commissionPct: e.target.value })
-                      }
-                      className="w-20 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-sm text-right focus:outline-none"
-                      placeholder="0"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
+                            {dlgTab === "comisiones" && (
+                <div className="space-y-5">
+                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                    <div className="font-semibold text-sm">Comisiones y servicios que realiza</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Marcá qué servicios/productos realiza o vende este profesional y configurá si cobra porcentaje o monto fijo por cada uno.
+                    </p>
                   </div>
+
+                  {(["servicios", "catalogo"] as const).map((kind) => {
+                    const isServiceKind = kind === "servicios";
+                    const filtered = commissionItems.filter((item) =>
+                      isServiceKind ? item.duration_min != null : item.duration_min == null
+                    );
+                    const grouped = filtered.reduce((acc, item) => {
+                      const category = item.category || (isServiceKind ? "Servicios" : "Productos");
+                      if (!acc[category]) acc[category] = [];
+                      acc[category].push(item);
+                      return acc;
+                    }, {} as Record<string, PriceRow[]>);
+
+                    return (
+                      <div key={kind} className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-white/5">
+                          <div className="text-sm font-semibold">
+                            {isServiceKind ? "Servicios" : "Catálogo"}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {isServiceKind
+                              ? "Servicios cargados en Configuración → Servicios."
+                              : "Productos cargados en Configuración → Catálogo."}
+                          </div>
+                        </div>
+
+                        {Object.keys(grouped).length === 0 ? (
+                          <div className="p-4 text-sm text-muted-foreground">
+                            No hay {isServiceKind ? "servicios" : "productos"} cargados.
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-white/5">
+                            {Object.entries(grouped).map(([category, items]) => (
+                              <div key={category} className="p-4 space-y-3">
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                                  {category}
+                                </div>
+                                <div className="space-y-2">
+                                  {items.map((item) => {
+                                    const cfg = form.commissions[item.id] ?? {
+                                      enabled: false,
+                                      mode: "percent" as CommissionMode,
+                                      value: "",
+                                    };
+                                    const updateCfg = (patch: Partial<CommissionConfig>) =>
+                                      setForm({
+                                        ...form,
+                                        commissions: {
+                                          ...form.commissions,
+                                          [item.id]: { ...cfg, ...patch },
+                                        },
+                                      });
+
+                                    return (
+                                      <div
+                                        key={item.id}
+                                        className={cn(
+                                          "rounded-xl ring-1 p-3 transition-all",
+                                          cfg.enabled ? "bg-white/[0.06] ring-white/10" : "bg-white/[0.025] ring-white/5 opacity-75",
+                                        )}
+                                      >
+                                        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                                          <button
+                                            type="button"
+                                            onClick={() => updateCfg({ enabled: !cfg.enabled })}
+                                            className={cn(
+                                              "h-6 w-11 rounded-full relative transition-colors shrink-0",
+                                              cfg.enabled ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                                            )}
+                                          >
+                                            <span
+                                              className={cn(
+                                                "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                cfg.enabled ? "left-[22px]" : "left-0.5",
+                                              )}
+                                            />
+                                          </button>
+
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-medium truncate">{item.name}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                              ${Number(item.price ?? 0).toLocaleString("es-AR")}
+                                              {isServiceKind && item.duration_min ? ` · ${item.duration_min} min` : ""}
+                                            </div>
+                                          </div>
+
+                                          <div className="flex items-center gap-2">
+                                            <select
+                                              value={cfg.mode}
+                                              disabled={!cfg.enabled}
+                                              onChange={(e) => updateCfg({ mode: e.target.value as CommissionMode })}
+                                              className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                                            >
+                                              <option value="percent">% comisión</option>
+                                              <option value="fixed">Monto fijo</option>
+                                            </select>
+                                            <div className="flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                disabled={!cfg.enabled}
+                                                value={cfg.value}
+                                                onChange={(e) => updateCfg({ value: e.target.value })}
+                                                className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
+                                                placeholder="0"
+                                              />
+                                              <span className="text-xs text-muted-foreground">
+                                                {cfg.mode === "percent" ? "%" : "$"}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1462,7 +2770,7 @@ function EquipoSection() {
                 disabled={saving}
                 className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
               >
-                {saving ? "Guardando…" : "Guardar profesional"}
+                {saving ? "Guardando…" : "Aceptar"}
               </button>
               <button
                 onClick={() => setOpen(false)}
@@ -1495,7 +2803,7 @@ type PriceRow = {
   category: string | null;
   active: boolean | null;
   stock?: number | null;
-  sort_order?: number | null;
+  cash_discount?: number | null;
 };
 
 type PriceForm = {
@@ -1543,7 +2851,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
   return {
     name: row.name ?? "",
     price: String(row.price ?? 0),
-    discount: "0",
+    discount: String(row.cash_discount ?? 0),   // ← read real value
     duration: row.duration_min
       ? String(row.duration_min)
       : isService
@@ -1552,7 +2860,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     status: row.active === false ? "Inactivo" : "Activo",
     category: row.category || (isService ? "Servicios" : "Productos"),
     description: "",
-    reservable: row.active !== false,
+    reservable: true,
     stock: String(row.stock ?? 0),
     warnStock: "0",
     criticalStock: "0",
@@ -1789,36 +3097,51 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     emptyPriceForm(isService ? "Servicios" : "Productos", isService),
   );
   const [confirmDelItem, setConfirmDelItem] = useState<PriceRow | null>(null);
+  // Pending changes — written to Supabase only when global Save is pressed
+  type PendingItem = { tempId: string; payload: Record<string, unknown>; isNew: boolean };
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
-  const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(() => {
-    if (isService || typeof window === "undefined") return [];
-    try {
-      const saved = window.localStorage.getItem("clippr_catalog_categories");
-      return saved ? JSON.parse(saved) : defaultCatalogCategories;
-    } catch {
-      return defaultCatalogCategories;
-    }
-  });
-  const [customServiceCategories, setCustomServiceCategories] = useState<string[]>(() => {
-    if (!isService || typeof window === "undefined") return [];
-    try {
-      const saved = window.localStorage.getItem("clippr_service_categories");
-      return saved ? JSON.parse(saved) : defaultServiceCategories;
-    } catch {
-      return defaultServiceCategories;
-    }
-  });
+  const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(defaultCatalogCategories);
+  const [customServiceCategories, setCustomServiceCategories] = useState<string[]>(defaultServiceCategories);
 
+  // Load categories from Supabase schedule._categories
+  useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const cats = (schedule._categories ?? {}) as Record<string, unknown>;
+        if (isService && Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
+        if (!isService && Array.isArray(cats.catalog)) setCustomCatalogCategories(cats.catalog as string[]);
+      });
+  }, [businessId, isService]);
+
+  // Save categories to Supabase (called by global save)
+  const persistCategories = useCallback(async () => {
+    if (!businessId) return;
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingCats = (existingSchedule._categories ?? {}) as Record<string, unknown>;
+    const updatedCats = isService
+      ? { ...existingCats, service: customServiceCategories }
+      : { ...existingCats, catalog: customCatalogCategories };
+    await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: { ...existingSchedule, _categories: updatedCats } },
+      { onConflict: "business_id" },
+    );
+  }, [businessId, isService, customServiceCategories, customCatalogCategories]);
+
+  // Local-only category update (no Supabase until global save)
   const saveCategories = useCallback((next: string[], type: "catalog" | "service") => {
     const clean = Array.from(new Set(next.map((c) => c.trim()).filter(Boolean)));
     if (type === "service") {
       setCustomServiceCategories(clean.length ? clean : defaultServiceCategories);
-      if (typeof window !== "undefined") window.localStorage.setItem("clippr_service_categories", JSON.stringify(clean.length ? clean : defaultServiceCategories));
     } else {
       setCustomCatalogCategories(clean.length ? clean : defaultCatalogCategories);
-      if (typeof window !== "undefined") window.localStorage.setItem("clippr_catalog_categories", JSON.stringify(clean.length ? clean : defaultCatalogCategories));
     }
-  }, []);
+  }, [isService]);
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -1828,9 +3151,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock,sort_order")
+      .select("id,name,price,duration_min,category,active,stock,cash_discount")
       .eq("business_id", businessId)
-      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("category")
       .order("name");
     if (error) toast.error("Error: " + error.message);
     setRows((data ?? []) as PriceRow[]);
@@ -1841,13 +3164,50 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }, [load]);
 
-  // Global Save button: show confirmation toast for this section
+  // Global Save: persist pending + categories + show toast
+  const persistCategoriesRef = useRef(persistCategories);
+  useEffect(() => { persistCategoriesRef.current = persistCategories; }, [persistCategories]);
+  const pendingItemsRef = useRef(pendingItems);
+  const pendingDeletesRef = useRef(pendingDeletes);
+  useEffect(() => { pendingItemsRef.current = pendingItems; }, [pendingItems]);
+  useEffect(() => { pendingDeletesRef.current = pendingDeletes; }, [pendingDeletes]);
+
   useEffect(() => {
-    const handler = (e: Event) => {
+    const handler = async (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
       const mySection = isService ? "servicios" : "catalogo";
       if (!section || section === mySection) {
-        toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
+        const items = pendingItemsRef.current;
+        const deletes = pendingDeletesRef.current;
+        const errors: string[] = [];
+
+        // Flush deletes
+        for (const id of deletes) {
+          const { error } = await supabase.from("price_catalog").delete().eq("id", id);
+          if (error) errors.push(error.message);
+        }
+
+        // Flush upserts
+        for (const { tempId, payload, isNew } of items) {
+          if (isNew) {
+            const { error } = await supabase.from("price_catalog").insert(payload);
+            if (error) errors.push(error.message);
+          } else {
+            const { error } = await supabase.from("price_catalog").update(payload).eq("id", tempId);
+            if (error) errors.push(error.message);
+          }
+        }
+
+        await persistCategoriesRef.current();
+
+        if (errors.length > 0) {
+          toast.error("Error guardando: " + errors[0]);
+        } else {
+          setPendingItems([]);
+          setPendingDeletes(new Set());
+          toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
+          load();
+        }
       }
     };
     window.addEventListener("clippr:save-settings", handler);
@@ -1876,40 +3236,44 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setModalOpen(true);
   }
 
-  async function saveItem() {
+  function saveItem() {
     if (!businessId) return toast.error("No se encontró el negocio");
     if (!form.name.trim()) return toast.error("Ingresá un nombre");
-    setSaving(true);
     const payload: Record<string, unknown> = {
       business_id: businessId,
       name: form.name.trim(),
       price: Number(form.price) || 0,
+      cash_discount: Number(form.discount) || 0,
       category: form.category,
-      active: form.status === "Activo" && form.reservable,
+      active: form.status === "Activo",
       duration_min: isService ? Number(form.duration) || 30 : null,
     };
     if (!isService) payload.stock = Number(form.stock) || 0;
 
-    const { error } = editing
-      ? await supabase
-          .from("price_catalog")
-          .update(payload)
-          .eq("id", editing.id)
-      : await supabase.from("price_catalog").insert(payload);
-    setSaving(false);
-    if (error) return toast.error("Error: " + error.message);
-    toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
+    if (editing) {
+      // Update existing row locally
+      setRows(prev => prev.map(r => r.id === editing.id ? { ...r, ...payload } as PriceRow : r));
+      setPendingItems(prev => {
+        const next = prev.filter(p => p.tempId !== editing.id);
+        return [...next, { tempId: editing.id, payload: { ...payload }, isNew: false }];
+      });
+    } else {
+      // New row — temp negative id until saved
+      const tempId = `new_${Date.now()}`;
+      setRows(prev => [...prev, { id: tempId, ...payload } as PriceRow]);
+      setPendingItems(prev => [...prev, { tempId, payload: { ...payload }, isNew: true }]);
+    }
     setModalOpen(false);
-    load();
   }
 
-  async function toggle(row: PriceRow) {
-    const { error } = await supabase
-      .from("price_catalog")
-      .update({ active: !row.active })
-      .eq("id", row.id);
-    if (error) return toast.error("Error: " + error.message);
-    load();
+  function toggle(row: PriceRow) {
+    const newActive = !row.active;
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, active: newActive } : r));
+    setPendingItems(prev => {
+      const existing = prev.find(p => p.tempId === row.id);
+      if (existing) return prev.map(p => p.tempId === row.id ? { ...p, payload: { ...p.payload, active: newActive } } : p);
+      return [...prev, { tempId: row.id, payload: { active: newActive }, isNew: false }];
+    });
   }
 
   async function remove(row: PriceRow) {
@@ -1920,26 +3284,31 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!confirmDelItem) return;
     const row = confirmDelItem;
     setConfirmDelItem(null);
-    const { error } = await supabase.from("price_catalog").delete().eq("id", row.id);
-    if (error) return toast.error("Error: " + error.message);
+    setRows(prev => prev.filter(r => r.id !== row.id));
+    // If it was a new (unsaved) item, just remove from pending
+    if (row.id.startsWith("new_")) {
+      setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
+    } else {
+      setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
+      setPendingDeletes(prev => new Set([...prev, row.id]));
+    }
     toast.success(isService ? "Servicio eliminado" : "Producto eliminado");
-    load();
   }
 
-  async function reorderItem(row: PriceRow, direction: "up" | "down") {
+  function reorderItem(row: PriceRow, direction: "up" | "down") {
     const catRows = filtered;
     const idx = catRows.findIndex((r) => r.id === row.id);
     if (direction === "up" && idx === 0) return;
     if (direction === "down" && idx === catRows.length - 1) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     const swapRow = catRows[swapIdx];
-    const aOrder = idx;
-    const bOrder = swapIdx;
-    await Promise.all([
-      supabase.from("price_catalog").update({ sort_order: bOrder }).eq("id", row.id),
-      supabase.from("price_catalog").update({ sort_order: aOrder }).eq("id", swapRow.id),
-    ]);
-    load();
+    setRows(prev => {
+      const arr = [...prev];
+      const i = arr.findIndex(r => r.id === row.id);
+      const j = arr.findIndex(r => r.id === swapRow.id);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return arr;
+    });
   }
 
   // Inline input modal for add/rename category (avoids browser prompt())
@@ -2250,34 +3619,45 @@ function CatalogoSection() {
 // ─────────── Caja ───────────
 function CajaSection() {
   const { businessId } = useAuth();
-  const [methods, setMethods] = useState(() => {
-    if (typeof window === "undefined") {
-      return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
-    }
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("clippr_payment_methods") || "null");
-      return {
-        efectivo: saved?.efectivo !== false,
-        transferencia: saved?.transferencia !== false,
-        tarjeta: saved?.tarjeta !== false,
-        mp: saved?.mp !== false,
-        cuentaDni: saved?.cuentaDni === true,
-      };
-    } catch {
-      return { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
-    }
-  });
-  const [autoChange, setAutoChange] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.localStorage.getItem("clippr_cash_auto_change") !== "false";
-  });
+  const defaultMethods = { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
+  const [methods, setMethods] = useState(defaultMethods);
+  const [autoChange, setAutoChange] = useState(true);
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
+  const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase.from("business_settings").select("approval_mode,schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const caja = (schedule._caja ?? {}) as Record<string, unknown>;
+        if (caja.methods) setMethods(caja.methods as typeof defaultMethods);
+        if (typeof caja.autoChange === "boolean") setAutoChange(caja.autoChange);
+      });
+  }, [businessId]);
 
   async function saveCajaSettings() {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("clippr_payment_methods", JSON.stringify(methods));
-      window.localStorage.setItem("clippr_cash_auto_change", String(autoChange));
-      window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
-    }
+    if (!businessId) return toast.error("No se encontró el negocio");
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        schedule: {
+          ...existingSchedule,
+          _caja: {
+            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
+            methods,
+            autoChange,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+    if (error) return toast.error("Error guardando: " + error.message);
+    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
     toast.success("Configuración de caja guardada correctamente");
   }
 
@@ -2288,7 +3668,7 @@ function CajaSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [methods, autoChange]);
+  }, [methods, autoChange, businessId]);
 
   const M = [
     {
@@ -2373,6 +3753,8 @@ function CajaSection() {
           <Toggle on={autoChange} onChange={setAutoChange} />
         </div>
       </SectionCard>
+
+
     </>
   );
 }
@@ -2385,7 +3767,7 @@ function CajaSection() {
 function SenasSection() {
   const { businessId } = useAuth();
   const [enabled, setEnabled] = React.useState(false);
-  const [services, setServices] = React.useState<{id:string;name:string}[]>([]);
+  const [services, setServices] = React.useState<{id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]>([]);
   const [selectedSvcs, setSelectedSvcs] = React.useState<string[]>([]);
   const [amountType, setAmountType] = React.useState<"fixed"|"percent">("fixed");
   const [amountValue, setAmountValue] = React.useState("");
@@ -2393,7 +3775,7 @@ function SenasSection() {
   const [lostLocal, setLostLocal] = React.useState("100");
   const [lostProf, setLostProf] = React.useState("0");
   const [msg, setMsg] = React.useState(
-    "Hola 👋\nPara confirmar tu turno debés abonar una seña.\nTitular: [Nombre]\nAlias: [alias]\nCBU: [cbu]\nBanco: [banco]"
+    "¡Hola! 👋\n\nPara confirmar tu turno es necesario abonar una seña.\n\nDatos para realizar el pago:\nTitular: [Nombre]\nAlias: [Alias]\nCBU: [CBU]\n\nUna vez realizado el pago, envianos el comprobante por WhatsApp al:\n📲 [WhatsApp del local]\n\nIMPORTANTE:\n• La seña se descuenta del valor total del servicio.\n• Podés cancelar o reprogramar tu turno hasta 24 horas antes sin perder la seña.\n• Si cancelás con menos de 24 horas de anticipación o no asistís al turno, la seña no será reembolsable.\n• La reserva queda confirmada únicamente una vez acreditado el pago.\n• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.\n\n¡Muchas gracias! Te esperamos. 🙌"
   );
   const [loading, setLoading] = React.useState(true);
 
@@ -2410,18 +3792,42 @@ function SenasSection() {
           setLostDist((c.lost_dist as "local"|"prof"|"custom") ?? "local");
           setLostLocal(String(c.lost_local ?? "100"));
           setLostProf(String(c.lost_prof ?? "0"));
-          setMsg(String(c.msg ?? msg));
+          setMsg(String(c.msg ?? DEFAULT_SENA_MESSAGE));
         }
         setLoading(false);
       });
-    supabase.from("services").select("id,name").eq("business_id", businessId).order("name")
-      .then(({ data }) => setServices((data ?? []) as {id:string;name:string}[]));
+    supabase
+      .from("price_catalog")
+      .select("id,name,category,price,duration_min,active,stock")
+      .eq("business_id", businessId)
+      .eq("active", true)
+      .is("stock", null)
+      .order("category")
+      .order("name")
+      .then(({ data, error }) => {
+        if (error) {
+          toast.error("Error cargando servicios para señas: " + error.message);
+          return;
+        }
+
+        setServices((data ?? []) as {id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]);
+      });
   }, [businessId]);
 
   const save = React.useCallback(async () => {
     if (!businessId) return;
-    const localPct = parseInt(lostLocal) || 0;
-    const profPct  = lostDist === "custom" ? (100 - localPct) : lostDist === "prof" ? 100 : 0;
+    const localPct = parseFloat(lostLocal) || 0;
+    const typedProfPct = parseFloat(lostProf) || 0;
+
+    if (lostDist === "custom") {
+      const totalPct = Math.round((localPct + typedProfPct) * 10) / 10;
+      if (totalPct !== 100) {
+        toast.error("La distribución personalizada debe sumar 100%");
+        return;
+      }
+    }
+
+    const profPct = lostDist === "custom" ? typedProfPct : lostDist === "prof" ? 100 : 0;
     const { error } = await supabase.from("business_settings").upsert({
       business_id: businessId,
       senas_config: {
@@ -2481,23 +3887,77 @@ function SenasSection() {
 
       {enabled && (<>
         {/* Bloque 2: Servicios */}
-        <Block title="Servicios que requieren seña" subtitle="Solo los servicios seleccionados pedirán seña al reservar.">
-          <div className="flex flex-wrap gap-2">
-            {services.map((s) => {
-              const on = selectedSvcs.includes(s.id);
-              return (
-                <button key={s.id}
-                  onClick={() => setSelectedSvcs(on ? selectedSvcs.filter(x=>x!==s.id) : [...selectedSvcs,s.id])}
-                  className={cn("px-3.5 py-2 rounded-xl text-xs font-medium ring-1 transition-all",
-                    on
-                      ? "bg-primary/20 ring-primary/40 text-foreground shadow-[0_0_12px_-4px_oklch(0.66_0.22_265/0.35)]"
-                      : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]")}>
-                  {s.name}
-                </button>
-              );
-            })}
+        <Block title="Servicios que requieren seña" subtitle="Se cargan automáticamente desde Configuración → Servicios. Activá los que deben pedir seña al reservar.">
+          <div className="space-y-2">
+            {services.length > 0 && (
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
+                <div className="text-xs text-muted-foreground">
+                  {selectedSvcs.length} de {services.length} servicios seleccionados
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs(services.map((s) => s.id))}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-foreground transition"
+                  >
+                    Marcar todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs([])}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-muted-foreground transition"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {services.map((s) => {
+                const on = selectedSvcs.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedSvcs(on ? selectedSvcs.filter((x) => x !== s.id) : [...selectedSvcs, s.id])}
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left ring-1 transition-all",
+                      on
+                        ? "bg-primary/14 ring-primary/35 shadow-[0_0_14px_-6px_oklch(0.66_0.22_265/0.45)]"
+                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.055]",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{s.name}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                        {s.category && <span>{s.category}</span>}
+                        {typeof s.duration_min === "number" && s.duration_min > 0 && <span>{s.duration_min} min</span>}
+                        {typeof s.price === "number" && s.price > 0 && <span>${Number(s.price).toLocaleString("es-AR")}</span>}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full ring-1 transition",
+                        on ? "bg-primary ring-primary/40" : "bg-white/10 ring-white/10",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-5 w-5 rounded-full bg-white shadow transition-transform",
+                          on ? "translate-x-5" : "translate-x-0.5",
+                        )}
+                      />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             {services.length === 0 && (
-              <div className="text-xs text-muted-foreground py-1">Primero cargá servicios en la sección Servicios.</div>
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground text-center">
+                Primero cargá servicios en Configuración → Servicios.
+              </div>
             )}
           </div>
         </Block>
@@ -2514,6 +3974,8 @@ function SenasSection() {
             )}
             <input
               type="number"
+              min="0"
+              step={amountType === "percent" ? "0.1" : "1"}
               value={amountValue}
               onChange={e => setAmountValue(e.target.value)}
               placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
@@ -2554,32 +4016,28 @@ function SenasSection() {
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Local</span>
-                  <input type="number" min="0" max="100" value={lostLocal}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostLocal(String(v));setLostProf(String(100-v));}}
+                  <input type="number" min="0" max="100" step="0.1" value={lostLocal}
+                    onChange={e=>setLostLocal(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Profesional</span>
-                  <input type="number" min="0" max="100" value={lostProf}
-                    onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setLostProf(String(v));setLostLocal(String(100-v));}}
+                  <input type="number" min="0" max="100" step="0.1" value={lostProf}
+                    onChange={e=>setLostProf(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
-                <div className={cn("text-xs font-semibold px-3 py-1 rounded-full",
-                  parseInt(lostLocal)+parseInt(lostProf)===100
-                    ? "bg-emerald-400/10 text-emerald-400 ring-1 ring-emerald-400/20"
-                    : "bg-destructive/10 text-destructive ring-1 ring-destructive/20")}>
-                  Total: {parseInt(lostLocal)+parseInt(lostProf)}%
-                  {parseInt(lostLocal)+parseInt(lostProf)===100 ? " ✓" : " (debe ser 100%)"}
-                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Podés escribir los porcentajes libremente. Se validan cuando tocás Guardar.
               </div>
             </div>
           )}
         </Block>
 
         {/* Bloque 5: Mensaje */}
-        <Block title="Mensaje para el cliente" subtitle="Se envía automáticamente al finalizar una reserva con seña requerida.">
+        <Block title="Mensaje para el cliente" subtitle="Este mensaje se muestra automáticamente en el sitio web luego de que el cliente agenda un turno que requiere seña. Podés personalizarlo con los datos de tu cuenta bancaria y las condiciones de reserva.">
           <div className="relative">
             <textarea
               rows={4}
@@ -2587,12 +4045,9 @@ function SenasSection() {
               onChange={e => setMsg(e.target.value)}
               className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
             />
-            <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground/50">
-              {msg.length} car.
-            </div>
           </div>
           <div className="text-xs text-muted-foreground">
-            Podés usar saltos de línea. El mensaje se puede copiar y enviar por WhatsApp o mensaje de texto.
+            
           </div>
         </Block>
       </>)}
