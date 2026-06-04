@@ -22,7 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, X, CalendarDays, Repeat2, UserPlus } from "lucide-react";
+import { Loader2, Search, X, CalendarDays, Repeat2,
+  Scissors, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
@@ -210,8 +211,8 @@ export function AppointmentDialog({
       setClientName(appointment.client_name ?? "");
       setClientFirstName((appointment.client_name ?? "").split(" ")[0] ?? "");
       setClientLastName((appointment.client_name ?? "").split(" ").slice(1).join(" "));
-      setClientPhone(appointment.client_phone ?? "");
-      setClientEmail(appointment.client_email ?? "");
+      setClientPhone("");
+      setClientEmail("");
       setClientBirth("");
       setClientNote("");
       setNewClientMode(false);
@@ -390,8 +391,6 @@ export function AppointmentDialog({
           business_id: businessId,
           client_id: resolvedClientId || null,
           client_name: fullClientName,
-          client_phone: clientPhone.trim() || null,
-          client_email: clientEmail.trim() || null,
           employee_id: employeeId || null,
           service_name: serviceName.trim(),
           service_price: Number(price) || 0,
@@ -432,7 +431,7 @@ export function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="space-y-3">
           <div className="flex items-start justify-between gap-3 pr-6">
             <div>
@@ -444,8 +443,8 @@ export function AppointmentDialog({
           </div>
         </DialogHeader>
 
-        <div className="grid gap-6 py-2">
-          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
+        <div className="grid gap-4 py-2">
+          <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold flex items-center gap-2"><CalendarDays className="h-4 w-4 text-primary" /> Fecha y hora</h3>
@@ -572,7 +571,7 @@ export function AppointmentDialog({
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
-            <h3 className="text-sm font-semibold">Profesional y servicio</h3>
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Scissors className="h-4 w-4 text-primary" /> Profesional y servicio</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Profesional</Label>
@@ -632,6 +631,28 @@ export function AppointmentDialog({
               </div>
             </div>
           </details>
+        </div>
+
+        <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-primary/80">Resumen de la reserva</div>
+              <div className="mt-1 text-lg font-semibold">{serviceName || "Servicio sin seleccionar"}</div>
+              <div className="mt-1 text-sm text-muted-foreground capitalize">
+                {formatReadableDate(dateValue)} · {hourValue}:{minuteValue}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-display font-semibold">${Number(price || 0).toLocaleString("es-AR")}</div>
+              {requiresDeposit && (
+                <div className="mt-1 text-xs text-amber-300">Seña: ${depositAmount.toLocaleString("es-AR")}</div>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
+            <div>Cliente: <span className="text-foreground">{fullClientName || "Sin cliente"}</span></div>
+            <div>Profesional: <span className="text-foreground">{employees.find((e) => e.id === employeeId)?.full_name ?? employees.find((e) => e.id === employeeId)?.name ?? "Sin asignar"}</span></div>
+          </div>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-2">
