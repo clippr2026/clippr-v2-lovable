@@ -183,6 +183,7 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           >
             <span className="text-base leading-none">＋</span> Nueva venta
           </button>
+          <CierreCajaBtn />
         </div>
       )}
     </div>
@@ -304,7 +305,6 @@ function ResumenTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         ))}
       </div>
 
-      {data.approvalModeEnabled && <ApprovalMode data={data} />}
       <History data={data} />
     </div>
   );
@@ -374,6 +374,19 @@ function ApprovalMode({ data }: { data: ReturnType<typeof useCajaData> }) {
   );
 }
 
+function CierreCajaBtn() {
+  // Trigger closeout via a custom event — History component listens
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("clippr:open-closeout"))}
+      className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
+    >
+      Cierre de caja
+    </button>
+  );
+}
+
 function History({ data }: { data: ReturnType<typeof useCajaData> }) {
   const rows = data.paymentsToday.slice(0, 10);
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
@@ -414,16 +427,27 @@ function History({ data }: { data: ReturnType<typeof useCajaData> }) {
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedMethod(null);
-              setCloseoutOpen(true);
-            }}
-            className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-xs font-medium text-foreground transition"
-          >
-            Cierre de caja
-          </button>
+          {/* Approval mode compact */}
+          {data.approvalModeEnabled && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Modo:</span>
+              <div className="flex gap-1">
+                {([
+                  { id: "auto",     label: "Automático" },
+                  { id: "manual",   label: "Manual" },
+                  { id: "disabled", label: "Desactivado" },
+                ] as const).map((opt) => (
+                  <button key={opt.id} onClick={() => data.setApprovalMode(opt.id)}
+                    className={cn("px-2.5 py-1 rounded-lg text-xs font-medium ring-1 transition",
+                      data.approvalMode === opt.id
+                        ? "bg-primary/20 ring-primary/40 text-foreground"
+                        : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-[80px_1fr_1.4fr_120px_120px] px-5 py-3 text-[11px] tracking-[0.16em] text-muted-foreground/70 border-b border-white/5">
           <div>HORA</div>
