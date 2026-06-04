@@ -58,7 +58,13 @@ function AdvisorRoute() {
 
   return (
     <AppShell>
-      <Topbar title="Asesor IA" subtitle="Decisiones para mejorar el negocio" action={<div />} />
+      <Topbar
+        title="Asesor IA"
+        subtitle="Decisiones para mejorar el negocio"
+        action={
+          
+        }
+      />
       <AdvisorContent businessId={businessId} />
     </AppShell>
   );
@@ -275,9 +281,27 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <Badge icon={Sparkles}>Análisis mensual</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Informe de cierre del mes</h2>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Historial de análisis</h2>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Generá un resumen con lo mejor, lo que hay que mejorar y acciones recomendadas.
+              Tus informes mensuales quedan guardados para comparar la evolución del negocio.
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Junio 2026</p>
+              <p className="mt-1 text-xs text-muted-foreground">Informe generado este mes.</p>
+              <p className="mt-3 text-sm text-emerald-300">Disponible</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Mayo 2026</p>
+              <p className="mt-1 text-xs text-muted-foreground">Historial del mes anterior.</p>
+              <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Abril 2026</p>
+              <p className="mt-1 text-xs text-muted-foreground">Historial anterior.</p>
+              <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
+            </div>
+          </div>
             </p>
           </div>
 
