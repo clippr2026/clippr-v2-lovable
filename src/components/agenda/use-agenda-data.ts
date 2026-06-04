@@ -112,6 +112,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const [services, setServices] = React.useState<Service[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = React.useState<"connecting" | "connected" | "disconnected">("connecting");
 
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
@@ -188,6 +189,49 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     load();
   }, [load]);
 
+  React.useEffect(() => {
+    if (!businessId) {
+      setRealtimeStatus("disconnected");
+      return;
+    }
+
+    setRealtimeStatus("connecting");
+
+    const channel = supabase
+      .channel(`agenda-realtime-${businessId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => {
+          load();
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setRealtimeStatus("connected");
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setRealtimeStatus("disconnected");
+        }
+      });
+
+    const handleOnline = () => setRealtimeStatus("connected");
+    const handleOffline = () => setRealtimeStatus("disconnected");
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, load]);
+
   return {
     loading,
     businessId,
@@ -196,6 +240,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     services,
     clients,
     schedule,
+    realtimeStatus,
     refresh: load,
   };
 }
