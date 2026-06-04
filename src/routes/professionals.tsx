@@ -162,7 +162,9 @@ function ProfessionalsPage() {
               <div className="text-2xl md:text-[26px] font-display font-semibold tracking-tight leading-tight">
                 {active.full_name}
               </div>
-              <div className="text-sm text-muted-foreground mt-0.5">Profesional</div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                Profesional {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
+              </div>
               <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
                 approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
@@ -180,6 +182,7 @@ function ProfessionalsPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {visibleProfessionals.map((p, idx) => {
               const isActive = p.id === empId;
+              const isInactive = p.is_active === false;
               const c = COLORS[idx % COLORS.length];
               const ini = (p.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0,2).join("").toUpperCase();
               return (
@@ -188,11 +191,13 @@ function ProfessionalsPage() {
                   onClick={() => {
                     if (!isProfessionalAccess) setActiveId(p.id);
                   }}
+                  title={`${p.full_name ?? "Profesional"}${isInactive ? " · Inactivo" : ""}`}
                   className={cn(
                     "h-9 w-9 rounded-full overflow-hidden grid place-items-center text-[13px] font-semibold transition-all ring-1",
                     isActive
                       ? `bg-gradient-to-br ${c.color} text-background ${c.ring} ring-2 shadow-[0_0_20px_-2px_rgba(251,191,36,0.45)]`
                       : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20",
+                    isInactive && "opacity-45 grayscale",
                     isProfessionalAccess && "cursor-default"
                   )}
                   aria-label={p.full_name ?? ""}
