@@ -456,6 +456,15 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
 
+  const formatMoney = (value: number | null | undefined) =>
+    value == null ? "—" : `$${Number(value).toLocaleString("es-AR")}`;
+
+  const formatDate = (value: string) =>
+    new Date(value).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const formatTime = (value: string) =>
+    new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+
   const statusLabel: Record<string, string> = {
     pending: "Pendiente", confirmed: "Confirmado", completed: "Completado",
     charged: "Cobrado", cancelled: "Cancelado", approved: "Aprobado",
@@ -463,6 +472,14 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   const statusColor: Record<string, string> = {
     pending: "text-amber-300", confirmed: "text-sky-300", completed: "text-emerald-300",
     charged: "text-emerald-300", cancelled: "text-rose-300", approved: "text-violet-300",
+  };
+
+  const canShowAction = (status: string) => {
+    if (!canOperate) return false;
+    if (approvalMode === "disabled") return false;
+    if (["charged", "cancelled"].includes(status)) return false;
+    if (approvalMode === "manual" && status === "pending") return false;
+    return true;
   };
 
   return (
@@ -474,9 +491,9 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
           approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
         )}>
-          {approvalMode === "auto" && "⚡ Cobro automático — podés cobrar directamente desde tu panel."}
-          {approvalMode === "manual" && "👁 Cobro manual — enviás el cobro a Caja para que recepción lo confirme."}
-          {approvalMode === "disabled" && "🚫 Cobro desactivado — los cobros se realizan desde Caja & Cobro."}
+          {approvalMode === "auto" && "⚡ Cobro automático — el profesional ve el botón Cobrar y al confirmar queda como Cobrado."}
+          {approvalMode === "manual" && "👁 Cobro manual — el profesional ve Enviar; al enviarlo queda Pendiente hasta que Caja lo cobre."}
+          {approvalMode === "disabled" && "🚫 Cobro desactivado — el profesional solo consulta turnos; Caja realiza todos los cobros."}
         </div>
       ) : (
         <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-white/[0.035] ring-white/10 text-muted-foreground">
@@ -492,35 +509,55 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
-          {turnos.map((t, i) => (
-            <div key={t.id} className={cn("flex items-center gap-3 px-5 py-3.5", i < turnos.length - 1 && "border-b border-white/5")}>
-              <div className="text-xs text-muted-foreground w-14 shrink-0 tabular-nums">
-                {new Date(t.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
+          <div className="grid grid-cols-[1.1fr_0.9fr_1.7fr_1.5fr_1fr_1fr_1fr_0.9fr] gap-4 px-5 py-3 border-b border-white/10 bg-white/[0.025] text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <div>Fecha</div>
+            <div>Hora</div>
+            <div>Cliente</div>
+            <div>Servicio</div>
+            <div className="text-right">Precio lista</div>
+            <div className="text-right">Efectivo</div>
+            <div>Estado</div>
+            <div className="text-right">Acción</div>
+          </div>
+
+          {turnos.map((t, i) => {
+            const listPrice = Number(t.service_price ?? 0);
+            const cashPrice = listPrice;
+            return (
+              <div
+                key={t.id}
+                className={cn(
+                  "grid grid-cols-[1.1fr_0.9fr_1.7fr_1.5fr_1fr_1fr_1fr_0.9fr] gap-4 items-center px-5 py-4 text-sm",
+                  i < turnos.length - 1 && "border-b border-white/5"
+                )}
+              >
+                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatDate(t.starts_at)}</div>
+                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatTime(t.starts_at)}</div>
+                <div className="font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
                 <div className="text-xs text-muted-foreground truncate">{t.service_name ?? "—"}</div>
+                <div className="text-right font-semibold tabular-nums whitespace-nowrap">{formatMoney(listPrice)}</div>
+                <div className="text-right font-semibold tabular-nums whitespace-nowrap text-emerald-300">{formatMoney(cashPrice)}</div>
+                <div>
+                  <span className={cn("text-[11px] font-semibold uppercase tracking-wider", statusColor[t.status] ?? "text-muted-foreground")}>
+                    {statusLabel[t.status] ?? t.status}
+                  </span>
+                </div>
+                <div className="flex justify-end">
+                  {canShowAction(t.status) ? (
+                    <button onClick={() => setCobroTurno(t)}
+                      className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
+                        approvalMode === "auto"
+                          ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                          : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
+                      {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {t.service_price != null && (
-                  <span className="text-sm font-semibold tabular-nums">${Number(t.service_price).toLocaleString("es-AR")}</span>
-                )}
-                <span className={cn("text-[11px] font-semibold uppercase tracking-wider", statusColor[t.status] ?? "text-muted-foreground")}>
-                  {statusLabel[t.status] ?? t.status}
-                </span>
-                {/* Cobrar button */}
-                {canOperate && approvalMode !== "disabled" && t.status !== "charged" && t.status !== "cancelled" && (
-                  <button onClick={() => setCobroTurno(t)}
-                    className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
-                      approvalMode === "auto"
-                        ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                        : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
-                    {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
