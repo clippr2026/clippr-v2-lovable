@@ -838,6 +838,7 @@ type EmployeeRow = {
   id: string;
   name?: string | null;
   full_name?: string | null;
+  avatar_url?: string | null;
   is_active?: boolean | null;
   commission_pct?: number | null;
 };
@@ -849,6 +850,7 @@ type PendingProfessional = {
     full_name: string;
     is_active: boolean;
     commission_pct: number | null;
+    avatar_url?: string | null;
     commissions?: Record<string, CommissionConfig>;
   };
   isNew: boolean;
@@ -875,6 +877,7 @@ type NewProForm = {
   description: string;
   specialty: string;
   commissionPct: string;
+  avatarUrl: string;
   commissions: Record<string, CommissionConfig>;
 };
 
@@ -890,6 +893,7 @@ const EMPTY_FORM: NewProForm = {
   description: "",
   specialty: "",
   commissionPct: "",
+  avatarUrl: "",
   commissions: {},
 };
 
@@ -1130,6 +1134,7 @@ function EquipoSection() {
   const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
+  const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(null);
   const [accessTouched, setAccessTouched] = useState(false);
   const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
   const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
@@ -1146,8 +1151,8 @@ function EquipoSection() {
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<
-    "datos" | "horarios" | "comisiones"
-  >("datos");
+    "perfil" | "horarios" | "comisiones"
+  >("perfil");
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -1158,7 +1163,7 @@ function EquipoSection() {
     const [{ data, error }, catalogResult] = await Promise.all([
       supabase
         .from("employees")
-        .select("id,full_name,is_active,commission_pct")
+        .select("id,full_name,avatar_url,is_active,commission_pct")
         .eq("business_id", businessId)
         .order("full_name", { ascending: true }),
       supabase
@@ -1212,6 +1217,7 @@ function EquipoSection() {
             full_name: payload.full_name,
             is_active: payload.is_active,
             commission_pct: payload.commission_pct,
+            avatar_url: payload.avatar_url ?? null,
           })
           .select("id")
           .single();
@@ -1250,6 +1256,7 @@ function EquipoSection() {
             full_name: payload.full_name,
             is_active: payload.is_active,
             commission_pct: payload.commission_pct,
+            avatar_url: payload.avatar_url ?? null,
           })
           .eq("id", payload.id);
 
@@ -1326,10 +1333,96 @@ function EquipoSection() {
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, [businessId, rolePermissions, accessUsers, userPermissions, pendingProfessionals, load, approvalEnabled, approvalMode]);
 
+  async function compressProfessionalAvatar(file: File): Promise<Blob> {
+    const imageUrl = URL.createObjectURL(file);
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("No se pudo leer la imagen"));
+        img.src = imageUrl;
+      });
+
+      const size = 200;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("No se pudo preparar la imagen");
+
+      const sourceSize = Math.min(image.width, image.height);
+      const sourceX = Math.max(0, (image.width - sourceSize) / 2);
+      const sourceY = Math.max(0, (image.height - sourceSize) / 2);
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+
+      const toBlob = (quality: number) =>
+        new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) reject(new Error("No se pudo comprimir la imagen"));
+              else resolve(blob);
+            },
+            "image/webp",
+            quality,
+          );
+        });
+
+      let quality = 0.75;
+      let blob = await toBlob(quality);
+
+      while (blob.size > 80 * 1024 && quality > 0.45) {
+        quality -= 0.08;
+        blob = await toBlob(quality);
+      }
+
+      if (blob.size > 80 * 1024) {
+        toast.info("La imagen quedó optimizada, pero puede superar levemente los 80 KB por el formato original.");
+      }
+
+      return blob;
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  }
+
+  async function uploadProfessionalAvatar(file: File) {
+    if (!businessId) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Subí una imagen JPG, PNG o WEBP");
+      return;
+    }
+
+    const compressed = await compressProfessionalAvatar(file);
+    const safeId = editingEmp?.id ?? `new-${crypto.randomUUID()}`;
+    const path = `${businessId}/${safeId}-${Date.now()}.webp`;
+
+    const { error } = await supabase.storage
+      .from("professionals")
+      .upload(path, compressed, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: "image/webp",
+      });
+
+    if (error) {
+      toast.error("Error subiendo la foto: " + error.message);
+      return;
+    }
+
+    const { data } = supabase.storage.from("professionals").getPublicUrl(path);
+    setForm((current) => ({ ...current, avatarUrl: data.publicUrl }));
+    toast.success("Foto comprimida y cargada. Tocá Aceptar y luego Guardar para confirmar.");
+  }
+
   function openNew() {
     setEditingEmp(null);
     setForm(EMPTY_FORM);
-    setDlgTab("datos");
+    setDlgTab("perfil");
     setOpen(true);
   }
 
@@ -1362,7 +1455,7 @@ function EquipoSection() {
     if (!businessId) return;
     const name = form.fullName.trim();
     if (!name) {
-      setDlgTab("datos");
+      setDlgTab("perfil");
       return toast.error("Ingresá el nombre completo");
     }
 
@@ -1372,6 +1465,7 @@ function EquipoSection() {
       full_name: name,
       is_active: editingEmp ? editingEmp.is_active !== false : true,
       commission_pct: commission,
+      avatar_url: form.avatarUrl || null,
       commissions: form.commissions,
     };
 
@@ -1383,6 +1477,7 @@ function EquipoSection() {
                 ...emp,
                 full_name: name,
                 commission_pct: commission,
+                avatar_url: form.avatarUrl || null,
               }
             : emp,
         ),
@@ -1405,6 +1500,7 @@ function EquipoSection() {
       {
         id: tempId,
         full_name: name,
+        avatar_url: form.avatarUrl || null,
         is_active: true,
         commission_pct: commission,
       },
@@ -1469,7 +1565,7 @@ function EquipoSection() {
     });
   }
 
-  function addAccessUser() {
+  function saveAccessUser() {
     setAccessTouched(true);
     const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
     const name =
@@ -1482,7 +1578,36 @@ function EquipoSection() {
       return toast.error("Elegí el profesional para este acceso");
     }
     if (!email) return toast.error("Ingresá el correo electrónico");
-    if (!accessForm.password.trim()) return toast.error("Ingresá la contraseña");
+    if (!editingAccessUserId && !accessForm.password.trim()) return toast.error("Ingresá la contraseña");
+
+    if (editingAccessUserId) {
+      setAccessUsers((current) =>
+        current.map((user) =>
+          user.id === editingAccessUserId
+            ? {
+                ...user,
+                name,
+                email,
+                role: accessForm.role,
+                status: accessForm.status,
+                employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
+              }
+            : user,
+        ),
+      );
+      setUserPermissions((current) => ({
+        ...current,
+        [editingAccessUserId]: { ...accessPermissionsForm },
+      }));
+      setSelectedPermRole(accessForm.role);
+      setSelectedAccessUserId(editingAccessUserId);
+      setEditingAccessUserId(null);
+      setAccessForm(EMPTY_ACCESS_FORM);
+      setAccessTouched(false);
+      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+      toast.success("Acceso actualizado correctamente");
+      return;
+    }
 
     const id = crypto.randomUUID();
     const newUser: AccessUser = {
@@ -1507,6 +1632,30 @@ function EquipoSection() {
     toast.success("Acceso agregado correctamente");
   }
 
+  function editAccessUser(user: AccessUser) {
+    setEditingAccessUserId(user.id);
+    setAccessForm({
+      name: user.name,
+      email: user.email,
+      password: "",
+      role: user.role,
+      status: user.status,
+      employee_id: user.employee_id ?? null,
+    });
+    setAccessPermissionsForm(userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role]);
+    setSelectedPermRole(user.role);
+    setSelectedAccessUserId(user.id);
+    setAccessTouched(false);
+  }
+
+  function cancelEditAccessUser() {
+    setEditingAccessUserId(null);
+    setAccessForm(EMPTY_ACCESS_FORM);
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+    setAccessTouched(false);
+  }
+
+
   function removeAccessUser(id: string) {
     setAccessUsers((current) => current.filter((user) => user.id !== id));
     setUserPermissions((current) => {
@@ -1515,6 +1664,7 @@ function EquipoSection() {
       return next;
     });
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
+    if (editingAccessUserId === id) cancelEditAccessUser();
   }
 
   function toggleUserPermission(userId: string, key: PermissionKey) {
@@ -1671,11 +1821,15 @@ function EquipoSection() {
                     <div className="flex items-center gap-3">
                       <div
                         className={cn(
-                          "h-10 w-10 rounded-full grid place-items-center text-sm font-semibold text-black bg-gradient-to-br",
+                          "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br ring-1 ring-white/10",
                           PRO_TINTS[i % PRO_TINTS.length],
                         )}
                       >
-                        {displayName[0]?.toUpperCase()}
+                        {emp.avatar_url ? (
+                          <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          displayName[0]?.toUpperCase()
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm truncate">
@@ -1706,7 +1860,7 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("datos"); setOpen(true); }}
+                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("perfil"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
                         Editar
@@ -1824,6 +1978,18 @@ function EquipoSection() {
               <p className="text-sm text-muted-foreground mt-1">
                 Creá el acceso de cada persona y marcá qué módulos puede usar.
               </p>
+              {editingAccessUserId && (
+                <div className="mt-3 rounded-xl bg-amber-500/10 ring-1 ring-amber-400/20 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-3">
+                  <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
+                  <button
+                    type="button"
+                    onClick={cancelEditAccessUser}
+                    className="rounded-lg bg-white/10 hover:bg-white/15 px-2 py-1 text-[11px] text-foreground"
+                  >
+                    Cancelar edición
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.85fr] gap-4">
@@ -1925,7 +2091,7 @@ function EquipoSection() {
                 </div>
 
                 <div>
-                  <Field label="Contraseña" hint="Se usa para crear el acceso. No se muestra en el listado.">
+                  <Field label="Contraseña" hint={editingAccessUserId ? "Dejala vacía para mantener la contraseña actual." : "Se usa para crear el acceso. No se muestra en el listado."}>
                     <input
                       type="password"
                       autoComplete="new-password"
@@ -1934,7 +2100,7 @@ function EquipoSection() {
                       onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
                       className={cn(
                         inputCls,
-                        accessTouched && !accessForm.password.trim() && "ring-red-500/70 focus:ring-red-500/70",
+                        accessTouched && !editingAccessUserId && !accessForm.password.trim() && "ring-red-500/70 focus:ring-red-500/70",
                       )}
                       placeholder="********"
                     />
@@ -2031,10 +2197,10 @@ function EquipoSection() {
 
                 <button
                   type="button"
-                  onClick={addAccessUser}
+                  onClick={saveAccessUser}
                   className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)]"
                 >
-                  Confirmar
+                  {editingAccessUserId ? "Guardar cambios" : "Confirmar"}
                 </button>
               </div>
 
@@ -2070,6 +2236,13 @@ function EquipoSection() {
                         >
                           {user.status === "active" ? "Activo" : "Inactivo"}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => editAccessUser(user)}
+                          className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                        >
+                          Editar
+                        </button>
                         <button
                           type="button"
                           onClick={() => removeAccessUser(user.id)}
@@ -2175,11 +2348,15 @@ function EquipoSection() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 p-5 border-b border-white/5">
-              <div className="h-10 w-10 rounded-full grid place-items-center text-sm font-semibold text-black bg-gradient-to-br from-red-400 to-rose-500">
-                {(form.fullName[0] || "A").toUpperCase()}
+              <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
+                {form.avatarUrl ? (
+                  <img src={form.avatarUrl} alt={form.fullName || "Profesional"} className="h-full w-full object-cover" />
+                ) : (
+                  (form.fullName[0] || "A").toUpperCase()
+                )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold">Nuevo profesional</div>
+                <div className="font-semibold">{editingEmp ? "Editar profesional" : "Nuevo profesional"}</div>
                 <div className="text-xs text-muted-foreground">
                   {form.role || "Barbero"}
                 </div>
@@ -2195,7 +2372,7 @@ function EquipoSection() {
             <div className="flex items-center gap-6 px-5 border-b border-white/5">
               {(
                 [
-                  ["datos", "Datos"],
+                  ["perfil", "Perfil"],
                   ["horarios", "Horarios"],
                   ["comisiones", "Comisiones"],
                 ] as const
@@ -2222,8 +2399,48 @@ function EquipoSection() {
             </div>
 
             <div className="p-5 space-y-4">
-              {dlgTab === "datos" && (
+              {dlgTab === "perfil" && (
                 <div className="space-y-4">
+                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-zinc-950 font-semibold text-xl ring-1 ring-white/10">
+                        {form.avatarUrl ? (
+                          <img src={form.avatarUrl} alt={form.fullName || "Profesional"} className="h-full w-full object-cover" />
+                        ) : (
+                          (form.fullName[0] || "A").toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">Foto del profesional</div>
+                        <div className="text-xs text-muted-foreground mt-1">JPG, PNG o WEBP. La app la recorta a 200x200, la convierte a WebP y la comprime antes de subirla.</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-3 py-2 text-xs font-medium">
+                            Subir imagen
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) void uploadProfessionalAvatar(file);
+                                e.currentTarget.value = "";
+                              }}
+                            />
+                          </label>
+                          {form.avatarUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setForm({ ...form, avatarUrl: "" })}
+                              className="rounded-xl bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 px-3 py-2 text-xs text-red-300"
+                            >
+                              Quitar foto
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <Field label="Nombre completo *">
                     <input
                       value={form.fullName}
@@ -3526,7 +3743,7 @@ function CajaSection() {
 function SenasSection() {
   const { businessId } = useAuth();
   const [enabled, setEnabled] = React.useState(false);
-  const [services, setServices] = React.useState<{id:string;name:string}[]>([]);
+  const [services, setServices] = React.useState<{id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]>([]);
   const [selectedSvcs, setSelectedSvcs] = React.useState<string[]>([]);
   const [amountType, setAmountType] = React.useState<"fixed"|"percent">("fixed");
   const [amountValue, setAmountValue] = React.useState("");
@@ -3555,8 +3772,22 @@ function SenasSection() {
         }
         setLoading(false);
       });
-    supabase.from("services").select("id,name").eq("business_id", businessId).order("name")
-      .then(({ data }) => setServices((data ?? []) as {id:string;name:string}[]));
+    supabase
+      .from("price_catalog")
+      .select("id,name,category,price,duration_min,active,stock")
+      .eq("business_id", businessId)
+      .eq("active", true)
+      .is("stock", null)
+      .order("category")
+      .order("name")
+      .then(({ data, error }) => {
+        if (error) {
+          toast.error("Error cargando servicios para señas: " + error.message);
+          return;
+        }
+
+        setServices((data ?? []) as {id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]);
+      });
   }, [businessId]);
 
   const save = React.useCallback(async () => {
@@ -3622,23 +3853,77 @@ function SenasSection() {
 
       {enabled && (<>
         {/* Bloque 2: Servicios */}
-        <Block title="Servicios que requieren seña" subtitle="Solo los servicios seleccionados pedirán seña al reservar.">
-          <div className="flex flex-wrap gap-2">
-            {services.map((s) => {
-              const on = selectedSvcs.includes(s.id);
-              return (
-                <button key={s.id}
-                  onClick={() => setSelectedSvcs(on ? selectedSvcs.filter(x=>x!==s.id) : [...selectedSvcs,s.id])}
-                  className={cn("px-3.5 py-2 rounded-xl text-xs font-medium ring-1 transition-all",
-                    on
-                      ? "bg-primary/20 ring-primary/40 text-foreground shadow-[0_0_12px_-4px_oklch(0.66_0.22_265/0.35)]"
-                      : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]")}>
-                  {s.name}
-                </button>
-              );
-            })}
+        <Block title="Servicios que requieren seña" subtitle="Se cargan automáticamente desde Configuración → Servicios. Activá los que deben pedir seña al reservar.">
+          <div className="space-y-2">
+            {services.length > 0 && (
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
+                <div className="text-xs text-muted-foreground">
+                  {selectedSvcs.length} de {services.length} servicios seleccionados
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs(services.map((s) => s.id))}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-foreground transition"
+                  >
+                    Marcar todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs([])}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-muted-foreground transition"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {services.map((s) => {
+                const on = selectedSvcs.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedSvcs(on ? selectedSvcs.filter((x) => x !== s.id) : [...selectedSvcs, s.id])}
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left ring-1 transition-all",
+                      on
+                        ? "bg-primary/14 ring-primary/35 shadow-[0_0_14px_-6px_oklch(0.66_0.22_265/0.45)]"
+                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.055]",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{s.name}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                        {s.category && <span>{s.category}</span>}
+                        {typeof s.duration_min === "number" && s.duration_min > 0 && <span>{s.duration_min} min</span>}
+                        {typeof s.price === "number" && s.price > 0 && <span>${Number(s.price).toLocaleString("es-AR")}</span>}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full ring-1 transition",
+                        on ? "bg-primary ring-primary/40" : "bg-white/10 ring-white/10",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-5 w-5 rounded-full bg-white shadow transition-transform",
+                          on ? "translate-x-5" : "translate-x-0.5",
+                        )}
+                      />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             {services.length === 0 && (
-              <div className="text-xs text-muted-foreground py-1">Primero cargá servicios en la sección Servicios.</div>
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground text-center">
+                Primero cargá servicios en Configuración → Servicios.
+              </div>
             )}
           </div>
         </Block>
