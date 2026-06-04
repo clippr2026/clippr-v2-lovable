@@ -420,33 +420,32 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
     <>
       <Card>
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="text-sm font-semibold text-foreground">Cobros</h3>
             <span className="text-[11px] text-muted-foreground">
               {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy
             </span>
-          </div>
 
-          {/* Approval mode compact */}
-          {data.approvalModeEnabled && equipoEnabled && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Modo:</span>
-              <div className="flex gap-1">
+            {/* Approval mode inline */}
+            {data.approvalModeEnabled && equipoEnabled && (
+              <div className="flex gap-1 ml-1">
                 {([
-                  { id: "auto",   label: "Automático", title: "El profesional cobra desde su panel sin confirmación" },
-                  { id: "manual", label: "Manual",      title: "Caja/recepción confirma y cobra cada servicio" },
+                  { id: "auto",   label: "Automático", title: "El profesional cobra desde su panel sin confirmación",
+                    activeCls: "bg-emerald-500/15 ring-emerald-400/35 text-emerald-300" },
+                  { id: "manual", label: "Manual",      title: "Caja/recepción confirma y cobra cada servicio",
+                    activeCls: "bg-amber-500/15 ring-amber-400/35 text-amber-300" },
                 ] as const).map((opt) => (
                   <button key={opt.id} onClick={() => data.setApprovalMode(opt.id)} title={opt.title}
-                    className={cn("px-2.5 py-1 rounded-lg text-xs font-medium ring-1 transition",
+                    className={cn("px-2.5 py-1 rounded-full text-[11px] font-medium ring-1 transition",
                       data.approvalMode === opt.id
-                        ? "bg-primary/20 ring-primary/40 text-foreground"
+                        ? opt.activeCls
                         : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground")}>
                     {opt.label}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-[80px_1fr_1.4fr_120px_120px] px-5 py-3 text-[11px] tracking-[0.16em] text-muted-foreground/70 border-b border-white/5">
           <div>HORA</div>
