@@ -18,7 +18,6 @@ import {
   UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePermGuard, AccessDenied } from "@/hooks/use-perm-guard";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAgendaData,
@@ -69,7 +68,7 @@ const STATUS_META: Record<
     dot: "oklch(0.72 0.25 300)",
   },
   completed: {
-    label: "En servicio",
+    label: "Confirmado",
     bg: "oklch(0.42 0.18 80 / 0.5)",
     border: "oklch(0.82 0.2 75)",
     dot: "oklch(0.88 0.2 75)",
@@ -98,7 +97,7 @@ const STATUS_META: Record<
 // Helpers de fechas
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
-const ROW_PX = 86;
+const ROW_PX = 98;
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -136,8 +135,6 @@ function fmtTime(d: Date) {
 // Page
 // ---------------------------------------------------------------------------
 function AgendaPage() {
-  const _hasAccess = usePermGuard("agenda");
-  if (!_hasAccess) return <AccessDenied />;
   const navigate = useNavigate();
   const { session, profile, loading: authLoading } = useAuth();
   const [view, setView] = React.useState<"day" | "week" | "month">("day");
@@ -199,6 +196,7 @@ function AgendaPage() {
     employeeId?: string | null;
     startsAt?: Date | null;
   }>({});
+  const [filterModal, setFilterModal] = React.useState<string | null>(null);
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
     const target = startsAt ?? cursor;
@@ -257,14 +255,9 @@ function AgendaPage() {
   };
 
   const goToCobro = async (a: Appointment) => {
-    if (a.status !== "completed" && a.status !== "charged") {
-      try {
-        await setAppointmentStatus(a.id, "completed");
-        data.refresh();
-      } catch (e) {
-        toast.error((e as Error).message);
-        return;
-      }
+    if (a.status === "cancelled") {
+      toast.error("No se puede cobrar un turno cancelado.");
+      return;
     }
     const depositPaid = Number(a.deposit_paid ?? 0);
     const totalPrice  = Number(a.service_price ?? 0);
@@ -329,12 +322,10 @@ function AgendaPage() {
   const counts = {
     pending: data.appointments.filter((a) => a.status === "pending").length,
     confirmed: data.appointments.filter((a) => a.status === "confirmed").length,
-    inService: data.appointments.filter((a) => a.status === "completed").length,
     seña: data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || "")).length,
     charged: data.appointments.filter((a) => a.status === "charged").length,
     cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
   };
-  const [filterModal, setFilterModal] = React.useState<string|null>(null);
 
   const move = (delta: number) => {
     const step = view === "day" ? 1 : view === "week" ? 7 : 30;
@@ -402,29 +393,28 @@ function AgendaPage() {
       </div>
 
       {/* Quick stats */}
-      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 animate-fade-up">
+      <section className="glass rounded-2xl px-5 py-3 mb-4 flex items-center gap-8 flex-wrap animate-fade-up">
         {([
           ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
           ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
-          ["inService", "En servicio",  "oklch(0.92 0.18 100)"],
-          ["charged",   "Cobrados",     "oklch(0.76 0.2 155)"],
+          ["charged",   "Finalizados",  "oklch(0.76 0.2 155)"],
           ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
         ] as [string,string,string][]).map(([k, label, color]) => (
-          <div key={k} className="group">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-            <div className="font-display text-2xl sm:text-3xl font-semibold mt-1" style={{ color }}>
+          <div key={k} className="flex items-center gap-2.5 group py-1">
+            <span className="font-display text-xl font-semibold tabular-nums" style={{ color }}>
               {(counts as Record<string,number>)[k] ?? 0}
-            </div>
+            </span>
+            <span className="text-xs text-muted-foreground">{label}</span>
             <button
               onClick={() => setFilterModal(k)}
-              className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="text-[10px] text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              Ver todos →
+              →
             </button>
           </div>
         ))}
         {data.loading && (
-          <div className="col-span-full text-xs text-muted-foreground inline-flex items-center gap-1">
+          <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
             <Loader2 className="size-3 animate-spin" /> Cargando…
           </div>
         )}
@@ -432,8 +422,8 @@ function AgendaPage() {
 
       {/* Filter modal */}
       {filterModal && (() => {
-        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", inService:"completed", charged:"charged", cancelled:"cancelled" };
-        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", inService:"En servicio", charged:"Cobrados", cancelled:"Cancelados" };
+        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", charged:"charged", cancelled:"cancelled" };
+        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", charged:"Finalizados", cancelled:"Cancelados" };
         const filtered = filterModal === "seña"
           ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
           : data.appointments.filter((a) => a.status === statusMap[filterModal]);
@@ -938,18 +928,21 @@ function AppointmentDetailDialog({
   const email = client?.email ?? null;
   const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
   const requiresDeposit = Boolean(appointment.deposit_status && appointment.deposit_status !== "none");
-  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" })} - ${fmtTime(start)} a ${fmtTime(end)}`;
+  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })} · ${fmtTime(start)} a ${fmtTime(end)}`;
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg p-0 overflow-hidden" aria-describedby={undefined}>
-        <DialogHeader className="px-6 pt-5 pb-4" style={{ background: `oklch(from ${meta.dot} calc(l*0.15) c h / 0.12)`, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <DialogContent className="sm:max-w-xl p-0 overflow-hidden" aria-describedby={undefined}>
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-white/10 bg-white/[0.025]">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cliente Nuevo</div>
-              <DialogTitle className="mt-1 text-2xl font-display">{appointment.client_name || "Sin cliente"}</DialogTitle>
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cliente</div>
+              <DialogTitle className="mt-1 text-2xl font-display truncate">{appointment.client_name || "Sin cliente"}</DialogTitle>
+              <div className="mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1" style={{ color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}`, background: meta.bg }}>
+                {meta.label}
+              </div>
             </div>
             <div className="flex gap-2 pr-6">
               <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onFicha(appointment)}>
@@ -962,24 +955,23 @@ function AppointmentDetailDialog({
           </div>
         </DialogHeader>
 
-        <div className="space-y-5 py-4 px-6" style={{ background: `oklch(from ${meta.dot} calc(l*0.15) c h / 0.08)` }}>
-          {/* Service info card */}
+        <div className="space-y-4 p-6">
           <div className="rounded-2xl p-4 ring-1 ring-white/10" style={{ background: meta.bg }}>
-            <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: meta.dot }}>
-              {meta.label}
-            </div>
-            <div className="mt-2 text-lg font-semibold">{appointment.service_name || "Servicio"}</div>
-            {appointment.service_price ? (
-              <div className="mt-1 text-2xl font-display font-semibold">
-                ${Number(appointment.service_price).toLocaleString("es-AR")}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-semibold">{appointment.service_name || "Servicio"}</div>
+                <div className="mt-2 text-sm text-foreground/80 capitalize">{dateText}</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Profesional: <span className="text-foreground">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+                </div>
               </div>
-            ) : null}
-            <div className="mt-3 text-sm text-foreground/80 capitalize">{dateText}</div>
-            <div className="mt-2 text-sm text-muted-foreground">
-              Se atenderá con: <span className="text-foreground">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+              {appointment.service_price ? (
+                <div className="text-right text-2xl font-display font-semibold">
+                  ${Number(appointment.service_price).toLocaleString("es-AR")}
+                </div>
+              ) : null}
             </div>
 
-            {/* Deposit info — only when deposit fields exist */}
             {appointment.deposit_status && appointment.deposit_status !== "none" && (() => {
               const ds = appointment.deposit_status;
               const depositAmt = Number(appointment.deposit_amount ?? 0);
@@ -987,34 +979,31 @@ function AppointmentDetailDialog({
               const total = Number(appointment.service_price ?? 0);
               const remaining = Math.max(0, total - depositPaid);
               const statusMap: Record<string, { icon: string; label: string; color: string }> = {
-                pending: { icon: "🟡", label: "Seña pendiente",   color: "text-amber-300" },
-                paid:    { icon: "🟢", label: "Seña pagada",      color: "text-emerald-300" },
-                lost:    { icon: "🔴", label: "Seña perdida",     color: "text-rose-300" },
-                returned:{ icon: "🔵", label: "Seña devuelta",    color: "text-sky-300" },
+                pending: { icon: "🟡", label: "Seña pendiente", color: "text-amber-300" },
+                paid: { icon: "🟢", label: "Seña pagada", color: "text-emerald-300" },
+                lost: { icon: "🔴", label: "Seña perdida", color: "text-rose-300" },
+                returned:{ icon: "🔵", label: "Seña devuelta", color: "text-sky-300" },
               };
               const dsInfo = statusMap[ds] ?? statusMap.pending;
               return (
-                <div className="mt-3 pt-3 border-t border-white/10 space-y-1.5 text-sm">
+                <div className="mt-3 pt-3 border-t border-white/10 text-sm">
                   <div className={`font-semibold ${dsInfo.color}`}>{dsInfo.icon} {dsInfo.label}</div>
-                  {depositAmt > 0 && <div className="text-muted-foreground">Seña requerida: <span className="text-foreground font-medium">${depositAmt.toLocaleString("es-AR")}</span></div>}
+                  {depositAmt > 0 && <div className="mt-1 text-muted-foreground">Seña requerida: <span className="text-foreground font-medium">${depositAmt.toLocaleString("es-AR")}</span></div>}
                   {ds === "paid" && depositPaid > 0 && (
-                    <>
-                      <div className="text-muted-foreground">Seña pagada: <span className="text-emerald-300 font-medium">${depositPaid.toLocaleString("es-AR")}</span></div>
-                      <div className="text-muted-foreground">Pendiente de cobro: <span className="text-foreground font-medium">${remaining.toLocaleString("es-AR")}</span></div>
-                    </>
+                    <div className="mt-1 text-muted-foreground">Pendiente de cobro: <span className="text-foreground font-medium">${remaining.toLocaleString("es-AR")}</span></div>
                   )}
                 </div>
               );
             })()}
           </div>
 
-          <div className="grid gap-3 text-sm">
+          <div className="grid gap-2 text-sm">
             {phone && (
               <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
                 <span>{phone}</span>
                 {whatsappHref && (
-                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/15 transition">
-                    <MessageCircle className="h-3.5 w-3.5" /> Hablar por WhatsApp
+                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-500/30 transition">
+                    <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
                   </a>
                 )}
               </div>
@@ -1022,7 +1011,7 @@ function AppointmentDetailDialog({
             {email && <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">{email}</div>}
             {appointment.notes && (
               <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Nota interna</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Notas</div>
                 {appointment.notes}
               </div>
             )}
@@ -1032,90 +1021,63 @@ function AppointmentDetailDialog({
             <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
               <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
             </Button>
-            {/* Seña button — only when deposit expected and not yet paid */}
-            {requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
-              <Button
-                variant="secondary"
-                onClick={() => onMarkDeposit(appointment)}
-                className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
-              >
-                <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+            {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
+              <Button variant="destructive" onClick={() => onCancel(appointment)}>
+                Cancelar turno
               </Button>
+            ) : (
+              requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
+                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
+                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+                </Button>
+              )
             )}
           </div>
 
-          <div>
+          <div className="rounded-2xl bg-white/[0.025] ring-1 ring-white/10 p-3">
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
-              {(() => {
-                const hasDeposit = /se(ñ|n)a/i.test(appointment.notes || "");
-                return ([
-                  ["pending", "Pendiente"],
-                  ["confirmed", "Confirmado"],
-                  ["completed", "En servicio"],
-                  ["charged", "Cobrado"],
-                ] as [ApptStatus, string][]).map(([status, label]) => {
-                  const sMeta = STATUS_META[status] ?? STATUS_META.pending;
-                  const isActive = appointment.status === status;
-                  // Si el turno ya tiene seña pagada y quedó confirmado, no permitimos cambiarlo desde acá.
-                  const lockedByDeposit = hasDeposit && appointment.status === "confirmed";
-                  const isDisabled = lockedByDeposit || (status === "pending" && hasDeposit);
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => !isDisabled && onChangeStatus(appointment, status)}
-                      disabled={isDisabled}
-                      title={isDisabled ? (hasDeposit && appointment.status === "confirmed" ? "Turno confirmado con seña pagada" : "No se puede volver a Pendiente con seña cargada") : undefined}
-                      className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                      style={{
-                        background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
-                        color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
-                        boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.border}, 0 0 12px -4px ${sMeta.dot}` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                });
-              })()}
+              {([
+                ["pending", "Pendiente"],
+                ["confirmed", "Confirmado"],
+              ] as [ApptStatus, string][]).map(([status, label]) => {
+                const sMeta = STATUS_META[status] ?? STATUS_META.pending;
+                const isActive = appointment.status === status;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => onChangeStatus(appointment, status)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition"
+                    style={{
+                      background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
+                      color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
+                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.border}, 0 0 12px -4px ${sMeta.dot}` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {appointment.status !== "charged" && appointment.status !== "cancelled" && (() => {
-            const hasDepositPaid = appointment.deposit_status === "paid";
-            return hasDepositPaid ? (
-              <div className="space-y-3 rounded-2xl bg-rose-500/5 ring-1 ring-rose-400/20 p-4">
-                <div className="text-sm font-semibold text-rose-300">¿Qué querés hacer con la seña?</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onCancelWithDeposit(appointment, "keep")}
-                    className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-rose-400/30 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15 transition"
-                  >
-                    🔴 Mantener seña
-                  </button>
-                  <button
-                    onClick={() => onCancelWithDeposit(appointment, "return")}
-                    className="rounded-xl py-2.5 text-sm font-medium ring-1 ring-sky-400/30 bg-sky-400/10 text-sky-200 hover:bg-sky-400/15 transition"
-                  >
-                    🔵 Devolver seña
-                  </button>
-                </div>
+          {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status === "paid" && (
+            <div className="space-y-3 rounded-2xl bg-rose-500/5 ring-1 ring-rose-400/20 p-4">
+              <div className="text-sm font-semibold text-rose-300">Cancelar turno con seña pagada</div>
+              <div className="text-xs text-muted-foreground">Elegí qué hacer con la seña antes de cancelar.</div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="destructive" onClick={() => onCancelWithDeposit(appointment, "keep")}>Perder seña</Button>
+                <Button variant="secondary" onClick={() => onCancelWithDeposit(appointment, "return")}>Devolver seña</Button>
               </div>
-            ) : (
-              <Button variant="destructive" className="w-full" onClick={() => onCancel(appointment)}>
-                Cancelar turno
-              </Button>
-            );
-          })()}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Week view: columnas por día
-// ---------------------------------------------------------------------------
+
 function WeekView({
   start,
   appointments,

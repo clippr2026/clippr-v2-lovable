@@ -288,11 +288,11 @@ function BrandingSection() {
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
   const infoRows: { icon: React.ComponentType<{className?:string}>; label: string; hint: string; key: keyof BrandingData; type?: string }[] = [
-    { icon: Building2, label: "Nombre del local", hint: "Aparece en tickets, reportes y la pantalla de login", key: "name" },
-    { icon: MapPin, label: "Dirección", hint: "Dirección del local principal", key: "address" },
-    { icon: Phone, label: "Teléfono de contacto", hint: "Para confirmaciones y WhatsApp", key: "phone" },
-    { icon: Mail, label: "Email de contacto", hint: "Para notificaciones y comunicaciones", key: "email", type: "email" },
-    { icon: Instagram, label: "Instagram / Redes", hint: "Aparece en el pie de los tickets", key: "instagram" },
+    { icon: Building2, label: "Nombre",    hint: "", key: "name" },
+    { icon: MapPin,    label: "Dirección", hint: "", key: "address" },
+    { icon: Phone,     label: "WhatsApp",  hint: "", key: "phone" },
+    { icon: Mail,      label: "Email",     hint: "", key: "email", type: "email" },
+    { icon: Instagram, label: "Instagram", hint: "", key: "instagram" },
   ];
 
   return (
@@ -300,7 +300,7 @@ function BrandingSection() {
       <div>
         <h2 className="text-xl font-display font-semibold">Branding</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Personalizá la identidad visual de tu barbería en el sistema.
+          Información del negocio.
         </p>
       </div>
 
@@ -332,7 +332,6 @@ function BrandingSection() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm">Descripción</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Cuéntale a tus clientes sobre tu empresa</div>
             </div>
             <textarea
               value={data.description}
@@ -640,7 +639,7 @@ function HorariosSection() {
             Horarios de atención
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Configurá los días y horarios en que tu barbería atiende clientes.
+            Días y horarios de atención.
           </p>
         </div>
       </div>
@@ -1777,7 +1776,7 @@ function EquipoSection() {
       <div>
         <h2 className="text-xl font-display font-semibold">Equipo</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Profesionales sincronizados con Agenda y Caja en tiempo real.
+          Administrá tu equipo.
         </p>
       </div>
 
@@ -1999,9 +1998,6 @@ function EquipoSection() {
           <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
             <div className="mb-5">
               <h3 className="font-semibold">Accesos</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Creá el acceso de cada persona y marcá qué módulos puede usar.
-              </p>
               {editingAccessUserId && (
                 <div className="mt-3 rounded-xl bg-amber-500/10 ring-1 ring-amber-400/20 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-3">
                   <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
@@ -2290,9 +2286,6 @@ function EquipoSection() {
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
                 <h3 className="text-lg font-semibold">¿Cómo funciona la aprobación de cobros?</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Esta configuración define qué sucede cuando un profesional registra un cobro desde su panel.
-                </p>
               </div>
               <button
                 type="button"
@@ -2547,8 +2540,7 @@ function EquipoSection() {
               {dlgTab === "horarios" && (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Configurá los días y horarios de trabajo. Los días
-                    desactivados no recibirán turnos.
+                    Días desactivados no recibirán turnos.
                   </p>
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
@@ -2633,9 +2625,6 @@ function EquipoSection() {
                 <div className="space-y-5">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="font-semibold text-sm">Comisiones y servicios que realiza</div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Marcá qué servicios/productos realiza o vende este profesional y configurá si cobra porcentaje o monto fijo por cada uno.
-                    </p>
                   </div>
 
                   {(["servicios", "catalogo"] as const).map((kind) => {
@@ -3387,8 +3376,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             {isService
-              ? "Administrá únicamente los servicios que se reservan y se cobran en Caja."
-              : "Administrá productos, bebidas, indumentaria y otros ítems del negocio."}
+              ? "Servicios que ofrecés."
+              : "Productos para la venta."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -3707,10 +3696,10 @@ function CajaSection() {
     <>
       <div>
         <h2 className="text-xl font-display font-semibold">
-          Configuración de caja
+          Caja
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Definí los medios de pago y comportamiento básico de Caja & Cobro.
+          Cobros y medios de pago.
         </p>
       </div>
 
@@ -3761,6 +3750,52 @@ function CajaSection() {
 
 // ─────────── Page ───────────
 
+
+function SenasBlock({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.06] p-6 space-y-4">
+      <div>
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SenasToggleBtn({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-xl px-5 py-2.5 text-sm font-medium ring-1 transition-all",
+        active
+          ? "bg-primary/20 ring-primary/50 text-foreground shadow-[0_0_16px_-4px_oklch(0.66_0.22_265/0.4)]"
+          : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Señas Section
 // ---------------------------------------------------------------------------
@@ -3774,9 +3809,7 @@ function SenasSection() {
   const [lostDist, setLostDist] = React.useState<"local"|"prof"|"custom">("local");
   const [lostLocal, setLostLocal] = React.useState("100");
   const [lostProf, setLostProf] = React.useState("0");
-  const [msg, setMsg] = React.useState(
-    "¡Hola! 👋\n\nPara confirmar tu turno es necesario abonar una seña.\n\nDatos para realizar el pago:\nTitular: [Nombre]\nAlias: [Alias]\nCBU: [CBU]\n\nUna vez realizado el pago, envianos el comprobante por WhatsApp al:\n📲 [WhatsApp del local]\n\nIMPORTANTE:\n• La seña se descuenta del valor total del servicio.\n• Podés cancelar o reprogramar tu turno hasta 24 horas antes sin perder la seña.\n• Si cancelás con menos de 24 horas de anticipación o no asistís al turno, la seña no será reembolsable.\n• La reserva queda confirmada únicamente una vez acreditado el pago.\n• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.\n\n¡Muchas gracias! Te esperamos. 🙌"
-  );
+  const [msg, setMsg] = React.useState(DEFAULT_SENA_MESSAGE);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -3792,16 +3825,15 @@ function SenasSection() {
           setLostDist((c.lost_dist as "local"|"prof"|"custom") ?? "local");
           setLostLocal(String(c.lost_local ?? "100"));
           setLostProf(String(c.lost_prof ?? "0"));
-          setMsg(String(c.msg ?? DEFAULT_SENA_MESSAGE));
+          setMsg(String(c.msg || DEFAULT_SENA_MESSAGE));
         }
         setLoading(false);
       });
     supabase
       .from("price_catalog")
-      .select("id,name,category,price,duration_min,active,stock")
+      .select("id,name,category,price,duration_min,active")
       .eq("business_id", businessId)
       .eq("active", true)
-      .is("stock", null)
       .order("category")
       .order("name")
       .then(({ data, error }) => {
@@ -3810,7 +3842,11 @@ function SenasSection() {
           return;
         }
 
-        setServices((data ?? []) as {id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]);
+        const servicesOnly = (data ?? []).filter((item) =>
+          item.duration_min !== null && item.duration_min !== undefined
+        );
+
+        setServices(servicesOnly as {id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]);
       });
   }, [businessId]);
 
@@ -3832,7 +3868,7 @@ function SenasSection() {
       business_id: businessId,
       senas_config: {
         enabled, services: selectedSvcs, amount_type: amountType,
-        amount_value: parseFloat(amountValue) || 0,
+        amount_value: parsedAmount,
         lost_dist: lostDist, lost_local: localPct, lost_prof: profPct, msg,
       }
     }, { onConflict: "business_id" });
@@ -3854,40 +3890,20 @@ function SenasSection() {
 
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
-  // Reusable block wrapper
-  const Block = ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
-    <div className="rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.06] p-6 space-y-4">
-      <div>
-        <div className="text-sm font-semibold text-foreground">{title}</div>
-        {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
-      </div>
-      {children}
-    </div>
-  );
-
-  const ToggleBtn = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
-    <button onClick={onClick}
-      className={cn("px-5 py-2.5 rounded-xl text-sm font-semibold ring-1 transition-all",
-        active
-          ? "bg-primary/20 ring-primary/50 text-foreground shadow-[0_0_16px_-4px_oklch(0.66_0.22_265/0.4)]"
-          : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]")}>
-      {label}
-    </button>
-  );
 
   return (
     <div className="space-y-4">
       {/* Bloque 1: Activar */}
-      <Block title="¿Activar señas?" subtitle="Cuando está activado podés requerir una seña para confirmar turnos.">
+      <SenasBlock title="¿Activar señas?">
         <div className="flex gap-3">
-          <ToggleBtn label="Sí" active={enabled} onClick={() => setEnabled(true)} />
-          <ToggleBtn label="No" active={!enabled} onClick={() => setEnabled(false)} />
+          <SenasToggleBtn label="Sí" active={enabled} onClick={() => setEnabled(true)} />
+          <SenasToggleBtn label="No" active={!enabled} onClick={() => setEnabled(false)} />
         </div>
-      </Block>
+      </SenasBlock>
 
       {enabled && (<>
         {/* Bloque 2: Servicios */}
-        <Block title="Servicios que requieren seña" subtitle="Se cargan automáticamente desde Configuración → Servicios. Activá los que deben pedir seña al reservar.">
+        <SenasBlock title="Servicios que requieren seña">
           <div className="space-y-2">
             {services.length > 0 && (
               <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
@@ -3960,24 +3976,24 @@ function SenasSection() {
               </div>
             )}
           </div>
-        </Block>
+        </SenasBlock>
 
         {/* Bloque 3: Monto */}
-        <Block title="Monto de la seña" subtitle="Definí si la seña es un monto fijo o un porcentaje del servicio.">
+        <SenasBlock title="Monto de la seña">
           <div className="flex gap-3">
-            <ToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
-            <ToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
+            <SenasToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
+            <SenasToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
           </div>
           <div className="flex items-center gap-3 mt-1">
             {amountType === "fixed" && (
               <span className="text-lg font-light text-muted-foreground">$</span>
             )}
             <input
-              type="number"
-              min="0"
-              step={amountType === "percent" ? "0.1" : "1"}
+              type="text"
+              inputMode="decimal"
               value={amountValue}
-              onChange={e => setAmountValue(e.target.value)}
+              onChange={(e) => setAmountValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
               placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
               className="w-44 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-white/30 transition"
             />
@@ -3992,17 +4008,17 @@ function SenasSection() {
               </span>
             )}
           </div>
-        </Block>
+        </SenasBlock>
 
         {/* Bloque 4: Distribución si se pierde */}
-        <Block title="Si el cliente pierde la seña" subtitle="Definí cómo se distribuye el dinero de la seña perdida.">
+        <SenasBlock title="Si el cliente pierde la seña">
           <div className="flex flex-wrap gap-3">
             {([
               ["local",  "100% para el local"],
               ["prof",   "100% para el profesional"],
               ["custom", "Personalizado"],
             ] as [string,string][]).map(([v,l]) => (
-              <ToggleBtn key={v} label={l} active={lostDist===v} onClick={() => {
+              <SenasToggleBtn key={v} label={l} active={lostDist===v} onClick={() => {
                 setLostDist(v as "local"|"prof"|"custom");
                 if (v==="local")      { setLostLocal("100"); setLostProf("0"); }
                 else if (v==="prof")  { setLostLocal("0");   setLostProf("100"); }
@@ -4016,14 +4032,14 @@ function SenasSection() {
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Local</span>
-                  <input type="number" min="0" max="100" step="0.1" value={lostLocal}
+                  <input type="text" inputMode="decimal" value={lostLocal}
                     onChange={e=>setLostLocal(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground w-24">Profesional</span>
-                  <input type="number" min="0" max="100" step="0.1" value={lostProf}
+                  <input type="text" inputMode="decimal" value={lostProf}
                     onChange={e=>setLostProf(e.target.value)}
                     className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
                   <span className="text-sm text-muted-foreground">%</span>
@@ -4034,22 +4050,22 @@ function SenasSection() {
               </div>
             </div>
           )}
-        </Block>
+        </SenasBlock>
 
         {/* Bloque 5: Mensaje */}
-        <Block title="Mensaje para el cliente" subtitle="Este mensaje se muestra automáticamente en el sitio web luego de que el cliente agenda un turno que requiere seña. Podés personalizarlo con los datos de tu cuenta bancaria y las condiciones de reserva.">
+        <SenasBlock title="Mensaje para el cliente" subtitle="Mensaje que verá el cliente después de reservar un turno con seña.">
           <div className="relative">
             <textarea
               rows={4}
               value={msg}
               onChange={e => setMsg(e.target.value)}
-              className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
+              className="min-h-[360px] resize-y w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
             />
           </div>
           <div className="text-xs text-muted-foreground">
             
           </div>
-        </Block>
+        </SenasBlock>
       </>)}
     </div>
   );
@@ -4062,7 +4078,7 @@ function SettingsPage() {
     <AppShell>
       <Topbar
         title="Configuración"
-        subtitle="Personalizá tu negocio"
+        subtitle="Tu negocio"
         action={
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings"))}

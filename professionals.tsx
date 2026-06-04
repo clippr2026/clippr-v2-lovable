@@ -8,12 +8,10 @@ import {
   BarChart3,
   Clock,
   DollarSign,
-  Plus,
   ArrowRight,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { usePermGuard, AccessDenied } from "@/hooks/use-perm-guard";
 import { useAuth } from "@/hooks/use-auth";
 import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +27,31 @@ export const Route = createFileRoute("/professionals")({
 });
 
 type TabKey = "turnos" | "stats" | "historial" | "pagos";
+type RangeKey = "hoy" | "semana" | "mes" | "custom";
+
+function toISODate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getPresetRange(range: Exclude<RangeKey, "custom">) {
+  const now = new Date();
+  const today = toISODate(now);
+
+  if (range === "hoy") return { from: today, to: today };
+
+  if (range === "semana") {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return { from: toISODate(monday), to: toISODate(sunday) };
+  }
+
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { from: toISODate(firstDay), to: toISODate(lastDay) };
+}
+
 
 const COLORS = [
   { color: "from-amber-400 to-amber-600", ring: "ring-amber-400/60" },
@@ -40,92 +63,154 @@ const COLORS = [
 ];
 
 function ProfessionalsPage() {
-  const _hasAccess = usePermGuard("profesionales");
-  if (!_hasAccess) return <AccessDenied />;
-  const { businessId, profile } = useAuth();
+  const { businessId, profile, permissions } = useAuth();
   const { data: professionals = [], isLoading } = useProfessionals(businessId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("turnos");
-  const [range, setRange] = useState<"hoy" | "semana" | "mes">("semana");
+  const initialRange = useMemo(() => getPresetRange("mes"), []);
+  const [range, setRange] = useState<RangeKey>("mes");
+  const [fromDate, setFromDate] = useState(initialRange.from);
+  const [toDate, setToDate] = useState(initialRange.to);
 
-  const empId = activeId ?? professionals[0]?.id ?? null;
+  function applyRange(nextRange: Exclude<RangeKey, "custom">) {
+    const next = getPresetRange(nextRange);
+    setRange(nextRange);
+    setFromDate(next.from);
+    setToDate(next.to);
+  }
+
+
+  const profileEmployeeId = (profile as { employee_id?: string | null } | null)?.employee_id ?? null;
+  const isProfessionalAccess = profile?.role === "profesional" && !!profileEmployeeId;
+
+  const ownProfessional = useMemo(() => {
+    if (!isProfessionalAccess || !profileEmployeeId) return null;
+    return professionals.find((p) => p.id === profileEmployeeId) ?? null;
+  }, [isProfessionalAccess, professionals, profileEmployeeId]);
+
+  const visibleProfessionals = useMemo(
+    () => (isProfessionalAccess ? (ownProfessional ? [ownProfessional] : []) : professionals),
+    [isProfessionalAccess, ownProfessional, professionals],
+  );
+
+  const empId = isProfessionalAccess
+    ? ownProfessional?.id ?? null
+    : activeId ?? visibleProfessionals[0]?.id ?? null;
+
+  const canOperateSelectedPanel = isProfessionalAccess && ownProfessional?.id === empId;
 
   // Load approval_mode from Supabase
-  const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">("auto");
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">(() => {
+    if (typeof window === "undefined") return "auto";
+    const saved = window.localStorage.getItem("clippr_approval_mode");
+    return saved === "manual" || saved === "disabled" || saved === "auto" ? saved : "auto";
+  });
+  const [approvalModeEnabled, setApprovalModeEnabled] = useState(false);
+  useEffect(() => {
+    if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
+      setActiveId(ownProfessional.id);
+    }
+    if (!isProfessionalAccess && !activeId && visibleProfessionals[0]?.id) {
+      setActiveId(visibleProfessionals[0].id);
+    }
+  }, [activeId, isProfessionalAccess, ownProfessional?.id, visibleProfessionals]);
+
   useEffect(() => {
     if (!businessId) return;
-    supabase.from("business_settings").select("approval_mode").eq("business_id", businessId).maybeSingle()
-      .then(({ data }) => { if (data?.approval_mode) setApprovalMode(data.approval_mode as typeof approvalMode); });
+    supabase.from("business_settings").select("approval_mode,schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.approval_mode) {
+          setApprovalMode(data.approval_mode as typeof approvalMode);
+          if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", data.approval_mode);
+        }
+        const caja = ((data?.schedule as Record<string, unknown> | null)?._caja ?? {}) as Record<string, unknown>;
+        setApprovalModeEnabled(caja.approvalModeEnabled === true);
+      });
   }, [businessId]);
-  const active = useMemo(() => professionals.find((p) => p.id === empId) ?? professionals[0] ?? null, [professionals, empId]);
-  const activeColor = useMemo(() => COLORS[(professionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [professionals, empId]);
+  const active = useMemo(() => visibleProfessionals.find((p) => p.id === empId) ?? visibleProfessionals[0] ?? null, [visibleProfessionals, empId]);
+  const activeColor = useMemo(() => COLORS[(visibleProfessionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [visibleProfessionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
 
   if (isLoading) return (
-    <AppShell><Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />
+    <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando profesionales…</div>
     </AppShell>
   );
   if (!active) return (
-    <AppShell><Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />
+    <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground">Sin profesionales configurados.</div>
     </AppShell>
   );
 
   return (
     <AppShell>
-      <Topbar title="Profesionales" subtitle="Equipo, turnos y rendimiento" />
+      <Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="space-y-6 animate-fade-up">
       {/* Header card */}
-      <div className="glass rounded-3xl p-5 md:p-6 relative overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center gap-5 md:gap-6 relative">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
+      <div className="glass rounded-2xl px-4 py-3 md:px-5 md:py-4 relative overflow-hidden">
+        <div className="absolute -top-16 -left-10 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+        <div className="flex items-center gap-4 relative flex-wrap">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
             <div
               className={cn(
-                "h-16 w-16 md:h-[68px] md:w-[68px] rounded-full grid place-items-center text-2xl font-display font-semibold text-background bg-gradient-to-br shadow-[0_0_40px_-4px_rgba(251,191,36,0.55)]",
+                "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-display font-semibold text-background bg-gradient-to-br ring-1 ring-white/10 shrink-0",
                 activeColor.color
               )}
             >
-              {initials}
+              {active.avatar_url ? (
+                <img src={active.avatar_url} alt={active.full_name} className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                initials
+              )}
             </div>
             <div className="min-w-0">
-              <div className="text-2xl md:text-[26px] font-display font-semibold tracking-tight leading-tight">
+              <div className="text-base font-display font-semibold tracking-tight leading-tight flex items-center gap-2 flex-wrap">
                 {active.full_name}
+                {active.is_active === false && <span className="rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
+                {permissions.equipo && approvalModeEnabled && <div className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1",
+                  approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
+                  approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
+                  approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
+                )}>
+                  {approvalMode === "auto" && <><Zap className="h-2.5 w-2.5 fill-emerald-300" /> Automático</>}
+                  {approvalMode === "manual" && <>👁 Manual</>}
+                  {approvalMode === "disabled" && <>🚫 Desactivado</>}
+                </div>}
               </div>
-              <div className="text-sm text-muted-foreground mt-0.5">Profesional</div>
-              <div className={cn(
-                "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
-                approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
-                approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
-                approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
-              )}>
-                {approvalMode === "auto" && <><Zap className="h-3 w-3 fill-emerald-300" /> Automático</>}
-                {approvalMode === "manual" && <>👁 Manual</>}
-                {approvalMode === "disabled" && <>🚫 Desactivado</>}
-              </div>
+              <div className="text-xs text-muted-foreground">Profesional</div>
             </div>
           </div>
 
           {/* Barber selector */}
           <div className="flex items-center gap-2 flex-wrap">
-            {professionals.map((p, idx) => {
+            {visibleProfessionals.map((p, idx) => {
               const isActive = p.id === empId;
+              const isInactive = p.is_active === false;
               const c = COLORS[idx % COLORS.length];
               const ini = (p.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0,2).join("").toUpperCase();
               return (
                 <button
                   key={p.id}
-                  onClick={() => setActiveId(p.id)}
+                  onClick={() => {
+                    if (!isProfessionalAccess) setActiveId(p.id);
+                  }}
+                  title={`${p.full_name ?? "Profesional"}${isInactive ? " · Inactivo" : ""}`}
                   className={cn(
-                    "h-9 w-9 rounded-full grid place-items-center text-[13px] font-semibold transition-all ring-1",
+                    "h-9 w-9 rounded-full overflow-hidden grid place-items-center text-[13px] font-semibold transition-all ring-1",
                     isActive
                       ? `bg-gradient-to-br ${c.color} text-background ${c.ring} ring-2 shadow-[0_0_20px_-2px_rgba(251,191,36,0.45)]`
-                      : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20"
+                      : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20",
+                    isInactive && "opacity-45 grayscale",
+                    isProfessionalAccess && "cursor-default"
                   )}
                   aria-label={p.full_name ?? ""}
                 >
-                  {ini}
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt={p.full_name ?? "Profesional"} className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    ini
+                  )}
                 </button>
               );
             })}
@@ -134,12 +219,12 @@ function ProfessionalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      <div className="flex items-center gap-1 border-b border-white/5">
         {([
-          { key: "turnos", label: "Turnos", Icon: ClipboardList, tint: "text-amber-300" },
-          { key: "stats", label: "Dashboards", Icon: BarChart3, tint: "text-sky-300" },
-          { key: "historial", label: "Historial", Icon: Clock, tint: "text-violet-300" },
-          { key: "pagos", label: "Pagos", Icon: DollarSign, tint: "text-emerald-300" },
+          { key: "turnos",   label: "Turnos",      Icon: ClipboardList, tint: "text-amber-300" },
+          { key: "stats",    label: "Rendimiento", Icon: BarChart3,     tint: "text-sky-300" },
+          { key: "historial",label: "Historial",   Icon: Clock,         tint: "text-violet-300" },
+          { key: "pagos",    label: "Pagos",       Icon: DollarSign,    tint: "text-emerald-300" },
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
           return (
@@ -147,31 +232,114 @@ function ProfessionalsPage() {
               key={key}
               onClick={() => setTab(key)}
               className={cn(
-                "glass rounded-2xl py-4 flex flex-col items-center gap-1.5 transition-all",
+                "inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px",
                 isActive
-                  ? "ring-1 ring-primary/40 shadow-[0_0_30px_-10px_var(--neon-blue)] bg-white/[0.04]"
-                  : "hover:bg-white/[0.04]"
+                  ? `border-primary/70 ${tint}`
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon className={cn("h-5 w-5", isActive ? tint : "text-muted-foreground")} />
-              <span className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>
-                {label}
-              </span>
+              <Icon className="h-3.5 w-3.5" />
+              {label}
             </button>
           );
         })}
       </div>
 
+      {profile?.role === "profesional" && !profileEmployeeId && (
+        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-amber-500/8 ring-amber-400/15 text-amber-300">
+          Este acceso profesional no tiene un profesional asociado. Asignalo desde Configuración → Equipo → Accesos para ver su panel.
+        </div>
+      )}
+
+      <UniversalDateFilter
+        range={range}
+        fromDate={fromDate}
+        toDate={toDate}
+        onPreset={applyRange}
+        onFromChange={(value) => {
+          setRange("custom");
+          setFromDate(value);
+        }}
+        onToChange={(value) => {
+          setRange("custom");
+          setToDate(value);
+        }}
+      />
+
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} />}
-      {tab === "stats" && <StatsView range={range} setRange={setRange} businessId={businessId} empId={empId} />}
-      {tab === "historial" && <HistorialView businessId={businessId} empId={empId} />}
-      {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={permissions.equipo} />}
+      {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
+      {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
+      {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
       </div>
     </AppShell>
   );
 }
 
+
+
+function UniversalDateFilter({
+  range,
+  fromDate,
+  toDate,
+  onPreset,
+  onFromChange,
+  onToChange,
+}: {
+  range: RangeKey;
+  fromDate: string;
+  toDate: string;
+  onPreset: (range: Exclude<RangeKey, "custom">) => void;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="flex items-center gap-2">
+        {([
+          ["hoy", "Hoy"],
+          ["semana", "Semana"],
+          ["mes", "Mes"],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onPreset(key)}
+            className={cn(
+              "rounded-full px-4 py-1.5 text-xs font-medium transition ring-1",
+              range === key
+                ? "bg-white/10 text-foreground ring-white/20"
+                : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5">
+          <span>Desde</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => onFromChange(e.target.value)}
+            className="rounded-full bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-foreground focus:outline-none focus:ring-white/30"
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          <span>Hasta</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => onToChange(e.target.value)}
+            className="rounded-full bg-white/[0.04] ring-1 ring-white/10 px-3 py-1.5 text-foreground focus:outline-none focus:ring-white/30"
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
 
 
 // ── Cobro modal ────────────────────────────────────────────────────────────
@@ -272,13 +440,27 @@ function CobroModal({
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, profile }: {
+function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, from, to, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
+  approvalModeEnabled: boolean;
   profile: { id: string; email?: string } | null;
+  from: string;
+  to: string;
+  canOperate: boolean;
+  equipoEnabled: boolean;
 }) {
-  const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId);
+  const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+
+  const formatMoney = (value: number | null | undefined) =>
+    value == null ? "—" : `$${Number(value).toLocaleString("es-AR")}`;
+
+  const formatDate = (value: string) =>
+    new Date(value).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const formatTime = (value: string) =>
+    new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 
   const statusLabel: Record<string, string> = {
     pending: "Pendiente", confirmed: "Confirmado", completed: "Completado",
@@ -289,60 +471,94 @@ function TurnosView({ businessId, empId, approvalMode, profile }: {
     charged: "text-emerald-300", cancelled: "text-rose-300", approved: "text-violet-300",
   };
 
+  const canShowAction = (status: string) => {
+    if (!canOperate) return false;
+    if (approvalMode === "disabled") return false;
+    if (["charged", "cancelled"].includes(status)) return false;
+    if (approvalMode === "manual" && status === "pending") return false;
+    return true;
+  };
+
   return (
     <div className="space-y-4 animate-fade-up">
       {/* Mode explanation banner */}
-      <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
-        approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
-        approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
-        approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
-      )}>
-        {approvalMode === "auto" && "⚡ Cobro automático — podés cobrar directamente desde tu panel."}
-        {approvalMode === "manual" && "👁 Cobro manual — enviás el cobro a Caja para que recepción lo confirme."}
-        {approvalMode === "disabled" && "🚫 Cobro desactivado — los cobros se realizan desde Caja & Cobro."}
-      </div>
+      {equipoEnabled && approvalModeEnabled && canOperate ? (
+        <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
+          approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
+          approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
+          approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
+        )}>
+          {approvalMode === "auto" && "⚡ Cobro automático — el profesional ve el botón Cobrar y al confirmar queda como Cobrado."}
+          {approvalMode === "manual" && "👁 Cobro manual — el profesional ve Enviar; al enviarlo queda Pendiente hasta que Caja lo cobre."}
+          {approvalMode === "disabled" && "🚫 Cobro desactivado — el profesional solo consulta turnos; Caja realiza todos los cobros."}
+        </div>
+      ) : (
+        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-white/[0.035] ring-white/10 text-muted-foreground inline-flex items-center gap-2">
+          <span className="size-1.5 rounded-full bg-white/30 shrink-0" /> Solo lectura
+        </div>
+      )}
 
-      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos de hoy</div>
+      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos del período</div>
 
       {isLoading ? (
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
       ) : turnos.length === 0 ? (
-        <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos para hoy.</div>
+        <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
-          {turnos.map((t, i) => (
-            <div key={t.id} className={cn("flex items-center gap-3 px-5 py-3.5", i < turnos.length - 1 && "border-b border-white/5")}>
-              <div className="text-xs text-muted-foreground w-14 shrink-0 tabular-nums">
-                {new Date(t.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
+          <div className="grid grid-cols-[1.1fr_0.9fr_1.7fr_1.5fr_1fr_1fr_1fr_0.9fr] gap-4 px-5 py-3 border-b border-white/10 bg-white/[0.025] text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <div>Fecha</div>
+            <div>Hora</div>
+            <div>Cliente</div>
+            <div>Servicio</div>
+            <div className="text-right">Precio lista</div>
+            <div className="text-right">Efectivo</div>
+            <div>Estado</div>
+            <div className="text-right">Acción</div>
+          </div>
+
+          {turnos.map((t, i) => {
+            const listPrice = Number(t.service_price ?? 0);
+            const cashPrice = listPrice;
+            return (
+              <div
+                key={t.id}
+                className={cn(
+                  "grid grid-cols-[1.1fr_0.9fr_1.7fr_1.5fr_1fr_1fr_1fr_0.9fr] gap-4 items-center px-5 py-4 text-sm",
+                  i < turnos.length - 1 && "border-b border-white/5"
+                )}
+              >
+                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatDate(t.starts_at)}</div>
+                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatTime(t.starts_at)}</div>
+                <div className="font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
                 <div className="text-xs text-muted-foreground truncate">{t.service_name ?? "—"}</div>
+                <div className="text-right font-semibold tabular-nums whitespace-nowrap">{formatMoney(listPrice)}</div>
+                <div className="text-right font-semibold tabular-nums whitespace-nowrap text-emerald-300">{formatMoney(cashPrice)}</div>
+                <div>
+                  <span className={cn("text-[11px] font-semibold uppercase tracking-wider", statusColor[t.status] ?? "text-muted-foreground")}>
+                    {statusLabel[t.status] ?? t.status}
+                  </span>
+                </div>
+                <div className="flex justify-end">
+                  {canShowAction(t.status) ? (
+                    <button onClick={() => setCobroTurno(t)}
+                      className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
+                        approvalMode === "auto"
+                          ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                          : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
+                      {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {t.service_price != null && (
-                  <span className="text-sm font-semibold tabular-nums">${Number(t.service_price).toLocaleString("es-AR")}</span>
-                )}
-                <span className={cn("text-[11px] font-semibold uppercase tracking-wider", statusColor[t.status] ?? "text-muted-foreground")}>
-                  {statusLabel[t.status] ?? t.status}
-                </span>
-                {/* Cobrar button */}
-                {approvalMode !== "disabled" && t.status !== "charged" && t.status !== "cancelled" && (
-                  <button onClick={() => setCobroTurno(t)}
-                    className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1",
-                      approvalMode === "auto"
-                        ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                        : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
-                    {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {cobroTurno && businessId && empId && (
+      {canOperate && cobroTurno && businessId && empId && (
         <CobroModal
           turno={cobroTurno}
           empId={empId}
@@ -358,30 +574,13 @@ function TurnosView({ businessId, empId, approvalMode, profile }: {
 }
 
 function StatsView({
-  range, setRange, businessId, empId,
+  businessId, empId, from, to,
 }: {
-  range: "hoy" | "semana" | "mes";
-  setRange: (r: "hoy" | "semana" | "mes") => void;
   businessId: string | null;
   empId: string | null;
+  from: string;
+  to: string;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
-
-  // Sync range presets to dates
-  useMemo(() => {
-    const now = new Date();
-    const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    if (range === "hoy") { setFrom(today); setTo(today); }
-    else if (range === "semana") {
-      const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-      setFrom(toISO(mon)); setTo(today);
-    } else {
-      setFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1))); setTo(today);
-    }
-  }, [range]);
-
   const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
   const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
   const { data: stats } = useProfStats(businessId, empId, validFrom, validTo);
@@ -391,79 +590,39 @@ function StatsView({
 
   return (
     <div className="space-y-4 animate-fade-up">
-      {/* Range chips + dates */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {(["hoy", "semana", "mes"] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                "rounded-full px-4 py-1.5 text-xs font-medium transition ring-1",
-                range === r
-                  ? "bg-white/10 text-foreground ring-white/20"
-                  : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:text-foreground"
-              )}
-            >
-              {r === "hoy" ? "Hoy" : r === "semana" ? "Esta semana" : "Este mes"}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <label className="flex items-center gap-1.5">
-            <span>Desde</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
-            />
-          </label>
-          <label className="flex items-center gap-1.5">
-            <span>Hasta</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="rounded-md bg-white/[0.04] ring-1 ring-white/10 px-2.5 py-1 text-foreground focus:outline-none focus:ring-white/30"
-            />
-          </label>
-        </div>
-      </div>
-
       {/* KPI cards: Comisión / Pagado / Pendiente */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass rounded-2xl p-5 ring-1 ring-amber-400/20 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-amber-400/10 blur-3xl" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-400/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>💸</span> Comisión
           </div>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-lg">$</span>
-            <span className="text-5xl font-display font-light tracking-tight">{stats ? stats.comision.toLocaleString("es-AR") : "—"}</span>
+          <div className="mt-1.5 flex items-baseline gap-1">
+            <span className="text-muted-foreground text-sm">$</span>
+            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.comision.toLocaleString("es-AR") : "—"}</span>
           </div>
-          <div className="mt-2 text-xs text-muted-foreground">{stats?.ventasCount ?? 0} ventas</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{stats?.ventasCount ?? 0} ventas</div>
         </div>
-        <div className="glass rounded-2xl p-5 ring-1 ring-emerald-400/30 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-emerald-400/30 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-emerald-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>✅</span> Pagado
           </div>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-lg">$</span>
-            <span className="text-5xl font-display font-light tracking-tight">{stats ? stats.pagado.toLocaleString("es-AR") : "—"}</span>
+          <div className="mt-1.5 flex items-baseline gap-1">
+            <span className="text-muted-foreground text-sm">$</span>
+            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.pagado.toLocaleString("es-AR") : "—"}</span>
           </div>
         </div>
-        <div className="glass rounded-2xl p-5 ring-1 ring-amber-300/20 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-300/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-300/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>⏳</span> Pendiente
           </div>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-lg">$</span>
-            <span className="text-5xl font-display font-light tracking-tight">{stats ? stats.pendiente.toLocaleString("es-AR") : "—"}</span>
+          <div className="mt-1.5 flex items-baseline gap-1">
+            <span className="text-muted-foreground text-sm">$</span>
+            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.pendiente.toLocaleString("es-AR") : "—"}</span>
           </div>
-          <div className="mt-2 text-xs text-emerald-300">{stats && stats.pendiente === 0 ? "✓ al día" : ""}</div>
+          <div className="mt-1 text-[11px] text-emerald-300">{stats && stats.pendiente === 0 ? "✓ al día" : ""}</div>
         </div>
       </div>
 
@@ -496,21 +655,7 @@ function StatsView({
 }
 
 function ServiciosDesglose() {
-  const items = [
-    { label: "Cortes", value: 0, color: "oklch(0.78 0.16 200)" },
-    { label: "Barba", value: 0, color: "oklch(0.62 0.22 295)" },
-    { label: "Tratamientos", value: 0, color: "oklch(0.72 0.17 155)" },
-    { label: "Otros", value: 0, color: "oklch(0.72 0.18 55)" },
-  ];
-  const total = items.reduce((s, i) => s + i.value, 0);
-  // visual fallback when all zero so donut isn't empty
-  const display = total === 0 ? items.map(() => 1) : items.map((i) => i.value);
-  const sum = display.reduce((s, v) => s + v, 0);
-
-  const R = 60;
-  const C = 2 * Math.PI * R;
-  let offset = 0;
-
+  // No data yet — will be populated from real appointments once analytics are available
   return (
     <div className="glass rounded-2xl p-5 relative overflow-hidden">
       <div className="absolute -top-16 -left-16 h-56 w-56 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
@@ -519,57 +664,16 @@ function ServiciosDesglose() {
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Servicios</div>
           <div className="mt-0.5 text-2xl font-display font-light tracking-tight">Desglose</div>
         </div>
-        <button className="text-muted-foreground hover:text-foreground text-lg leading-none">···</button>
       </div>
-
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-[180px_1fr] gap-6 items-center">
-        <div className="relative mx-auto">
-          <svg viewBox="0 0 160 160" className="w-44 h-44 -rotate-90">
-            <circle cx="80" cy="80" r={R} fill="none" stroke="oklch(0.25 0.02 270 / 0.4)" strokeWidth="18" />
-            {items.map((it, idx) => {
-              const frac = display[idx] / sum;
-              const len = frac * C;
-              const dasharray = `${len} ${C - len}`;
-              const el = (
-                <circle
-                  key={it.label}
-                  cx="80"
-                  cy="80"
-                  r={R}
-                  fill="none"
-                  stroke={it.color}
-                  strokeWidth="18"
-                  strokeDasharray={dasharray}
-                  strokeDashoffset={-offset}
-                  strokeLinecap="butt"
-                />
-              );
-              offset += len;
-              return el;
-            })}
+      <div className="mt-8 flex flex-col items-center justify-center py-8 text-center text-sm text-muted-foreground gap-2">
+        <div className="h-10 w-10 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center mb-1">
+          <svg viewBox="0 0 24 24" className="h-5 w-5 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 3v16a2 2 0 002 2h16" strokeLinecap="round"/>
+            <path d="M7 16l4-4 4 4 5-5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-2xl font-display font-light">{total} $</div>
-            <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Total</div>
-          </div>
         </div>
-
-        <div className="space-y-3">
-          {items.map((it) => {
-            const pct = total === 0 ? 0 : Math.round((it.value / total) * 100);
-            return (
-              <div key={it.label} className="flex items-center gap-3 text-sm">
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: it.color }} />
-                <span className="flex-1 text-foreground/90">{it.label}</span>
-                <span className="tabular-nums text-muted-foreground w-20 text-right">{it.value} $</span>
-                <span className="tabular-nums font-semibold w-10 text-right">{pct} %</span>
-              </div>
-            );
-          })}
-          <button className="text-sky-300 hover:text-sky-200 text-sm pt-1 inline-flex items-center gap-1">
-            Ver todo <span aria-hidden>›</span>
-          </button>
-        </div>
+        Sin datos aún
+        <span className="text-xs opacity-60">Los datos aparecerán cuando haya turnos registrados</span>
       </div>
     </div>
   );
@@ -648,59 +752,12 @@ function LineChart({
   );
 }
 
-function PagosView({ businessId, empId, userEmail }: { businessId: string | null; empId: string | null; userEmail: string | null }) {
-  const { data: payments = [], isLoading } = useProfPayments(businessId, empId);
-  const { mutate: registerPayout, isPending } = useRegisterPayout(businessId);
-  const [showForm, setShowForm] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("Efectivo");
-  const [note, setNote] = useState("");
-
-  function handlePay() {
-    const n = parseFloat(amount);
-    if (!n || n <= 0) { toast.error("Ingresá un monto válido"); return; }
-    registerPayout(
-      { empId: empId!, amount: n, method, note, createdBy: userEmail ?? undefined },
-      { onSuccess: () => { setShowForm(false); setAmount(""); setNote(""); toast.success("✓ Pago registrado"); },
-        onError: (e) => toast.error(e.message) }
-    );
-  }
+function PagosView({ businessId, empId, userEmail, from, to }: { businessId: string | null; empId: string | null; userEmail: string | null; from: string; to: string }) {
+  const { data: payments = [], isLoading } = useProfPayments(businessId, empId, from, to);
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 text-background px-4 py-2.5 text-sm font-semibold hover:brightness-110 transition"
-        >
-          <Plus className="h-4 w-4" strokeWidth={3} /> Registrar pago
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="glass rounded-2xl p-5 space-y-3">
-          <div className="text-sm font-medium">Nuevo pago</div>
-          <div className="grid grid-cols-2 gap-3">
-            <input type="number" placeholder="Monto" value={amount} onChange={e => setAmount(e.target.value)}
-              className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30" />
-            <select value={method} onChange={e => setMethod(e.target.value)}
-              className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none">
-              {["Efectivo","Transferencia","Débito","Crédito","Mercado Pago"].map(m => <option key={m}>{m}</option>)}
-            </select>
-          </div>
-          <input placeholder="Nota (opcional)" value={note} onChange={e => setNote(e.target.value)}
-            className="w-full rounded-lg bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-white/30" />
-          <div className="flex gap-2">
-            <button onClick={handlePay} disabled={isPending}
-              className="flex-1 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-500 text-background py-2 text-sm font-semibold disabled:opacity-50">
-              {isPending ? "Guardando…" : "Confirmar pago"}
-            </button>
-            <button onClick={() => setShowForm(false)} className="px-4 rounded-lg ring-1 ring-white/10 text-sm text-muted-foreground">Cancelar</button>
-          </div>
-        </div>
-      )}
-
-      <div className="glass rounded-2xl overflow-hidden">
+<div className="glass rounded-2xl overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
         ) : payments.length === 0 ? (
@@ -721,47 +778,90 @@ function PagosView({ businessId, empId, userEmail }: { businessId: string | null
   );
 }
 
-function HistorialView({ businessId, empId }: { businessId: string | null; empId: string | null }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const weekStart = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
 
-  const [filter, setFilter] = useState<"todo" | "hoy" | "semana">("todo");
-  const from = filter === "hoy" ? today : filter === "semana" ? weekStart : "2020-01-01";
-  const { data: sales = [], isLoading } = useProfSales(businessId, empId, from, today);
+const METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  efectivo: "Efectivo",
+  transfer: "Transferencia",
+  transferencia: "Transferencia",
+  card: "Tarjeta",
+  tarjeta: "Tarjeta",
+  mercadopago: "Mercado Pago",
+  mercado_pago: "Mercado Pago",
+  mp: "Mercado Pago",
+  cuenta_dni: "Cuenta DNI",
+  cuentaDni: "Cuenta DNI",
+};
+
+function formatSaleDate(value: string) {
+  const date = new Date(value);
+  const day = date.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
+  const formattedDay = day.charAt(0).toUpperCase() + day.slice(1);
+  const datePart = date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  const timePart = date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  return `${formattedDay} ${datePart} ${timePart}`;
+}
+
+function methodLabel(method?: string | null) {
+  if (!method) return "—";
+  return METHOD_LABELS[method] ?? METHOD_LABELS[method.toLowerCase()] ?? method;
+}
+
+function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
+  const { data: sales = [], isLoading } = useProfSales(businessId, empId, from, to);
+
+  const totalFacturado = sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
+  const totalComisiones = sales.reduce((sum, sale) => sum + Math.round((Number(sale.total ?? 0) * commissionPct) / 100), 0);
 
   return (
     <div className="glass rounded-2xl p-5 animate-fade-up">
-      <div className="flex items-center justify-between">
-        <div className="font-medium">Historial de servicios</div>
-        <div className="flex items-center gap-2">
-          {(["todo", "hoy", "semana"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={cn("rounded-full px-3 py-1 text-[11px] font-semibold tracking-wider uppercase transition ring-1",
-                filter === f ? "bg-white/10 text-foreground ring-white/20" : "bg-transparent text-muted-foreground ring-white/10 hover:text-foreground")}>
-              {f}
-            </button>
-          ))}
+      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+        <div>
+          <div className="font-medium">Historial de servicios</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span>Servicios: <strong className="text-foreground">{sales.length}</strong></span>
+            <span className="text-white/20">•</span>
+            <span>Facturación: <strong className="text-emerald-300">${totalFacturado.toLocaleString("es-AR")}</strong></span>
+            <span className="text-white/20">•</span>
+            <span>Comisiones: <strong className="text-amber-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
+          </div>
         </div>
-      </div>
+
+</div>
 
       {isLoading ? (
         <div className="mt-8 mb-4 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
       ) : sales.length === 0 ? (
         <div className="mt-8 mb-4 text-center text-sm text-muted-foreground">Sin historial en este período</div>
       ) : (
-        <div className="mt-4 space-y-0 overflow-hidden rounded-xl">
-          {sales.map((s, i) => (
-            <div key={s.id} className={cn("flex items-center gap-4 py-3", i < sales.length - 1 && "border-b border-white/5")}>
-              <div className="text-xs text-muted-foreground w-16 shrink-0">
-                {new Date(s.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{s.client_name ?? "Sin cliente"}</div>
-                <div className="text-xs text-muted-foreground truncate">{s.service_name ?? "—"}</div>
-              </div>
-              <div className="text-sm font-semibold tabular-nums">${s.total.toLocaleString("es-AR")}</div>
-            </div>
-          ))}
+        <div className="mt-4 overflow-x-auto rounded-xl ring-1 ring-white/10">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-white/[0.035] text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
+                <th className="px-4 py-3 text-left whitespace-nowrap">Día / Hora</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Cliente</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Servicio</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Método</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">Total</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">Comisión</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sales.map((sale) => {
+                const commission = Math.round((Number(sale.total ?? 0) * commissionPct) / 100);
+                return (
+                  <tr key={sale.id} className="border-t border-white/5 hover:bg-white/[0.025] transition-colors">
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatSaleDate(sale.created_at)}</td>
+                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{sale.client_name ?? "Sin cliente"}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{sale.service_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs text-emerald-300 whitespace-nowrap">{methodLabel(sale.method)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">${Number(sale.total ?? 0).toLocaleString("es-AR")}</td>
+                    <td className="px-4 py-3 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">${commission.toLocaleString("es-AR")}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

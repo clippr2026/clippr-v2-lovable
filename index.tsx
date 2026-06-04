@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
-import { usePermGuard, AccessDenied } from "@/hooks/use-perm-guard";
 import { useAuth } from "@/hooks/use-auth";
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import {
   useDashboardData,
   fmtAR,
@@ -47,12 +47,15 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardRoute() {
+  const hasAccess = usePermGuard("dashboard");
   const { loading, session, businessId, profile } = useAuth();
   const navigate = useNavigate();
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
+
+  if (!hasAccess) return <AccessDenied />;
 
   if (loading || !session) {
     return (
@@ -67,12 +70,7 @@ function DashboardRoute() {
   return (
     <AppShell>
       <Topbar
-        title={`Hola, ${firstName}`}
-        subtitle={new Date().toLocaleDateString("es-AR", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-        })}
+        title="Dashboard"
         action={<div />}
       />
       <DashboardContent businessId={businessId} />
@@ -81,8 +79,6 @@ function DashboardRoute() {
 }
 
 function DashboardContent({ businessId }: { businessId: string | null }) {
-  const _hasAccess = usePermGuard("dashboard");
-  if (!_hasAccess) return <AccessDenied />;
   const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [fromStr, setFromStr] = React.useState(todayStr);
   const [toStr, setToStr] = React.useState(todayStr);
@@ -201,7 +197,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("ingresos")}
           label="Ingresos"
           value={fmtAR(data.revHoy)}
-          sub={`${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`}
           icon={DollarSign}
           tone="primary"
           spark={data.revByDay}
@@ -211,11 +206,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("gastos")}
           label="Gastos"
           value={data.totalGastos > 0 ? `-${fmtAR(data.totalGastos)}` : "$0"}
-          sub={
-            data.gastosCount > 0
-              ? `${data.gastosCount} gasto${data.gastosCount !== 1 ? "s" : ""}`
-              : "Sin gastos registrados"
-          }
           icon={ArrowDownCircle}
           tone="danger"
           spark={data.revByDay.map((v) => v * 0.25)}
@@ -225,7 +215,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("utilidad")}
           label="Utilidad"
           value={fmtAR(utilidad)}
-          sub={`Ingresos ${fmtAR(data.revHoy)} − Gastos ${fmtAR(data.totalGastos)}`}
           icon={Wallet}
           tone="success"
           spark={data.revByDay.map((v, i) => v - (data.revByDay[i] || 0) * 0.25)}
@@ -239,7 +228,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("clientes")}
           label="Clientes"
           value={String(data.clientsCount)}
-          sub="atendidos hoy"
           icon={Users}
           tone="neutral"
           spark={data.doneByDay}
@@ -249,7 +237,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("ticket")}
           label="Ticket promedio"
           value={fmtAR(data.ticket)}
-          sub={data.cobros === 0 ? "sin cobros" : `sobre ${data.cobros} cobros`}
           icon={Receipt}
           tone="neutral"
           spark={data.tickByDay}
@@ -259,22 +246,27 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           onClick={() => setActiveMetric("ocupacion")}
           label="Ocupación"
           value={`${data.occ}%`}
-          sub={`${data.usedSlots} de ${data.totalSlots} slots`}
           icon={Activity}
           tone="neutral"
           spark={data.occByDay}
         />
       </section>
 
-      {/* Revenue chart + donut */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Revenue chart full width */}
+      <section>
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
+      </section>
+
+      {/* Donut + activity */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <ActivityPanel items={data.recentPayments} />
+        </div>
         <ServicesDonut data={data} />
       </section>
 
-      {/* Activity + cancellations */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ActivityPanel items={data.recentPayments} />
+      {/* Cancellations */}
+      <section>
         <CancellationsPanel items={data.recentCancellations} />
       </section>
     </div>
@@ -325,7 +317,6 @@ const TONE: Record<
 function Stat({
   label,
   value,
-  sub,
   icon: Icon,
   tone = "neutral",
   spark,
@@ -334,7 +325,6 @@ function Stat({
 }: {
   label: string;
   value: string;
-  sub: string;
   icon: React.ComponentType<{ className?: string }>;
   tone?: keyof typeof TONE;
   spark?: number[];
@@ -362,7 +352,6 @@ function Stat({
       <div className="mt-4 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="font-display text-3xl font-semibold tracking-tight truncate">{value}</div>
-          <div className="text-xs text-muted-foreground mt-1.5">{sub}</div>
         </div>
         {hasSpark && (
           <div className="h-12 w-28 shrink-0 opacity-90">
@@ -431,7 +420,7 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
     : `${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} al ${new Date(toStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
 
   return (
-    <div className="glass rounded-2xl p-5 lg:col-span-2 relative overflow-hidden">
+    <div className="glass rounded-2xl p-5 relative overflow-hidden">
       <div className="flex items-start justify-between mb-1">
         <div>
           <div className="text-xs text-muted-foreground">{cfg.label}</div>
