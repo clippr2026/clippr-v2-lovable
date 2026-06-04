@@ -105,6 +105,7 @@ function ProfessionalsPage() {
     const saved = window.localStorage.getItem("clippr_approval_mode");
     return saved === "manual" || saved === "disabled" || saved === "auto" ? saved : "auto";
   });
+  const [approvalModeEnabled, setApprovalModeEnabled] = useState(false);
   useEffect(() => {
     if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
       setActiveId(ownProfessional.id);
@@ -116,11 +117,15 @@ function ProfessionalsPage() {
 
   useEffect(() => {
     if (!businessId) return;
-    supabase.from("business_settings").select("approval_mode").eq("business_id", businessId).maybeSingle()
-      .then(({ data }) => { if (data?.approval_mode) {
+    supabase.from("business_settings").select("approval_mode,schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.approval_mode) {
           setApprovalMode(data.approval_mode as typeof approvalMode);
           if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", data.approval_mode);
-        } });
+        }
+        const caja = ((data?.schedule as Record<string, unknown> | null)?._caja ?? {}) as Record<string, unknown>;
+        setApprovalModeEnabled(caja.approvalModeEnabled === true);
+      });
   }, [businessId]);
   const active = useMemo(() => visibleProfessionals.find((p) => p.id === empId) ?? visibleProfessionals[0] ?? null, [visibleProfessionals, empId]);
   const activeColor = useMemo(() => COLORS[(visibleProfessionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [visibleProfessionals, empId]);
@@ -165,7 +170,7 @@ function ProfessionalsPage() {
               <div className="text-sm text-muted-foreground mt-0.5">
                 Profesional {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
               </div>
-              {permissions.equipo && <div className={cn(
+              {permissions.equipo && approvalModeEnabled && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
                 approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
                 approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
@@ -265,7 +270,7 @@ function ProfessionalsPage() {
       />
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={permissions.equipo} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={permissions.equipo} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
       {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -438,9 +443,10 @@ function CobroModal({
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, profile, from, to, canOperate, equipoEnabled }: {
+function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, from, to, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
+  approvalModeEnabled: boolean;
   profile: { id: string; email?: string } | null;
   from: string;
   to: string;
@@ -462,7 +468,7 @@ function TurnosView({ businessId, empId, approvalMode, profile, from, to, canOpe
   return (
     <div className="space-y-4 animate-fade-up">
       {/* Mode explanation banner */}
-      {equipoEnabled && canOperate ? (
+      {equipoEnabled && approvalModeEnabled && canOperate ? (
         <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
           approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
           approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
