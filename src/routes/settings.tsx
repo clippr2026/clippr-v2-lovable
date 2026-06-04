@@ -3774,9 +3774,7 @@ function SenasSection() {
   const [lostDist, setLostDist] = React.useState<"local"|"prof"|"custom">("local");
   const [lostLocal, setLostLocal] = React.useState("100");
   const [lostProf, setLostProf] = React.useState("0");
-  const [msg, setMsg] = React.useState(
-    "¡Hola! 👋\n\nPara confirmar tu turno es necesario abonar una seña.\n\nDatos para realizar el pago:\nTitular: [Nombre]\nAlias: [Alias]\nCBU: [CBU]\n\nUna vez realizado el pago, envianos el comprobante por WhatsApp al:\n📲 [WhatsApp del local]\n\nIMPORTANTE:\n• La seña se descuenta del valor total del servicio.\n• Podés cancelar o reprogramar tu turno hasta 24 horas antes sin perder la seña.\n• Si cancelás con menos de 24 horas de anticipación o no asistís al turno, la seña no será reembolsable.\n• La reserva queda confirmada únicamente una vez acreditado el pago.\n• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.\n\n¡Muchas gracias! Te esperamos. 🙌"
-  );
+  const [msg, setMsg] = React.useState(DEFAULT_SENA_MESSAGE);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -3792,16 +3790,15 @@ function SenasSection() {
           setLostDist((c.lost_dist as "local"|"prof"|"custom") ?? "local");
           setLostLocal(String(c.lost_local ?? "100"));
           setLostProf(String(c.lost_prof ?? "0"));
-          setMsg(String(c.msg ?? DEFAULT_SENA_MESSAGE));
+          setMsg(String(c.msg || DEFAULT_SENA_MESSAGE));
         }
         setLoading(false);
       });
     supabase
       .from("price_catalog")
-      .select("id,name,category,price,duration_min,active,stock")
+      .select("id,name,category,price,duration_min,active")
       .eq("business_id", businessId)
       .eq("active", true)
-      .is("stock", null)
       .order("category")
       .order("name")
       .then(({ data, error }) => {
@@ -3810,7 +3807,11 @@ function SenasSection() {
           return;
         }
 
-        setServices((data ?? []) as {id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]);
+        const servicesOnly = (data ?? []).filter((item) =>
+          item.duration_min !== null && item.duration_min !== undefined
+        );
+
+        setServices(servicesOnly as {id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]);
       });
   }, [businessId]);
 
@@ -3832,7 +3833,7 @@ function SenasSection() {
       business_id: businessId,
       senas_config: {
         enabled, services: selectedSvcs, amount_type: amountType,
-        amount_value: parseFloat(amountValue) || 0,
+        amount_value: parsedAmount,
         lost_dist: lostDist, lost_local: localPct, lost_prof: profPct, msg,
       }
     }, { onConflict: "business_id" });
@@ -3973,11 +3974,11 @@ function SenasSection() {
               <span className="text-lg font-light text-muted-foreground">$</span>
             )}
             <input
-              type="number"
-              min="0"
-              step={amountType === "percent" ? "0.1" : "1"}
+              type="text"
+              inputMode="decimal"
               value={amountValue}
-              onChange={e => setAmountValue(e.target.value)}
+              onChange={(e) => setAmountValue(e.target.value.replace(",", "."))}
+              onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
               placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
               className="w-44 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-white/30 transition"
             />
@@ -4037,7 +4038,7 @@ function SenasSection() {
         </Block>
 
         {/* Bloque 5: Mensaje */}
-        <Block title="Mensaje para el cliente" subtitle="Este mensaje se muestra automáticamente en el sitio web luego de que el cliente agenda un turno que requiere seña. Podés personalizarlo con los datos de tu cuenta bancaria y las condiciones de reserva.">
+        <Block title="Mensaje para el cliente" subtitle="Mensaje que verá el cliente después de reservar un turno con seña.">
           <div className="relative">
             <textarea
               rows={4}
@@ -4047,7 +4048,7 @@ function SenasSection() {
             />
           </div>
           <div className="text-xs text-muted-foreground">
-            Podés usar saltos de línea. El mensaje se puede copiar y enviar por WhatsApp o mensaje de texto.
+            
           </div>
         </Block>
       </>)}
