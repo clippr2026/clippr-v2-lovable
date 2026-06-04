@@ -58,13 +58,7 @@ function AdvisorRoute() {
 
   return (
     <AppShell>
-      <Topbar
-        title="Asesor IA"
-        subtitle="Decisiones para mejorar el negocio"
-        action={
-          
-        }
-      />
+      <Topbar title="Asesor IA" subtitle="Decisiones para mejorar el negocio" />
       <AdvisorContent businessId={businessId} />
     </AppShell>
   );
@@ -284,24 +278,6 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
             <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Historial de análisis</h2>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
               Tus informes mensuales quedan guardados para comparar la evolución del negocio.
-
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-semibold text-white">Junio 2026</p>
-              <p className="mt-1 text-xs text-muted-foreground">Informe generado este mes.</p>
-              <p className="mt-3 text-sm text-emerald-300">Disponible</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-semibold text-white">Mayo 2026</p>
-              <p className="mt-1 text-xs text-muted-foreground">Historial del mes anterior.</p>
-              <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-semibold text-white">Abril 2026</p>
-              <p className="mt-1 text-xs text-muted-foreground">Historial anterior.</p>
-              <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
-            </div>
-          </div>
             </p>
           </div>
 
@@ -313,6 +289,30 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
             <ClipboardList className="h-4 w-4" />
             Generar análisis mensual
           </button>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Junio 2026</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {monthlyGenerated ? "Informe generado este mes." : "Todavía no hay informe guardado."}
+            </p>
+            <p className={cn("mt-3 text-sm", monthlyGenerated ? "text-emerald-300" : "text-muted-foreground")}>
+              {monthlyGenerated ? "Disponible" : "Pendiente"}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Mayo 2026</p>
+            <p className="mt-1 text-xs text-muted-foreground">Historial del mes anterior.</p>
+            <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Abril 2026</p>
+            <p className="mt-1 text-xs text-muted-foreground">Historial anterior.</p>
+            <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
+          </div>
         </div>
 
         {monthlyGenerated ? (
