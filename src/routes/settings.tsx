@@ -3761,6 +3761,52 @@ function CajaSection() {
 
 // ─────────── Page ───────────
 
+
+function SenasBlock({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.06] p-6 space-y-4">
+      <div>
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SenasToggleBtn({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-xl px-5 py-2.5 text-sm font-medium ring-1 transition-all",
+        active
+          ? "bg-primary/20 ring-primary/50 text-foreground shadow-[0_0_16px_-4px_oklch(0.66_0.22_265/0.4)]"
+          : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Señas Section
 // ---------------------------------------------------------------------------
@@ -3855,40 +3901,20 @@ function SenasSection() {
 
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
-  // Reusable block wrapper
-  const Block = ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
-    <div className="rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.06] p-6 space-y-4">
-      <div>
-        <div className="text-sm font-semibold text-foreground">{title}</div>
-        {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
-      </div>
-      {children}
-    </div>
-  );
-
-  const ToggleBtn = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
-    <button onClick={onClick}
-      className={cn("px-5 py-2.5 rounded-xl text-sm font-semibold ring-1 transition-all",
-        active
-          ? "bg-primary/20 ring-primary/50 text-foreground shadow-[0_0_16px_-4px_oklch(0.66_0.22_265/0.4)]"
-          : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]")}>
-      {label}
-    </button>
-  );
 
   return (
     <div className="space-y-4">
       {/* Bloque 1: Activar */}
-      <Block title="¿Activar señas?" subtitle="Cuando está activado podés requerir una seña para confirmar turnos.">
+      <SenasBlock title="¿Activar señas?" subtitle="Cuando está activado podés requerir una seña para confirmar turnos.">
         <div className="flex gap-3">
-          <ToggleBtn label="Sí" active={enabled} onClick={() => setEnabled(true)} />
-          <ToggleBtn label="No" active={!enabled} onClick={() => setEnabled(false)} />
+          <SenasToggleBtn label="Sí" active={enabled} onClick={() => setEnabled(true)} />
+          <SenasToggleBtn label="No" active={!enabled} onClick={() => setEnabled(false)} />
         </div>
-      </Block>
+      </SenasBlock>
 
       {enabled && (<>
         {/* Bloque 2: Servicios */}
-        <Block title="Servicios que requieren seña" subtitle="Se cargan automáticamente desde Configuración → Servicios. Activá los que deben pedir seña al reservar.">
+        <SenasBlock title="Servicios que requieren seña" subtitle="Se cargan automáticamente desde Configuración → Servicios. Activá los que deben pedir seña al reservar.">
           <div className="space-y-2">
             {services.length > 0 && (
               <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
@@ -3961,13 +3987,13 @@ function SenasSection() {
               </div>
             )}
           </div>
-        </Block>
+        </SenasBlock>
 
         {/* Bloque 3: Monto */}
-        <Block title="Monto de la seña" subtitle="Definí si la seña es un monto fijo o un porcentaje del servicio.">
+        <SenasBlock title="Monto de la seña" subtitle="Definí si la seña es un monto fijo o un porcentaje del servicio.">
           <div className="flex gap-3">
-            <ToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
-            <ToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
+            <SenasToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
+            <SenasToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
           </div>
           <div className="flex items-center gap-3 mt-1">
             {amountType === "fixed" && (
@@ -3993,17 +4019,17 @@ function SenasSection() {
               </span>
             )}
           </div>
-        </Block>
+        </SenasBlock>
 
         {/* Bloque 4: Distribución si se pierde */}
-        <Block title="Si el cliente pierde la seña" subtitle="Definí cómo se distribuye el dinero de la seña perdida.">
+        <SenasBlock title="Si el cliente pierde la seña" subtitle="Definí cómo se distribuye el dinero de la seña perdida.">
           <div className="flex flex-wrap gap-3">
             {([
               ["local",  "100% para el local"],
               ["prof",   "100% para el profesional"],
               ["custom", "Personalizado"],
             ] as [string,string][]).map(([v,l]) => (
-              <ToggleBtn key={v} label={l} active={lostDist===v} onClick={() => {
+              <SenasToggleBtn key={v} label={l} active={lostDist===v} onClick={() => {
                 setLostDist(v as "local"|"prof"|"custom");
                 if (v==="local")      { setLostLocal("100"); setLostProf("0"); }
                 else if (v==="prof")  { setLostLocal("0");   setLostProf("100"); }
@@ -4035,10 +4061,10 @@ function SenasSection() {
               </div>
             </div>
           )}
-        </Block>
+        </SenasBlock>
 
         {/* Bloque 5: Mensaje */}
-        <Block title="Mensaje para el cliente" subtitle="Mensaje que verá el cliente después de reservar un turno con seña.">
+        <SenasBlock title="Mensaje para el cliente" subtitle="Mensaje que verá el cliente después de reservar un turno con seña.">
           <div className="relative">
             <textarea
               rows={4}
@@ -4050,7 +4076,7 @@ function SenasSection() {
           <div className="text-xs text-muted-foreground">
             
           </div>
-        </Block>
+        </SenasBlock>
       </>)}
     </div>
   );
