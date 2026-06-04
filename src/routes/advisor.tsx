@@ -104,7 +104,11 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
   const recoveryImpact = inactiveClients.length * estimatedTicket;
   const emptySlotsImpact = emptySlots * estimatedTicket;
   const ticketImpact = (data?.cobros ?? 0) * 1000;
-  const hasEnoughData = Boolean((data?.cobros ?? 0) > 0 || (data?.clientes ?? 0) > 0 || (data?.usedSlots ?? 0) > 0 || (data?.revMes ?? 0) > 0);
+  const monthRevenue = month?.revMes ?? data?.revMes ?? 0;
+  const monthClients = month?.clientes ?? data?.clientes ?? 0;
+  const monthCobros = month?.cobros ?? data?.cobros ?? 0;
+  const monthTicket = month?.ticket ?? data?.ticket ?? 0;
+  const hasEnoughData = Boolean(monthCobros > 0 || monthClients > 0 || monthRevenue > 0);
 
   const health = React.useMemo(() => {
     if (!data) return 0;
@@ -132,7 +136,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
         },
     emptySlots > 0
       ? {
-          title: `Tenés ${emptySlots} espacios libres hoy`,
+          title: `Hay ${emptySlots} espacios libres disponibles`,
           detail: `Podrías generar hasta ${fmtAR(emptySlotsImpact)}.`,
           tone: "warning",
         }
@@ -148,8 +152,8 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
           tone: "warning",
         }
       : {
-          title: "Sin cancelaciones relevantes",
-          detail: "La agenda viene estable.",
+          title: "Cancelaciones controladas",
+          detail: "El mes viene estable.",
           tone: "good",
         },
   ];
@@ -160,12 +164,12 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
       detail: inactiveClients.length > 0 ? `Prioridad: ${Math.min(inactiveClients.length, 20)} clientes.` : "Mantené activa la fidelización.",
     },
     {
-      title: "Completar horarios libres",
-      detail: emptySlots > 0 ? "Usá historias o WhatsApp para llenar huecos." : "La agenda de hoy está bien cubierta.",
+      title: "Mejorar ocupación",
+      detail: emptySlots > 0 ? "Usá WhatsApp e historias para llenar espacios libres." : "La agenda de hoy está bien cubierta.",
     },
     {
-      title: "Revisar pendientes de cobro",
-      detail: data && data.cobros === 0 ? "Todavía no hay cobros registrados hoy." : "Controlá que todo servicio quede cobrado.",
+      title: "Ordenar cobros pendientes",
+      detail: data && data.cobros === 0 ? "Revisá si quedaron servicios sin cobrar." : "Controlá que todo servicio quede cobrado.",
     },
   ];
 
@@ -181,17 +185,17 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
       tone: data?.ticket ? "good" : "neutral",
     },
     {
-      title: "Utilidad del día",
+      title: "Utilidad del mes",
       detail: data ? `${fmtAR(data.utilidad)} estimados.` : "Cargando datos.",
       tone: data && data.utilidad >= 0 ? "good" : "warning",
     },
     {
-      title: "Servicios más vendidos",
+      title: "Servicios destacados",
       detail: data?.topServices?.[0]?.name ? `${data.topServices[0].name} lidera el día.` : "Aún no hay servicio destacado.",
       tone: data?.topServices?.[0]?.name ? "good" : "neutral",
     },
     {
-      title: "Clientes atendidos",
+      title: "Clientes del mes",
       detail: data ? `${data.clientsCount} clientes con cobros hoy.` : "Cargando datos.",
       tone: data?.clientsCount ? "good" : "neutral",
     },
@@ -219,7 +223,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
       tone: ticketDelta !== null && ticketDelta < 0 ? "warning" : "good",
     },
     {
-      title: "Ventas del mes",
+      title: "Facturación mensual",
       detail: month ? `${fmtAR(month.revHoy)} acumulado mensual.` : "Cargando mes.",
       tone: month?.revHoy ? "good" : "neutral",
     },
@@ -252,10 +256,10 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary ring-1 ring-primary/20">
                 <Brain className="h-3.5 w-3.5" />
-                Análisis del día
+                Análisis del mes
               </div>
               <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Salud del negocio</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Lectura rápida de ingresos, ocupación, clientes y caja.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Resumen de lo que va del mes.</p>
             </div>
             <div className="text-right">
               {hasEnoughData ? (
@@ -281,14 +285,14 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <Metric label="Facturación hoy" value={fmtAR(data?.revHoy ?? 0)} delta={revenueDelta} />
+            <Metric label="Facturación del mes" value={fmtAR(data?.revHoy ?? 0)} delta={revenueDelta} />
             <Metric label="Ocupación" value={`${data?.occ ?? 0}%`} />
             <Metric label="Clientes" value={`${data?.clientsCount ?? 0}`} />
           </div>
         </GlassCard>
 
         <GlassCard className="p-5 sm:p-6">
-          <SectionTitle icon={Bell} title="Notificaciones de hoy" />
+          <SectionTitle icon={Bell} title="Alertas del mes" />
           <div className="mt-4 space-y-3">
             {dailyAlerts.map((item) => (
               <InsightRow key={item.title} item={item} />
@@ -299,7 +303,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
 
       <section className="grid gap-4 lg:grid-cols-3">
         <GlassCard className="p-5">
-          <SectionTitle icon={Target} title="Prioridad de hoy" />
+          <SectionTitle icon={Target} title="Prioridad del mes" />
           <div className="mt-4 space-y-3">
             {todayTasks.map((item, index) => (
               <div key={item.title} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -334,7 +338,7 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
               <div className="text-xs text-muted-foreground">{emptySlots} turnos potenciales para completar hoy.</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="font-medium">Cobros registrados</div>
+              <div className="font-medium">Cobros del mes</div>
               <div className="text-xs text-muted-foreground">{data?.cobros ?? 0} movimientos en caja.</div>
             </div>
           </div>
