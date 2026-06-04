@@ -20,6 +20,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AgendaRouteImport } from './routes/agenda'
+import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -77,6 +78,11 @@ const AgendaRoute = AgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdvisorRoute = AdvisorRouteImport.update({
+  id: '/advisor',
+  path: '/advisor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -86,6 +92,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/advisor': typeof AdvisorRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/advisor': typeof AdvisorRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/advisor': typeof AdvisorRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agenda'
+    | '/advisor'
     | '/appointments'
     | '/cash-register'
     | '/clients'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agenda'
+    | '/advisor'
     | '/appointments'
     | '/cash-register'
     | '/clients'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agenda'
+    | '/advisor'
     | '/appointments'
     | '/cash-register'
     | '/clients'
@@ -174,6 +186,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
+  AdvisorRoute: typeof AdvisorRoute
   AppointmentsRoute: typeof AppointmentsRoute
   CashRegisterRoute: typeof CashRegisterRoute
   ClientsRoute: typeof ClientsRoute
@@ -265,6 +278,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgendaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/advisor': {
+      id: '/advisor'
+      path: '/advisor'
+      fullPath: '/advisor'
+      preLoaderRoute: typeof AdvisorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -278,6 +298,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
+  AdvisorRoute: AdvisorRoute,
   AppointmentsRoute: AppointmentsRoute,
   CashRegisterRoute: CashRegisterRoute,
   ClientsRoute: ClientsRoute,
