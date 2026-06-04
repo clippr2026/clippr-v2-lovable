@@ -429,6 +429,10 @@ export function AppointmentDialog({
   const hourOptions = Array.from({ length: 24 }, (_, i) => pad(i));
   const minuteOptions = ["00", "15", "30", "45"];
 
+  const previewClientName = newClientMode
+    ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
+    : clientName.trim();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
