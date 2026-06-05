@@ -267,8 +267,8 @@ function AdvisorContent() {
                   i
                 </button>
               </Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 Evolución del negocio</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Respecto al período anterior.</p>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 ¿Estás creciendo?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Evolución respecto al período anterior.</p>
               
             </div>
 
@@ -294,7 +294,7 @@ function AdvisorContent() {
 
             <div className="text-right">
               <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
-              <div className="text-sm text-muted-foreground">Puntaje de salud</div>
+              <div className="text-sm text-muted-foreground">sobre 100</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
@@ -304,7 +304,7 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
+            <div className="text-sm font-semibold">¿Por qué?</div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <ReasonItem tone="good" text={`Utilidad positiva: ${fmtAR(DEMO.profit)}`} />
               <ReasonItem tone="good" text={`${DEMO.clients} clientes atendidos este mes`} />
