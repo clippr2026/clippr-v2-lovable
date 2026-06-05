@@ -294,7 +294,7 @@ function AdvisorContent() {
 
             <div className="text-right">
               <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
-              <div className="text-sm text-muted-foreground">sobre 100</div>
+              <div className="text-sm text-muted-foreground">Puntaje de salud</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
