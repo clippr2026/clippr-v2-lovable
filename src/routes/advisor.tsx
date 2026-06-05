@@ -258,11 +258,10 @@ function AdvisorContent() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <Badge icon={TrendingUp}>
-                Crecimiento del negocio
                 <button
                   type="button"
                   onClick={() => setInfoModal(INFO_CONTENT.growth)}
-                  className="ml-2 grid h-6 w-6 place-items-center rounded-full border border-primary/40 bg-primary/15 text-xs font-bold text-primary transition hover:bg-primary/25"
+                  className="grid h-10 w-10 place-items-center rounded-full border border-primary/40 bg-primary/15 text-xs font-bold text-primary transition hover:bg-primary/25"
                   aria-label="Información de crecimiento"
                 >
                   i
@@ -273,12 +272,11 @@ function AdvisorContent() {
             </div>
 
             <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Utilidad</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">UTILIDAD +30%</div>
               <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(DEMO.profit)}</div>
-              <div className="mt-1 text-sm font-semibold text-emerald-300">+30% vs mes anterior</div>
             </div>
           </div>
-<div className="mt-4 grid gap-3 sm:grid-cols-4">
+<div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
 <GrowthMetric label="Clientes nuevos" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`45 vs 39 clientes`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
             <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
             <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
