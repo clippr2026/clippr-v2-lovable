@@ -145,7 +145,7 @@ function AdvisorContent() {
           setIsAnalyzing(false);
         }, 700);
       }
-    }, 1200);
+    }, 2000);
 
     return () => window.clearInterval(interval);
   }, [isAnalyzing, todayKey]);
@@ -171,8 +171,22 @@ function AdvisorContent() {
     }
   }, [reports]);
 
-  const actions = getDemoActions();
+  const [hasNewRecommendation, setHasNewRecommendation] = React.useState(true);
+  const [isUpdatingRecommendation, setIsUpdatingRecommendation] = React.useState(false);
+  const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
+
+  const actions = getDemoActions(showExtraRecommendation);
   const healthTone = getHealthTone(DEMO.health);
+
+  function handleAnalyzeNewRecommendation() {
+    setIsUpdatingRecommendation(true);
+
+    window.setTimeout(() => {
+      setShowExtraRecommendation(true);
+      setHasNewRecommendation(false);
+      setIsUpdatingRecommendation(false);
+    }, 1200);
+  }
 
   if (!analysisStarted) {
     return (
@@ -196,7 +210,7 @@ function AdvisorContent() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">+{DEMO.growth}% este mes</h2>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{DEMO.growth}%</h2>
               <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. Basado principalmente en utilidad.</p>
             </div>
 
@@ -250,20 +264,70 @@ function AdvisorContent() {
         </GlassCard>
       </section>
 
+      {hasNewRecommendation ? (
+        <GlassCard className="border border-primary/20 bg-primary/[0.04] p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
+                <Bell className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold tracking-tight">Tenés una recomendación nueva</h2>
+                <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                  Clippr detectó una oportunidad que puede mejorar la ocupación y la utilidad del negocio.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAnalyzeNewRecommendation}
+              disabled={isUpdatingRecommendation}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isUpdatingRecommendation ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Analizando...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Analizar recomendación
+                </>
+              )}
+            </button>
+          </div>
+        </GlassCard>
+      ) : null}
+
       <GlassCard className="p-5 sm:p-6">
         <div>
           <Badge icon={Target}>Qué hacer hoy</Badge>
-          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">5 acciones para mejorar el negocio</h2>
+          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Prioridades de hoy</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Son acciones concretas para aumentar utilidad, ocupación y clientes recurrentes.
+            Clippr muestra solo las acciones importantes detectadas hoy. Si hay una sola, muestra una sola.
           </p>
         </div>
 
-        <div className="mt-5 grid gap-3 xl:grid-cols-5">
-          {actions.map((action) => (
-            <ActionCard key={action.title} action={action} />
-          ))}
-        </div>
+        {actions.length > 0 ? (
+          <div className={cn(
+            "mt-5 grid gap-3",
+            actions.length === 1 && "xl:grid-cols-1",
+            actions.length === 2 && "xl:grid-cols-2",
+            actions.length === 3 && "xl:grid-cols-3",
+            actions.length === 4 && "xl:grid-cols-4",
+            actions.length >= 5 && "xl:grid-cols-5",
+          )}>
+            {actions.map((action) => (
+              <ActionCard key={action.title} action={action} />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-muted-foreground">
+            No hay acciones urgentes para hoy. El negocio viene estable.
+          </div>
+        )}
       </GlassCard>
 
       <GlassCard className="p-5 sm:p-6">
@@ -328,9 +392,9 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-primary/10 ring-1 ring-primary/20">
           <Brain className="h-7 w-7 text-primary" />
         </div>
-        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Preparar análisis IA</h2>
+        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Asesor IA Clippr</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Clippr va a revisar utilidad, clientes, ocupación, caja y oportunidades del negocio.
+          Tu consultor virtual analiza utilidad, clientes, ocupación, caja y oportunidades para ayudarte a crecer.
         </p>
 
         <button
@@ -338,11 +402,11 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
           onClick={onStart}
           className="mt-6 inline-flex h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-primary to-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
         >
-          Iniciar análisis IA
+          Generar análisis de hoy
         </button>
 
         <p className="mt-4 text-xs text-muted-foreground">
-          Este análisis se genera una vez por día. Después se muestra directo.
+          Se genera una vez por día. Si volvés a entrar hoy, el informe se muestra directo.
         </p>
       </GlassCard>
     </div>
@@ -386,46 +450,71 @@ function AnalysisLoader({ step }: { step: number }) {
   );
 }
 
-function getDemoActions(): AdvisorAction[] {
-  return [
-    {
+function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
+  const actions: AdvisorAction[] = [];
+
+  if (DEMO.inactiveClients > 0) {
+    actions.push({
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
       button: "Ver clientes",
       tone: "client",
-    },
-    {
+    });
+  }
+
+  if (DEMO.emptySlotsTomorrow > 0) {
+    actions.push({
       title: "Llenar horarios libres",
       detail: `Mañana tenés ${DEMO.emptySlotsTomorrow} espacios vacíos.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
       button: "Crear promoción",
       tone: "warning",
-    },
-    {
+    });
+  }
+
+  if (DEMO.payments > 0) {
+    actions.push({
       title: "Subir ticket promedio",
       detail: "Sumar $1.000 por cobro mejora la utilidad mensual.",
       impact: `Potencial: +${fmtAR(DEMO.payments * 1000)}`,
       button: "Ver simulación",
       tone: "money",
-    },
-    {
+    });
+  }
+
+  if (DEMO.vipInactive > 0) {
+    actions.push({
       title: "Reactivar clientes VIP",
       detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
       button: "Enviar WhatsApp",
       tone: "growth",
-    },
-    {
+    });
+  }
+
+  if (DEMO.unconfirmedAppointments > 0) {
+    actions.push({
       title: "Confirmar turnos",
       detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       impact: "Reduce ausencias y huecos de agenda.",
       button: "Ver turnos",
       tone: "neutral",
-    },
-  ];
-}
+    });
+  }
 
+  if (showExtraRecommendation) {
+    actions.unshift({
+      title: "Impulsar el día más flojo",
+      detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
+      impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
+      button: "Crear campaña",
+      tone: "growth",
+    });
+  }
+
+  return actions;
+}
 function getTodayKey() {
   const date = new Date();
   return date.toISOString().slice(0, 10);
