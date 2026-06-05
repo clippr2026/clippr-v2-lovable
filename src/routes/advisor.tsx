@@ -267,8 +267,8 @@ function AdvisorContent() {
                   i
                 </button>
               </Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 ¿Estás creciendo?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Evolución respecto al período anterior.</p>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 Evolución del negocio +18%</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Respecto al período anterior.</p>
               
             </div>
 
@@ -278,7 +278,7 @@ function AdvisorContent() {
             </div>
           </div>
 <div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
-<GrowthMetric label="Clientes nuevos" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
+<GrowthMetric label="Clientes nuevos" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`45 vs 39 clientes`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
             <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
             <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
           </div>
@@ -304,7 +304,7 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-sm font-semibold">¿Por qué?</div>
+            <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <ReasonItem tone="good" text={`Utilidad positiva: ${fmtAR(DEMO.profit)}`} />
               <ReasonItem tone="good" text={`${DEMO.clients} clientes atendidos este mes`} />
