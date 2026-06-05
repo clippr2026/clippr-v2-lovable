@@ -266,8 +266,8 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Badge icon={Bell}>Notificaciones del día</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Máximo 5 avisos importantes</h2>
+            <Badge icon={Bell}>Acciones del día</Badge>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">5 acciones recomendadas</h2>
           </div>
         </div>
 
@@ -379,11 +379,27 @@ function buildDailyAlerts(input: {
       tone: "warning",
     });
   } else {
-    alerts.push({ title: "Clientes al día", detail: "No hay alerta fuerte de recuperación.", tone: "good" });
+    alerts.push({ title: "Recuperar clientes", detail: "Enviá un WhatsApp a clientes que no volvieron hace más de 45 días.
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
+                  >
+                    Ver cómo
+                  </button>
+                </div>", tone: "good" });
   }
 
   if (emptyToday > 0) {
-    alerts.push({ title: `${emptyToday} espacios libres hoy`, detail: "Ideal para mover promos rápidas.", tone: "warning" });
+    alerts.push({ title: `${emptyToday} espacios libres hoy`, detail: "Creá una promo rápida para horarios con baja ocupación.
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
+                  >
+                    Ver cómo
+                  </button>
+                </div>", tone: "warning" });
   } else {
     alerts.push({ title: "Agenda cubierta", detail: "Buen nivel de ocupación para hoy.", tone: "good" });
   }
@@ -391,13 +407,29 @@ function buildDailyAlerts(input: {
   if (input.pendingRisk > 0) {
     alerts.push({ title: `${input.pendingRisk} servicios por revisar`, detail: "Controlá que todo quede cobrado.", tone: "danger" });
   } else {
-    alerts.push({ title: "Caja ordenada", detail: "No se detectan pendientes fuertes.", tone: "good" });
+    alerts.push({ title: "Revisar pendientes de cobro", detail: "Controlá que todos los servicios del día estén cobrados.
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
+                  >
+                    Ver cómo
+                  </button>
+                </div>", tone: "good" });
   }
 
   if (cancellations > 0) {
     alerts.push({ title: `${cancellations} cancelaciones recientes`, detail: "Revisá señas y recordatorios.", tone: "warning" });
   } else {
-    alerts.push({ title: "Sin cancelaciones fuertes", detail: "El día viene estable.", tone: "good" });
+    alerts.push({ title: "Confirmar turnos de mañana", detail: "Mandá recordatorio a los clientes para reducir ausencias.
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
+                  >
+                    Ver cómo
+                  </button>
+                </div>", tone: "good" });
   }
 
   if (input.vipClients > 0) {
