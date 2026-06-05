@@ -80,6 +80,7 @@ const DEMO = {
 };
 
 function AdvisorRoute() {
+  const navigate = useNavigate();
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
 
