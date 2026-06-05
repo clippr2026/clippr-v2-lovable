@@ -267,8 +267,8 @@ function AdvisorContent() {
                   i
                 </button>
               </Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 ¿Estás creciendo?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Evolución respecto al período anterior.</p>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 Evolución del negocio</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Respecto al período anterior.</p>
               
             </div>
 
