@@ -41,6 +41,52 @@ type AdvisorAction = {
   tone: ActionTone;
 };
 
+
+type InfoModalContent = {
+  title: string;
+  description: string;
+  points: string[];
+};
+
+const INFO_CONTENT = {
+  growth: {
+    title: "Crecimiento del negocio",
+    description: "Mide cuánto creció la utilidad del negocio frente al mes anterior.",
+    points: [
+      "Fórmula: utilidad actual vs utilidad del mes anterior.",
+      "Utilidad = facturación - gastos - comisiones.",
+      "Clientes, ticket y ocupación explican qué impulsó el crecimiento.",
+    ],
+  },
+  clients: {
+    title: "Clientes nuevos",
+    description: "Compara los clientes atendidos este mes contra el mes anterior.",
+    points: [
+      "Ejemplo: 45 clientes vs 39 clientes.",
+      "Sirve para ver si el negocio atrae más movimiento.",
+      "No reemplaza la utilidad: solo explica parte del crecimiento.",
+    ],
+  },
+  ticket: {
+    title: "Ticket promedio",
+    description: "Muestra cuánto gasta en promedio cada cliente.",
+    points: [
+      "Fórmula: facturación total dividida por clientes atendidos.",
+      "Si sube el ticket, podés ganar más sin sumar más turnos.",
+      "También ayuda a detectar oportunidades de combos o productos.",
+    ],
+  },
+  occupancy: {
+    title: "Ocupación",
+    description: "Indica qué porcentaje de horarios disponibles fueron utilizados.",
+    points: [
+      "Fórmula: horarios ocupados divididos por horarios disponibles.",
+      "Una ocupación baja muestra espacios que se pueden llenar.",
+      "Una ocupación alta permite pensar en subir precios o sumar equipo.",
+    ],
+  },
+} satisfies Record<string, InfoModalContent>;
+
 const DEMO = {
   month: "Junio 2026",
   previousMonth: "Mayo 2026",
@@ -97,6 +143,7 @@ function AdvisorRoute() {
 }
 
 function AdvisorContent() {
+  const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   const todayKey = getTodayKey();
   const needsDailyAnalysis = React.useMemo(() => {
     if (typeof window === "undefined") return true;
@@ -209,26 +256,31 @@ function AdvisorContent() {
         <GlassCard className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
-              <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
+              <Badge icon={TrendingUp}>
+                Crecimiento del negocio
+                <button
+                  type="button"
+                  onClick={() => setInfoModal(INFO_CONTENT.growth)}
+                  className="ml-2 grid h-6 w-6 place-items-center rounded-full border border-primary/40 bg-primary/15 text-xs font-bold text-primary transition hover:bg-primary/25"
+                  aria-label="Información de crecimiento"
+                >
+                  i
+                </button>
+              </Badge>
               <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{DEMO.growth}%</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. </p>
+              
             </div>
 
             <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Utilidad</div>
               <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(DEMO.profit)}</div>
+              <div className="mt-1 text-sm font-semibold text-emerald-300">+30% vs mes anterior</div>
             </div>
           </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-            Basado en utilidad (+{percent(DEMO.profit, DEMO.previousProfit)}%), clientes (+{percent(DEMO.clients, DEMO.previousClients)}%), ticket promedio (+{percent(DEMO.ticket, DEMO.previousTicket)}%) y ocupación (+{DEMO.occupancy - DEMO.previousOccupancy} puntos).
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <GrowthMetric label="Utilidad" value={`+${fmtAR(DEMO.profit - DEMO.previousProfit)}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
-            <GrowthMetric label="Clientes nuevos ⓘ" value={`+${percent(DEMO.clients, DEMO.previousClients)}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
-            <GrowthMetric label="Ticket promedio ⓘ" value={`+${fmtAR(DEMO.ticket - DEMO.previousTicket)}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
-            <GrowthMetric label="Ocupación ⓘ" value={`${DEMO.occupancy}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
+<div className="mt-4 grid gap-3 sm:grid-cols-4">
+<GrowthMetric label="Clientes nuevos" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`45 vs 39 clientes`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
+            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
+            <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
           </div>
         </GlassCard>
 
@@ -381,6 +433,9 @@ function AdvisorContent() {
           />
         </div>
       </GlassCard>
+      {infoModal ? (
+        <InfoModal content={infoModal} onClose={() => setInfoModal(null)} />
+      ) : null}
     </div>
   );
 }
@@ -545,10 +600,34 @@ function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className
   );
 }
 
-function GrowthMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
+function GrowthMetric({
+  label,
+  value,
+  detail,
+  info,
+  onInfo,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  info?: InfoModalContent;
+  onInfo?: (content: InfoModalContent) => void;
+}) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all duration-700 ease-out">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>{label}</span>
+        {info && onInfo ? (
+          <button
+            type="button"
+            onClick={() => onInfo(info)}
+            className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-white/[0.05] text-xs font-bold text-muted-foreground transition hover:border-primary/50 hover:text-primary"
+            aria-label={`Información de ${label}`}
+          >
+            i
+          </button>
+        ) : null}
+      </div>
       <div className="mt-2 text-lg font-semibold text-emerald-300">{value}</div>
       {detail ? <div className="mt-1 text-xs text-muted-foreground">{detail}</div> : null}
     </div>
@@ -594,6 +673,37 @@ function ActionCard({ action }: { action: AdvisorAction }) {
       >
         {action.button}
       </button>
+    </div>
+  );
+}
+
+function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-background p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Información</div>
+            <h2 className="mt-2 font-display text-xl font-semibold tracking-tight text-white">{content.title}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{content.description}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {content.points.map((point) => (
+            <div key={point} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-muted-foreground">
+              {point}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
