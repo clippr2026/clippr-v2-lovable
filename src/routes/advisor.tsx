@@ -379,27 +379,11 @@ function buildDailyAlerts(input: {
       tone: "warning",
     });
   } else {
-    alerts.push({ title: "Recuperar clientes", detail: "Enviá un WhatsApp a clientes que no volvieron hace más de 45 días.
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
-                  >
-                    Ver cómo
-                  </button>
-                </div>", tone: "good" });
+    alerts.push({ title: "Recuperar clientes", detail: "Enviá WhatsApp a clientes que no volvieron hace más de 45 días.", tone: "good" });
   }
 
   if (emptyToday > 0) {
-    alerts.push({ title: `${emptyToday} espacios libres hoy`, detail: "Creá una promo rápida para horarios con baja ocupación.
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
-                  >
-                    Ver cómo
-                  </button>
-                </div>", tone: "warning" });
+    alerts.push({ title: `${emptyToday} espacios libres hoy`, detail: "Creá una promo rápida para horarios con baja ocupación.", tone: "warning" });
   } else {
     alerts.push({ title: "Agenda cubierta", detail: "Buen nivel de ocupación para hoy.", tone: "good" });
   }
@@ -407,29 +391,13 @@ function buildDailyAlerts(input: {
   if (input.pendingRisk > 0) {
     alerts.push({ title: `${input.pendingRisk} servicios por revisar`, detail: "Controlá que todo quede cobrado.", tone: "danger" });
   } else {
-    alerts.push({ title: "Revisar pendientes de cobro", detail: "Controlá que todos los servicios del día estén cobrados.
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
-                  >
-                    Ver cómo
-                  </button>
-                </div>", tone: "good" });
+    alerts.push({ title: "Revisar pendientes de cobro", detail: "Controlá que todos los servicios del día estén cobrados.", tone: "good" });
   }
 
   if (cancellations > 0) {
     alerts.push({ title: `${cancellations} cancelaciones recientes`, detail: "Revisá señas y recordatorios.", tone: "warning" });
   } else {
-    alerts.push({ title: "Confirmar turnos de mañana", detail: "Mandá recordatorio a los clientes para reducir ausencias.
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
-                  >
-                    Ver cómo
-                  </button>
-                </div>", tone: "good" });
+    alerts.push({ title: "Confirmar turnos", detail: "Mandá recordatorios para reducir ausencias.", tone: "good" });
   }
 
   if (input.vipClients > 0) {
