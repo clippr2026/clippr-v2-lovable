@@ -137,11 +137,11 @@ function AdvisorContent() {
     if (!isAnalyzing) return;
 
     const steps = [
-      "Revisando utilidad del mes...",
-      "Analizando clientes activos...",
-      "Detectando horarios libres...",
-      "Buscando oportunidades de recuperación...",
-      "Generando acciones recomendadas...",
+      "Analizando utilidad del negocio...",
+      "Calculando crecimiento mensual...",
+      "Revisando clientes y recurrencia...",
+      "Detectando oportunidades...",
+      "Generando plan de acción...",
     ];
 
     let index = 0;
@@ -195,12 +195,7 @@ function AdvisorContent() {
     return localStorage.getItem("clippr_ticket_suggestion_seen") === ticketSuggestionKey;
   });
 
-  const [resultsAnimated, setResultsAnimated] = React.useState(false);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setResultsAnimated(true), 120);
-    return () => window.clearTimeout(timer);
-  }, []);
+  const animationProgress = useResultAnimation();
 
   const emptySlotsTomorrow = Math.max(DEMO.emptySlotsTomorrow - occupiedDemoSlots, 0);
   const actions = getDemoActions({
@@ -242,13 +237,13 @@ function AdvisorContent() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{resultsAnimated ? DEMO.growth : 0}%</h2>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{Math.round(DEMO.growth * animationProgress)}%</h2>
               <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. Basado principalmente en utilidad.</p>
             </div>
 
             <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Utilidad</div>
-              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(resultsAnimated ? DEMO.profit : 0)}</div>
+              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(Math.round(DEMO.profit * animationProgress))}</div>
             </div>
           </div>
 
@@ -257,10 +252,10 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <GrowthMetric label="Utilidad" value={`+${fmtAR(resultsAnimated ? DEMO.profit - DEMO.previousProfit : 0)}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
-            <GrowthMetric label="Clientes" value={`+${resultsAnimated ? percent(DEMO.clients, DEMO.previousClients) : 0}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
-            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(resultsAnimated ? DEMO.ticket - DEMO.previousTicket : 0)}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
-            <GrowthMetric label="Ocupación" value={`${resultsAnimated ? DEMO.occupancy : 0}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
+            <GrowthMetric label="Utilidad" value={`+${fmtAR(Math.round((DEMO.profit - DEMO.previousProfit) * animationProgress))}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
+            <GrowthMetric label="Clientes" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
+            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
+            <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
           </div>
         </GlassCard>
 
@@ -273,14 +268,14 @@ function AdvisorContent() {
             </div>
 
             <div className="text-right">
-              <div className={cn("font-display text-6xl font-semibold tracking-tight transition-all duration-700", healthTone.text)}>{resultsAnimated ? DEMO.health : 0}</div>
+              <div className={cn("font-display text-6xl font-semibold tracking-tight transition-all duration-700", healthTone.text)}>{Math.round(DEMO.health * animationProgress)}</div>
               <div className="text-sm text-muted-foreground">sobre 100</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000 ease-out", healthTone.bar)} style={{ width: resultsAnimated ? `${DEMO.health}%` : "0%" }} />
+            <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000 ease-out", healthTone.bar)} style={{ width: `${Math.round(DEMO.health * animationProgress)}%` }} />
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -482,7 +477,7 @@ function AnalysisLoader({ step }: { step: number }) {
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
         </div>
         <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Analizando tu negocio</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Clippr está leyendo caja, clientes, turnos y rendimiento.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Analizando crecimiento, utilidad, clientes y oportunidades del negocio.</p>
 
         <div className="mt-6 space-y-3 text-left">
           {steps.map((item, index) => (
@@ -501,6 +496,31 @@ function AnalysisLoader({ step }: { step: number }) {
       </GlassCard>
     </div>
   );
+}
+
+function useResultAnimation() {
+  const [progress, setProgress] = React.useState(0);
+
+  React.useEffect(() => {
+    let frame = 0;
+    const duration = 1000;
+    const startedAt = performance.now();
+
+    function animate(now: number) {
+      const raw = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - raw, 3);
+      setProgress(eased);
+
+      if (raw < 1) {
+        frame = window.requestAnimationFrame(animate);
+      }
+    }
+
+    frame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return progress;
 }
 
 function handleActionSelect(
@@ -544,7 +564,7 @@ function getDemoActions(input: {
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
-      button: "Ver clientes inactivos",
+      button: "Ir a clientes inactivos →",
       tone: "client",
     });
   }
@@ -555,7 +575,7 @@ function getDemoActions(input: {
       title: "Llenar horarios libres",
       detail: `Mañana tenés ${input.emptySlotsTomorrow} espacios vacíos.`,
       impact: `Impacto estimado: +${fmtAR(input.emptySlotsTomorrow * DEMO.ticket)}`,
-      button: "Ver horarios libres",
+      button: "Ir a horarios libres →",
       tone: "warning",
     });
   }
@@ -566,7 +586,7 @@ function getDemoActions(input: {
       title: "Subir ticket promedio",
       detail: "Sumar $1.000 por servicio mejora la utilidad mensual.",
       impact: `Potencial: +${fmtAR(DEMO.previousMonthServices * 1000)} según servicios del mes pasado`,
-      button: "Ver simulación",
+      button: "Ver simulación →",
       tone: "money",
     });
   }
@@ -577,7 +597,7 @@ function getDemoActions(input: {
       title: "Reactivar clientes VIP",
       detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
-      button: "Ver clientes VIP",
+      button: "Ir a clientes VIP →",
       tone: "growth",
     });
   }
@@ -588,7 +608,7 @@ function getDemoActions(input: {
       title: "Confirmar turnos",
       detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       impact: "Reduce ausencias y huecos de agenda.",
-      button: "Ver turnos pendientes",
+      button: "Ir a turnos pendientes →",
       tone: "neutral",
     });
   }
@@ -599,7 +619,7 @@ function getDemoActions(input: {
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
       impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
-      button: "Ver recomendación",
+      button: "Ver recomendación →",
       tone: "growth",
     });
   }
@@ -638,7 +658,7 @@ function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className
 
 function GrowthMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all duration-700 ease-out">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-2 text-lg font-semibold text-emerald-300">{value}</div>
       {detail ? <div className="mt-1 text-xs text-muted-foreground">{detail}</div> : null}
