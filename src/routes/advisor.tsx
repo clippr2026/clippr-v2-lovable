@@ -58,7 +58,7 @@ function AdvisorRoute() {
 
   return (
     <AppShell>
-      <Topbar title="Asesor IA" subtitle="Decisiones para mejorar el negocio" />
+      <Topbar title="Asesor IA" subtitle="Crecimiento, salud y análisis del negocio" />
       <AdvisorContent businessId={businessId} />
     </AppShell>
   );
@@ -188,14 +188,43 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+        <div>
+          <div className="text-sm font-semibold text-white">Análisis inteligente</div>
+          <p className="mt-1 text-sm text-muted-foreground">Mirá si el negocio crece, si está sano y generá informes mensuales.</p>
+        </div>
+      </div>
+
+      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <GlassCard className="p-5 sm:p-6">
+          <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
+          <div className="mt-4">
+            {growth === null ? (
+              <>
+                <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">Sin comparación</div>
+                <p className="mt-2 text-sm text-muted-foreground">Se calcula cuando exista información del mes anterior.</p>
+              </>
+            ) : (
+              <>
+                <div className={cn("font-display text-6xl font-semibold tracking-tight", growth >= 0 ? "text-emerald-400" : "text-amber-300")}>
+                  {growth > 0 ? "+" : ""}{growth}%
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">Comparado con el mes anterior.</p>
+              </>
+            )}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+            Crecimiento compara el mes actual contra el anterior. La utilidad es el dato principal; también se mira facturación, ticket promedio y ocupación.
+          </div>
+        </GlassCard>
         <GlassCard className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="min-w-0">
               <Badge icon={HeartPulse}>Salud del negocio</Badge>
               <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Cómo viene tu negocio</h2>
               <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Basado en utilidad, clientes, ocupación, recuperación y caja.
+                Basado en utilidad, clientes activos, ocupación, clientes por recuperar y caja.
               </p>
             </div>
 
@@ -232,28 +261,6 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-5 sm:p-6">
-          <Badge icon={TrendingUp}>Crecimiento</Badge>
-          <div className="mt-4">
-            {growth === null ? (
-              <>
-                <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">Sin comparación</div>
-                <p className="mt-2 text-sm text-muted-foreground">Se calcula cuando exista información del mes anterior.</p>
-              </>
-            ) : (
-              <>
-                <div className={cn("font-display text-6xl font-semibold tracking-tight", growth >= 0 ? "text-emerald-400" : "text-amber-300")}>
-                  {growth > 0 ? "+" : ""}{growth}%
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">Comparado con el mes anterior.</p>
-              </>
-            )}
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-            Crecimiento se calcula mirando utilidad, facturación, ticket promedio y ocupación.
-          </div>
-        </GlassCard>
       </section>
 
       <GlassCard className="p-5 sm:p-6">
@@ -274,21 +281,12 @@ function AdvisorContent({ businessId }: { businessId: string | null }) {
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Badge icon={Sparkles}>Análisis mensual</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Historial de análisis</h2>
+            <Badge icon={Sparkles}>Historial</Badge>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Análisis mensuales guardados</h2>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
               Tus informes mensuales quedan guardados para comparar la evolución del negocio.
             </p>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setMonthlyGenerated(true)}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
-          >
-            <ClipboardList className="h-4 w-4" />
-            Generar análisis mensual
-          </button>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
