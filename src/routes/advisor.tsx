@@ -12,7 +12,6 @@ import {
   Bell,
   Brain,
   CheckCircle2,
-  ClipboardList,
   HeartPulse,
   Loader2,
   MessageCircle,
@@ -84,7 +83,6 @@ const DEMO = {
 function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
-  const navigate = useNavigate();
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
@@ -109,7 +107,6 @@ function AdvisorRoute() {
 }
 
 function AdvisorContent() {
-  const navigate = useNavigate();
   const todayKey = getTodayKey();
   const needsDailyAnalysis = React.useMemo(() => {
     if (typeof window === "undefined") return true;
@@ -187,8 +184,7 @@ function AdvisorContent() {
   const [hasNewRecommendation, setHasNewRecommendation] = React.useState(true);
   const [isUpdatingRecommendation, setIsUpdatingRecommendation] = React.useState(false);
   const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
-  const [selectedAction, setSelectedAction] = React.useState<AdvisorAction | null>(null);
-  const [occupiedDemoSlots, setOccupiedDemoSlots] = React.useState(0);
+  const [occupiedDemoSlots] = React.useState(0);
   const ticketSuggestionKey = `${new Date().getFullYear()}-${new Date().getMonth() + 1}`;
   const [ticketSuggestionSeen, setTicketSuggestionSeen] = React.useState(() => {
     if (typeof window === "undefined") return false;
@@ -333,7 +329,7 @@ function AdvisorContent() {
           <Badge icon={Target}>Qué hacer hoy</Badge>
           <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Prioridades de hoy</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Clippr muestra solo las acciones importantes detectadas hoy. Si hay una sola, muestra una sola.
+            Acciones simples para mejorar ocupación, utilidad y recurrencia.
           </p>
         </div>
 
@@ -347,11 +343,7 @@ function AdvisorContent() {
             actions.length >= 5 && "xl:grid-cols-5",
           )}>
             {actions.map((action) => (
-              <ActionCard
-                key={action.title}
-                action={action}
-                onSelect={(selected) => handleActionSelect(selected, navigate, setSelectedAction)}
-              />
+              <ActionCard key={action.title} action={action} />
             ))}
           </div>
         ) : (
@@ -360,24 +352,6 @@ function AdvisorContent() {
           </div>
         )}
       </GlassCard>
-
-      {selectedAction ? (
-        <ActionDetailPanel
-          action={selectedAction}
-          emptySlotsTomorrow={emptySlotsTomorrow}
-          onClose={() => setSelectedAction(null)}
-          onFillThreeSlots={() => {
-            setOccupiedDemoSlots((value) => Math.min(DEMO.emptySlotsTomorrow, value + 3));
-            setSelectedAction(null);
-          }}
-          onMarkTicketSeen={() => {
-            localStorage.setItem("clippr_ticket_suggestion_seen", ticketSuggestionKey);
-            setTicketSuggestionSeen(true);
-            setSelectedAction(null);
-          }}
-        />
-      ) : null}
-
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -523,34 +497,6 @@ function useResultAnimation() {
   return progress;
 }
 
-function handleActionSelect(
-  action: AdvisorAction,
-  navigate: ReturnType<typeof useNavigate>,
-  setSelectedAction: React.Dispatch<React.SetStateAction<AdvisorAction | null>>,
-) {
-  if (action.id === "recover-clients") {
-    navigate({ to: "/clients", search: { segment: "inactive", days: 45 } as never });
-    return;
-  }
-
-  if (action.id === "reactivate-vip") {
-    navigate({ to: "/clients", search: { segment: "vip", inactive: true } as never });
-    return;
-  }
-
-  if (action.id === "confirm-turns") {
-    navigate({ to: "/agenda", search: { status: "pending", range: "today-tomorrow" } as never });
-    return;
-  }
-
-  if (action.id === "fill-empty-slots") {
-    navigate({ to: "/agenda", search: { view: "empty-slots", range: "tomorrow" } as never });
-    return;
-  }
-
-  setSelectedAction(action);
-}
-
 function getDemoActions(input: {
   showExtraRecommendation: boolean;
   emptySlotsTomorrow: number;
@@ -564,7 +510,7 @@ function getDemoActions(input: {
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
-      button: "Ir a clientes inactivos →",
+      button: "Recontactar por WhatsApp",
       tone: "client",
     });
   }
@@ -573,9 +519,9 @@ function getDemoActions(input: {
     actions.push({
       id: "fill-empty-slots",
       title: "Llenar horarios libres",
-      detail: `Mañana tenés ${input.emptySlotsTomorrow} espacios vacíos.`,
+      detail: `${input.emptySlotsTomorrow} espacios libres mañana.`,
       impact: `Impacto estimado: +${fmtAR(input.emptySlotsTomorrow * DEMO.ticket)}`,
-      button: "Ir a horarios libres →",
+      button: "Crear promo para huecos",
       tone: "warning",
     });
   }
@@ -584,9 +530,9 @@ function getDemoActions(input: {
     actions.push({
       id: "increase-ticket",
       title: "Subir ticket promedio",
-      detail: "Sumar $1.000 por servicio mejora la utilidad mensual.",
-      impact: `Potencial: +${fmtAR(DEMO.previousMonthServices * 1000)} según servicios del mes pasado`,
-      button: "Ver simulación →",
+      detail: "+$1.000 por servicio puede mejorar la utilidad.",
+      impact: `Potencial mensual: +${fmtAR(DEMO.previousMonthServices * 1000)}`,
+      button: "Revisar aumento de precio",
       tone: "money",
     });
   }
@@ -595,9 +541,9 @@ function getDemoActions(input: {
     actions.push({
       id: "reactivate-vip",
       title: "Reactivar clientes VIP",
-      detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
+      detail: `${DEMO.vipInactive} VIP sin visita reciente.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
-      button: "Ir a clientes VIP →",
+      button: "Enviar mensaje personalizado",
       tone: "growth",
     });
   }
@@ -606,9 +552,9 @@ function getDemoActions(input: {
     actions.push({
       id: "confirm-turns",
       title: "Confirmar turnos",
-      detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
-      impact: "Reduce ausencias y huecos de agenda.",
-      button: "Ir a turnos pendientes →",
+      detail: `${DEMO.unconfirmedAppointments} turnos sin confirmar.`,
+      impact: "Ayuda a reducir ausencias.",
+      button: "Confirmar por WhatsApp",
       tone: "neutral",
     });
   }
@@ -619,7 +565,7 @@ function getDemoActions(input: {
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
       impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
-      button: "Ver recomendación →",
+      button: "Crear campaña del día flojo",
       tone: "growth",
     });
   }
@@ -679,9 +625,9 @@ function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) 
   );
 }
 
-function ActionCard({ action, onSelect }: { action: AdvisorAction; onSelect: (action: AdvisorAction) => void }) {
+function ActionCard({ action }: { action: AdvisorAction }) {
   return (
-    <div className="flex min-h-[220px] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="flex min-h-[190px] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div
         className={cn(
           "mb-4 grid h-9 w-9 place-items-center rounded-2xl ring-1",
@@ -698,79 +644,8 @@ function ActionCard({ action, onSelect }: { action: AdvisorAction; onSelect: (ac
       <div className="text-sm font-semibold">{action.title}</div>
       <div className="mt-2 text-xs leading-relaxed text-muted-foreground">{action.detail}</div>
       <div className="mt-3 text-xs font-semibold text-emerald-300">{action.impact}</div>
-
-      <button
-        type="button"
-        onClick={() => onSelect(action)}
-        className="mt-auto rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
-      >
-        {action.button}
-      </button>
+      <div className="mt-auto pt-4 text-xs font-medium text-primary">{action.button}</div>
     </div>
-  );
-}
-
-function ActionDetailPanel({
-  action,
-  onClose,
-  onMarkTicketSeen,
-}: {
-  action: AdvisorAction;
-  emptySlotsTomorrow: number;
-  onClose: () => void;
-  onFillThreeSlots: () => void;
-  onMarkTicketSeen: () => void;
-}) {
-  return (
-    <GlassCard className="p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Badge icon={Sparkles}>Recomendación</Badge>
-          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">{action.title}</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{action.detail}</p>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
-        >
-          Cerrar
-        </button>
-      </div>
-
-      <div className="mt-5">
-        {action.id === "increase-ticket" ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">Simulación mensual</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              El mes pasado hubo {DEMO.previousMonthServices} servicios. Si cada servicio sube $1.000, la utilidad potencial aumenta:
-            </p>
-            <p className="mt-4 font-display text-3xl font-semibold text-emerald-300">
-              +{fmtAR(DEMO.previousMonthServices * 1000)}
-            </p>
-            <button
-              type="button"
-              onClick={onMarkTicketSeen}
-              className="mt-4 rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
-            >
-              Marcar como visto este mes
-            </button>
-          </div>
-        ) : null}
-
-        {action.id === "boost-low-day" ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">Qué hacer con el {DEMO.lowDay}</p>
-            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <p>1. Crear una promo exclusiva para {DEMO.lowDay}.</p>
-              <p>2. Ofrecer upgrade de barba o producto con descuento.</p>
-              <p>3. Enviar recordatorio a clientes que suelen venir entre semana.</p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </GlassCard>
   );
 }
 
