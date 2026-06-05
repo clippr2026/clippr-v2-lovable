@@ -304,7 +304,7 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-sm font-semibold">¿Por qué?</div>
+            <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <ReasonItem tone="good" text={`Utilidad positiva: ${fmtAR(DEMO.profit)}`} />
               <ReasonItem tone="good" text={`${DEMO.clients} clientes atendidos este mes`} />
