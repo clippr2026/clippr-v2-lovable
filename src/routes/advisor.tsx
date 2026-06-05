@@ -267,7 +267,8 @@ function AdvisorContent() {
                   i
                 </button>
               </Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{DEMO.growth}%</h2>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 ¿Estás creciendo?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Evolución respecto al período anterior.</p>
               
             </div>
 
@@ -287,8 +288,8 @@ function AdvisorContent() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <Badge icon={HeartPulse}>Salud del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Negocio sano</h2>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Basado en utilidad, clientes activos, ocupación, recurrencia y caja.</p>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">❤️ ¿Cómo está tu negocio hoy?</h2>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Análisis de los indicadores del período actual.</p>
             </div>
 
             <div className="text-right">
