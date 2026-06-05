@@ -143,6 +143,7 @@ function AdvisorRoute() {
 }
 
 function AdvisorContent() {
+  const animationProgress = useResultAnimation();
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   const todayKey = getTodayKey();
   const needsDailyAnalysis = React.useMemo(() => {
@@ -438,6 +439,32 @@ function AdvisorContent() {
       ) : null}
     </div>
   );
+}
+
+
+function useResultAnimation() {
+  const [progress, setProgress] = React.useState(0);
+
+  React.useEffect(() => {
+    let frame = 0;
+    const duration = 1000;
+    const startedAt = performance.now();
+
+    function animate(now: number) {
+      const raw = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - raw, 3);
+      setProgress(eased);
+
+      if (raw < 1) {
+        frame = window.requestAnimationFrame(animate);
+      }
+    }
+
+    frame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return progress;
 }
 
 function StartAnalysis({ onStart }: { onStart: () => void }) {
