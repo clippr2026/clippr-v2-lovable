@@ -4,8 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
-import { useDashboardData, fmtAR } from "@/components/dashboard/use-dashboard-data";
-import { useClientsData } from "@/hooks/use-clients-data";
+import { fmtAR } from "@/components/dashboard/use-dashboard-data";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -15,7 +14,10 @@ import {
   CheckCircle2,
   ClipboardList,
   HeartPulse,
+  Loader2,
+  MessageCircle,
   Sparkles,
+  Target,
   TrendingUp,
 } from "lucide-react";
 
@@ -29,17 +31,47 @@ export const Route = createFileRoute("/advisor")({
   component: AdvisorRoute,
 });
 
-type AlertTone = "good" | "warning" | "danger" | "neutral";
+type ActionTone = "money" | "warning" | "growth" | "client" | "neutral";
 
-type AlertItem = {
+type AdvisorAction = {
   title: string;
   detail: string;
-  tone: AlertTone;
+  impact: string;
+  button: string;
+  tone: ActionTone;
+};
+
+const DEMO = {
+  month: "Junio 2026",
+  previousMonth: "Mayo 2026",
+  growth: 18,
+  health: 82,
+  revenue: 4086573,
+  previousRevenue: 3462000,
+  profit: 1843200,
+  previousProfit: 1560000,
+  margin: 45,
+  clients: 43,
+  previousClients: 37,
+  activeClients: 23,
+  vipClients: 2,
+  inactiveClients: 27,
+  payments: 67,
+  ticket: 60994,
+  previousTicket: 55500,
+  occupancy: 62,
+  previousOccupancy: 54,
+  emptySlotsTomorrow: 14,
+  freeSlotsMonth: 144,
+  pendingPayments: 5,
+  unconfirmedAppointments: 8,
+  vipInactive: 3,
+  lowDay: "martes",
 };
 
 function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
-  const { loading, session, businessId } = useAuth();
+  const { loading, session } = useAuth();
   const navigate = useNavigate();
 
   React.useEffect(() => {
@@ -58,407 +90,303 @@ function AdvisorRoute() {
 
   return (
     <AppShell>
-      <Topbar title="Asesor IA" subtitle="Crecimiento, salud y análisis del negocio" />
-      <AdvisorContent businessId={businessId} />
+      <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
+      <AdvisorContent />
     </AppShell>
   );
 }
 
-function AdvisorContent({ businessId }: { businessId: string | null }) {
-  const [monthlyGenerated, setMonthlyGenerated] = React.useState(false);
-
-  const todayRange = React.useMemo(() => {
-    const from = new Date();
-    from.setHours(0, 0, 0, 0);
-    const to = new Date();
-    to.setHours(23, 59, 59, 999);
-    return { from, to };
-  }, []);
-
-  const monthRange = React.useMemo(() => {
-    const from = new Date();
-    from.setDate(1);
-    from.setHours(0, 0, 0, 0);
-    const to = new Date();
-    to.setHours(23, 59, 59, 999);
-    return { from, to };
-  }, []);
-
-  const previousMonthRange = React.useMemo(() => {
-    const from = new Date();
-    from.setMonth(from.getMonth() - 1, 1);
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(from);
-    to.setMonth(to.getMonth() + 1, 0);
-    to.setHours(23, 59, 59, 999);
-    return { from, to };
-  }, []);
-
-  const todayQuery = useDashboardData(businessId, todayRange);
-  const monthQuery = useDashboardData(businessId, monthRange);
-  const previousMonthQuery = useDashboardData(businessId, previousMonthRange);
-  const clientsQuery = useClientsData(businessId);
-
-  const today = todayQuery.data;
-  const month = monthQuery.data;
-  const previousMonth = previousMonthQuery.data;
-  const clients = clientsQuery.data ?? [];
-
-  const activeClients = clients.filter((client) => client.status === "activo" || client.status === "vip").length;
-  const inactiveClients = clients.filter((client) => client.status === "inactivo" || client.status === "perdido").length;
-  const vipClients = clients.filter((client) => client.status === "vip").length;
-
-  const revenue = month?.revHoy ?? 0;
-  const expenses = month?.totalGastos ?? 0;
-  const profit = month?.utilidad ?? 0;
-  const ticket = month?.ticket ?? 0;
-  const occupancy = month?.occ ?? 0;
-  const payments = month?.cobros ?? 0;
-  const pendingRisk = today ? Math.max((today.usedSlots ?? 0) - (today.cobros ?? 0), 0) : 0;
-  const cancellations = month?.recentCancellations?.length ?? 0;
-  const hasMonthData = revenue > 0 || payments > 0 || activeClients > 0;
-
-  const health = React.useMemo(() => {
-    if (!hasMonthData) return null;
-
-    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
-    const profitScore = clamp(margin * 2.5, 0, 100);
-    const clientsScore = clamp(activeClients * 3, 0, 100);
-    const occupancyScore = clamp(occupancy, 0, 100);
-    const recoveryScore = clients.length > 0 ? clamp(100 - (inactiveClients / clients.length) * 100, 0, 100) : 70;
-    const cashScore = pendingRisk === 0 ? 100 : clamp(100 - pendingRisk * 12, 0, 100);
-
-    return Math.round(
-      profitScore * 0.4 +
-        clientsScore * 0.2 +
-        occupancyScore * 0.2 +
-        recoveryScore * 0.1 +
-        cashScore * 0.1,
-    );
-  }, [activeClients, clients.length, hasMonthData, inactiveClients, occupancy, pendingRisk, profit, revenue]);
-
-  const growth = React.useMemo(() => {
-    if (!previousMonth || !hasMonthData) return null;
-
-    const profitGrowth = percentChange(profit, previousMonth.utilidad);
-    const revenueGrowth = percentChange(revenue, previousMonth.revHoy);
-    const ticketGrowth = percentChange(ticket, previousMonth.ticket);
-    const occupancyGrowth = percentChange(occupancy, previousMonth.occ);
-    const valid = [profitGrowth, revenueGrowth, ticketGrowth, occupancyGrowth].filter((n): n is number => n !== null);
-
-    if (!valid.length) return null;
-    return Math.round(valid.reduce((sum, n) => sum + n, 0) / valid.length);
-  }, [hasMonthData, occupancy, previousMonth, profit, revenue, ticket]);
-
-  const healthTone = getHealthTone(health);
-  const healthReasons = buildHealthReasons({
-    profit,
-    revenue,
-    occupancy,
-    activeClients,
-    inactiveClients,
-    pendingRisk,
-    cancellations,
+function AdvisorContent() {
+  const todayKey = getTodayKey();
+  const [isAnalyzing, setIsAnalyzing] = React.useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("clippr_advisor_last_daily_analysis") !== todayKey;
   });
 
-  const dailyAlerts = buildDailyAlerts({
-    today,
-    month,
-    inactiveClients,
-    vipClients,
-    pendingRisk,
-    ticket,
+  const [analysisStep, setAnalysisStep] = React.useState(0);
+  const [reports, setReports] = React.useState<Array<{ month: string; health: number; growth: number; profit: number; revenue: number }>>(() => {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("clippr_advisor_monthly_reports_demo");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
 
-  const monthlySummary = buildMonthlySummary({
-    revenue,
-    expenses,
-    profit,
-    payments,
-    activeClients,
-    inactiveClients,
-    occupancy,
-    ticket,
-    growth,
-  });
+  React.useEffect(() => {
+    if (!isAnalyzing) return;
 
-  if (todayQuery.isLoading || monthQuery.isLoading || clientsQuery.isLoading) {
-    return <div className="text-sm text-muted-foreground">Analizando métricas del negocio…</div>;
+    const steps = [
+      "Revisando utilidad del mes...",
+      "Analizando clientes activos...",
+      "Detectando horarios libres...",
+      "Buscando oportunidades de recuperación...",
+      "Generando acciones recomendadas...",
+    ];
+
+    let index = 0;
+    const interval = window.setInterval(() => {
+      index += 1;
+      setAnalysisStep(index);
+
+      if (index >= steps.length) {
+        window.clearInterval(interval);
+        localStorage.setItem("clippr_advisor_last_daily_analysis", todayKey);
+        setIsAnalyzing(false);
+      }
+    }, 650);
+
+    return () => window.clearInterval(interval);
+  }, [isAnalyzing, todayKey]);
+
+  React.useEffect(() => {
+    const hasCurrentMonth = reports.some((report) => report.month === DEMO.month);
+    if (hasCurrentMonth) return;
+
+    const nextReports = [
+      {
+        month: DEMO.month,
+        health: DEMO.health,
+        growth: DEMO.growth,
+        profit: DEMO.profit,
+        revenue: DEMO.revenue,
+      },
+      ...reports,
+    ].slice(0, 6);
+
+    setReports(nextReports);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clippr_advisor_monthly_reports_demo", JSON.stringify(nextReports));
+    }
+  }, [reports]);
+
+  const actions = getDemoActions();
+  const healthTone = getHealthTone(DEMO.health);
+
+  if (isAnalyzing) {
+    return <AnalysisLoader step={analysisStep} />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-        <div>
-          <div className="text-sm font-semibold text-white">Análisis inteligente</div>
-          <p className="mt-1 text-sm text-muted-foreground">Mirá si el negocio crece, si está sano y generá informes mensuales.</p>
-        </div>
-      </div>
-
-      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <GlassCard className="p-5 sm:p-6">
-          <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
-          <div className="mt-4">
-            {growth === null ? (
-              <>
-                <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">Sin comparación</div>
-                <p className="mt-2 text-sm text-muted-foreground">Se calcula cuando exista información del mes anterior.</p>
-              </>
-            ) : (
-              <>
-                <div className={cn("font-display text-6xl font-semibold tracking-tight", growth >= 0 ? "text-emerald-400" : "text-amber-300")}>
-                  {growth > 0 ? "+" : ""}{growth}%
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">Comparado con el mes anterior.</p>
-              </>
-            )}
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-            Crecimiento compara el mes actual contra el anterior. La utilidad es el dato principal; también se mira facturación, ticket promedio y ocupación.
-          </div>
-        </GlassCard>
+      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <GlassCard className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="min-w-0">
+            <div>
+              <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">+{DEMO.growth}% este mes</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. Basado principalmente en utilidad.</p>
+            </div>
+
+            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Utilidad</div>
+              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(DEMO.profit)}</div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-4">
+            <GrowthMetric label="Utilidad" value={`+${percent(DEMO.profit, DEMO.previousProfit)}%`} />
+            <GrowthMetric label="Facturación" value={`+${percent(DEMO.revenue, DEMO.previousRevenue)}%`} />
+            <GrowthMetric label="Clientes" value={`+${percent(DEMO.clients, DEMO.previousClients)}%`} />
+            <GrowthMetric label="Ocupación" value={`+${DEMO.occupancy - DEMO.previousOccupancy}%`} />
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
               <Badge icon={HeartPulse}>Salud del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Cómo viene tu negocio</h2>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Basado en utilidad, clientes activos, ocupación, clientes por recuperar y caja.
-              </p>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">Negocio sano</h2>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Basado en utilidad, clientes activos, ocupación, recurrencia y caja.</p>
             </div>
 
             <div className="text-right">
-              {health === null ? (
-                <>
-                  <div className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">En análisis</div>
-                  <div className="mt-1 text-xs font-medium text-muted-foreground">Faltan movimientos del mes</div>
-                </>
-              ) : (
-                <>
-                  <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{health}</div>
-                  <div className="text-sm text-muted-foreground">sobre 100</div>
-                  <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
-                </>
-              )}
+              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
+              <div className="text-sm text-muted-foreground">sobre 100</div>
+              <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div
-              className={cn("h-full rounded-full bg-gradient-to-r transition-all", healthTone.bar)}
-              style={{ width: health === null ? "16%" : `${health}%` }}
-            />
+            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${DEMO.health}%` }} />
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="text-sm font-semibold">¿Por qué?</div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {healthReasons.map((reason) => (
-                <ReasonItem key={reason.text} tone={reason.tone} text={reason.text} />
-              ))}
+              <ReasonItem tone="good" text={`Utilidad positiva: ${fmtAR(DEMO.profit)}`} />
+              <ReasonItem tone="good" text={`${DEMO.clients} clientes atendidos este mes`} />
+              <ReasonItem tone="good" text="Caja con buen nivel de cobros" />
+              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
+              <ReasonItem tone="warning" text={`${DEMO.inactiveClients} clientes para recuperar`} />
             </div>
           </div>
         </GlassCard>
-
       </section>
 
       <GlassCard className="p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <Badge icon={Bell}>Acciones del día</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">5 acciones recomendadas</h2>
-          </div>
+        <div>
+          <Badge icon={Target}>Qué hacer hoy</Badge>
+          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">5 acciones para mejorar el negocio</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Son acciones concretas para aumentar utilidad, ocupación y clientes recurrentes.
+          </p>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-5">
-          {dailyAlerts.map((alert) => (
-            <AlertCard key={alert.title} alert={alert} />
+        <div className="mt-5 grid gap-3 xl:grid-cols-5">
+          {actions.map((action) => (
+            <ActionCard key={action.title} action={action} />
           ))}
         </div>
       </GlassCard>
 
       <GlassCard className="p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Badge icon={Sparkles}>Historial</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Análisis mensuales guardados</h2>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Tus informes mensuales quedan guardados para comparar la evolución del negocio.
+            <Badge icon={Sparkles}>Informe mensual automático</Badge>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Historial de análisis</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
             </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-muted-foreground">
+            Próximo informe automático: <span className="font-semibold text-white">1 de julio</span>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">Junio 2026</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {monthlyGenerated ? "Informe generado este mes." : "Todavía no hay informe guardado."}
-            </p>
-            <p className={cn("mt-3 text-sm", monthlyGenerated ? "text-emerald-300" : "text-muted-foreground")}>
-              {monthlyGenerated ? "Disponible" : "Pendiente"}
-            </p>
-          </div>
+          {reports.map((report) => (
+            <ReportCard key={report.month} report={report} />
+          ))}
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">Mayo 2026</p>
-            <p className="mt-1 text-xs text-muted-foreground">Historial del mes anterior.</p>
-            <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">Abril 2026</p>
-            <p className="mt-1 text-xs text-muted-foreground">Historial anterior.</p>
-            <p className="mt-3 text-sm text-muted-foreground">Sin informe guardado</p>
-          </div>
+          <ReportPlaceholder month="Mayo 2026" />
+          <ReportPlaceholder month="Abril 2026" />
         </div>
 
-        {monthlyGenerated ? (
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            <MonthlyBlock title="Resumen" items={monthlySummary.summary} />
-            <MonthlyBlock title="Lo mejor" items={monthlySummary.good} />
-            <MonthlyBlock title="A mejorar" items={monthlySummary.improve} />
-          </div>
-        ) : (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-            Todavía no generaste el análisis mensual. Cuando lo generes, Clippr va a resumir cómo viene el negocio y qué conviene hacer.
-          </div>
-        )}
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <MonthlyBlock
+            title="Resumen ejecutivo"
+            items={[
+              `Facturación acumulada: ${fmtAR(DEMO.revenue)}`,
+              `Utilidad estimada: ${fmtAR(DEMO.profit)}`,
+              `Crecimiento vs ${DEMO.previousMonth}: +${DEMO.growth}%`,
+            ]}
+          />
+          <MonthlyBlock
+            title="Lo mejor"
+            items={[
+              `${DEMO.payments} cobros registrados`,
+              `Ticket promedio de ${fmtAR(DEMO.ticket)}`,
+              `${DEMO.activeClients} clientes activos`,
+            ]}
+          />
+          <MonthlyBlock
+            title="A mejorar"
+            items={[
+              `Completar ${DEMO.freeSlotsMonth} espacios libres`,
+              `Recuperar ${DEMO.inactiveClients} clientes inactivos`,
+              "Subir ticket promedio con productos o combos",
+            ]}
+          />
+        </div>
       </GlassCard>
     </div>
   );
 }
 
-function buildHealthReasons(input: {
-  profit: number;
-  revenue: number;
-  occupancy: number;
-  activeClients: number;
-  inactiveClients: number;
-  pendingRisk: number;
-  cancellations: number;
-}) {
-  const reasons: Array<{ text: string; tone: "good" | "warning" }> = [];
+function AnalysisLoader({ step }: { step: number }) {
+  const steps = [
+    "Revisando utilidad del mes...",
+    "Analizando clientes activos...",
+    "Detectando horarios libres...",
+    "Buscando oportunidades de recuperación...",
+    "Generando acciones recomendadas...",
+  ];
 
-  if (input.profit > 0) reasons.push({ text: "La utilidad del mes es positiva", tone: "good" });
-  else reasons.push({ text: "Falta utilidad registrada este mes", tone: "warning" });
+  return (
+    <div className="grid min-h-[560px] place-items-center">
+      <GlassCard className="w-full max-w-xl p-8 text-center">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-primary/10 ring-1 ring-primary/20">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+        </div>
+        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Analizando tu negocio</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Clippr está leyendo caja, clientes, turnos y rendimiento.</p>
 
-  if (input.activeClients > 0) reasons.push({ text: "Hay clientes activos en movimiento", tone: "good" });
-  else reasons.push({ text: "Todavía falta movimiento de clientes", tone: "warning" });
-
-  if (input.occupancy >= 60) reasons.push({ text: "La ocupación viene bien", tone: "good" });
-  else reasons.push({ text: "La ocupación puede mejorar", tone: "warning" });
-
-  if (input.inactiveClients > 0) reasons.push({ text: "Hay clientes para recuperar", tone: "warning" });
-  else reasons.push({ text: "No hay alerta fuerte de clientes perdidos", tone: "good" });
-
-  if (input.pendingRisk > 0) reasons.push({ text: "Revisar servicios pendientes de cobro", tone: "warning" });
-  else reasons.push({ text: "Caja y cobros se ven ordenados", tone: "good" });
-
-  if (input.cancellations > 0) reasons.push({ text: "Hubo cancelaciones para revisar", tone: "warning" });
-
-  return reasons.slice(0, 6);
+        <div className="mt-6 space-y-3 text-left">
+          {steps.map((item, index) => (
+            <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
+              {index < step ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              ) : index === step ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <div className="h-4 w-4 rounded-full border border-white/20" />
+              )}
+              <span className={index <= step ? "text-white" : "text-muted-foreground"}>{item}</span>
+            </div>
+          ))}
+        </div>
+      </GlassCard>
+    </div>
+  );
 }
 
-function buildDailyAlerts(input: {
-  today?: { usedSlots: number; totalSlots: number; cobros: number; recentCancellations: unknown[]; ticket: number };
-  month?: { occ: number; revHoy: number; utilidad: number };
-  inactiveClients: number;
-  vipClients: number;
-  pendingRisk: number;
-  ticket: number;
-}): AlertItem[] {
-  const alerts: AlertItem[] = [];
-  const emptyToday = input.today ? Math.max(input.today.totalSlots - input.today.usedSlots, 0) : 0;
-  const cancellations = input.today?.recentCancellations?.length ?? 0;
-
-  if (input.inactiveClients > 0) {
-    alerts.push({
-      title: `${input.inactiveClients} clientes para recuperar`,
-      detail: "Podés contactarlos por WhatsApp.",
+function getDemoActions(): AdvisorAction[] {
+  return [
+    {
+      title: "Recuperar clientes",
+      detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
+      impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
+      button: "Ver clientes",
+      tone: "client",
+    },
+    {
+      title: "Llenar horarios libres",
+      detail: `Mañana tenés ${DEMO.emptySlotsTomorrow} espacios vacíos.`,
+      impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
+      button: "Crear promoción",
       tone: "warning",
-    });
-  } else {
-    alerts.push({ title: "Recuperar clientes", detail: "Enviá WhatsApp a clientes que no volvieron hace más de 45 días.", tone: "good" });
-  }
-
-  if (emptyToday > 0) {
-    alerts.push({ title: `${emptyToday} espacios libres hoy`, detail: "Creá una promo rápida para horarios con baja ocupación.", tone: "warning" });
-  } else {
-    alerts.push({ title: "Agenda cubierta", detail: "Buen nivel de ocupación para hoy.", tone: "good" });
-  }
-
-  if (input.pendingRisk > 0) {
-    alerts.push({ title: `${input.pendingRisk} servicios por revisar`, detail: "Controlá que todo quede cobrado.", tone: "danger" });
-  } else {
-    alerts.push({ title: "Revisar pendientes de cobro", detail: "Controlá que todos los servicios del día estén cobrados.", tone: "good" });
-  }
-
-  if (cancellations > 0) {
-    alerts.push({ title: `${cancellations} cancelaciones recientes`, detail: "Revisá señas y recordatorios.", tone: "warning" });
-  } else {
-    alerts.push({ title: "Confirmar turnos", detail: "Mandá recordatorios para reducir ausencias.", tone: "good" });
-  }
-
-  if (input.vipClients > 0) {
-    alerts.push({ title: `${input.vipClients} clientes VIP`, detail: "Cuidalos con atención personalizada.", tone: "good" });
-  } else if (input.ticket > 0) {
-    alerts.push({ title: `Ticket promedio ${fmtAR(input.ticket)}`, detail: "Revisá si podés sumar productos.", tone: "neutral" });
-  } else {
-    alerts.push({ title: "Faltan datos de ticket", detail: "Se completa con más cobros.", tone: "neutral" });
-  }
-
-  return alerts.slice(0, 5);
+    },
+    {
+      title: "Subir ticket promedio",
+      detail: "Sumar $1.000 por cobro mejora la utilidad mensual.",
+      impact: `Potencial: +${fmtAR(DEMO.payments * 1000)}`,
+      button: "Ver simulación",
+      tone: "money",
+    },
+    {
+      title: "Reactivar clientes VIP",
+      detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
+      impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
+      button: "Enviar WhatsApp",
+      tone: "growth",
+    },
+    {
+      title: "Confirmar turnos",
+      detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
+      impact: "Reduce ausencias y huecos de agenda.",
+      button: "Ver turnos",
+      tone: "neutral",
+    },
+  ];
 }
 
-function buildMonthlySummary(input: {
-  revenue: number;
-  expenses: number;
-  profit: number;
-  payments: number;
-  activeClients: number;
-  inactiveClients: number;
-  occupancy: number;
-  ticket: number;
-  growth: number | null;
-}) {
-  return {
-    summary: [
-      input.revenue > 0 ? `Facturación acumulada: ${fmtAR(input.revenue)}` : "Aún falta facturación registrada.",
-      input.profit > 0 ? `Utilidad estimada: ${fmtAR(input.profit)}` : "La utilidad todavía no está clara.",
-      input.growth !== null ? `Crecimiento vs mes anterior: ${input.growth > 0 ? "+" : ""}${input.growth}%` : "Sin comparación completa con el mes anterior.",
-    ],
-    good: [
-      input.payments > 0 ? `${input.payments} cobros registrados.` : "La caja está lista para registrar movimientos.",
-      input.ticket > 0 ? `Ticket promedio: ${fmtAR(input.ticket)}.` : "El ticket promedio se completa con más cobros.",
-      input.activeClients > 0 ? `${input.activeClients} clientes activos.` : "Todavía faltan clientes activos este mes.",
-    ],
-    improve: [
-      input.occupancy < 60 ? "Mejorar ocupación de horarios libres." : "Mantener la ocupación actual.",
-      input.inactiveClients > 0 ? `Recuperar ${input.inactiveClients} clientes inactivos.` : "Seguir cuidando la recurrencia.",
-      input.expenses > 0 ? "Revisar gastos para proteger la utilidad." : "Registrar gastos para medir mejor la utilidad.",
-    ],
-  };
+function getTodayKey() {
+  const date = new Date();
+  return date.toISOString().slice(0, 10);
 }
 
-function percentChange(now: number, prev: number) {
-  if (!prev || !Number.isFinite(prev)) return null;
-  return Math.round(((now - prev) / prev) * 100);
+function percent(now: number, previous: number) {
+  if (!previous) return 0;
+  return Math.round(((now - previous) / previous) * 100);
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function getHealthTone(health: number | null) {
-  if (health === null) {
-    return {
-      label: "En análisis",
-      text: "text-muted-foreground",
-      bar: "from-muted-foreground/40 to-muted-foreground/20",
-    };
-  }
-
+function getHealthTone(health: number) {
   if (health >= 85) return { label: "Excelente", text: "text-emerald-400", bar: "from-emerald-500 to-primary" };
   if (health >= 70) return { label: "Bueno", text: "text-lime-300", bar: "from-lime-400 to-primary" };
   if (health >= 50) return { label: "Regular", text: "text-amber-300", bar: "from-amber-400 to-accent" };
@@ -478,6 +406,15 @@ function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className
   );
 }
 
+function GrowthMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-2 text-lg font-semibold text-emerald-300">{value}</div>
+    </div>
+  );
+}
+
 function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) {
   return (
     <div className="flex items-start gap-2 text-sm">
@@ -491,20 +428,59 @@ function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) 
   );
 }
 
-function AlertCard({ alert }: { alert: AlertItem }) {
+function ActionCard({ action }: { action: AdvisorAction }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="flex min-h-[220px] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div
         className={cn(
-          "mb-3 h-2.5 w-2.5 rounded-full",
-          alert.tone === "good" && "bg-emerald-400",
-          alert.tone === "warning" && "bg-amber-400",
-          alert.tone === "danger" && "bg-red-400",
-          alert.tone === "neutral" && "bg-primary",
+          "mb-4 grid h-9 w-9 place-items-center rounded-2xl ring-1",
+          action.tone === "money" && "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20",
+          action.tone === "warning" && "bg-amber-400/10 text-amber-300 ring-amber-400/20",
+          action.tone === "growth" && "bg-primary/10 text-primary ring-primary/20",
+          action.tone === "client" && "bg-cyan-400/10 text-cyan-300 ring-cyan-400/20",
+          action.tone === "neutral" && "bg-white/5 text-white ring-white/10",
         )}
-      />
-      <div className="text-sm font-semibold">{alert.title}</div>
-      <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{alert.detail}</div>
+      >
+        {action.tone === "client" ? <MessageCircle className="h-4 w-4" /> : <Target className="h-4 w-4" />}
+      </div>
+
+      <div className="text-sm font-semibold">{action.title}</div>
+      <div className="mt-2 text-xs leading-relaxed text-muted-foreground">{action.detail}</div>
+      <div className="mt-3 text-xs font-semibold text-emerald-300">{action.impact}</div>
+
+      <button
+        type="button"
+        className="mt-auto rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
+      >
+        {action.button}
+      </button>
+    </div>
+  );
+}
+
+function ReportCard({ report }: { report: { month: string; health: number; growth: number; profit: number; revenue: number } }) {
+  return (
+    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+      <p className="text-sm font-semibold text-white">{report.month}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Informe automático guardado.</p>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+        <span className="text-muted-foreground">Crecimiento</span>
+        <span className="text-right font-semibold text-emerald-300">+{report.growth}%</span>
+        <span className="text-muted-foreground">Salud</span>
+        <span className="text-right font-semibold text-white">{report.health}/100</span>
+        <span className="text-muted-foreground">Utilidad</span>
+        <span className="text-right font-semibold text-white">{fmtAR(report.profit)}</span>
+      </div>
+    </div>
+  );
+}
+
+function ReportPlaceholder({ month }: { month: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-sm font-semibold text-white">{month}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Sin informe guardado.</p>
+      <p className="mt-4 text-xs text-muted-foreground">Se va a crear automáticamente cuando corresponda.</p>
     </div>
   );
 }
