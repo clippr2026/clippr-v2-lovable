@@ -109,6 +109,7 @@ function AdvisorRoute() {
 }
 
 function AdvisorContent() {
+  const navigate = useNavigate();
   const todayKey = getTodayKey();
   const needsDailyAnalysis = React.useMemo(() => {
     if (typeof window === "undefined") return true;
@@ -194,6 +195,13 @@ function AdvisorContent() {
     return localStorage.getItem("clippr_ticket_suggestion_seen") === ticketSuggestionKey;
   });
 
+  const [resultsAnimated, setResultsAnimated] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setResultsAnimated(true), 120);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const emptySlotsTomorrow = Math.max(DEMO.emptySlotsTomorrow - occupiedDemoSlots, 0);
   const actions = getDemoActions({
     showExtraRecommendation,
@@ -234,13 +242,13 @@ function AdvisorContent() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{DEMO.growth}%</h2>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{resultsAnimated ? DEMO.growth : 0}%</h2>
               <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. Basado principalmente en utilidad.</p>
             </div>
 
             <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Utilidad</div>
-              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(DEMO.profit)}</div>
+              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(resultsAnimated ? DEMO.profit : 0)}</div>
             </div>
           </div>
 
@@ -249,10 +257,10 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <GrowthMetric label="Utilidad" value={`+${fmtAR(DEMO.profit - DEMO.previousProfit)}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
-            <GrowthMetric label="Clientes" value={`+${percent(DEMO.clients, DEMO.previousClients)}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
-            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(DEMO.ticket - DEMO.previousTicket)}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
-            <GrowthMetric label="Ocupación" value={`${DEMO.occupancy}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
+            <GrowthMetric label="Utilidad" value={`+${fmtAR(resultsAnimated ? DEMO.profit - DEMO.previousProfit : 0)}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
+            <GrowthMetric label="Clientes" value={`+${resultsAnimated ? percent(DEMO.clients, DEMO.previousClients) : 0}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
+            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(resultsAnimated ? DEMO.ticket - DEMO.previousTicket : 0)}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
+            <GrowthMetric label="Ocupación" value={`${resultsAnimated ? DEMO.occupancy : 0}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
           </div>
         </GlassCard>
 
@@ -265,14 +273,14 @@ function AdvisorContent() {
             </div>
 
             <div className="text-right">
-              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
+              <div className={cn("font-display text-6xl font-semibold tracking-tight transition-all duration-700", healthTone.text)}>{resultsAnimated ? DEMO.health : 0}</div>
               <div className="text-sm text-muted-foreground">sobre 100</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${DEMO.health}%` }} />
+            <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000 ease-out", healthTone.bar)} style={{ width: resultsAnimated ? `${DEMO.health}%` : "0%" }} />
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -296,9 +304,9 @@ function AdvisorContent() {
                 <Bell className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight">Tenés una recomendación nueva</h2>
+                <h2 className="font-display text-lg font-semibold tracking-tight">🚀 Oportunidad detectada</h2>
                 <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                  Clippr detectó una oportunidad que puede mejorar la ocupación y la utilidad del negocio.
+                  Potencial estimado: +$487.952 si aplicás esta acción.
                 </p>
               </div>
             </div>
@@ -344,7 +352,11 @@ function AdvisorContent() {
             actions.length >= 5 && "xl:grid-cols-5",
           )}>
             {actions.map((action) => (
-              <ActionCard key={action.title} action={action} onSelect={setSelectedAction} />
+              <ActionCard
+                key={action.title}
+                action={action}
+                onSelect={(selected) => handleActionSelect(selected, navigate, setSelectedAction)}
+              />
             ))}
           </div>
         ) : (
@@ -491,6 +503,34 @@ function AnalysisLoader({ step }: { step: number }) {
   );
 }
 
+function handleActionSelect(
+  action: AdvisorAction,
+  navigate: ReturnType<typeof useNavigate>,
+  setSelectedAction: React.Dispatch<React.SetStateAction<AdvisorAction | null>>,
+) {
+  if (action.id === "recover-clients") {
+    navigate({ to: "/clients", search: { segment: "inactive", days: 45 } as never });
+    return;
+  }
+
+  if (action.id === "reactivate-vip") {
+    navigate({ to: "/clients", search: { segment: "vip", inactive: true } as never });
+    return;
+  }
+
+  if (action.id === "confirm-turns") {
+    navigate({ to: "/agenda", search: { status: "pending", range: "today-tomorrow" } as never });
+    return;
+  }
+
+  if (action.id === "fill-empty-slots") {
+    navigate({ to: "/agenda", search: { view: "empty-slots", range: "tomorrow" } as never });
+    return;
+  }
+
+  setSelectedAction(action);
+}
+
 function getDemoActions(input: {
   showExtraRecommendation: boolean;
   emptySlotsTomorrow: number;
@@ -504,7 +544,7 @@ function getDemoActions(input: {
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
-      button: "Ver clientes",
+      button: "Ver clientes inactivos",
       tone: "client",
     });
   }
@@ -515,7 +555,7 @@ function getDemoActions(input: {
       title: "Llenar horarios libres",
       detail: `Mañana tenés ${input.emptySlotsTomorrow} espacios vacíos.`,
       impact: `Impacto estimado: +${fmtAR(input.emptySlotsTomorrow * DEMO.ticket)}`,
-      button: "Ver cómo llenarlos",
+      button: "Ver horarios libres",
       tone: "warning",
     });
   }
@@ -537,7 +577,7 @@ function getDemoActions(input: {
       title: "Reactivar clientes VIP",
       detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
-      button: "Enviar WhatsApp",
+      button: "Ver clientes VIP",
       tone: "growth",
     });
   }
@@ -548,7 +588,7 @@ function getDemoActions(input: {
       title: "Confirmar turnos",
       detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       impact: "Reduce ausencias y huecos de agenda.",
-      button: "Ver turnos",
+      button: "Ver turnos pendientes",
       tone: "neutral",
     });
   }
@@ -652,9 +692,7 @@ function ActionCard({ action, onSelect }: { action: AdvisorAction; onSelect: (ac
 
 function ActionDetailPanel({
   action,
-  emptySlotsTomorrow,
   onClose,
-  onFillThreeSlots,
   onMarkTicketSeen,
 }: {
   action: AdvisorAction;
@@ -667,7 +705,7 @@ function ActionDetailPanel({
     <GlassCard className="p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Badge icon={Sparkles}>Cómo accionar</Badge>
+          <Badge icon={Sparkles}>Recomendación</Badge>
           <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">{action.title}</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{action.detail}</p>
         </div>
@@ -682,45 +720,6 @@ function ActionDetailPanel({
       </div>
 
       <div className="mt-5">
-        {action.id === "recover-clients" ? (
-          <div className="grid gap-3 lg:grid-cols-3">
-            {DEMO.demoClients45.map((client) => (
-              <div key={client.name} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-sm font-semibold text-white">{client.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Última visita: {client.lastVisit}</p>
-                <div className="mt-4 flex gap-2">
-                  <button className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">Abrir perfil</button>
-                  <button className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white">WhatsApp</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {action.id === "fill-empty-slots" ? (
-          <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-semibold text-white">Recomendación para llenar espacios</p>
-              <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>1. Enviá una historia con cupos disponibles de mañana.</p>
-                <p>2. Mandá WhatsApp a clientes inactivos con una promo limitada.</p>
-                <p>3. Ofrecé combo corte + barba en horarios flojos.</p>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-semibold text-white">Estado demo</p>
-              <p className="mt-2 text-sm text-muted-foreground">Espacios libres actuales: {emptySlotsTomorrow}</p>
-              <button
-                type="button"
-                onClick={onFillThreeSlots}
-                className="mt-4 rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
-              >
-                Simular 3 turnos ocupados
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         {action.id === "increase-ticket" ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm font-semibold text-white">Simulación mensual</p>
@@ -750,32 +749,11 @@ function ActionDetailPanel({
             </div>
           </div>
         ) : null}
-
-        {action.id === "confirm-turns" ? (
-          <div className="grid gap-3 lg:grid-cols-3">
-            {DEMO.demoUnconfirmedTurns.map((turn) => (
-              <div key={turn.client} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-sm font-semibold text-white">{turn.client}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{turn.time}</p>
-                <button className="mt-4 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white">Enviar WhatsApp</button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {action.id === "reactivate-vip" ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">Mensaje recomendado</p>
-            <p className="mt-3 text-sm text-muted-foreground">
-              “Hola, ¿cómo estás? Te tenemos como cliente destacado y queríamos invitarte a reservar esta semana con prioridad.”
-            </p>
-            <button className="mt-4 rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">Enviar WhatsApp</button>
-          </div>
-        ) : null}
       </div>
     </GlassCard>
   );
 }
+
 
 function ReportCard({ report }: { report: { month: string; health: number; growth: number; profit: number; revenue: number } }) {
   return (
