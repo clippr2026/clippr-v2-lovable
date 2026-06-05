@@ -296,6 +296,7 @@ function AdvisorContent() {
               <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
               <div className="text-sm text-muted-foreground">Puntaje de salud</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
+              <p className="mt-1 max-w-[260px] text-right text-xs leading-relaxed text-muted-foreground">{healthTone.message}</p>
             </div>
           </div>
 
@@ -607,10 +608,10 @@ function percent(now: number, previous: number) {
 }
 
 function getHealthTone(health: number) {
-  if (health >= 85) return { label: "Excelente", text: "text-emerald-400", bar: "from-emerald-500 to-primary" };
-  if (health >= 70) return { label: "Bueno", text: "text-lime-300", bar: "from-lime-400 to-primary" };
-  if (health >= 50) return { label: "Regular", text: "text-amber-300", bar: "from-amber-400 to-accent" };
-  return { label: "Requiere atención", text: "text-red-400", bar: "from-red-500 to-amber-400" };
+  if (health >= 85) return { label: "Excelente", message: "Tu negocio está funcionando muy bien. Mantené el ritmo actual.", text: "text-emerald-400", bar: "from-emerald-500 to-primary" };
+  if (health >= 70) return { label: "Bueno", message: "Tu negocio está saludable, aunque todavía hay oportunidades de crecimiento.", text: "text-lime-300", bar: "from-lime-400 to-primary" };
+  if (health >= 50) return { label: "Regular", message: "Hay indicadores que requieren atención para mejorar el rendimiento.", text: "text-amber-300", bar: "from-amber-400 to-accent" };
+  return { label: "Crítico", message: "Tu negocio necesita acciones urgentes para recuperar su rendimiento.", text: "text-red-400", bar: "from-red-500 to-amber-400" };
 }
 
 function GlassCard({ className, children }: { className?: string; children: React.ReactNode }) {
