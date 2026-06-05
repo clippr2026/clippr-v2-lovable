@@ -34,6 +34,7 @@ export const Route = createFileRoute("/advisor")({
 type ActionTone = "money" | "warning" | "growth" | "client" | "neutral";
 
 type AdvisorAction = {
+  id: string;
   title: string;
   detail: string;
   impact: string;
@@ -67,6 +68,17 @@ const DEMO = {
   unconfirmedAppointments: 8,
   vipInactive: 3,
   lowDay: "martes",
+  previousMonthServices: 67,
+  demoClients45: [
+    { name: "Matías Gómez", lastVisit: "48 días", phone: "11 2345-6789" },
+    { name: "Lucas Pérez", lastVisit: "57 días", phone: "11 3456-7890" },
+    { name: "Nicolás Acosta", lastVisit: "63 días", phone: "11 4567-8901" },
+  ],
+  demoUnconfirmedTurns: [
+    { client: "Juan Ramírez", time: "Mañana 12:30", phone: "11 5678-9012" },
+    { client: "Santiago López", time: "Mañana 15:00", phone: "11 6789-0123" },
+    { client: "Tomás Silva", time: "Mañana 18:30", phone: "11 7890-1234" },
+  ],
 };
 
 function AdvisorRoute() {
@@ -174,8 +186,20 @@ function AdvisorContent() {
   const [hasNewRecommendation, setHasNewRecommendation] = React.useState(true);
   const [isUpdatingRecommendation, setIsUpdatingRecommendation] = React.useState(false);
   const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
+  const [selectedAction, setSelectedAction] = React.useState<AdvisorAction | null>(null);
+  const [occupiedDemoSlots, setOccupiedDemoSlots] = React.useState(0);
+  const ticketSuggestionKey = `${new Date().getFullYear()}-${new Date().getMonth() + 1}`;
+  const [ticketSuggestionSeen, setTicketSuggestionSeen] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("clippr_ticket_suggestion_seen") === ticketSuggestionKey;
+  });
 
-  const actions = getDemoActions(showExtraRecommendation);
+  const emptySlotsTomorrow = Math.max(DEMO.emptySlotsTomorrow - occupiedDemoSlots, 0);
+  const actions = getDemoActions({
+    showExtraRecommendation,
+    emptySlotsTomorrow,
+    showTicketSuggestion: !ticketSuggestionSeen,
+  });
   const healthTone = getHealthTone(DEMO.health);
 
   function handleAnalyzeNewRecommendation() {
@@ -320,7 +344,7 @@ function AdvisorContent() {
             actions.length >= 5 && "xl:grid-cols-5",
           )}>
             {actions.map((action) => (
-              <ActionCard key={action.title} action={action} />
+              <ActionCard key={action.title} action={action} onSelect={setSelectedAction} />
             ))}
           </div>
         ) : (
@@ -329,6 +353,23 @@ function AdvisorContent() {
           </div>
         )}
       </GlassCard>
+
+      {selectedAction ? (
+        <ActionDetailPanel
+          action={selectedAction}
+          emptySlotsTomorrow={emptySlotsTomorrow}
+          onClose={() => setSelectedAction(null)}
+          onFillThreeSlots={() => {
+            setOccupiedDemoSlots((value) => Math.min(DEMO.emptySlotsTomorrow, value + 3));
+            setSelectedAction(null);
+          }}
+          onMarkTicketSeen={() => {
+            localStorage.setItem("clippr_ticket_suggestion_seen", ticketSuggestionKey);
+            setTicketSuggestionSeen(true);
+            setSelectedAction(null);
+          }}
+        />
+      ) : null}
 
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -450,11 +491,16 @@ function AnalysisLoader({ step }: { step: number }) {
   );
 }
 
-function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
+function getDemoActions(input: {
+  showExtraRecommendation: boolean;
+  emptySlotsTomorrow: number;
+  showTicketSuggestion: boolean;
+}): AdvisorAction[] {
   const actions: AdvisorAction[] = [];
 
   if (DEMO.inactiveClients > 0) {
     actions.push({
+      id: "recover-clients",
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
@@ -463,21 +509,23 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
     });
   }
 
-  if (DEMO.emptySlotsTomorrow > 0) {
+  if (input.emptySlotsTomorrow > 0) {
     actions.push({
+      id: "fill-empty-slots",
       title: "Llenar horarios libres",
-      detail: `Mañana tenés ${DEMO.emptySlotsTomorrow} espacios vacíos.`,
-      impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
-      button: "Crear promoción",
+      detail: `Mañana tenés ${input.emptySlotsTomorrow} espacios vacíos.`,
+      impact: `Impacto estimado: +${fmtAR(input.emptySlotsTomorrow * DEMO.ticket)}`,
+      button: "Ver cómo llenarlos",
       tone: "warning",
     });
   }
 
-  if (DEMO.payments > 0) {
+  if (input.showTicketSuggestion && DEMO.previousMonthServices > 0) {
     actions.push({
+      id: "increase-ticket",
       title: "Subir ticket promedio",
-      detail: "Sumar $1.000 por cobro mejora la utilidad mensual.",
-      impact: `Potencial: +${fmtAR(DEMO.payments * 1000)}`,
+      detail: "Sumar $1.000 por servicio mejora la utilidad mensual.",
+      impact: `Potencial: +${fmtAR(DEMO.previousMonthServices * 1000)} según servicios del mes pasado`,
       button: "Ver simulación",
       tone: "money",
     });
@@ -485,6 +533,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
 
   if (DEMO.vipInactive > 0) {
     actions.push({
+      id: "reactivate-vip",
       title: "Reactivar clientes VIP",
       detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
@@ -495,6 +544,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
 
   if (DEMO.unconfirmedAppointments > 0) {
     actions.push({
+      id: "confirm-turns",
       title: "Confirmar turnos",
       detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       impact: "Reduce ausencias y huecos de agenda.",
@@ -503,12 +553,13 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
     });
   }
 
-  if (showExtraRecommendation) {
+  if (input.showExtraRecommendation) {
     actions.unshift({
+      id: "boost-low-day",
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
       impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
-      button: "Crear campaña",
+      button: "Ver recomendación",
       tone: "growth",
     });
   }
@@ -568,7 +619,7 @@ function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) 
   );
 }
 
-function ActionCard({ action }: { action: AdvisorAction }) {
+function ActionCard({ action, onSelect }: { action: AdvisorAction; onSelect: (action: AdvisorAction) => void }) {
   return (
     <div className="flex min-h-[220px] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div
@@ -590,11 +641,139 @@ function ActionCard({ action }: { action: AdvisorAction }) {
 
       <button
         type="button"
+        onClick={() => onSelect(action)}
         className="mt-auto rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
       >
         {action.button}
       </button>
     </div>
+  );
+}
+
+function ActionDetailPanel({
+  action,
+  emptySlotsTomorrow,
+  onClose,
+  onFillThreeSlots,
+  onMarkTicketSeen,
+}: {
+  action: AdvisorAction;
+  emptySlotsTomorrow: number;
+  onClose: () => void;
+  onFillThreeSlots: () => void;
+  onMarkTicketSeen: () => void;
+}) {
+  return (
+    <GlassCard className="p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Badge icon={Sparkles}>Cómo accionar</Badge>
+          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">{action.title}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{action.detail}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div className="mt-5">
+        {action.id === "recover-clients" ? (
+          <div className="grid gap-3 lg:grid-cols-3">
+            {DEMO.demoClients45.map((client) => (
+              <div key={client.name} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-sm font-semibold text-white">{client.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Última visita: {client.lastVisit}</p>
+                <div className="mt-4 flex gap-2">
+                  <button className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">Abrir perfil</button>
+                  <button className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white">WhatsApp</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {action.id === "fill-empty-slots" ? (
+          <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Recomendación para llenar espacios</p>
+              <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <p>1. Enviá una historia con cupos disponibles de mañana.</p>
+                <p>2. Mandá WhatsApp a clientes inactivos con una promo limitada.</p>
+                <p>3. Ofrecé combo corte + barba en horarios flojos.</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Estado demo</p>
+              <p className="mt-2 text-sm text-muted-foreground">Espacios libres actuales: {emptySlotsTomorrow}</p>
+              <button
+                type="button"
+                onClick={onFillThreeSlots}
+                className="mt-4 rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
+              >
+                Simular 3 turnos ocupados
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {action.id === "increase-ticket" ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Simulación mensual</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              El mes pasado hubo {DEMO.previousMonthServices} servicios. Si cada servicio sube $1.000, la utilidad potencial aumenta:
+            </p>
+            <p className="mt-4 font-display text-3xl font-semibold text-emerald-300">
+              +{fmtAR(DEMO.previousMonthServices * 1000)}
+            </p>
+            <button
+              type="button"
+              onClick={onMarkTicketSeen}
+              className="mt-4 rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
+            >
+              Marcar como visto este mes
+            </button>
+          </div>
+        ) : null}
+
+        {action.id === "boost-low-day" ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Qué hacer con el {DEMO.lowDay}</p>
+            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+              <p>1. Crear una promo exclusiva para {DEMO.lowDay}.</p>
+              <p>2. Ofrecer upgrade de barba o producto con descuento.</p>
+              <p>3. Enviar recordatorio a clientes que suelen venir entre semana.</p>
+            </div>
+          </div>
+        ) : null}
+
+        {action.id === "confirm-turns" ? (
+          <div className="grid gap-3 lg:grid-cols-3">
+            {DEMO.demoUnconfirmedTurns.map((turn) => (
+              <div key={turn.client} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-sm font-semibold text-white">{turn.client}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{turn.time}</p>
+                <button className="mt-4 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white">Enviar WhatsApp</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {action.id === "reactivate-vip" ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Mensaje recomendado</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              “Hola, ¿cómo estás? Te tenemos como cliente destacado y queríamos invitarte a reservar esta semana con prioridad.”
+            </p>
+            <button className="mt-4 rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">Enviar WhatsApp</button>
+          </div>
+        ) : null}
+      </div>
+    </GlassCard>
   );
 }
 
