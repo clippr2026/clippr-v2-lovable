@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
   Brain,
   CheckCircle2,
   HeartPulse,
