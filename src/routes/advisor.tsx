@@ -98,10 +98,13 @@ function AdvisorRoute() {
 
 function AdvisorContent() {
   const todayKey = getTodayKey();
-  const [isAnalyzing, setIsAnalyzing] = React.useState(() => {
+  const needsDailyAnalysis = React.useMemo(() => {
     if (typeof window === "undefined") return true;
     return localStorage.getItem("clippr_advisor_last_daily_analysis") !== todayKey;
-  });
+  }, [todayKey]);
+
+  const [analysisStarted, setAnalysisStarted] = React.useState(() => !needsDailyAnalysis);
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
 
   const [analysisStep, setAnalysisStep] = React.useState(0);
   const [reports, setReports] = React.useState<Array<{ month: string; health: number; growth: number; profit: number; revenue: number }>>(() => {
@@ -129,6 +132,8 @@ function AdvisorContent() {
     ];
 
     let index = 0;
+    setAnalysisStep(0);
+
     const interval = window.setInterval(() => {
       index += 1;
       setAnalysisStep(index);
@@ -136,9 +141,11 @@ function AdvisorContent() {
       if (index >= steps.length) {
         window.clearInterval(interval);
         localStorage.setItem("clippr_advisor_last_daily_analysis", todayKey);
-        setIsAnalyzing(false);
+        setTimeout(() => {
+          setIsAnalyzing(false);
+        }, 700);
       }
-    }, 650);
+    }, 1200);
 
     return () => window.clearInterval(interval);
   }, [isAnalyzing, todayKey]);
@@ -167,6 +174,17 @@ function AdvisorContent() {
   const actions = getDemoActions();
   const healthTone = getHealthTone(DEMO.health);
 
+  if (!analysisStarted) {
+    return (
+      <StartAnalysis
+        onStart={() => {
+          setAnalysisStarted(true);
+          setIsAnalyzing(true);
+        }}
+      />
+    );
+  }
+
   if (isAnalyzing) {
     return <AnalysisLoader step={analysisStep} />;
   }
@@ -188,11 +206,15 @@ function AdvisorContent() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-4">
-            <GrowthMetric label="Utilidad" value={`+${percent(DEMO.profit, DEMO.previousProfit)}%`} />
-            <GrowthMetric label="Facturación" value={`+${percent(DEMO.revenue, DEMO.previousRevenue)}%`} />
-            <GrowthMetric label="Clientes" value={`+${percent(DEMO.clients, DEMO.previousClients)}%`} />
-            <GrowthMetric label="Ocupación" value={`+${DEMO.occupancy - DEMO.previousOccupancy}%`} />
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+            Basado en utilidad (+{percent(DEMO.profit, DEMO.previousProfit)}%), clientes (+{percent(DEMO.clients, DEMO.previousClients)}%), ticket promedio (+{percent(DEMO.ticket, DEMO.previousTicket)}%) y ocupación (+{DEMO.occupancy - DEMO.previousOccupancy} puntos).
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <GrowthMetric label="Utilidad" value={`+${fmtAR(DEMO.profit - DEMO.previousProfit)}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
+            <GrowthMetric label="Clientes" value={`+${percent(DEMO.clients, DEMO.previousClients)}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
+            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(DEMO.ticket - DEMO.previousTicket)}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
+            <GrowthMetric label="Ocupación" value={`${DEMO.occupancy}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
           </div>
         </GlassCard>
 
@@ -294,6 +316,34 @@ function AdvisorContent() {
             ]}
           />
         </div>
+      </GlassCard>
+    </div>
+  );
+}
+
+function StartAnalysis({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="grid min-h-[560px] place-items-center">
+      <GlassCard className="w-full max-w-xl p-8 text-center">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-primary/10 ring-1 ring-primary/20">
+          <Brain className="h-7 w-7 text-primary" />
+        </div>
+        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Preparar análisis IA</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Clippr va a revisar utilidad, clientes, ocupación, caja y oportunidades del negocio.
+        </p>
+
+        <button
+          type="button"
+          onClick={onStart}
+          className="mt-6 inline-flex h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-primary to-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
+        >
+          Iniciar análisis IA
+        </button>
+
+        <p className="mt-4 text-xs text-muted-foreground">
+          Este análisis se genera una vez por día. Después se muestra directo.
+        </p>
       </GlassCard>
     </div>
   );
@@ -406,11 +456,12 @@ function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className
   );
 }
 
-function GrowthMetric({ label, value }: { label: string; value: string }) {
+function GrowthMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-2 text-lg font-semibold text-emerald-300">{value}</div>
+      {detail ? <div className="mt-1 text-xs text-muted-foreground">{detail}</div> : null}
     </div>
   );
 }
