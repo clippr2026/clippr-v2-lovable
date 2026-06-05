@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   BarChart3,
-  Bell,
   Brain,
   CheckCircle2,
   HeartPulse,
@@ -186,7 +185,7 @@ function AdvisorContent() {
   const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
   const [occupiedDemoSlots] = React.useState(0);
   const ticketSuggestionKey = `${new Date().getFullYear()}-${new Date().getMonth() + 1}`;
-  const [ticketSuggestionSeen, setTicketSuggestionSeen] = React.useState(() => {
+  const [ticketSuggestionSeen] = React.useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("clippr_ticket_suggestion_seen") === ticketSuggestionKey;
   });
