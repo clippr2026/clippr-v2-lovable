@@ -278,7 +278,7 @@ function AdvisorContent() {
             </div>
           </div>
 <div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
-<GrowthMetric label="Clientes nuevos" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
+<GrowthMetric label="Clientes nuevos" value={`${Math.round(45 * animationProgress)}`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
             <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
             <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
           </div>
@@ -306,11 +306,11 @@ function AdvisorContent() {
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <ReasonItem tone="good" text={`Utilidad positiva: ${fmtAR(DEMO.profit)}`} />
-              <ReasonItem tone="good" text={`${DEMO.clients} clientes atendidos este mes`} />
+              <ReasonItem tone="good" text="Utilidad: +30%" />
               <ReasonItem tone="good" text="Captación de clientes: +16%" />
-              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
+              <ReasonItem tone="good" text="Ocupación: 62%" />
               <ReasonItem tone="warning" text={`${DEMO.inactiveClients} clientes para recuperar`} />
+              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
             </div>
           </div>
         </GlassCard>
