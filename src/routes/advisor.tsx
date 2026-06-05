@@ -12,6 +12,7 @@ import {
   Bell,
   Brain,
   CheckCircle2,
+  ClipboardList,
   HeartPulse,
   Loader2,
   MessageCircle,
@@ -33,7 +34,6 @@ export const Route = createFileRoute("/advisor")({
 type ActionTone = "money" | "warning" | "growth" | "client" | "neutral";
 
 type AdvisorAction = {
-  id: string;
   title: string;
   detail: string;
   impact: string;
@@ -67,23 +67,12 @@ const DEMO = {
   unconfirmedAppointments: 8,
   vipInactive: 3,
   lowDay: "martes",
-  previousMonthServices: 67,
-  demoClients45: [
-    { name: "Matías Gómez", lastVisit: "48 días", phone: "11 2345-6789" },
-    { name: "Lucas Pérez", lastVisit: "57 días", phone: "11 3456-7890" },
-    { name: "Nicolás Acosta", lastVisit: "63 días", phone: "11 4567-8901" },
-  ],
-  demoUnconfirmedTurns: [
-    { client: "Juan Ramírez", time: "Mañana 12:30", phone: "11 5678-9012" },
-    { client: "Santiago López", time: "Mañana 15:00", phone: "11 6789-0123" },
-    { client: "Tomás Silva", time: "Mañana 18:30", phone: "11 7890-1234" },
-  ],
 };
 
 function AdvisorRoute() {
-  const navigate = useNavigate();
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
+  const navigate = useNavigate();
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
@@ -135,11 +124,11 @@ function AdvisorContent() {
     if (!isAnalyzing) return;
 
     const steps = [
-      "Analizando utilidad del negocio...",
-      "Calculando crecimiento mensual...",
-      "Revisando clientes y recurrencia...",
-      "Detectando oportunidades...",
-      "Generando plan de acción...",
+      "Revisando utilidad del mes...",
+      "Analizando clientes activos...",
+      "Detectando horarios libres...",
+      "Buscando oportunidades de recuperación...",
+      "Generando acciones recomendadas...",
     ];
 
     let index = 0;
@@ -185,21 +174,8 @@ function AdvisorContent() {
   const [hasNewRecommendation, setHasNewRecommendation] = React.useState(true);
   const [isUpdatingRecommendation, setIsUpdatingRecommendation] = React.useState(false);
   const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
-  const [occupiedDemoSlots] = React.useState(0);
-  const ticketSuggestionKey = `${new Date().getFullYear()}-${new Date().getMonth() + 1}`;
-  const [ticketSuggestionSeen] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("clippr_ticket_suggestion_seen") === ticketSuggestionKey;
-  });
 
-  const animationProgress = useResultAnimation();
-
-  const emptySlotsTomorrow = Math.max(DEMO.emptySlotsTomorrow - occupiedDemoSlots, 0);
-  const actions = getDemoActions({
-    showExtraRecommendation,
-    emptySlotsTomorrow,
-    showTicketSuggestion: !ticketSuggestionSeen,
-  });
+  const actions = getDemoActions(showExtraRecommendation);
   const healthTone = getHealthTone(DEMO.health);
 
   function handleAnalyzeNewRecommendation() {
@@ -234,13 +210,13 @@ function AdvisorContent() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{Math.round(DEMO.growth * animationProgress)}%</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. Basado principalmente en utilidad.</p>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{DEMO.growth}%</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. </p>
             </div>
 
             <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Utilidad</div>
-              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(Math.round(DEMO.profit * animationProgress))}</div>
+              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(DEMO.profit)}</div>
             </div>
           </div>
 
@@ -249,10 +225,10 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <GrowthMetric label="Utilidad" value={`+${fmtAR(Math.round((DEMO.profit - DEMO.previousProfit) * animationProgress))}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
-            <GrowthMetric label="Clientes" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
-            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
-            <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
+            <GrowthMetric label="Utilidad" value={`+${fmtAR(DEMO.profit - DEMO.previousProfit)}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
+            <GrowthMetric label="Clientes nuevos ⓘ" value={`+${percent(DEMO.clients, DEMO.previousClients)}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
+            <GrowthMetric label="Ticket promedio ⓘ" value={`+${fmtAR(DEMO.ticket - DEMO.previousTicket)}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
+            <GrowthMetric label="Ocupación ⓘ" value={`${DEMO.occupancy}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
           </div>
         </GlassCard>
 
@@ -265,14 +241,14 @@ function AdvisorContent() {
             </div>
 
             <div className="text-right">
-              <div className={cn("font-display text-6xl font-semibold tracking-tight transition-all duration-700", healthTone.text)}>{Math.round(DEMO.health * animationProgress)}</div>
+              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
               <div className="text-sm text-muted-foreground">sobre 100</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000 ease-out", healthTone.bar)} style={{ width: `${Math.round(DEMO.health * animationProgress)}%` }} />
+            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${DEMO.health}%` }} />
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -296,9 +272,9 @@ function AdvisorContent() {
                 <Bell className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight">🚀 Oportunidad detectada</h2>
+                <h2 className="font-display text-lg font-semibold tracking-tight">Tenés una recomendación nueva</h2>
                 <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                  Potencial estimado: +$487.952 si aplicás esta acción.
+                  Clippr detectó una oportunidad que puede mejorar la ocupación y la utilidad del negocio.
                 </p>
               </div>
             </div>
@@ -330,7 +306,7 @@ function AdvisorContent() {
           <Badge icon={Target}>Qué hacer hoy</Badge>
           <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Prioridades de hoy</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Acciones simples para mejorar ocupación, utilidad y recurrencia.
+            Clippr muestra solo las acciones importantes detectadas hoy. Si hay una sola, muestra una sola.
           </p>
         </div>
 
@@ -353,6 +329,7 @@ function AdvisorContent() {
           </div>
         )}
       </GlassCard>
+
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -452,7 +429,7 @@ function AnalysisLoader({ step }: { step: number }) {
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
         </div>
         <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Analizando tu negocio</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Analizando crecimiento, utilidad, clientes y oportunidades del negocio.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Clippr está leyendo caja, clientes, turnos y rendimiento.</p>
 
         <div className="mt-6 space-y-3 text-left">
           {steps.map((item, index) => (
@@ -473,100 +450,65 @@ function AnalysisLoader({ step }: { step: number }) {
   );
 }
 
-function useResultAnimation() {
-  const [progress, setProgress] = React.useState(0);
-
-  React.useEffect(() => {
-    let frame = 0;
-    const duration = 1000;
-    const startedAt = performance.now();
-
-    function animate(now: number) {
-      const raw = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - Math.pow(1 - raw, 3);
-      setProgress(eased);
-
-      if (raw < 1) {
-        frame = window.requestAnimationFrame(animate);
-      }
-    }
-
-    frame = window.requestAnimationFrame(animate);
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  return progress;
-}
-
-function getDemoActions(input: {
-  showExtraRecommendation: boolean;
-  emptySlotsTomorrow: number;
-  showTicketSuggestion: boolean;
-}): AdvisorAction[] {
+function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
   const actions: AdvisorAction[] = [];
 
   if (DEMO.inactiveClients > 0) {
     actions.push({
-      id: "recover-clients",
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
-      button: "Recontactar por WhatsApp",
+      button: "Ver clientes",
       tone: "client",
     });
   }
 
-  if (input.emptySlotsTomorrow > 0) {
+  if (DEMO.emptySlotsTomorrow > 0) {
     actions.push({
-      id: "fill-empty-slots",
       title: "Llenar horarios libres",
-      detail: `${input.emptySlotsTomorrow} espacios libres mañana.`,
-      impact: `Impacto estimado: +${fmtAR(input.emptySlotsTomorrow * DEMO.ticket)}`,
-      button: "Crear promo para huecos",
+      detail: `Mañana tenés ${DEMO.emptySlotsTomorrow} espacios vacíos.`,
+      impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
+      button: "Crear promoción",
       tone: "warning",
     });
   }
 
-  if (input.showTicketSuggestion && DEMO.previousMonthServices > 0) {
+  if (DEMO.payments > 0) {
     actions.push({
-      id: "increase-ticket",
       title: "Subir ticket promedio",
-      detail: "+$1.000 por servicio puede mejorar la utilidad.",
-      impact: `Potencial mensual: +${fmtAR(DEMO.previousMonthServices * 1000)}`,
-      button: "Revisar aumento de precio",
+      detail: "Sumar $1.000 por cobro mejora la utilidad mensual.",
+      impact: `Potencial: +${fmtAR(DEMO.payments * 1000)}`,
+      button: "Ver simulación",
       tone: "money",
     });
   }
 
   if (DEMO.vipInactive > 0) {
     actions.push({
-      id: "reactivate-vip",
       title: "Reactivar clientes VIP",
-      detail: `${DEMO.vipInactive} VIP sin visita reciente.`,
+      detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
-      button: "Enviar mensaje personalizado",
+      button: "Enviar WhatsApp",
       tone: "growth",
     });
   }
 
   if (DEMO.unconfirmedAppointments > 0) {
     actions.push({
-      id: "confirm-turns",
       title: "Confirmar turnos",
-      detail: `${DEMO.unconfirmedAppointments} turnos sin confirmar.`,
-      impact: "Ayuda a reducir ausencias.",
-      button: "Confirmar por WhatsApp",
+      detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
+      impact: "Reduce ausencias y huecos de agenda.",
+      button: "Ver turnos",
       tone: "neutral",
     });
   }
 
-  if (input.showExtraRecommendation) {
+  if (showExtraRecommendation) {
     actions.unshift({
-      id: "boost-low-day",
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
       impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
-      button: "Crear campaña del día flojo",
+      button: "Crear campaña",
       tone: "growth",
     });
   }
@@ -605,7 +547,7 @@ function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className
 
 function GrowthMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all duration-700 ease-out">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-2 text-lg font-semibold text-emerald-300">{value}</div>
       {detail ? <div className="mt-1 text-xs text-muted-foreground">{detail}</div> : null}
@@ -628,7 +570,7 @@ function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) 
 
 function ActionCard({ action }: { action: AdvisorAction }) {
   return (
-    <div className="flex min-h-[190px] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="flex min-h-[220px] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div
         className={cn(
           "mb-4 grid h-9 w-9 place-items-center rounded-2xl ring-1",
@@ -645,11 +587,16 @@ function ActionCard({ action }: { action: AdvisorAction }) {
       <div className="text-sm font-semibold">{action.title}</div>
       <div className="mt-2 text-xs leading-relaxed text-muted-foreground">{action.detail}</div>
       <div className="mt-3 text-xs font-semibold text-emerald-300">{action.impact}</div>
-      <div className="mt-auto pt-4 text-xs font-medium text-primary">{action.button}</div>
+
+      <button
+        type="button"
+        className="mt-auto rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
+      >
+        {action.button}
+      </button>
     </div>
   );
 }
-
 
 function ReportCard({ report }: { report: { month: string; health: number; growth: number; profit: number; revenue: number } }) {
   return (
