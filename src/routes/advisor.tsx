@@ -278,7 +278,7 @@ function AdvisorContent() {
             </div>
           </div>
 <div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
-<GrowthMetric label="Clientes nuevos" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`45 vs 39 clientes`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
+<GrowthMetric label="Clientes nuevos" value={`+${Math.round(percent(DEMO.clients, DEMO.previousClients) * animationProgress)}%`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
             <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
             <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
           </div>
@@ -294,7 +294,7 @@ function AdvisorContent() {
 
             <div className="text-right">
               <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
-              <div className="text-sm text-muted-foreground">sobre 100</div>
+              <div className="text-sm text-muted-foreground">Puntaje de salud</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
@@ -308,7 +308,7 @@ function AdvisorContent() {
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <ReasonItem tone="good" text={`Utilidad positiva: ${fmtAR(DEMO.profit)}`} />
               <ReasonItem tone="good" text={`${DEMO.clients} clientes atendidos este mes`} />
-              <ReasonItem tone="good" text="Caja con buen nivel de cobros" />
+              <ReasonItem tone="good" text="Captación de clientes: +16%" />
               <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
               <ReasonItem tone="warning" text={`${DEMO.inactiveClients} clientes para recuperar`} />
             </div>
