@@ -210,8 +210,8 @@ function AdvisorContent() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <Badge icon={TrendingUp}>Crecimiento del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🚀 Crecimiento del negocio +{DEMO.growth}%</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Comparado con {DEMO.previousMonth}. Basado principalmente en utilidad.</p>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 Evolución del negocio +{DEMO.growth}%</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Respecto al período anterior.</p>
             </div>
 
             <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
@@ -226,7 +226,7 @@ function AdvisorContent() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
             <GrowthMetric label="Utilidad" value={`+${fmtAR(DEMO.profit - DEMO.previousProfit)}`} detail={`${fmtAR(DEMO.profit)} este mes`} />
-            <GrowthMetric label="Clientes" value={`+${percent(DEMO.clients, DEMO.previousClients)}%`} detail={`${DEMO.clients} vs ${DEMO.previousClients}`} />
+            <GrowthMetric label="Clientes nuevos" value={`${DEMO.clients}`} detail={`+${percent(DEMO.clients, DEMO.previousClients)}% vs mes anterior`} />
             <GrowthMetric label="Ticket promedio" value={`+${fmtAR(DEMO.ticket - DEMO.previousTicket)}`} detail={`+${percent(DEMO.ticket, DEMO.previousTicket)}% vs mes anterior`} />
             <GrowthMetric label="Ocupación" value={`${DEMO.occupancy}%`} detail={`+${DEMO.occupancy - DEMO.previousOccupancy} puntos`} />
           </div>
@@ -242,7 +242,7 @@ function AdvisorContent() {
 
             <div className="text-right">
               <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
-              <div className="text-sm text-muted-foreground">sobre 100</div>
+              <div className="text-sm text-muted-foreground">Puntaje de salud</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
             </div>
           </div>
@@ -252,13 +252,13 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-sm font-semibold">¿Por qué?</div>
+            <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <ReasonItem tone="good" text={`Utilidad positiva: ${fmtAR(DEMO.profit)}`} />
-              <ReasonItem tone="good" text={`${DEMO.clients} clientes atendidos este mes`} />
-              <ReasonItem tone="good" text="Caja con buen nivel de cobros" />
-              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
+              <ReasonItem tone="good" text={`Utilidad: +${percent(DEMO.profit, DEMO.previousProfit)}%`} />
+              <ReasonItem tone="good" text={`Captación de clientes: +${percent(DEMO.clients, DEMO.previousClients)}%`} />
+              <ReasonItem tone="good" text={`Ocupación: ${DEMO.occupancy}%`} />
               <ReasonItem tone="warning" text={`${DEMO.inactiveClients} clientes para recuperar`} />
+              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
             </div>
           </div>
         </GlassCard>
