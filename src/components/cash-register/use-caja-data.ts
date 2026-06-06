@@ -17,7 +17,6 @@ export type Employee = {
   id: string;
   name: string;
   commission_pct: number | null;
-  is_active?: boolean | null;
 };
 
 export type ClientLite = {
@@ -33,11 +32,25 @@ export type Payment = {
   total: number | null;
   amount: number | null;
   method: string | null;
+  payment_method?: string | null;
   client_name: string | null;
   service_name: string | null;
   created_at: string;
   employee_id: string | null;
   appointment_id: string | null;
+  charged_by?: string | null;
+  charge_type?: "auto" | "manual" | "caja" | string | null;
+  status?: string | null;
+};
+
+export type PendingCharge = {
+  id: string;
+  client_name: string | null;
+  service_name: string | null;
+  service_price: number | null;
+  employee_id: string | null;
+  starts_at: string;
+  notes?: string | null;
 };
 
 export type Expense = {
@@ -72,6 +85,7 @@ export function useCajaData() {
   const [cashSessionId, setCashSessionId] = React.useState<string | null>(null);
   const [pendingCount, setPendingCount] = React.useState(0);
   const [pendingAmount, setPendingAmount] = React.useState(0);
+  const [pendingCharges, setPendingCharges] = React.useState<PendingCharge[]>([]);
 
   const load = React.useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
@@ -81,7 +95,7 @@ export function useCajaData() {
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
     const dateStr = new Date().toISOString().slice(0, 10);
 
-    const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes] = await Promise.allSettled([
+    const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes] = await Promise.allSettled([
       supabase
         .from("price_catalog")
         .select("id,name,price,duration_min,category,active,stock")
@@ -93,10 +107,11 @@ export function useCajaData() {
         .from("employees")
         .select("id,full_name,is_active,commission_pct")
         .eq("business_id", businessId)
+        .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")
-        .select("id,total,amount,method,client_name,service_name,created_at,employee_id,appointment_id")
+        .select("id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at")
         .gte("created_at", today.toISOString())
         .lte("created_at", todayEnd.toISOString())
         .order("created_at", { ascending: false }),
@@ -123,6 +138,12 @@ export function useCajaData() {
         .select("id,full_name,phone,email,birth_date")
         .eq("business_id", businessId)
         .order("full_name"),
+      supabase
+        .from("appointments")
+        .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status")
+        .eq("business_id", businessId)
+        .eq("status", "pending_payment")
+        .order("starts_at", { ascending: true }),
     ]);
 
     // Services — separate services (has duration_min) from catalog products
@@ -145,12 +166,7 @@ export function useCajaData() {
     setEmployees(
       empRes.status === "fulfilled" && !empRes.value.error
         ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; commission_pct: number | null }>)
-            .map((r) => ({
-              id: r.id,
-              name: r.full_name ?? "Sin nombre",
-              commission_pct: r.commission_pct ?? null,
-              is_active: r.is_active,
-            }))
+            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null }))
         : []
     );
 
@@ -161,6 +177,12 @@ export function useCajaData() {
             .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", phone: r.phone, email: r.email, birth_date: r.birth_date }))
         : []
     );
+
+    const pendingFromProfessionals =
+      pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
+        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[])
+        : [];
+    setPendingCharges(pendingFromProfessionals);
 
     setPaymentsToday(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
     setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
@@ -186,18 +208,9 @@ export function useCajaData() {
       }
     }
 
-    // Pending appointments
-    try {
-      const { data: appts } = await supabase
-        .from("appointments")
-        .select("id,status,service_price")
-        .eq("business_id", businessId)
-        .gte("starts_at", today.toISOString())
-        .lte("starts_at", todayEnd.toISOString());
-      const pend = (appts ?? []).filter((a: { status: string }) => !["charged", "cancelled", "blocked"].includes(a.status));
-      setPendingCount(pend.length);
-      setPendingAmount(pend.reduce((s, a: { service_price: number | null }) => s + Number(a.service_price ?? 0), 0));
-    } catch { setPendingCount(0); setPendingAmount(0); }
+    // Pending charges sent from professional panel to Caja
+    setPendingCount(pendingFromProfessionals.length);
+    setPendingAmount(pendingFromProfessionals.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
 
     setLoading(false);
   }, [businessId]);
@@ -250,7 +263,7 @@ export function useCajaData() {
     services, employees, clients,
     paymentsToday, expensesToday, cashSessionId,
     revHoy, cobros, ticket, totalGastos,
-    pendingCount, pendingAmount,
+    pendingCount, pendingAmount, pendingCharges,
     refresh: load,
   };
 }

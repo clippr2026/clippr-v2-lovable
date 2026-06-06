@@ -24,6 +24,8 @@ export type RegisterPaymentItem = {
   amount: number;
 };
 
+export type ChargeOrigin = "auto" | "manual" | "caja";
+
 export type RegisterPaymentInput = {
   businessId: string;
   employeeId?: string | null;
@@ -32,6 +34,9 @@ export type RegisterPaymentInput = {
   method: PayMethod;
   sessionId?: string | null;
   chargedBy?: string | null;
+  appointmentId?: string | null;
+  chargeOrigin?: ChargeOrigin;
+  status?: "cobrado" | "pendiente" | "anulado" | "reembolsado";
 };
 
 export async function registerPayment(input: RegisterPaymentInput) {
@@ -50,6 +55,10 @@ export async function registerPayment(input: RegisterPaymentInput) {
       total: item.amount,
       method: input.method,
       payment_method: input.method,
+      appointment_id: input.appointmentId ?? null,
+      charge_type: input.chargeOrigin ?? "caja",
+      status: input.status ?? "cobrado",
+      charged_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
     };
     if (input.sessionId) payload.session_id = input.sessionId;
