@@ -298,7 +298,7 @@ function AdvisorContent() {
 
         {priorityAction ? (
           <div
-            className="mt-5 rounded-3xl border border-primary/40 bg-primary/[0.08] p-5 shadow-[0_0_45px_rgba(88,101,242,0.16)] transition-all duration-700"
+            className="mt-5 rounded-3xl border border-primary/40 bg-primary/[0.08] p-5 shadow-[0_0_45px_rgba(88,101,242,0.16)] transition-all duration-1000"
             style={{
               opacity: shouldAnimateResults ? animationProgress : 1,
               transform: shouldAnimateResults ? `translateY(${Math.round((1 - animationProgress) * 10)}px)` : "translateY(0px)",
@@ -351,7 +351,7 @@ function AdvisorContent() {
 
 
 
-      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <section className="space-y-4">
         <GlassCard className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
@@ -461,21 +461,21 @@ function AdvisorContent() {
 function useResultAnimation(enabled = false) {
   const [progress, setProgress] = React.useState(enabled ? 0 : 1);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!enabled) {
       setProgress(1);
       return;
     }
 
     let frame = 0;
-    const duration = 1000;
+    const duration = 1800;
     const startedAt = performance.now();
 
     setProgress(0);
 
     function animate(now: number) {
       const raw = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - Math.pow(1 - raw, 3);
+      const eased = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
       setProgress(eased);
 
       if (raw < 1) {
