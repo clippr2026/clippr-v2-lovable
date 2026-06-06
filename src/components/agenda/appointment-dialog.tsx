@@ -600,7 +600,6 @@ export function AppointmentDialog({
                 </Select>
               </div>
             </div>
-            </div>
             {requiresDeposit && (
               <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm">
                 🟡 Este servicio requiere seña. Seña pendiente: ${Math.round(depositAmount).toLocaleString("es-AR")}
