@@ -17,6 +17,7 @@ export type Employee = {
   id: string;
   name: string;
   commission_pct: number | null;
+  is_active?: boolean | null;
 };
 
 export type ClientLite = {
@@ -92,7 +93,6 @@ export function useCajaData() {
         .from("employees")
         .select("id,full_name,is_active,commission_pct")
         .eq("business_id", businessId)
-        .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")
@@ -145,7 +145,12 @@ export function useCajaData() {
     setEmployees(
       empRes.status === "fulfilled" && !empRes.value.error
         ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; commission_pct: number | null }>)
-            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null }))
+            .map((r) => ({
+              id: r.id,
+              name: r.full_name ?? "Sin nombre",
+              commission_pct: r.commission_pct ?? null,
+              is_active: r.is_active,
+            }))
         : []
     );
 
