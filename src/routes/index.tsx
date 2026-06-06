@@ -254,7 +254,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
       </section>
 
       {/* Revenue chart + breakdown */}
-      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4">
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)] gap-4 items-stretch">
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
         <ServicesDonut data={data} />
       </section>
@@ -417,7 +417,7 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
     : `${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} al ${new Date(toStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
 
   return (
-    <div className="glass rounded-2xl p-5 lg:col-span-2 relative overflow-hidden">
+    <div className="glass rounded-2xl p-5 relative overflow-hidden h-full">
       <div className="flex items-start justify-between mb-1">
         <div>
           <div className="text-xs text-muted-foreground">{cfg.label}</div>
