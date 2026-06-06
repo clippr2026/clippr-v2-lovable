@@ -435,7 +435,7 @@ export function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="space-y-3">
           <div className="flex items-start justify-between gap-3 pr-6">
             <div>
@@ -447,7 +447,7 @@ export function AppointmentDialog({
           </div>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
+        <div className="grid gap-5 py-2">
           <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -574,9 +574,9 @@ export function AppointmentDialog({
             )}
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
-            <h3 className="text-sm font-semibold flex items-center gap-2"><Scissors className="h-4 w-4 text-primary" /> Profesional y servicio</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.035] p-4 space-y-4">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Scissors className="h-4 w-4 text-emerald-300" /> Profesional y servicio</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label>Profesional</Label>
                 <Select value={employeeId} onValueChange={setEmployeeId}>
@@ -600,8 +600,17 @@ export function AppointmentDialog({
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="grid gap-1.5"><Label>Precio</Label><Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} /></div>
+
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <Label>Precio estimado</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">Se completa según el servicio seleccionado. Podés editarlo si hace falta.</p>
+                </div>
+                <div className="w-full sm:w-48">
+                  <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} className="text-right font-semibold text-emerald-300" />
+                </div>
+              </div>
             </div>
             {requiresDeposit && (
               <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm">
