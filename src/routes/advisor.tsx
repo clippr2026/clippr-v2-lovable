@@ -351,7 +351,7 @@ function AdvisorContent() {
         <div>
           <Badge icon={Target}>Qué hacer hoy</Badge>
           <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">
-            {priorityAction ? `Prioridad #${currentPriorityNumber} de ${totalRelevantActions}` : "🎉 Todo al día"}
+            {priorityAction ? "Prioridad actual" : "🎉 Todo al día"}
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {priorityAction
