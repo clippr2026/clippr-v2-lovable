@@ -97,7 +97,9 @@ function ProfessionalsPage() {
     ? ownProfessional?.id ?? null
     : activeId ?? visibleProfessionals[0]?.id ?? null;
 
-  const canOperateSelectedPanel = isProfessionalAccess && ownProfessional?.id === empId;
+  const canOperateSelectedPanel = !!empId && (
+    isProfessionalAccess ? ownProfessional?.id === empId : true
+  );
 
   // Load approval_mode from Supabase
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">(() => {
@@ -270,7 +272,7 @@ function ProfessionalsPage() {
       />
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={permissions.equipo} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
       {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -476,16 +478,19 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
   const canShowAction = (status: string) => {
     if (!canOperate) return false;
+    if (!approvalModeEnabled) return false;
     if (approvalMode === "disabled") return false;
     if (["charged", "cancelled"].includes(status)) return false;
-    if (approvalMode === "manual" && status === "pending") return false;
+
+    // Manual: el profesional puede enviar el servicio a caja.
+    // Automático: el profesional puede cobrar desde su panel.
     return true;
   };
 
   return (
     <div className="space-y-4 animate-fade-up">
       {/* Mode explanation banner */}
-      {equipoEnabled && approvalModeEnabled && canOperate ? (
+      {approvalModeEnabled && canOperate ? (
         <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
           approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
           approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
