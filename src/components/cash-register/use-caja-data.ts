@@ -142,7 +142,7 @@ export function useCajaData() {
         .from("appointments")
         .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status")
         .eq("business_id", businessId)
-        .eq("status", "pending_payment")
+        .in("status", ["pending_payment", "pending"])
         .order("starts_at", { ascending: true }),
     ]);
 
@@ -180,7 +180,10 @@ export function useCajaData() {
 
     const pendingFromProfessionals =
       pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
-        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[])
+        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[]).filter((appointment) =>
+            appointment.status === "pending_payment" ||
+            String(appointment.notes ?? "").includes("[PENDIENTE_CAJA]")
+          )
         : [];
     setPendingCharges(pendingFromProfessionals);
 
