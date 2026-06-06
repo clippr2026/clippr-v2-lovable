@@ -241,8 +241,6 @@ function AdvisorContent() {
   const actions = getDemoActions(showExtraRecommendation);
   const pendingActions = actions.filter((action) => !resolvedRecommendations.includes(action.title));
   const priorityAction = pendingActions[0] ?? null;
-  const totalRelevantActions = actions.length;
-  const currentPriorityNumber = priorityAction ? totalRelevantActions - pendingActions.length + 1 : totalRelevantActions;
   const strategicIdea = getStrategicIdea();
   const healthTone = getHealthTone(DEMO.health);
   const animatedHealth = Math.round(DEMO.health * animationProgress);
@@ -285,71 +283,6 @@ function AdvisorContent() {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <GlassCard className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div>
-              <Badge icon={TrendingUp}>
-                <button
-                  type="button"
-                  onClick={() => setInfoModal(INFO_CONTENT.growth)}
-                  className="grid h-10 w-10 place-items-center rounded-full border border-primary/40 bg-primary/15 text-xs font-bold text-primary transition hover:bg-primary/25"
-                  aria-label="Información de crecimiento"
-                >
-                  i
-                </button>
-              </Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 Evolución del negocio +18%</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Respecto al período anterior.</p>
-              
-            </div>
-
-            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">UTILIDAD +30%</div>
-              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(animatedProfit)}</div>
-            </div>
-          </div>
-<div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
-<GrowthMetric label="Clientes nuevos" value={`${Math.round(45 * animationProgress)}`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
-            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
-            <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div>
-              <Badge icon={HeartPulse}>Salud del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">❤️ ¿Cómo está tu negocio hoy?</h2>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Análisis de los indicadores del período actual.</p>
-            </div>
-
-            <div className="text-right">
-              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{animatedHealth}</div>
-              <div className="text-sm text-muted-foreground">Puntaje de salud</div>
-              <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
-              <p className="mt-1 max-w-[260px] text-right text-xs leading-relaxed text-muted-foreground">{healthTone.message}</p>
-            </div>
-          </div>
-
-          <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <ReasonItem tone="good" text="Utilidad: +30%" />
-              <ReasonItem tone="good" text="Captación de clientes: +16%" />
-              <ReasonItem tone="good" text="Ocupación: 62%" />
-              <ReasonItem tone="warning" text={`${DEMO.inactiveClients} clientes para recuperar`} />
-              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
-            </div>
-          </div>
-        </GlassCard>
-      </section>
-
-
       <GlassCard className="p-5 sm:p-6">
         <div>
           <Badge icon={Target}>Qué hacer hoy</Badge>
@@ -365,7 +298,7 @@ function AdvisorContent() {
 
         {priorityAction ? (
           <div
-            className="mt-5 rounded-3xl border border-primary/20 bg-primary/[0.05] p-5 transition-all duration-700"
+            className="mt-5 rounded-3xl border border-primary/40 bg-primary/[0.08] p-5 shadow-[0_0_45px_rgba(88,101,242,0.16)] transition-all duration-1000"
             style={{
               opacity: shouldAnimateResults ? animationProgress : 1,
               transform: shouldAnimateResults ? `translateY(${Math.round((1 - animationProgress) * 10)}px)` : "translateY(0px)",
@@ -416,6 +349,74 @@ function AdvisorContent() {
         )}
       </GlassCard>
 
+
+
+      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <GlassCard className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <Badge icon={HeartPulse}>Salud del negocio</Badge>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">❤️ ¿Cómo está tu negocio hoy?</h2>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Análisis de los indicadores del período actual.</p>
+            </div>
+
+            <div className="text-right">
+              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{animatedHealth}</div>
+              <div className="text-sm text-muted-foreground">Puntaje de salud</div>
+              <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
+              <p className="mt-1 max-w-[260px] text-right text-xs leading-relaxed text-muted-foreground">{healthTone.message}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
+            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <ReasonItem tone="good" text="Utilidad: +30%" />
+              <ReasonItem tone="good" text="Captación de clientes: +16%" />
+              <ReasonItem tone="good" text="Ocupación: 62%" />
+              <ReasonItem tone="warning" text={`${DEMO.inactiveClients} clientes para recuperar`} />
+              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <Badge icon={TrendingUp}>
+                <button
+                  type="button"
+                  onClick={() => setInfoModal(INFO_CONTENT.growth)}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-primary/40 bg-primary/15 text-xs font-bold text-primary transition hover:bg-primary/25"
+                  aria-label="Información de crecimiento"
+                >
+                  i
+                </button>
+              </Badge>
+              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 Evolución del negocio +18%</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Respecto al período anterior.</p>
+              
+            </div>
+
+            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">UTILIDAD +30%</div>
+              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(animatedProfit)}</div>
+            </div>
+          </div>
+<div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
+<GrowthMetric label="Clientes nuevos" value={`${Math.round(45 * animationProgress)}`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
+            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
+            <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
+          </div>
+        </GlassCard>
+
+      </section>
+
+
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -460,21 +461,21 @@ function AdvisorContent() {
 function useResultAnimation(enabled = false) {
   const [progress, setProgress] = React.useState(enabled ? 0 : 1);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!enabled) {
       setProgress(1);
       return;
     }
 
     let frame = 0;
-    const duration = 1000;
+    const duration = 1800;
     const startedAt = performance.now();
 
     setProgress(0);
 
     function animate(now: number) {
       const raw = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - Math.pow(1 - raw, 3);
+      const eased = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
       setProgress(eased);
 
       if (raw < 1) {
