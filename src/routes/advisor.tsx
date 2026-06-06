@@ -228,22 +228,54 @@ function AdvisorContent() {
   const [isUpdatingRecommendation, setIsUpdatingRecommendation] = React.useState(false);
   const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<AdvisorAction | null>(null);
+  const [resolvedRecommendations, setResolvedRecommendations] = React.useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("clippr_advisor_resolved_recommendations_demo");
+    if (!saved) return [];
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return [];
+    }
+  });
 
   const actions = getDemoActions(showExtraRecommendation);
-  const priorityAction = actions[0] ?? null;
-  const secondaryActions = actions.slice(1);
+  const pendingActions = actions.filter((action) => !resolvedRecommendations.includes(action.title));
+  const priorityAction = pendingActions[0] ?? null;
+  const totalRelevantActions = actions.length;
+  const currentPriorityNumber = priorityAction ? totalRelevantActions - pendingActions.length + 1 : totalRelevantActions;
+  const strategicIdea = getStrategicIdea();
   const healthTone = getHealthTone(DEMO.health);
 
   function handleAnalyzeNewRecommendation() {
     setIsUpdatingRecommendation(true);
 
     window.setTimeout(() => {
-      const nextActions = getDemoActions(true);
+      const nextActions = getDemoActions(true).filter((action) => !resolvedRecommendations.includes(action.title));
       setShowExtraRecommendation(true);
       setHasNewRecommendation(false);
       setSelectedRecommendation(nextActions[0] ?? null);
       setIsUpdatingRecommendation(false);
     }, 1200);
+  }
+
+  function handleResolveRecommendation(action: AdvisorAction) {
+    setResolvedRecommendations((current) => {
+      if (current.includes(action.title)) return current;
+      const next = [...current, action.title];
+      if (typeof window !== "undefined") {
+        localStorage.setItem("clippr_advisor_resolved_recommendations_demo", JSON.stringify(next));
+      }
+      return next;
+    });
+    setSelectedRecommendation(null);
+  }
+
+  function handleResetRecommendations() {
+    setResolvedRecommendations([]);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("clippr_advisor_resolved_recommendations_demo");
+    }
   }
 
   if (!analysisStarted) {
@@ -335,9 +367,9 @@ function AdvisorContent() {
                 <Bell className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight">Nueva recomendación para tomar acción</h2>
+                <h2 className="font-display text-lg font-semibold tracking-tight">Nueva prioridad para tomar acción</h2>
                 <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                  Clippr detectó una oportunidad y preparó una guía con problema, impacto, mensaje sugerido y pasos para aplicarla.
+                  Clippr detectó la acción con mayor impacto disponible en este momento y preparó una guía para ejecutarla.
                 </p>
               </div>
             </div>
@@ -356,7 +388,7 @@ function AdvisorContent() {
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Ver recomendación
+                  Ver prioridad
                 </>
               )}
             </button>
@@ -367,9 +399,13 @@ function AdvisorContent() {
       <GlassCard className="p-5 sm:p-6">
         <div>
           <Badge icon={Target}>Qué hacer hoy</Badge>
-          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Prioridad principal</h2>
+          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">
+            {priorityAction ? `Prioridad #${currentPriorityNumber} de ${totalRelevantActions}` : "🎉 Todo al día"}
+          </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Clippr prioriza la recomendación con mayor impacto y te muestra cómo ejecutarla paso a paso.
+            {priorityAction
+              ? "Clippr muestra una sola recomendación para que tomes acción sin ruido. Al resolverla, aparece la siguiente prioridad."
+              : "No se detectaron oportunidades importantes en este momento. Podés revisar una idea estratégica para seguir creciendo."}
           </p>
         </div>
 
@@ -377,7 +413,7 @@ function AdvisorContent() {
           <div className="mt-5 rounded-3xl border border-primary/20 bg-primary/[0.05] p-5">
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div className="max-w-2xl">
-                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Recomendación prioritaria</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Prioridad actual</div>
                 <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white">{priorityAction.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{priorityAction.detail}</p>
                 <p className="mt-3 text-sm font-semibold text-emerald-300">{priorityAction.impact}</p>
@@ -394,21 +430,30 @@ function AdvisorContent() {
             </div>
           </div>
         ) : (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-muted-foreground">
-            No hay acciones urgentes para hoy. El negocio viene estable.
-          </div>
-        )}
+          <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Sin urgencias</div>
+              <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white">Todo al día</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Las prioridades importantes ya fueron resueltas o no superan el impacto mínimo para mostrarse.
+              </p>
+              <button
+                type="button"
+                onClick={handleResetRecommendations}
+                className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Recalcular prioridades demo
+              </button>
+            </div>
 
-        {secondaryActions.length > 0 ? (
-          <div className="mt-5">
-            <h3 className="text-sm font-semibold text-white">Otras oportunidades</h3>
-            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {secondaryActions.map((action) => (
-                <ActionCard key={action.title} action={action} onOpen={() => setSelectedRecommendation(action)} />
-              ))}
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Idea estratégica</div>
+              <h3 className="mt-3 font-display text-xl font-semibold tracking-tight text-white">{strategicIdea.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{strategicIdea.detail}</p>
+              <p className="mt-3 text-xs font-semibold text-emerald-300">{strategicIdea.impact}</p>
             </div>
           </div>
-        ) : null}
+        )}
       </GlassCard>
 
       <GlassCard className="p-5 sm:p-6">
@@ -463,7 +508,11 @@ function AdvisorContent() {
         </div>
       </GlassCard>
       {selectedRecommendation ? (
-        <RecommendationDetailModal action={selectedRecommendation} onClose={() => setSelectedRecommendation(null)} />
+        <RecommendationDetailModal
+          action={selectedRecommendation}
+          onClose={() => setSelectedRecommendation(null)}
+          onResolve={() => handleResolveRecommendation(selectedRecommendation)}
+        />
       ) : null}
 
       {infoModal ? (
@@ -696,6 +745,15 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
   return actions;
 }
 
+function getStrategicIdea() {
+  return {
+    title: "Crear un sistema de recomendados",
+    detail:
+      "Invitá a tus clientes actuales a recomendar a una persona y ofrecé un beneficio cuando esa persona reserve o compre. Es una acción de crecimiento, no una urgencia.",
+    impact: "Ideal para aumentar captación sin depender solo de publicidad.",
+  };
+}
+
 function getTodayKey() {
   const date = new Date();
   return date.toISOString().slice(0, 10);
@@ -804,7 +862,15 @@ function ActionCard({ action, onOpen }: { action: AdvisorAction; onOpen: () => v
   );
 }
 
-function RecommendationDetailModal({ action, onClose }: { action: AdvisorAction; onClose: () => void }) {
+function RecommendationDetailModal({
+  action,
+  onClose,
+  onResolve,
+}: {
+  action: AdvisorAction;
+  onClose: () => void;
+  onResolve: () => void;
+}) {
   const [message, setMessage] = React.useState(action.suggestedMessage);
 
   React.useEffect(() => {
@@ -871,10 +937,11 @@ function RecommendationDetailModal({ action, onClose }: { action: AdvisorAction;
             <button
               key={button}
               type="button"
+              onClick={button === "Marcar como resuelto" ? onResolve : undefined}
               className={cn(
                 "rounded-xl border px-4 py-2 text-xs font-semibold transition",
                 button === "Marcar como resuelto"
-                  ? "border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-white"
+                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
                   : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
               )}
             >
