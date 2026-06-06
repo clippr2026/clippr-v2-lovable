@@ -197,6 +197,13 @@ function AgendaPage() {
     startsAt?: Date | null;
   }>({});
   const [filterModal, setFilterModal] = React.useState<string | null>(null);
+  const [slotMenu, setSlotMenu] = React.useState<{
+    employeeId: string | null;
+    startsAt: Date;
+    x: number;
+    y: number;
+  } | null>(null);
+
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
     const target = startsAt ?? cursor;
@@ -205,9 +212,61 @@ function AgendaPage() {
       toast.error("Negocio cerrado este día.");
       return;
     }
+    setSlotMenu(null);
     setEditing(null);
     setDlgDefaults({ employeeId, startsAt });
     setDlgOpen(true);
+  };
+
+  const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
+    const schedule = getScheduleForDate(data.schedule, startsAt);
+    if (!schedule?.enabled) {
+      toast.error("Negocio cerrado este día.");
+      return;
+    }
+
+    setSlotMenu({
+      employeeId,
+      startsAt,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  };
+
+  const blockSlot = async (employeeId: string | null, startsAt: Date) => {
+    if (!data.businessId) {
+      toast.error("No se encontró el negocio.");
+      return;
+    }
+
+    const end = new Date(startsAt.getTime() + 60 * 60_000);
+
+    try {
+      const { error } = await supabase.from("appointments").insert({
+        business_id: data.businessId,
+        client_id: null,
+        client_name: "Horario bloqueado",
+        employee_id: employeeId,
+        service_name: "Bloqueo de horario",
+        service_price: 0,
+        starts_at: startsAt.toISOString(),
+        ends_at: end.toISOString(),
+        duration_min: 60,
+        status: "blocked",
+        notes: "Horario bloqueado desde Agenda",
+        created_by_name: profile?.full_name ?? null,
+        created_by_role: profile?.role ?? null,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) throw new Error(error.message);
+
+      setSlotMenu(null);
+      data.refresh();
+      toast.success("Horario bloqueado");
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
   };
   const openDetail = (a: Appointment) => {
     setSelected(a);
@@ -485,7 +544,7 @@ function AgendaPage() {
           date={cursor}
           data={data}
           schedule={getScheduleForDate(data.schedule, cursor)}
-          onSlotClick={openNew}
+          onSlotClick={openSlotMenu}
           onApptClick={openDetail}
           onChangeStatus={onChangeStatus}
           onCobrar={goToCobro}
@@ -509,6 +568,44 @@ function AgendaPage() {
           }}
         />
       )}
+
+      {slotMenu ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setSlotMenu(null)}
+            aria-label="Cerrar opciones de casillero"
+          />
+          <div
+            className="fixed z-50 w-56 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
+            style={{
+              left: Math.min(slotMenu.x, window.innerWidth - 240),
+              top: Math.min(slotMenu.y, window.innerHeight - 150),
+            }}
+          >
+            <div className="border-b border-white/10 px-3 py-2 text-xs text-muted-foreground">
+              {slotMenu.startsAt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · {fmtTime(slotMenu.startsAt)}
+            </div>
+            <button
+              type="button"
+              onClick={() => openNew(slotMenu.employeeId, slotMenu.startsAt)}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+            >
+              <CalendarIcon className="h-4 w-4 text-primary" />
+              Agregar turno
+            </button>
+            <button
+              type="button"
+              onClick={() => blockSlot(slotMenu.employeeId, slotMenu.startsAt)}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+            >
+              <XCircle className="h-4 w-4 text-amber-300" />
+              Bloquear horario
+            </button>
+          </div>
+        </>
+      ) : null}
 
       <AppointmentDetailDialog
         open={detailOpen}
@@ -611,7 +708,7 @@ function DayView({
   date: Date;
   data: ReturnType<typeof useAgendaData>;
   schedule: ReturnType<typeof getScheduleForDate>;
-  onSlotClick: (employeeId: string | null, startsAt: Date) => void;
+  onSlotClick: (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => void;
   onApptClick: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
@@ -766,10 +863,10 @@ function DayView({
                   style={{ height: ROW_PX }}
                   onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }}
                   onDrop={(ev) => handleDrop(ev, e.id, h)}
-                  onClick={() => {
+                  onClick={(event) => {
                     const dt = new Date(date);
                     dt.setHours(h, 0, 0, 0);
-                    onSlotClick(e.id === "__none__" ? null : e.id, dt);
+                    onSlotClick(e.id === "__none__" ? null : e.id, dt, event);
                   }}
                 />
               ))}
