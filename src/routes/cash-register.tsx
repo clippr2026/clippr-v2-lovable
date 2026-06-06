@@ -731,7 +731,6 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const [client, setClient] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [birthDate, setBirthDate] = React.useState("");
   const [employeeId, setEmployeeId] = React.useState<string>("");
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">("simple");
@@ -822,7 +821,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     try {
       const { data: created, error } = await supabase
         .from("clients")
-        .insert({ business_id: data.businessId, full_name: client.trim(), phone: phone.trim() || null, email: email.trim() || null, birth_date: birthDate || null })
+        .insert({ business_id: data.businessId, full_name: client.trim(), phone: phone.trim() || null, email: email.trim() || null })
         .select("id")
         .maybeSingle();
       if (error) throw error;
@@ -879,7 +878,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
       });
 
       toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-      setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
+      setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail("");
       setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
       await data.refresh();
     } catch (e) {
@@ -945,7 +944,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         <Card className="p-5 space-y-4">
           <ClientAutocomplete value={client}
             onChange={(v) => { setClient(v); setClientId(null); }}
-            onPick={(c) => { setClientId(c.id); setClient(c.name ?? ""); setPhone(c.phone ?? ""); setEmail(c.email ?? ""); setBirthDate(c.birth_date ?? ""); }}
+            onPick={(c) => { setClientId(c.id); setClient(c.name ?? ""); setPhone(c.phone ?? ""); setEmail(c.email ?? ""); }}
             clients={data.clients} />
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
             <span className="h-px flex-1 bg-white/10" /> o completá los datos para crear uno nuevo <span className="h-px flex-1 bg-white/10" />
@@ -957,8 +956,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
               className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
               className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-            <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)} type="date"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+
           </div>
         </Card>
       )}
@@ -1164,8 +1162,8 @@ function ClientAutocomplete({
 }: {
   value: string;
   onChange: (v: string) => void;
-  onPick: (c: { id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }) => void;
-  clients: Array<{ id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }>;
+  onPick: (c: { id: string; name: string; phone: string | null; email?: string | null }) => void;
+  clients: Array<{ id: string; name: string; phone: string | null; email?: string | null }>;
 }) {
   const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();
