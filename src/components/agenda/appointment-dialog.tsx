@@ -600,17 +600,6 @@ export function AppointmentDialog({
                 </Select>
               </div>
             </div>
-
-            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <Label>Precio estimado</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">Se completa según el servicio seleccionado. Podés editarlo si hace falta.</p>
-                </div>
-                <div className="w-full sm:w-48">
-                  <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} className="text-right font-semibold text-emerald-300" />
-                </div>
-              </div>
             </div>
             {requiresDeposit && (
               <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm">
