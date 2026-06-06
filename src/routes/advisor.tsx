@@ -374,7 +374,7 @@ function AdvisorContent() {
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               <ReasonItem tone="good" text="Utilidad: +30%" />
               <ReasonItem tone="good" text="Captación de clientes: +16%" />
               <ReasonItem tone="good" text="Ocupación: 62%" />
