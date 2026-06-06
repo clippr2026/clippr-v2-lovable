@@ -14,9 +14,9 @@ import {
   DollarSign,
   Pencil,
   CheckCircle2,
-  XCircle,
   MessageCircle,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -204,6 +204,11 @@ function AgendaPage() {
     x: number;
     y: number;
   } | null>(null);
+  const [blockDialog, setBlockDialog] = React.useState<{
+    employeeId: string | null;
+    startsAt: Date;
+    appointment?: Appointment | null;
+  } | null>(null);
 
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
@@ -234,47 +239,111 @@ function AgendaPage() {
     });
   };
 
-  const blockSlot = async (employeeId: string | null, startsAt: Date) => {
+  const openBlockDialog = (employeeId: string | null, startsAt: Date, appointment?: Appointment | null) => {
+    setSlotMenu(null);
+    setBlockDialog({ employeeId, startsAt, appointment });
+  };
+
+  const saveBlock = async (payload: {
+    appointmentId?: string | null;
+    employeeId: string | null;
+    startsAt: Date;
+    endsAt: Date;
+    label: string;
+    repeatEnabled: boolean;
+    repeatEvery: number;
+    repeatCount: number;
+  }) => {
     if (!data.businessId) {
       toast.error("No se encontró el negocio.");
       return;
     }
 
-    const end = new Date(startsAt.getTime() + 60 * 60_000);
+    const durationMin = Math.max(15, Math.round((payload.endsAt.getTime() - payload.startsAt.getTime()) / 60_000));
+    if (durationMin <= 0) {
+      toast.error("La hora de fin debe ser posterior a la hora de inicio.");
+      return;
+    }
 
     try {
-      const { error } = await supabase.from("appointments").insert({
-        business_id: data.businessId,
-        client_id: null,
-        client_name: "Horario bloqueado",
-        employee_id: employeeId,
-        service_name: "Bloqueo de horario",
-        service_price: 0,
-        starts_at: startsAt.toISOString(),
-        ends_at: end.toISOString(),
-        duration_min: 60,
-        status: "blocked",
-        notes: "Horario bloqueado desde Agenda",
-        created_by_name: profile?.full_name ?? null,
-        created_by_role: profile?.role ?? null,
-        updated_at: new Date().toISOString(),
-      });
+      if (payload.appointmentId) {
+        const { error } = await supabase
+          .from("appointments")
+          .update({
+            client_name: payload.label || "Horario bloqueado",
+            employee_id: payload.employeeId,
+            service_name: "Bloqueo de horario",
+            service_price: 0,
+            starts_at: payload.startsAt.toISOString(),
+            ends_at: payload.endsAt.toISOString(),
+            duration_min: durationMin,
+            status: "blocked",
+            notes: payload.label ? `Horario bloqueado: ${payload.label}` : "Horario bloqueado desde Agenda",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", payload.appointmentId);
+        if (error) throw new Error(error.message);
+      } else {
+        const repeatTotal = payload.repeatEnabled ? Math.max(1, payload.repeatCount) : 1;
+        const repeatEvery = Math.max(1, payload.repeatEvery);
+        const rows = Array.from({ length: repeatTotal }, (_, index) => {
+          const startsAt = new Date(payload.startsAt);
+          startsAt.setDate(startsAt.getDate() + index * repeatEvery);
+          const endsAt = new Date(payload.endsAt);
+          endsAt.setDate(endsAt.getDate() + index * repeatEvery);
+          return {
+            business_id: data.businessId,
+            client_id: null,
+            client_name: payload.label || "Horario bloqueado",
+            employee_id: payload.employeeId,
+            service_name: "Bloqueo de horario",
+            service_price: 0,
+            starts_at: startsAt.toISOString(),
+            ends_at: endsAt.toISOString(),
+            duration_min: durationMin,
+            status: "blocked",
+            notes: payload.label ? `Horario bloqueado: ${payload.label}` : "Horario bloqueado desde Agenda",
+            created_by_name: profile?.full_name ?? null,
+            created_by_role: profile?.role ?? null,
+            updated_at: new Date().toISOString(),
+          };
+        });
 
-      if (error) throw new Error(error.message);
+        const { error } = await supabase.from("appointments").insert(rows);
+        if (error) throw new Error(error.message);
+      }
 
-      setSlotMenu(null);
+      setBlockDialog(null);
       data.refresh();
-      toast.success("Horario bloqueado");
+      toast.success(payload.appointmentId ? "Bloqueo actualizado" : "Horario bloqueado");
     } catch (error) {
       toast.error((error as Error).message);
     }
   };
+
+  const releaseBlock = async (a: Appointment) => {
+    try {
+      const { error } = await supabase.from("appointments").delete().eq("id", a.id);
+      if (error) throw new Error(error.message);
+      setDetailOpen(false);
+      setSelected(null);
+      data.refresh();
+      toast.success("Horario liberado");
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
   const openDetail = (a: Appointment) => {
     setSelected(a);
     setDetailOpen(true);
   };
   const openEdit = (a: Appointment) => {
     setDetailOpen(false);
+    if (a.status === "blocked") {
+      openBlockDialog(a.employee_id ?? null, new Date(a.starts_at), a);
+      return;
+    }
     setEditing(a);
     setDlgDefaults({});
     setDlgOpen(true);
@@ -598,7 +667,7 @@ function AgendaPage() {
             </button>
             <button
               type="button"
-              onClick={() => blockSlot(slotMenu.employeeId, slotMenu.startsAt)}
+              onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
               className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
             >
               <XCircle className="h-4 w-4 text-amber-300" />
@@ -621,6 +690,17 @@ function AgendaPage() {
         onChangeStatus={onChangeStatus}
         onMarkDeposit={onMarkDeposit}
         onCancelWithDeposit={onCancelWithDeposit}
+        onReleaseBlock={releaseBlock}
+      />
+
+      <BlockHoursDialog
+        open={Boolean(blockDialog)}
+        onOpenChange={(open) => { if (!open) setBlockDialog(null); }}
+        employees={data.employees}
+        initialEmployeeId={blockDialog?.employeeId ?? null}
+        initialStartsAt={blockDialog?.startsAt ?? cursor}
+        appointment={blockDialog?.appointment ?? null}
+        onSave={saveBlock}
       />
 
       {data.businessId && (
@@ -1002,6 +1082,216 @@ function IconBtn({
   );
 }
 
+
+function dateInputValue(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function timeParts(date: Date) {
+  return {
+    hour: String(date.getHours()).padStart(2, "0"),
+    minute: String(date.getMinutes()).padStart(2, "0"),
+  };
+}
+
+function combineLocalDateTime(date: string, hour: string, minute: string) {
+  return new Date(`${date}T${hour}:${minute}:00`);
+}
+
+function BlockHoursDialog({
+  open,
+  onOpenChange,
+  employees,
+  initialEmployeeId,
+  initialStartsAt,
+  appointment,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  employees: ReturnType<typeof useAgendaData>["employees"];
+  initialEmployeeId: string | null;
+  initialStartsAt: Date;
+  appointment: Appointment | null;
+  onSave: (payload: {
+    appointmentId?: string | null;
+    employeeId: string | null;
+    startsAt: Date;
+    endsAt: Date;
+    label: string;
+    repeatEnabled: boolean;
+    repeatEvery: number;
+    repeatCount: number;
+  }) => void;
+}) {
+  const start = appointment ? new Date(appointment.starts_at) : initialStartsAt;
+  const end = appointment?.ends_at
+    ? new Date(appointment.ends_at)
+    : new Date(start.getTime() + 60 * 60_000);
+  const startTime = timeParts(start);
+  const endTime = timeParts(end);
+  const [label, setLabel] = React.useState(appointment?.client_name === "Horario bloqueado" ? "" : appointment?.client_name ?? "");
+  const [employeeId, setEmployeeId] = React.useState(initialEmployeeId ?? "");
+  const [startDate, setStartDate] = React.useState(dateInputValue(start));
+  const [startHour, setStartHour] = React.useState(startTime.hour);
+  const [startMinute, setStartMinute] = React.useState(startTime.minute);
+  const [endDate, setEndDate] = React.useState(dateInputValue(end));
+  const [endHour, setEndHour] = React.useState(endTime.hour);
+  const [endMinute, setEndMinute] = React.useState(endTime.minute);
+  const [repeatEnabled, setRepeatEnabled] = React.useState(false);
+  const [repeatEvery, setRepeatEvery] = React.useState("1");
+  const [repeatCount, setRepeatCount] = React.useState("5");
+
+  React.useEffect(() => {
+    if (!open) return;
+    const nextStart = appointment ? new Date(appointment.starts_at) : initialStartsAt;
+    const nextEnd = appointment?.ends_at
+      ? new Date(appointment.ends_at)
+      : new Date(nextStart.getTime() + 60 * 60_000);
+    const nextStartTime = timeParts(nextStart);
+    const nextEndTime = timeParts(nextEnd);
+    setLabel(appointment?.client_name === "Horario bloqueado" ? "" : appointment?.client_name ?? "");
+    setEmployeeId((appointment?.employee_id ?? initialEmployeeId) || "");
+    setStartDate(dateInputValue(nextStart));
+    setStartHour(nextStartTime.hour);
+    setStartMinute(nextStartTime.minute);
+    setEndDate(dateInputValue(nextEnd));
+    setEndHour(nextEndTime.hour);
+    setEndMinute(nextEndTime.minute);
+    setRepeatEnabled(false);
+    setRepeatEvery("1");
+    setRepeatCount("5");
+  }, [open, appointment, initialEmployeeId, initialStartsAt]);
+
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+  const minutes = ["00", "15", "30", "45"];
+
+  const inputClass = "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
+  const selectClass = "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl p-0 overflow-hidden" aria-describedby={undefined}>
+        <DialogHeader className="px-6 py-5 border-b border-white/10 bg-white/[0.025]">
+          <DialogTitle>{appointment ? "Editar bloqueo de horas" : "Bloqueo de horas"}</DialogTitle>
+        </DialogHeader>
+
+        <div className="max-h-[70vh] overflow-y-auto p-6 space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+            <label className="block text-sm font-semibold">
+              Motivo/Etiqueta
+              <input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Ej: Almuerzo, trámite, capacitación"
+                className={`${inputClass} mt-2 w-full`}
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              Profesional
+              <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={`${selectClass} mt-2 w-full`}>
+                <option value="">Sin asignar</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.full_name ?? employee.name ?? "Profesional"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+            <div className="grid grid-cols-[1fr_120px_120px] gap-3 items-end">
+              <label className="block text-sm font-semibold">
+                Fecha de inicio
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
+              </label>
+              <label className="block text-sm font-semibold">
+                Hora
+                <select value={startHour} onChange={(e) => setStartHour(e.target.value)} className={`${selectClass} mt-2 w-full`}>
+                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                &nbsp;
+                <select value={startMinute} onChange={(e) => setStartMinute(e.target.value)} className={`${selectClass} mt-2 w-full`}>
+                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="grid grid-cols-[1fr_120px_120px] gap-3 items-end">
+              <label className="block text-sm font-semibold">
+                Fecha de fin
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
+              </label>
+              <label className="block text-sm font-semibold">
+                Hora
+                <select value={endHour} onChange={(e) => setEndHour(e.target.value)} className={`${selectClass} mt-2 w-full`}>
+                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                &nbsp;
+                <select value={endMinute} onChange={(e) => setEndMinute(e.target.value)} className={`${selectClass} mt-2 w-full`}>
+                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {!appointment && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+              <label className="flex items-center gap-3 text-sm font-semibold">
+                <input type="checkbox" checked={repeatEnabled} onChange={(e) => setRepeatEnabled(e.target.checked)} />
+                Repetir bloqueo
+              </label>
+              {repeatEnabled && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-sm font-semibold">
+                    Cada
+                    <div className="mt-2 flex items-center gap-2">
+                      <input type="number" min="1" value={repeatEvery} onChange={(e) => setRepeatEvery(e.target.value)} className={`${inputClass} w-20`} />
+                      <span className="text-sm text-muted-foreground">día(s)</span>
+                    </div>
+                  </label>
+                  <label className="block text-sm font-semibold">
+                    Finaliza después de
+                    <div className="mt-2 flex items-center gap-2">
+                      <input type="number" min="1" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} className={`${inputClass} w-24`} />
+                      <span className="text-sm text-muted-foreground">repeticiones</span>
+                    </div>
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-4">
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button
+            onClick={() => onSave({
+              appointmentId: appointment?.id,
+              employeeId: employeeId || null,
+              startsAt: combineLocalDateTime(startDate, startHour, startMinute),
+              endsAt: combineLocalDateTime(endDate, endHour, endMinute),
+              label: label.trim(),
+              repeatEnabled,
+              repeatEvery: Number(repeatEvery || 1),
+              repeatCount: Number(repeatCount || 1),
+            })}
+          >
+            {appointment ? "Guardar cambios" : "Guardar bloqueo"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AppointmentDetailDialog({
   open,
   onOpenChange,
@@ -1015,6 +1305,7 @@ function AppointmentDetailDialog({
   onChangeStatus,
   onMarkDeposit,
   onCancelWithDeposit,
+  onReleaseBlock,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -1028,6 +1319,7 @@ function AppointmentDetailDialog({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return") => void;
+  onReleaseBlock: (a: Appointment) => void;
 }) {
   if (!appointment) return null;
 
@@ -1052,7 +1344,7 @@ function AppointmentDetailDialog({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cliente</div>
-              <DialogTitle className="mt-1 text-2xl font-display truncate">{appointment.client_name || "Sin cliente"}</DialogTitle>
+              <DialogTitle className="mt-1 text-2xl font-display truncate">{appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}</DialogTitle>
               <div className="mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1" style={{ color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}`, background: meta.bg }}>
                 {meta.label}
               </div>
@@ -1130,23 +1422,31 @@ function AppointmentDetailDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
-              <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
-            </Button>
-            {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
-              <Button variant="destructive" onClick={() => onCancel(appointment)}>
-                Cancelar turno
+          {appointment.status === "blocked" ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => onEdit(appointment)}>Editar bloqueo</Button>
+              <Button variant="destructive" onClick={() => onReleaseBlock(appointment)}>Liberar horario</Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
+                <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
               </Button>
-            ) : (
-              requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
-                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
-                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+              {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
+                <Button variant="destructive" onClick={() => onCancel(appointment)}>
+                  Cancelar turno
                 </Button>
-              )
-            )}
-          </div>
+              ) : (
+                requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
+                  <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
+                    <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+                  </Button>
+                )
+              )}
+            </div>
+          )}
 
+          {appointment.status !== "blocked" && (
           <div className="rounded-2xl bg-white/[0.025] ring-1 ring-white/10 p-3">
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
@@ -1173,6 +1473,7 @@ function AppointmentDetailDialog({
               })}
             </div>
           </div>
+          )}
 
           {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status === "paid" && (
             <div className="space-y-3 rounded-2xl bg-rose-500/5 ring-1 ring-rose-400/20 p-4">
