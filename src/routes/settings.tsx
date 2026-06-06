@@ -1209,6 +1209,45 @@ function EquipoSection() {
   }, [load]);
 
   useEffect(() => {
+    if (!businessId || isService) return;
+
+    const onStockUpdated = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { productId?: string; stock?: number } | undefined;
+
+      if (detail?.productId && typeof detail.stock === "number") {
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === detail.productId ? { ...row, stock: detail.stock } : row,
+          ),
+        );
+      } else {
+        load();
+      }
+    };
+
+    window.addEventListener("clippr:stock-updated", onStockUpdated);
+
+    const channel = supabase
+      .channel(`price_catalog_settings_${businessId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "price_catalog",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("clippr:stock-updated", onStockUpdated);
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, isService, load]);
+
+  useEffect(() => {
     if (!businessId) return;
     supabase
       .from("business_settings")
