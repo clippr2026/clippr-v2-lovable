@@ -8,7 +8,6 @@ import { fmtAR } from "@/components/dashboard/use-dashboard-data";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
-  BarChart3,
   Bell,
   Brain,
   CheckCircle2,
@@ -431,33 +430,7 @@ function AdvisorContent() {
           <ReportPlaceholder month="Abril 2026" />
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          <MonthlyBlock
-            title="Resumen ejecutivo"
-            items={[
-              `Facturación acumulada: ${fmtAR(DEMO.revenue)}`,
-              `Utilidad estimada: ${fmtAR(DEMO.profit)}`,
-              `Crecimiento vs ${DEMO.previousMonth}: +${DEMO.growth}%`,
-            ]}
-          />
-          <MonthlyBlock
-            title="Lo mejor"
-            items={[
-              `${DEMO.payments} cobros registrados`,
-              `Ticket promedio de ${fmtAR(DEMO.ticket)}`,
-              `${DEMO.activeClients} clientes activos`,
-            ]}
-          />
-          <MonthlyBlock
-            title="A mejorar"
-            items={[
-              `Completar ${DEMO.freeSlotsMonth} espacios libres`,
-              `Recuperar ${DEMO.inactiveClients} clientes inactivos`,
-              "Subir ticket promedio con productos o combos",
-            ]}
-          />
-        </div>
-      </GlassCard>
+              </GlassCard>
       {selectedRecommendation ? (
         <RecommendationDetailModal
           action={selectedRecommendation}
@@ -684,11 +657,11 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       howToAct: [
         "Crear una acción exclusiva para el día con menor ocupación.",
         "Ofrecer un beneficio por reservar en ese día.",
-        "Enviar la propuesta a clientes que suelen reservar con poca anticipación.",
+        "Enviar la propuesta a clientes activos.",
         "Medir si sube la ocupación de ese día en la semana siguiente.",
       ],
       suggestedMessage:
-        "Hola 👋 Esta semana activamos un beneficio especial para ciertos horarios. Si querés aprovecharlo, te paso las opciones disponibles.",
+        "Hola 👋 Tenemos algunos horarios disponibles para [día] y activamos un beneficio especial para quienes reserven ese día. Si te interesa, respondé este mensaje y te contamos los detalles.",
       actionButtons: ["Crear campaña", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
     });
   }
@@ -954,18 +927,3 @@ function ReportPlaceholder({ month }: { month: string }) {
   );
 }
 
-function MonthlyBlock({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-        <BarChart3 className="h-4 w-4 text-primary" />
-        {title}
-      </div>
-      <div className="space-y-2">
-        {items.map((item) => (
-          <div key={item} className="text-sm text-muted-foreground">• {item}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
