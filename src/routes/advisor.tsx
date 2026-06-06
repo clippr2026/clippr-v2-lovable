@@ -884,8 +884,7 @@ function RecommendationDetailModal({
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Recomendación IA</div>
             <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">{action.title}</h2>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{action.detail}</p>
-          </div>
+                      </div>
 
           <button
             type="button"
@@ -933,21 +932,13 @@ function RecommendationDetailModal({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {action.actionButtons.map((button) => (
-            <button
-              key={button}
-              type="button"
-              onClick={button === "Marcar como resuelto" ? onResolve : undefined}
-              className={cn(
-                "rounded-xl border px-4 py-2 text-xs font-semibold transition",
-                button === "Marcar como resuelto"
-                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
-                  : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
-              )}
-            >
-              {button}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={onResolve}
+            className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
+          >
+            Marcar como resuelto
+          </button>
         </div>
       </div>
     </div>
