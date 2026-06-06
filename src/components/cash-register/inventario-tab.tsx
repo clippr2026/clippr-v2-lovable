@@ -84,6 +84,32 @@ export function InventarioTab({
 
   React.useEffect(() => { load(); }, [load]);
 
+  React.useEffect(() => {
+    if (!businessId) return;
+
+    const onStockUpdated = () => load();
+    window.addEventListener("clippr:stock-updated", onStockUpdated);
+
+    const channel = supabase
+      .channel(`price_catalog_inventory_${businessId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "price_catalog",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("clippr:stock-updated", onStockUpdated);
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, load]);
+
   // Categories from actual data
   const categories = React.useMemo(
     () => Array.from(new Set(products.map((p) => p.category ?? "Productos"))),
