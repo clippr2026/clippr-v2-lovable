@@ -352,7 +352,6 @@ export function AppointmentDialog({
       full_name: fullName,
       phone: clientPhone.trim() || null,
       email: clientEmail.trim() || null,
-      birth_date: clientBirth || null,
     };
 
     const { data: newClient, error } = await supabase
@@ -566,9 +565,9 @@ export function AppointmentDialog({
                   <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} /></div>
                   <div className="grid gap-1.5"><Label>Teléfono</Label><Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} /></div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="grid gap-1.5"><Label>Fecha de nacimiento</Label><Input type="date" value={clientBirth} onChange={(e) => setClientBirth(e.target.value)} /></div>
-                  <div className="grid gap-1.5"><Label>Nota</Label><Input value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Opcional" /></div>
+                <div className="grid gap-1.5">
+                  <Label>Nota</Label>
+                  <Input value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Opcional" />
                 </div>
               </div>
             )}
