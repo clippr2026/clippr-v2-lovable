@@ -491,7 +491,6 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         >
           Analizar negocio
         </button>
-
       </GlassCard>
     </div>
   );
