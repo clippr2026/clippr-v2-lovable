@@ -369,7 +369,7 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
+            <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000 ease-out", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -407,7 +407,7 @@ function AdvisorContent() {
               <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(animatedProfit)}</div>
             </div>
           </div>
-<div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
+<div className="mt-6 grid w-full gap-6 md:grid-cols-3">
 <GrowthMetric label="Clientes nuevos" value={`${Math.round(45 * animationProgress)}`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
             <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
             <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
@@ -468,7 +468,7 @@ function useResultAnimation(enabled = false) {
     }
 
     let frame = 0;
-    const duration = 1800;
+    const duration = 2500;
     const startedAt = performance.now();
 
     setProgress(0);
