@@ -14,6 +14,7 @@ import {
   DollarSign,
   Pencil,
   CheckCircle2,
+  XCircle,
   MessageCircle,
   UserRound,
 } from "lucide-react";
