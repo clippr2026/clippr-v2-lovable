@@ -351,7 +351,7 @@ function AdvisorContent() {
 
 
 
-      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <section className="grid gap-4">
         <GlassCard className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
