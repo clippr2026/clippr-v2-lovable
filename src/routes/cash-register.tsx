@@ -268,6 +268,33 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     },
   ];
 
+  async function cobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
+    if (!data.businessId) return toast.error("No se pudo identificar el negocio.");
+    try {
+      await registerPayment({
+        businessId: data.businessId,
+        employeeId: appt.employee_id,
+        clientName: appt.client_name ?? "Sin cliente",
+        items: [{ serviceName: appt.service_name ?? "Servicio", amount: Number(appt.service_price ?? 0) }],
+        method: "cash",
+        appointmentId: appt.id,
+        chargedBy: data.profileId,
+        chargeOrigin: "manual",
+      });
+
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "charged" })
+        .eq("id", appt.id);
+
+      if (error) throw error;
+      toast.success("Cobro manual confirmado en Caja");
+      await data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo cobrar el pendiente");
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -301,7 +328,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
         ))}
       </div>
 
-      <History data={data} equipoEnabled={equipoEnabled} />
+      <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={cobrarPendiente} />
     </div>
   );
 }
@@ -393,6 +420,7 @@ const CHARGE_TYPE_META: Record<string, { label: string; cls: string }> = {
 const STATUS_META: Record<string, { label: string; dot: string }> = {
   cobrado:     { label: "Cobrado",     dot: "bg-emerald-400" },
   pendiente:   { label: "Pendiente",   dot: "bg-amber-400"   },
+  pending_payment: { label: "Pendiente", dot: "bg-amber-400" },
   aprobado:    { label: "Aprobado",    dot: "bg-sky-400"     },
   anulado:     { label: "Anulado",     dot: "bg-rose-400"    },
   reembolsado: { label: "Reembolsado", dot: "bg-violet-400"  },
@@ -470,7 +498,7 @@ function DetailModal({ payment, employees, onClose }: {
             <Row label="Profesional"   value={empName} />
             <Row label="Servicio"      value={payment.service_name ?? "—"} />
             <Row label="Método de pago" value={PAY_METHOD_LABEL[method] ?? method} />
-            <Row label="Cobrado por"   value={chargedBy} />
+            <Row label="Cobrado por"   value={chargedBy ?? "—"} />
             <Row label="Tipo de cobro" value={<ChargeTypePill type={chargeType} />} />
             <Row label="Estado"        value={<StatusPill status={status} />} />
             {commission !== null && (
@@ -493,14 +521,16 @@ function DetailModal({ payment, employees, onClose }: {
   );
 }
 
-function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
+function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void }) {
   const rows = data.paymentsToday;
+  const pendingRows = data.pendingCharges;
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
   const [detailPayment, setDetailPayment] = React.useState<typeof rows[number] | null>(null);
   const [showAll, setShowAll] = React.useState(false);
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
+  const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {
     const groups = data.paymentsToday.reduce((acc, payment) => {
@@ -525,7 +555,7 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="text-sm font-semibold text-foreground">Cobros</h3>
             <span className="text-[11px] text-muted-foreground">
-              {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy
+{data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
             </span>
             {data.approvalModeEnabled && equipoEnabled && (
               <div className="flex gap-1 ml-1">
@@ -547,15 +577,15 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
         {/* Table header */}
         <div className="overflow-x-auto">
           <div className="min-w-[700px]">
-            <div className="grid grid-cols-[70px_90px_1fr_1fr_1fr_100px_90px_80px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+            <div className="grid grid-cols-[70px_90px_1fr_1fr_1fr_100px_110px_110px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
               <div>Hora</div>
               <div>Cliente</div>
               <div>Profesional</div>
               <div>Servicio</div>
               <div>Total</div>
-              <div>Método</div>
-              <div>Estado</div>
+              <div>Origen</div>
+              <div>Estado / Acción</div>
             </div>
 
             {/* Rows */}
@@ -563,39 +593,72 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
               <div className="px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
                 <Loader2 className="size-4 animate-spin" /> Cargando…
               </div>
-            ) : visibleRows.length === 0 ? (
+            ) : !hasAnyRows ? (
               <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros</div>
             ) : (
-              visibleRows.map((p) => {
-                const dt = new Date(p.created_at);
-                const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-                const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-                const method = (p.method ?? p.payment_method ?? "cash") as PayMethod;
-                const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
-                const status = (p as Record<string, unknown>).status as string | null ?? "cobrado";
-                const chargeType = (p as Record<string, unknown>).charge_type as string | null ?? null;
+              <>
+                {pendingRows.map((p) => {
+                  const dt = new Date(p.starts_at);
+                  const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+                  const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                  const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
 
-                return (
-                  <div key={p.id}
-                    className="grid grid-cols-[70px_90px_1fr_1fr_1fr_100px_90px_80px] px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
-                    onClick={() => setDetailPayment(p)}
-                  >
-                    <div className="text-muted-foreground">{fecha}</div>
-                    <div className="text-muted-foreground">{hora}</div>
-                    <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
-                    <div className="text-muted-foreground truncate">{empName}</div>
-                    <div className="text-muted-foreground truncate">{p.service_name ?? "—"}</div>
-                    <div className="text-foreground tabular-nums font-medium">
-                      ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
+                  return (
+                    <div key={`pending-${p.id}`}
+                      className="grid grid-cols-[70px_90px_1fr_1fr_1fr_100px_110px_110px] px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
+                    >
+                      <div className="text-muted-foreground">{fecha}</div>
+                      <div className="text-muted-foreground">{hora}</div>
+                      <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
+                      <div className="text-muted-foreground truncate">{empName}</div>
+                      <div className="text-muted-foreground truncate">{p.service_name ?? "—"}</div>
+                      <div className="text-foreground tabular-nums font-medium">
+                        ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
+                      </div>
+                      <div><ChargeTypePill type="manual" /></div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => onCobrarPendiente(p)}
+                          className="rounded-lg bg-amber-300/90 px-3 py-1.5 text-[11px] font-bold text-black hover:bg-amber-200 transition"
+                        >
+                          Cobrar
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-emerald-300">{PAY_METHOD_LABEL[method] ?? method}</div>
-                    <div className="flex items-center gap-1.5">
-                      <StatusPill status={status} />
-                      {chargeType && <span className="hidden group-hover:inline"><ChargeTypePill type={chargeType} /></span>}
+                  );
+                })}
+
+                {visibleRows.map((p) => {
+                  const dt = new Date(p.created_at);
+                  const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+                  const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                  const method = (p.method ?? p.payment_method ?? "cash") as PayMethod;
+                  const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
+                  const status = (p as Record<string, unknown>).status as string | null ?? "cobrado";
+                  const chargeType = (p as Record<string, unknown>).charge_type as string | null ?? "caja";
+
+                  return (
+                    <div key={p.id}
+                      className="grid grid-cols-[70px_90px_1fr_1fr_1fr_100px_110px_110px] px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      onClick={() => setDetailPayment(p)}
+                    >
+                      <div className="text-muted-foreground">{fecha}</div>
+                      <div className="text-muted-foreground">{hora}</div>
+                      <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
+                      <div className="text-muted-foreground truncate">{empName}</div>
+                      <div className="text-muted-foreground truncate">{p.service_name ?? "—"}</div>
+                      <div className="text-foreground tabular-nums font-medium">
+                        ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
+                      </div>
+                      <div><ChargeTypePill type={chargeType} /></div>
+                      <div className="flex items-center gap-1.5">
+                        <StatusPill status={status} />
+                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
@@ -731,6 +794,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   const [client, setClient] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
+  const [birthDate, setBirthDate] = React.useState("");
   const [employeeId, setEmployeeId] = React.useState<string>("");
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">("simple");
@@ -821,7 +885,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     try {
       const { data: created, error } = await supabase
         .from("clients")
-        .insert({ business_id: data.businessId, full_name: client.trim(), phone: phone.trim() || null, email: email.trim() || null })
+        .insert({ business_id: data.businessId, full_name: client.trim(), phone: phone.trim() || null, email: email.trim() || null, birth_date: birthDate || null })
         .select("id")
         .maybeSingle();
       if (error) throw error;
@@ -875,10 +939,11 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         splits: validSplits,
         sessionId: data.cashSessionId,
         chargedBy: data.profileId,
+        chargeOrigin: "caja",
       });
 
       toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-      setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail("");
+      setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
       setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
       await data.refresh();
     } catch (e) {
@@ -944,7 +1009,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         <Card className="p-5 space-y-4">
           <ClientAutocomplete value={client}
             onChange={(v) => { setClient(v); setClientId(null); }}
-            onPick={(c) => { setClientId(c.id); setClient(c.name ?? ""); setPhone(c.phone ?? ""); setEmail(c.email ?? ""); }}
+            onPick={(c) => { setClientId(c.id); setClient(c.name ?? ""); setPhone(c.phone ?? ""); setEmail(c.email ?? ""); setBirthDate(c.birth_date ?? ""); }}
             clients={data.clients} />
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
             <span className="h-px flex-1 bg-white/10" /> o completá los datos para crear uno nuevo <span className="h-px flex-1 bg-white/10" />
@@ -956,7 +1021,8 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
               className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
               className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-
+            <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)} type="date"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
           </div>
         </Card>
       )}
@@ -1162,8 +1228,8 @@ function ClientAutocomplete({
 }: {
   value: string;
   onChange: (v: string) => void;
-  onPick: (c: { id: string; name: string; phone: string | null; email?: string | null }) => void;
-  clients: Array<{ id: string; name: string; phone: string | null; email?: string | null }>;
+  onPick: (c: { id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }) => void;
+  clients: Array<{ id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }>;
 }) {
   const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();

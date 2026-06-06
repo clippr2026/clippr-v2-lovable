@@ -366,18 +366,28 @@ function CobroModal({
       if (mode === "auto") {
         // Charge directly
         await registerPayment({
-          businessId, employeeId: empId,
+          businessId,
+          employeeId: empId,
           clientName: turno.client_name ?? "Sin cliente",
           items: [{ serviceName: turno.service_name ?? "Servicio", amount: price }],
           method,
+          appointmentId: turno.id,
+          chargeOrigin: "auto",
+          chargedBy: userEmail,
         });
         // Mark appointment as charged
         await supabase.from("appointments").update({ status: "charged" }).eq("id", turno.id);
-        toast.success("✓ Cobro registrado");
+        toast.success("✓ Cobro automático registrado");
       } else {
-        // Manual: mark as pending approval
-        await supabase.from("appointments").update({ status: "pending", notes: note || turno.notes }).eq("id", turno.id);
-        toast.success("✓ Enviado a Caja para aprobación");
+        // Manual: el profesional envía el turno a Caja. No se registra cobro todavía.
+        await supabase
+          .from("appointments")
+          .update({
+            status: "pending_payment",
+            notes: note || turno.notes,
+          })
+          .eq("id", turno.id);
+        toast.success("✓ Enviado a Caja como pendiente de cobro");
       }
       onDone();
       onClose();
@@ -468,22 +478,31 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 
   const statusLabel: Record<string, string> = {
-    pending: "Pendiente", confirmed: "Confirmado", completed: "Completado",
-    charged: "Cobrado", cancelled: "Cancelado", approved: "Aprobado",
+    pending: "Pendiente",
+    pending_payment: "Pendiente de cobro",
+    confirmed: "Confirmado",
+    completed: "Completado",
+    charged: "Cobrado",
+    blocked: "Bloqueado",
+    cancelled: "Cancelado",
+    approved: "Aprobado",
   };
   const statusColor: Record<string, string> = {
-    pending: "text-amber-300", confirmed: "text-sky-300", completed: "text-emerald-300",
-    charged: "text-emerald-300", cancelled: "text-rose-300", approved: "text-violet-300",
+    pending: "text-amber-300",
+    pending_payment: "text-amber-200",
+    confirmed: "text-sky-300",
+    completed: "text-emerald-300",
+    charged: "text-emerald-300",
+    blocked: "text-muted-foreground",
+    cancelled: "text-rose-300",
+    approved: "text-violet-300",
   };
 
   const canShowAction = (status: string) => {
     if (!canOperate) return false;
     if (!approvalModeEnabled) return false;
     if (approvalMode === "disabled") return false;
-    if (["charged", "cancelled"].includes(status)) return false;
-
-    // Manual: el profesional puede enviar el servicio a caja.
-    // Automático: el profesional puede cobrar desde su panel.
+    if (["charged", "cancelled", "blocked", "pending_payment"].includes(status)) return false;
     return true;
   };
 
