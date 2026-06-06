@@ -253,22 +253,15 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
         />
       </section>
 
-      {/* Revenue chart full width */}
-      <section>
+      {/* Revenue chart + breakdown */}
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4">
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
-      </section>
-
-      {/* Activity + services */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <ActivityPanel items={data.recentPayments} />
-        </div>
         <ServicesDonut data={data} />
       </section>
 
-      {/* Cancellations */}
+      {/* Activity */}
       <section>
-        <CancellationsPanel items={data.recentCancellations} />
+        <ActivityPanel items={data.recentPayments} />
       </section>
     </div>
   );
@@ -499,26 +492,74 @@ const DONUT_COLORS = [
 ];
 
 function ServicesDonut({ data }: { data: DashboardData }) {
-  const items = data.topServices.length
+  const [view, setView] = React.useState<"all" | "services" | "catalog">("all");
+
+  const serviceItems = data.topServices.length
     ? data.topServices
-    : [{ name: "Sin datos", rev: 1, count: 0, pct: 100 }];
-  const total = data.totSvc;
+    : [];
+
+  // Por ahora el dashboard solo recibe servicios desde useDashboardData.
+  // Cuando se conecten ventas de catálogo/productos, se pueden mapear acá.
+  const catalogItems: Array<{ name: string; rev: number; count: number; pct: number }> = [];
+
+  const sourceItems =
+    view === "catalog" ? catalogItems : serviceItems;
+
+  const total = sourceItems.reduce((sum, item) => sum + Number(item.rev || 0), 0);
+
+  const items = sourceItems.length
+    ? sourceItems.map((item) => ({
+        ...item,
+        pct: total > 0 ? Math.round((Number(item.rev || 0) / total) * 100) : 0,
+      }))
+    : [{ name: view === "catalog" ? "Sin datos de catálogo" : "Sin datos", rev: 1, count: 0, pct: 100 }];
+
+  const displayTotal = sourceItems.length ? total : 0;
+
+  const title =
+    view === "catalog" ? "Catálogo" : view === "services" ? "Servicios" : "Todos";
 
   return (
-    <div className="glass rounded-2xl p-5 relative overflow-hidden">
-      <div className="text-xs text-muted-foreground">Servicios</div>
-      <div className="font-display text-xl font-semibold mt-0.5">Desglose</div>
+    <div className="glass rounded-2xl p-5 relative overflow-hidden h-full">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs text-muted-foreground">Desglose</div>
+          <div className="font-display text-xl font-semibold mt-0.5">{title}</div>
+        </div>
 
-      <div className="grid grid-cols-[140px_1fr] items-center gap-4 mt-4">
-        <div className="relative h-[140px] w-[140px]">
+        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+          {[
+            ["all", "Todos"],
+            ["services", "Servicios"],
+            ["catalog", "Catálogo"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key as "all" | "services" | "catalog")}
+              className={cn(
+                "rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
+                view === key
+                  ? "bg-primary text-white shadow-[0_8px_20px_-14px_oklch(0.65_0.28_290/0.8)]"
+                  : "text-muted-foreground hover:text-white",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5">
+        <div className="mx-auto relative h-[170px] w-[170px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={items}
                 dataKey="rev"
                 nameKey="name"
-                innerRadius={48}
-                outerRadius={68}
+                innerRadius={58}
+                outerRadius={82}
                 paddingAngle={2}
                 stroke="none"
                 isAnimationActive={false}
@@ -531,8 +572,8 @@ function ServicesDonut({ data }: { data: DashboardData }) {
           </ResponsiveContainer>
           <div className="absolute inset-0 grid place-items-center pointer-events-none">
             <div className="text-center">
-              <div className="font-display text-base font-semibold leading-none">
-                {fmtAR(total)}
+              <div className="font-display text-lg font-semibold leading-none">
+                {fmtAR(displayTotal)}
               </div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
                 Total
@@ -549,8 +590,8 @@ function ServicesDonut({ data }: { data: DashboardData }) {
                 style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }}
               />
               <span className="truncate text-foreground/90 flex-1">{s.name}</span>
-              <span className="text-muted-foreground tabular-nums">{fmtAR(s.rev)}</span>
-              <span className="text-foreground/80 tabular-nums w-9 text-right">{s.pct}%</span>
+              <span className="text-muted-foreground tabular-nums">{displayTotal ? fmtAR(s.rev) : fmtAR(0)}</span>
+              <span className="text-foreground/80 tabular-nums w-9 text-right">{displayTotal ? s.pct : 0}%</span>
             </li>
           ))}
         </ul>
