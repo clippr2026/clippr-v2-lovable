@@ -351,7 +351,7 @@ function AdvisorContent() {
 
 
 
-      <section className="flex flex-col gap-4">
+      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <GlassCard className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
@@ -369,7 +369,7 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000 ease-out", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
+            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -407,7 +407,7 @@ function AdvisorContent() {
               <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(animatedProfit)}</div>
             </div>
           </div>
-<div className="mt-6 grid w-full gap-6 md:grid-cols-3">
+<div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
 <GrowthMetric label="Clientes nuevos" value={`${Math.round(45 * animationProgress)}`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
             <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
             <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
@@ -468,7 +468,7 @@ function useResultAnimation(enabled = false) {
     }
 
     let frame = 0;
-    const duration = 2500;
+    const duration = 1800;
     const startedAt = performance.now();
 
     setProgress(0);
@@ -598,21 +598,21 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
 
   if (DEMO.payments > 0) {
     actions.push({
-      title: "Subir ticket promedio",
-      detail: "Sumar $1.000 por cobro mejora la utilidad mensual.",
-      impact: `Potencial: +${fmtAR(DEMO.payments * 1000)}`,
+      title: "Aumentar facturación por cliente",
+      detail: "El ticket promedio puede mejorar con servicios complementarios, productos o combos de mayor valor.",
+      impact: `Potencial estimado: +${fmtAR(DEMO.payments * 1000)}`,
       button: "Tomar acción",
       tone: "money",
-      problem: "El ticket promedio puede mejorar con ventas adicionales, combos o servicios complementarios.",
-      opportunity: `Si cada cobro aumenta $1.000, el potencial estimado es de ${fmtAR(DEMO.payments * 1000)}.`,
+      problem: "Hay oportunidad de aumentar la facturación por cliente sin subir precios de forma directa.",
+      opportunity: `Si agregás $1.000 promedio por venta, podrías generar aproximadamente ${fmtAR(DEMO.payments * 1000)} adicionales en el período analizado.`,
       howToAct: [
-        "Crear combos o paquetes con servicios complementarios.",
-        "Ofrecer productos, upgrades o adicionales al momento de cobrar.",
-        "Capacitar al equipo para sugerir opciones sin presionar al cliente.",
-        "Medir qué propuesta aumenta más el ticket promedio.",
+        "Ofrecer productos o servicios complementarios durante la visita.",
+        "Crear combos o paquetes con mayor valor percibido.",
+        "Capacitar al equipo para detectar oportunidades de venta sin presionar al cliente.",
+        "Analizar qué productos o servicios tienen mayor aceptación.",
       ],
       suggestedMessage:
-        "Tenemos una opción especial para completar tu visita con un beneficio extra. Podés sumarlo a tu servicio de hoy si querés aprovecharlo.",
+        "Tenemos una opción especial para completar tu visita con un beneficio extra. Si querés, podemos sumarla a tu servicio de hoy.",
       actionButtons: ["Ver simulación", "Crear combo", "Ver servicios", "Marcar como resuelto"],
     });
   }
