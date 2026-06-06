@@ -230,6 +230,8 @@ function AdvisorContent() {
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<AdvisorAction | null>(null);
 
   const actions = getDemoActions(showExtraRecommendation);
+  const priorityAction = actions[0] ?? null;
+  const secondaryActions = actions.slice(1);
   const healthTone = getHealthTone(DEMO.health);
 
   function handleAnalyzeNewRecommendation() {
@@ -333,9 +335,9 @@ function AdvisorContent() {
                 <Bell className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight">Tenés una recomendación nueva</h2>
+                <h2 className="font-display text-lg font-semibold tracking-tight">Nueva recomendación para tomar acción</h2>
                 <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                  Clippr detectó una oportunidad que puede mejorar la ocupación y la utilidad del negocio.
+                  Clippr detectó una oportunidad y preparó una guía con problema, impacto, mensaje sugerido y pasos para aplicarla.
                 </p>
               </div>
             </div>
@@ -354,7 +356,7 @@ function AdvisorContent() {
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Analizar recomendación
+                  Ver recomendación
                 </>
               )}
             </button>
@@ -365,30 +367,48 @@ function AdvisorContent() {
       <GlassCard className="p-5 sm:p-6">
         <div>
           <Badge icon={Target}>Qué hacer hoy</Badge>
-          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Prioridades de hoy</h2>
+          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Prioridad principal</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Clippr muestra solo las acciones importantes detectadas hoy. Si hay una sola, muestra una sola.
+            Clippr prioriza la recomendación con mayor impacto y te muestra cómo ejecutarla paso a paso.
           </p>
         </div>
 
-        {actions.length > 0 ? (
-          <div className={cn(
-            "mt-5 grid gap-3",
-            actions.length === 1 && "xl:grid-cols-1",
-            actions.length === 2 && "xl:grid-cols-2",
-            actions.length === 3 && "xl:grid-cols-3",
-            actions.length === 4 && "xl:grid-cols-4",
-            actions.length >= 5 && "xl:grid-cols-5",
-          )}>
-            {actions.map((action) => (
-              <ActionCard key={action.title} action={action} onOpen={() => setSelectedRecommendation(action)} />
-            ))}
+        {priorityAction ? (
+          <div className="mt-5 rounded-3xl border border-primary/20 bg-primary/[0.05] p-5">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div className="max-w-2xl">
+                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Recomendación prioritaria</div>
+                <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white">{priorityAction.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{priorityAction.detail}</p>
+                <p className="mt-3 text-sm font-semibold text-emerald-300">{priorityAction.impact}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRecommendation(priorityAction)}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
+              >
+                <Sparkles className="h-4 w-4" />
+                Tomar acción
+              </button>
+            </div>
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-muted-foreground">
             No hay acciones urgentes para hoy. El negocio viene estable.
           </div>
         )}
+
+        {secondaryActions.length > 0 ? (
+          <div className="mt-5">
+            <h3 className="text-sm font-semibold text-white">Otras oportunidades</h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {secondaryActions.map((action) => (
+                <ActionCard key={action.title} action={action} onOpen={() => setSelectedRecommendation(action)} />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </GlassCard>
 
       <GlassCard className="p-5 sm:p-6">
@@ -552,14 +572,14 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
-      button: "Ver recomendación",
+      button: "Tomar acción",
       tone: "client",
       problem: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       opportunity: `Si recuperás parte de esos clientes, podrías sumar hasta ${fmtAR(DEMO.inactiveClients * DEMO.ticket)} en facturación estimada.`,
       howToAct: [
         "Crear una acción especial para clientes inactivos.",
         "Ofrecer un beneficio por tiempo limitado: descuento, regalo, upgrade o atención prioritaria.",
-        "Enviar un mensaje personalizado por WhatsApp o email.",
+        "Enviar un mensaje personalizado por WhatsApp, email o mensaje directo.",
         "Medir cuántos clientes vuelven después de la campaña.",
       ],
       suggestedMessage:
@@ -573,14 +593,14 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Llenar horarios libres",
       detail: `Mañana tenés ${DEMO.emptySlotsTomorrow} espacios vacíos.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
-      button: "Ver recomendación",
+      button: "Tomar acción",
       tone: "warning",
       problem: `Mañana hay ${DEMO.emptySlotsTomorrow} horarios disponibles sin ocupar.`,
       opportunity: `Completar esos espacios puede generar hasta ${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)} adicionales.`,
       howToAct: [
         "Crear una promoción para horarios con baja demanda.",
         "Enviar el beneficio a clientes activos e inactivos.",
-        "Publicar la disponibilidad en historias o estados.",
+        "Publicar la disponibilidad en historias, estados o canales del negocio.",
         "Priorizar los horarios libres más cercanos para llenar la agenda rápido.",
       ],
       suggestedMessage:
@@ -594,7 +614,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Subir ticket promedio",
       detail: "Sumar $1.000 por cobro mejora la utilidad mensual.",
       impact: `Potencial: +${fmtAR(DEMO.payments * 1000)}`,
-      button: "Ver recomendación",
+      button: "Tomar acción",
       tone: "money",
       problem: "El ticket promedio puede mejorar con ventas adicionales, combos o servicios complementarios.",
       opportunity: `Si cada cobro aumenta $1.000, el potencial estimado es de ${fmtAR(DEMO.payments * 1000)}.`,
@@ -615,7 +635,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Reactivar clientes VIP",
       detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
-      button: "Ver recomendación",
+      button: "Tomar acción",
       tone: "growth",
       problem: `${DEMO.vipInactive} clientes VIP no volvieron en los últimos 30 días.`,
       opportunity: `Recuperarlos puede sumar aproximadamente ${fmtAR(DEMO.vipInactive * DEMO.ticket)} y reforzar la fidelización.`,
@@ -636,7 +656,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Confirmar turnos",
       detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       impact: "Reduce ausencias y huecos de agenda.",
-      button: "Ver recomendación",
+      button: "Tomar acción",
       tone: "neutral",
       problem: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       opportunity: "Confirmarlos ayuda a reducir ausencias, cancelaciones de último momento y horarios perdidos.",
@@ -657,7 +677,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
       impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
-      button: "Ver recomendación",
+      button: "Tomar acción",
       tone: "growth",
       problem: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} tiene menor ocupación que el resto de la semana.`,
       opportunity: `Mejorar ese día puede sumar aproximadamente ${fmtAR(8 * DEMO.ticket)}.`,
