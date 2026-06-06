@@ -489,12 +489,9 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
           onClick={onStart}
           className="mt-6 inline-flex h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-primary to-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
         >
-          Generar análisis de hoy
+          Analizar negocio
         </button>
 
-        <p className="mt-4 text-xs text-muted-foreground">
-          Se genera una vez por día. Si volvés a entrar hoy, el informe se muestra directo.
-        </p>
       </GlassCard>
     </div>
   );
