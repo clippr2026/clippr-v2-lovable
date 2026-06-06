@@ -649,11 +649,11 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
     actions.unshift({
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
-      impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
+      impact: `Potencial con 30% OFF: +${fmtAR(Math.round(8 * DEMO.ticket * 0.7))}`,
       button: "Tomar acción",
       tone: "growth",
       problem: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} tiene menor ocupación que el resto de la semana.`,
-      opportunity: `Mejorar ese día puede sumar aproximadamente ${fmtAR(8 * DEMO.ticket)}.`,
+      opportunity: `Recuperar 8 espacios en el día de menor ocupación con una promoción de 30% OFF podría generar aproximadamente ${fmtAR(Math.round(8 * DEMO.ticket * 0.7))} de facturación mensual.`,
       howToAct: [
         "Crear una acción exclusiva para el día con menor ocupación.",
         "Ofrecer un beneficio por reservar en ese día.",
@@ -661,7 +661,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
         "Medir si sube la ocupación de ese día en la semana siguiente.",
       ],
       suggestedMessage:
-        "Hola 👋 Tenemos algunos horarios disponibles para [día] y activamos un beneficio especial para quienes reserven ese día. Si te interesa, respondé este mensaje y te contamos los detalles.",
+        "Hola 👋 Tenemos algunos horarios disponibles para [día] y activamos un 30% OFF para quienes reserven ese día. Si te interesa, respondé este mensaje y te contamos los horarios disponibles.",
       actionButtons: ["Crear campaña", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
     });
   }
