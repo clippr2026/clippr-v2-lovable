@@ -545,7 +545,6 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
   const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
-  const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {
     const groups = data.paymentsToday.reduce((acc, payment) => {
