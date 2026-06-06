@@ -227,12 +227,6 @@ export function useCajaData() {
 
     setPendingCharges(pendingFromProfessionals);
 
-    const pendingFromProfessionals =
-      pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
-        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[])
-        : [];
-    setPendingCharges(pendingFromProfessionals);
-
     setPaymentsToday(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
     setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
     setCashSessionId(sessRes.status === "fulfilled" && !sessRes.value.error ? (sessRes.value.data?.id ?? null) : null);
