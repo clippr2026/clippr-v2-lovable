@@ -354,7 +354,7 @@ function AdvisorContent() {
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {priorityAction
-              ? "Clippr muestra una sola recomendación para que tomes acción sin ruido. Al resolverla, aparece la siguiente prioridad."
+              ? "La mayor oportunidad de crecimiento detectada hoy."
               : "No se detectaron oportunidades importantes en este momento. Podés revisar una idea estratégica para seguir creciendo."}
           </p>
         </div>
@@ -572,7 +572,7 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       opportunity: `Completar esos espacios puede generar hasta ${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)} adicionales.`,
       howToAct: [
         "Crear una promoción para horarios con baja demanda.",
-        "Enviar el beneficio a clientes activos e inactivos.",
+        "Enviar el beneficio a clientes activos.",
         "Publicar la disponibilidad en historias, estados o canales del negocio.",
         "Priorizar los horarios libres más cercanos para llenar la agenda rápido.",
       ],
