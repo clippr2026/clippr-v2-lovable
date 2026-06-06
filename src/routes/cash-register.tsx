@@ -42,6 +42,20 @@ import {
   CalendarDays
 } from "lucide-react";
 
+const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
+
+function removeLocalManualPendingCharge(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(MANUAL_PENDING_KEY) || "[]") as Array<{ id: string }>;
+    window.localStorage.setItem(MANUAL_PENDING_KEY, JSON.stringify(rows.filter((item) => item.id !== id)));
+    window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
+  } catch {
+    // ignore
+  }
+}
+
+
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
     depositAppointmentId: (search.depositAppointmentId as string) ?? null,
@@ -530,6 +544,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
   const [showAll, setShowAll] = React.useState(false);
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
+  const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
   const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {

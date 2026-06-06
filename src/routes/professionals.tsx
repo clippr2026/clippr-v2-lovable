@@ -53,6 +53,37 @@ function getPresetRange(range: Exclude<RangeKey, "custom">) {
 }
 
 
+
+const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
+
+type ManualPendingCharge = {
+  id: string;
+  business_id: string;
+  employee_id: string | null;
+  client_name: string | null;
+  service_name: string | null;
+  service_price: number | null;
+  starts_at: string;
+  notes?: string | null;
+};
+
+function readManualPendingCharges(): ManualPendingCharge[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(window.localStorage.getItem(MANUAL_PENDING_KEY) || "[]") as ManualPendingCharge[];
+  } catch {
+    return [];
+  }
+}
+
+function saveManualPendingCharge(charge: ManualPendingCharge) {
+  if (typeof window === "undefined") return;
+  const current = readManualPendingCharges();
+  const next = [charge, ...current.filter((item) => item.id !== charge.id)];
+  window.localStorage.setItem(MANUAL_PENDING_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
+}
+
 const COLORS = [
   { color: "from-amber-400 to-amber-600", ring: "ring-amber-400/60" },
   { color: "from-emerald-300 to-emerald-500", ring: "ring-emerald-400/60" },
@@ -380,16 +411,33 @@ function CobroModal({
         toast.success("✓ Cobro automático registrado");
       } else {
         // Manual: el profesional envía el turno a Caja. No se registra cobro todavía.
+        const marker = "[PENDIENTE_CAJA]";
+        const cleanNote = note || turno.notes || "";
+        const nextNotes = cleanNote.includes(marker) ? cleanNote : `${marker} ${cleanNote}`.trim();
+
+        // 1) Intento persistir en Supabase
         await supabase
           .from("appointments")
           .update({
             status: "pending_payment",
-            notes: note || turno.notes,
+            notes: nextNotes,
           })
           .eq("id", turno.id);
+
+        // 2) Cola local para que el panel se actualice sí o sí y Caja lo vea en el mismo navegador
+        saveManualPendingCharge({
+          id: turno.id,
+          business_id: businessId,
+          employee_id: empId,
+          client_name: turno.client_name ?? null,
+          service_name: turno.service_name ?? null,
+          service_price: price,
+          starts_at: turno.starts_at,
+          notes: nextNotes,
+        });
+
         toast.success("✓ Enviado a Caja como pendiente de cobro");
-      }
-      onDone();
+      }      onDone();
       onClose();
     } catch (e) {
       toast.error((e as Error).message);
@@ -467,6 +515,25 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
+    if (!businessId) return new Set();
+    return new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id));
+  });
+
+  useEffect(() => {
+    if (!businessId) return;
+    const syncPending = () => {
+      setSentToCajaIds(new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id)));
+    };
+    syncPending();
+    window.addEventListener("clippr:manual-pending-updated", syncPending);
+    window.addEventListener("storage", syncPending);
+    return () => {
+      window.removeEventListener("clippr:manual-pending-updated", syncPending);
+      window.removeEventListener("storage", syncPending);
+    };
+  }, [businessId]);
+
 
   const formatMoney = (value: number | null | undefined) =>
     value == null ? "—" : `$${Number(value).toLocaleString("es-AR")}`;
@@ -562,12 +629,12 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                 <div className="text-right font-semibold tabular-nums whitespace-nowrap">{formatMoney(listPrice)}</div>
                 <div className="text-right font-semibold tabular-nums whitespace-nowrap text-emerald-300">{formatMoney(cashPrice)}</div>
                 <div>
-                  <span className={cn("text-[11px] font-semibold uppercase tracking-wider", String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? "text-amber-200" : statusColor[t.status] ?? "text-muted-foreground")}>
-                    {String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? "Pendiente de cobro" : statusLabel[t.status] ?? t.status}
+                  <span className={cn("text-[11px] font-semibold uppercase tracking-wider", sentToCajaIds.has(t.id) || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? "text-amber-200" : statusColor[t.status] ?? "text-muted-foreground")}>
+                    {sentToCajaIds.has(t.id) || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? "Pendiente de cobro" : statusLabel[t.status] ?? t.status}
                   </span>
                 </div>
                 <div className="flex justify-end">
-                  {String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? (
+                  {sentToCajaIds.has(t.id) || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? (
                     <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-amber-500/10 ring-amber-400/25 text-amber-200">
                       Enviado
                     </span>
@@ -603,7 +670,10 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           mode={approvalMode === "manual" ? "manual" : "auto"}
           userEmail={profile?.email ?? null}
           onClose={() => setCobroTurno(null)}
-          onDone={() => refetch()}
+          onDone={() => {
+            if (cobroTurno) setSentToCajaIds((prev) => new Set([...prev, cobroTurno.id]));
+            refetch();
+          }}
         />
       )}
     </div>
