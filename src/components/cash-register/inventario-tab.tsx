@@ -21,6 +21,7 @@ type Product = {
   stock_min: number | null;
   stock_critical: number | null;
   active: boolean;
+  duration_min?: number | null;
 };
 
 type Movement = {
@@ -61,13 +62,12 @@ export function InventarioTab({
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
-    const [{ data: items }, { data: movs }] = await Promise.all([
+
+    const [{ data: items, error: itemsError }, { data: movs, error: movsError }] = await Promise.all([
       supabase
         .from("price_catalog")
-        .select("id,name,category,price,stock,stock_min,stock_critical,active")
+        .select("id,name,category,price,duration_min,stock,stock_min,stock_critical,active")
         .eq("business_id", businessId)
-        .is("duration_min", null) // catalog products only
-        .eq("active", true)
         .order("category")
         .order("name"),
       supabase
@@ -77,7 +77,18 @@ export function InventarioTab({
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
-    setProducts((items ?? []) as Product[]);
+
+    if (itemsError) toast.error("Error cargando catálogo: " + itemsError.message);
+    if (movsError) toast.error("Error cargando movimientos: " + movsError.message);
+
+    // Inventario debe mostrar exactamente los productos de Configuración → Catálogo.
+    // Servicios quedan afuera porque tienen duration_min.
+    const catalogProducts = ((items ?? []) as Product[]).filter((item) => {
+      const category = (item.category ?? "").toLowerCase();
+      return item.duration_min == null && !category.includes("servicio");
+    });
+
+    setProducts(catalogProducts);
     setMovements((movs ?? []) as Movement[]);
     setLoading(false);
   }, [businessId]);
@@ -87,11 +98,11 @@ export function InventarioTab({
   React.useEffect(() => {
     if (!businessId) return;
 
-    const onStockUpdated = () => load();
-    window.addEventListener("clippr:stock-updated", onStockUpdated);
+    const reloadInventory = () => load();
+    window.addEventListener("clippr:catalog-stock-saved", reloadInventory);
 
     const channel = supabase
-      .channel(`price_catalog_inventory_${businessId}`)
+      .channel(`inventory_price_catalog_${businessId}`)
       .on(
         "postgres_changes",
         {
@@ -105,7 +116,7 @@ export function InventarioTab({
       .subscribe();
 
     return () => {
-      window.removeEventListener("clippr:stock-updated", onStockUpdated);
+      window.removeEventListener("clippr:catalog-stock-saved", reloadInventory);
       supabase.removeChannel(channel);
     };
   }, [businessId, load]);
@@ -329,8 +340,11 @@ function StockModal({
       note: note.trim() || null,
     });
     setSaving(false);
+    window.dispatchEvent(new CustomEvent("clippr:catalog-stock-saved", {
+      detail: { productId: product.id, stock: stockAfter },
+    }));
     if (insErr) toast.warning("Stock OK, historial falló: " + insErr.message);
-    else toast.success("✓ Movimiento registrado");
+    else toast.success("✓ Movimiento registrado y sincronizado");
     onSaved();
   }
 
