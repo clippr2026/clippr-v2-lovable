@@ -224,9 +224,7 @@ function AdvisorContent() {
     }
   }, [reports]);
 
-  const [hasNewRecommendation, setHasNewRecommendation] = React.useState(true);
-  const [isUpdatingRecommendation, setIsUpdatingRecommendation] = React.useState(false);
-  const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
+  const [showExtraRecommendation] = React.useState(true);
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<AdvisorAction | null>(null);
   const [resolvedRecommendations, setResolvedRecommendations] = React.useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -247,17 +245,6 @@ function AdvisorContent() {
   const strategicIdea = getStrategicIdea();
   const healthTone = getHealthTone(DEMO.health);
 
-  function handleAnalyzeNewRecommendation() {
-    setIsUpdatingRecommendation(true);
-
-    window.setTimeout(() => {
-      const nextActions = getDemoActions(true).filter((action) => !resolvedRecommendations.includes(action.title));
-      setShowExtraRecommendation(true);
-      setHasNewRecommendation(false);
-      setSelectedRecommendation(nextActions[0] ?? null);
-      setIsUpdatingRecommendation(false);
-    }, 1200);
-  }
 
   function handleResolveRecommendation(action: AdvisorAction) {
     setResolvedRecommendations((current) => {
@@ -359,42 +346,6 @@ function AdvisorContent() {
         </GlassCard>
       </section>
 
-      {hasNewRecommendation ? (
-        <GlassCard className="border border-primary/20 bg-primary/[0.04] p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
-                <Bell className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight">Nueva prioridad para tomar acción</h2>
-                <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                  Clippr detectó la acción con mayor impacto disponible en este momento y preparó una guía para ejecutarla.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleAnalyzeNewRecommendation}
-              disabled={isUpdatingRecommendation}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isUpdatingRecommendation ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Analizando...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Ver prioridad
-                </>
-              )}
-            </button>
-          </div>
-        </GlassCard>
-      ) : null}
 
       <GlassCard className="p-5 sm:p-6">
         <div>
