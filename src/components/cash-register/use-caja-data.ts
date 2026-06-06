@@ -2,6 +2,30 @@ import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
+const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
+
+type LocalManualPendingCharge = {
+  id: string;
+  business_id: string;
+  employee_id: string | null;
+  client_name: string | null;
+  service_name: string | null;
+  service_price: number | null;
+  starts_at: string;
+  notes?: string | null;
+};
+
+function readLocalManualPendingCharges(businessId: string): LocalManualPendingCharge[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(MANUAL_PENDING_KEY) || "[]") as LocalManualPendingCharge[];
+    return rows.filter((item) => item.business_id === businessId);
+  } catch {
+    return [];
+  }
+}
+
+
 export type Service = {
   id: string;
   name: string;
@@ -142,7 +166,7 @@ export function useCajaData() {
         .from("appointments")
         .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status")
         .eq("business_id", businessId)
-        .in("status", ["pending_payment", "pending"])
+        .eq("status", "pending_payment")
         .order("starts_at", { ascending: true }),
     ]);
 
@@ -178,12 +202,34 @@ export function useCajaData() {
         : []
     );
 
-    const pendingFromProfessionals =
+    const pendingFromDb =
       pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
         ? ((pendingChargeRes.value.data ?? []) as PendingCharge[]).filter((appointment) =>
             appointment.status === "pending_payment" ||
             String(appointment.notes ?? "").includes("[PENDIENTE_CAJA]")
           )
+        : [];
+
+    const pendingFromLocal = readLocalManualPendingCharges(businessId).map((item) => ({
+      id: item.id,
+      client_name: item.client_name,
+      service_name: item.service_name,
+      service_price: item.service_price,
+      employee_id: item.employee_id,
+      starts_at: item.starts_at,
+      notes: item.notes,
+      status: "pending_payment",
+    }));
+
+    const pendingMap = new Map<string, PendingCharge>();
+    [...pendingFromLocal, ...pendingFromDb].forEach((item) => pendingMap.set(item.id, item));
+    const pendingFromProfessionals = Array.from(pendingMap.values());
+
+    setPendingCharges(pendingFromProfessionals);
+
+    const pendingFromProfessionals =
+      pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
+        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[])
         : [];
     setPendingCharges(pendingFromProfessionals);
 
@@ -219,6 +265,16 @@ export function useCajaData() {
   }, [businessId]);
 
   React.useEffect(() => { load(); }, [load]);
+
+  React.useEffect(() => {
+    const refreshPending = () => load();
+    window.addEventListener("clippr:manual-pending-updated", refreshPending);
+    window.addEventListener("storage", refreshPending);
+    return () => {
+      window.removeEventListener("clippr:manual-pending-updated", refreshPending);
+      window.removeEventListener("storage", refreshPending);
+    };
+  }, [load]);
 
   // Listen for caja settings updates (from Configuración → Caja)
   React.useEffect(() => {
