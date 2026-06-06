@@ -380,16 +380,33 @@ function CobroModal({
         toast.success("✓ Cobro automático registrado");
       } else {
         // Manual: el profesional envía el turno a Caja. No se registra cobro todavía.
-        await supabase
+        // La marca en notes hace que el botón Enviar desaparezca aunque la DB no acepte un status nuevo.
+        const marker = "[PENDIENTE_CAJA]";
+        const cleanNote = note || turno.notes || "";
+        const nextNotes = cleanNote.includes(marker) ? cleanNote : `${marker} ${cleanNote}`.trim();
+
+        const { error: pendingPaymentError } = await supabase
           .from("appointments")
           .update({
             status: "pending_payment",
-            notes: note || turno.notes,
+            notes: nextNotes,
           })
           .eq("id", turno.id);
+
+        if (pendingPaymentError) {
+          const { error: fallbackError } = await supabase
+            .from("appointments")
+            .update({
+              status: "pending",
+              notes: nextNotes,
+            })
+            .eq("id", turno.id);
+
+          if (fallbackError) throw fallbackError;
+        }
+
         toast.success("✓ Enviado a Caja como pendiente de cobro");
-      }
-      onDone();
+      }      onDone();
       onClose();
     } catch (e) {
       toast.error((e as Error).message);
@@ -562,12 +579,12 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                 <div className="text-right font-semibold tabular-nums whitespace-nowrap">{formatMoney(listPrice)}</div>
                 <div className="text-right font-semibold tabular-nums whitespace-nowrap text-emerald-300">{formatMoney(cashPrice)}</div>
                 <div>
-                  <span className={cn("text-[11px] font-semibold uppercase tracking-wider", statusColor[t.status] ?? "text-muted-foreground")}>
-                    {statusLabel[t.status] ?? t.status}
+                  <span className={cn("text-[11px] font-semibold uppercase tracking-wider", String(t.notes ?? "").includes("[PENDIENTE_CAJA]") ? "text-amber-200" : statusColor[t.status] ?? "text-muted-foreground")}>
+                    {String(t.notes ?? "").includes("[PENDIENTE_CAJA]") ? "Pendiente de cobro" : statusLabel[t.status] ?? t.status}
                   </span>
                 </div>
                 <div className="flex justify-end">
-                  {canShowAction(t.status) ? (
+                  {canShowAction(t) ? (
                     <button onClick={() => setCobroTurno(t)}
                       className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
                         approvalMode === "auto"
