@@ -1209,45 +1209,6 @@ function EquipoSection() {
   }, [load]);
 
   useEffect(() => {
-    if (!businessId || isService) return;
-
-    const onStockUpdated = (event: Event) => {
-      const detail = (event as CustomEvent).detail as { productId?: string; stock?: number } | undefined;
-
-      if (detail?.productId && typeof detail.stock === "number") {
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === detail.productId ? { ...row, stock: detail.stock } : row,
-          ),
-        );
-      } else {
-        load();
-      }
-    };
-
-    window.addEventListener("clippr:stock-updated", onStockUpdated);
-
-    const channel = supabase
-      .channel(`price_catalog_settings_${businessId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "price_catalog",
-          filter: `business_id=eq.${businessId}`,
-        },
-        () => load(),
-      )
-      .subscribe();
-
-    return () => {
-      window.removeEventListener("clippr:stock-updated", onStockUpdated);
-      supabase.removeChannel(channel);
-    };
-  }, [businessId, isService, load]);
-
-  useEffect(() => {
     if (!businessId) return;
     supabase
       .from("business_settings")
@@ -3193,6 +3154,46 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!businessId) return;
+
+    const onCatalogStockSaved = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { productId?: string; stock?: number } | undefined;
+
+      if (detail?.productId && typeof detail.stock === "number") {
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === detail.productId ? { ...row, stock: detail.stock } : row,
+          ),
+        );
+        return;
+      }
+
+      load();
+    };
+
+    window.addEventListener("clippr:catalog-stock-saved", onCatalogStockSaved);
+
+    const channel = supabase
+      .channel(`settings_price_catalog_${businessId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "price_catalog",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("clippr:catalog-stock-saved", onCatalogStockSaved);
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, load]);
+
   // Global Save: persist pending + categories + show toast
   const persistCategoriesRef = useRef(persistCategories);
   useEffect(() => { persistCategoriesRef.current = persistCategories; }, [persistCategories]);
@@ -3234,6 +3235,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         } else {
           setPendingItems([]);
           setPendingDeletes(new Set());
+          window.dispatchEvent(new CustomEvent("clippr:catalog-stock-saved"));
           toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
           load();
         }
