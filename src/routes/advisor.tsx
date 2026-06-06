@@ -39,6 +39,11 @@ type AdvisorAction = {
   impact: string;
   button: string;
   tone: ActionTone;
+  problem: string;
+  opportunity: string;
+  howToAct: string[];
+  suggestedMessage: string;
+  actionButtons: string[];
 };
 
 
@@ -222,6 +227,7 @@ function AdvisorContent() {
   const [hasNewRecommendation, setHasNewRecommendation] = React.useState(true);
   const [isUpdatingRecommendation, setIsUpdatingRecommendation] = React.useState(false);
   const [showExtraRecommendation, setShowExtraRecommendation] = React.useState(false);
+  const [selectedRecommendation, setSelectedRecommendation] = React.useState<AdvisorAction | null>(null);
 
   const actions = getDemoActions(showExtraRecommendation);
   const healthTone = getHealthTone(DEMO.health);
@@ -230,8 +236,10 @@ function AdvisorContent() {
     setIsUpdatingRecommendation(true);
 
     window.setTimeout(() => {
+      const nextActions = getDemoActions(true);
       setShowExtraRecommendation(true);
       setHasNewRecommendation(false);
+      setSelectedRecommendation(nextActions[0] ?? null);
       setIsUpdatingRecommendation(false);
     }, 1200);
   }
@@ -373,7 +381,7 @@ function AdvisorContent() {
             actions.length >= 5 && "xl:grid-cols-5",
           )}>
             {actions.map((action) => (
-              <ActionCard key={action.title} action={action} />
+              <ActionCard key={action.title} action={action} onOpen={() => setSelectedRecommendation(action)} />
             ))}
           </div>
         ) : (
@@ -434,6 +442,10 @@ function AdvisorContent() {
           />
         </div>
       </GlassCard>
+      {selectedRecommendation ? (
+        <RecommendationDetailModal action={selectedRecommendation} onClose={() => setSelectedRecommendation(null)} />
+      ) : null}
+
       {infoModal ? (
         <InfoModal content={infoModal} onClose={() => setInfoModal(null)} />
       ) : null}
@@ -540,8 +552,19 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
-      button: "Ver clientes",
+      button: "Ver recomendación",
       tone: "client",
+      problem: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
+      opportunity: `Si recuperás parte de esos clientes, podrías sumar hasta ${fmtAR(DEMO.inactiveClients * DEMO.ticket)} en facturación estimada.`,
+      howToAct: [
+        "Crear una acción especial para clientes inactivos.",
+        "Ofrecer un beneficio por tiempo limitado: descuento, regalo, upgrade o atención prioritaria.",
+        "Enviar un mensaje personalizado por WhatsApp o email.",
+        "Medir cuántos clientes vuelven después de la campaña.",
+      ],
+      suggestedMessage:
+        "Hola 👋 Hace un tiempo que no te vemos. Esta semana tenemos un beneficio especial para que vuelvas a visitarnos. Respondé este mensaje y te ayudamos a reservar.",
+      actionButtons: ["Ver clientes", "Enviar WhatsApp", "Crear promoción", "Marcar como resuelto"],
     });
   }
 
@@ -550,8 +573,19 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Llenar horarios libres",
       detail: `Mañana tenés ${DEMO.emptySlotsTomorrow} espacios vacíos.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
-      button: "Crear promoción",
+      button: "Ver recomendación",
       tone: "warning",
+      problem: `Mañana hay ${DEMO.emptySlotsTomorrow} horarios disponibles sin ocupar.`,
+      opportunity: `Completar esos espacios puede generar hasta ${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)} adicionales.`,
+      howToAct: [
+        "Crear una promoción para horarios con baja demanda.",
+        "Enviar el beneficio a clientes activos e inactivos.",
+        "Publicar la disponibilidad en historias o estados.",
+        "Priorizar los horarios libres más cercanos para llenar la agenda rápido.",
+      ],
+      suggestedMessage:
+        "Hola 👋 Tenemos algunos horarios disponibles para mañana y activamos un beneficio especial por tiempo limitado. ¿Querés que te reserve un lugar?",
+      actionButtons: ["Crear promoción", "Enviar WhatsApp", "Ver horarios libres", "Marcar como resuelto"],
     });
   }
 
@@ -560,8 +594,19 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Subir ticket promedio",
       detail: "Sumar $1.000 por cobro mejora la utilidad mensual.",
       impact: `Potencial: +${fmtAR(DEMO.payments * 1000)}`,
-      button: "Ver simulación",
+      button: "Ver recomendación",
       tone: "money",
+      problem: "El ticket promedio puede mejorar con ventas adicionales, combos o servicios complementarios.",
+      opportunity: `Si cada cobro aumenta $1.000, el potencial estimado es de ${fmtAR(DEMO.payments * 1000)}.`,
+      howToAct: [
+        "Crear combos o paquetes con servicios complementarios.",
+        "Ofrecer productos, upgrades o adicionales al momento de cobrar.",
+        "Capacitar al equipo para sugerir opciones sin presionar al cliente.",
+        "Medir qué propuesta aumenta más el ticket promedio.",
+      ],
+      suggestedMessage:
+        "Tenemos una opción especial para completar tu visita con un beneficio extra. Podés sumarlo a tu servicio de hoy si querés aprovecharlo.",
+      actionButtons: ["Ver simulación", "Crear combo", "Ver servicios", "Marcar como resuelto"],
     });
   }
 
@@ -570,8 +615,19 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Reactivar clientes VIP",
       detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
-      button: "Enviar WhatsApp",
+      button: "Ver recomendación",
       tone: "growth",
+      problem: `${DEMO.vipInactive} clientes VIP no volvieron en los últimos 30 días.`,
+      opportunity: `Recuperarlos puede sumar aproximadamente ${fmtAR(DEMO.vipInactive * DEMO.ticket)} y reforzar la fidelización.`,
+      howToAct: [
+        "Enviar un mensaje personalizado con tono cercano.",
+        "Ofrecer un beneficio exclusivo para clientes frecuentes o VIP.",
+        "Dar prioridad de agenda o un regalo en la próxima visita.",
+        "Registrar quién respondió para medir la efectividad.",
+      ],
+      suggestedMessage:
+        "Hola 👋 Queríamos agradecerte por ser parte de nuestros clientes frecuentes. Esta semana tenemos un beneficio especial para vos. ¿Querés que te pasemos horarios disponibles?",
+      actionButtons: ["Enviar WhatsApp", "Ver clientes VIP", "Crear beneficio", "Marcar como resuelto"],
     });
   }
 
@@ -580,8 +636,19 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Confirmar turnos",
       detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       impact: "Reduce ausencias y huecos de agenda.",
-      button: "Ver turnos",
+      button: "Ver recomendación",
       tone: "neutral",
+      problem: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
+      opportunity: "Confirmarlos ayuda a reducir ausencias, cancelaciones de último momento y horarios perdidos.",
+      howToAct: [
+        "Enviar recordatorio automático o manual.",
+        "Pedir confirmación con una respuesta simple.",
+        "Liberar los turnos que no respondan dentro de un plazo definido.",
+        "Registrar confirmados y pendientes para ordenar la agenda.",
+      ],
+      suggestedMessage:
+        "Hola 👋 Te escribimos para confirmar tu turno. Respondé CONFIRMO para mantener la reserva o avisame si necesitás cambiar el horario.",
+      actionButtons: ["Ver turnos", "Enviar recordatorio", "Confirmar seleccionados", "Marcar como resuelto"],
     });
   }
 
@@ -590,13 +657,25 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
       impact: `Potencial estimado: +${fmtAR(8 * DEMO.ticket)}`,
-      button: "Crear campaña",
+      button: "Ver recomendación",
       tone: "growth",
+      problem: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} tiene menor ocupación que el resto de la semana.`,
+      opportunity: `Mejorar ese día puede sumar aproximadamente ${fmtAR(8 * DEMO.ticket)}.`,
+      howToAct: [
+        "Crear una acción exclusiva para el día con menor ocupación.",
+        "Ofrecer un beneficio por reservar en ese día.",
+        "Enviar la propuesta a clientes que suelen reservar con poca anticipación.",
+        "Medir si sube la ocupación de ese día en la semana siguiente.",
+      ],
+      suggestedMessage:
+        "Hola 👋 Esta semana activamos un beneficio especial para ciertos horarios. Si querés aprovecharlo, te paso las opciones disponibles.",
+      actionButtons: ["Crear campaña", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
     });
   }
 
   return actions;
 }
+
 function getTodayKey() {
   const date = new Date();
   return date.toISOString().slice(0, 10);
@@ -674,7 +753,7 @@ function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) 
   );
 }
 
-function ActionCard({ action }: { action: AdvisorAction }) {
+function ActionCard({ action, onOpen }: { action: AdvisorAction; onOpen: () => void }) {
   return (
     <div className="flex min-h-[220px] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div
@@ -696,10 +775,94 @@ function ActionCard({ action }: { action: AdvisorAction }) {
 
       <button
         type="button"
+        onClick={onOpen}
         className="mt-auto rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-primary transition hover:bg-white/[0.08]"
       >
         {action.button}
       </button>
+    </div>
+  );
+}
+
+function RecommendationDetailModal({ action, onClose }: { action: AdvisorAction; onClose: () => void }) {
+  const [message, setMessage] = React.useState(action.suggestedMessage);
+
+  React.useEffect(() => {
+    setMessage(action.suggestedMessage);
+  }, [action.suggestedMessage]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-background p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Recomendación IA</div>
+            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">{action.title}</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{action.detail}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Problema detectado</div>
+            <p className="mt-2 text-sm leading-relaxed text-white">{action.problem}</p>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Impacto estimado</div>
+            <p className="mt-2 text-sm leading-relaxed text-white">{action.opportunity}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="text-sm font-semibold text-white">Cómo tomar acción</div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {action.howToAct.map((step) => (
+              <div key={step} className="flex items-start gap-2 text-sm text-muted-foreground">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                <span>{step}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="text-sm font-semibold text-white">Mensaje sugerido editable</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Adaptalo al tono de tu negocio. Sirve para WhatsApp, email o mensaje directo.
+          </p>
+          <textarea
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            className="mt-3 min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition placeholder:text-muted-foreground focus:border-primary/50"
+          />
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {action.actionButtons.map((button) => (
+            <button
+              key={button}
+              type="button"
+              className={cn(
+                "rounded-xl border px-4 py-2 text-xs font-semibold transition",
+                button === "Marcar como resuelto"
+                  ? "border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-white"
+                  : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20",
+              )}
+            >
+              {button}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
