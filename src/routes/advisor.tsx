@@ -147,7 +147,8 @@ function AdvisorRoute() {
 }
 
 function AdvisorContent() {
-  const animationProgress = useResultAnimation();
+  const [shouldAnimateResults, setShouldAnimateResults] = React.useState(false);
+  const animationProgress = useResultAnimation(shouldAnimateResults);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   const todayKey = getTodayKey();
   const needsDailyAnalysis = React.useMemo(() => {
@@ -194,6 +195,7 @@ function AdvisorContent() {
         window.clearInterval(interval);
         localStorage.setItem("clippr_advisor_last_daily_analysis", todayKey);
         setTimeout(() => {
+          setShouldAnimateResults(true);
           setIsAnalyzing(false);
         }, 700);
       }
@@ -243,6 +245,8 @@ function AdvisorContent() {
   const currentPriorityNumber = priorityAction ? totalRelevantActions - pendingActions.length + 1 : totalRelevantActions;
   const strategicIdea = getStrategicIdea();
   const healthTone = getHealthTone(DEMO.health);
+  const animatedHealth = Math.round(DEMO.health * animationProgress);
+  const animatedProfit = Math.round(DEMO.profit * animationProgress);
 
 
   function handleResolveRecommendation(action: AdvisorAction) {
@@ -302,7 +306,7 @@ function AdvisorContent() {
 
             <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">UTILIDAD +30%</div>
-              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(DEMO.profit)}</div>
+              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(animatedProfit)}</div>
             </div>
           </div>
 <div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
@@ -321,7 +325,7 @@ function AdvisorContent() {
             </div>
 
             <div className="text-right">
-              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{DEMO.health}</div>
+              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{animatedHealth}</div>
               <div className="text-sm text-muted-foreground">Puntaje de salud</div>
               <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
               <p className="mt-1 max-w-[260px] text-right text-xs leading-relaxed text-muted-foreground">{healthTone.message}</p>
@@ -329,7 +333,7 @@ function AdvisorContent() {
           </div>
 
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${DEMO.health}%` }} />
+            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -360,7 +364,13 @@ function AdvisorContent() {
         </div>
 
         {priorityAction ? (
-          <div className="mt-5 rounded-3xl border border-primary/20 bg-primary/[0.05] p-5">
+          <div
+            className="mt-5 rounded-3xl border border-primary/20 bg-primary/[0.05] p-5 transition-all duration-700"
+            style={{
+              opacity: shouldAnimateResults ? animationProgress : 1,
+              transform: shouldAnimateResults ? `translateY(${Math.round((1 - animationProgress) * 10)}px)` : "translateY(0px)",
+            }}
+          >
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div className="max-w-2xl">
                 <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Prioridad actual</div>
@@ -447,13 +457,20 @@ function AdvisorContent() {
 }
 
 
-function useResultAnimation() {
-  const [progress, setProgress] = React.useState(0);
+function useResultAnimation(enabled = false) {
+  const [progress, setProgress] = React.useState(enabled ? 0 : 1);
 
   React.useEffect(() => {
+    if (!enabled) {
+      setProgress(1);
+      return;
+    }
+
     let frame = 0;
     const duration = 1000;
     const startedAt = performance.now();
+
+    setProgress(0);
 
     function animate(now: number) {
       const raw = Math.min((now - startedAt) / duration, 1);
@@ -467,7 +484,7 @@ function useResultAnimation() {
 
     frame = window.requestAnimationFrame(animate);
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [enabled]);
 
   return progress;
 }
@@ -489,12 +506,8 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
           onClick={onStart}
           className="mt-6 inline-flex h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-primary to-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
         >
-          Generar análisis de hoy
+          Analizar negocio
         </button>
-
-        <p className="mt-4 text-xs text-muted-foreground">
-          Se genera una vez por día. Si volvés a entrar hoy, el informe se muestra directo.
-        </p>
       </GlassCard>
     </div>
   );
