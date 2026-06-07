@@ -649,21 +649,15 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
-          {/* Header: Fecha | Hora | Cliente | Servicio | Precio lista | Precio efectivo | Estado | Acción */}
-          <div className="grid grid-cols-[130px_80px_1.4fr_1.6fr_1fr_1fr_110px_100px] gap-3 px-5 py-3 border-b border-white/10 bg-white/[0.025] text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <div>Fecha</div>
+          <div className="grid grid-cols-[65px_160px_1fr_95px_85px] gap-3 px-5 py-3 border-b border-white/10 bg-white/[0.025] text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             <div>Hora</div>
             <div>Cliente</div>
-            <div>Servicio / Nota</div>
-            <div className="text-right">Precio lista</div>
-            <div className="text-right">Precio efectivo</div>
+            <div>Servicio / Catálogo</div>
             <div>Estado</div>
             <div className="text-right">Acción</div>
           </div>
 
           {turnos.map((t, i) => {
-            const listPrice = Number(t.service_price ?? 0);
-            const cashPrice = listPrice;
             const isSentToCaja = sentToCajaIds.has(t.id);
             const isPending =
               isSentToCaja ||
@@ -675,23 +669,20 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               <div
                 key={t.id}
                 className={cn(
-                  "grid grid-cols-[130px_80px_1.4fr_1.6fr_1fr_1fr_110px_100px] gap-3 items-center px-5 py-4 text-sm",
+                  "grid grid-cols-[65px_160px_1fr_95px_85px] gap-3 items-center px-5 py-3.5 text-sm",
                   i < turnos.length - 1 && "border-b border-white/5"
                 )}
               >
-                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatDate(t.starts_at)}</div>
                 <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatTime(t.starts_at)}</div>
                 <div className="font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
                 <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground truncate">{t.service_name ?? "—"}</div>
+                  <div className="text-sm font-medium truncate">{t.service_name ?? "—"}</div>
                   {noteText && (
                     <div className="text-[10px] text-sky-300/80 truncate mt-0.5" title={noteText}>
                       📝 {noteText}
                     </div>
                   )}
                 </div>
-                <div className="text-right font-semibold tabular-nums whitespace-nowrap">{formatMoney(listPrice)}</div>
-                <div className="text-right font-semibold tabular-nums whitespace-nowrap text-emerald-300">{formatMoney(cashPrice)}</div>
                 <div>
                   <span className={getStatusBadge(t.status, isPending)}>
                     {getStatusText(t.status, isPending)}
