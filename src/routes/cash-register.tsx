@@ -625,6 +625,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
   const [detailPayment, setDetailPayment] = React.useState<typeof rows[number] | null>(null);
+  const [pendingNoteModal, setPendingNoteModal] = React.useState<{ title: string; note: string } | null>(null);
   const [showAll, setShowAll] = React.useState(false);
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
@@ -716,9 +717,20 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       <div className="text-muted-foreground truncate">
                         <span>{p.service_name ?? "—"}</span>
                         {pendingNote && (
-                          <span className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20">
-                            Nota
-                          </span>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setPendingNoteModal({
+                                title: `${p.client_name ?? "Cliente"} · ${p.service_name ?? "Servicio"}`,
+                                note: pendingNote,
+                              });
+                            }}
+                            className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
+                            title="Ver nota del profesional"
+                          >
+                            Ver nota
+                          </button>
                         )}
                       </div>
                       <div className="text-foreground tabular-nums font-medium text-right">
@@ -806,6 +818,38 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
           employees={data.employees}
           onClose={() => setDetailPayment(null)}
         />
+      )}
+
+      {pendingNoteModal && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setPendingNoteModal(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold">Nota del profesional</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">{pendingNoteModal.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingNoteModal(null)}
+                className="rounded-lg bg-white/5 px-3 py-1.5 text-xs transition hover:bg-white/10"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="p-5">
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Nota enviada a caja</p>
+                <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{pendingNoteModal.note}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Closeout modal */}
