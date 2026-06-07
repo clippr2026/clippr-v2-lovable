@@ -468,7 +468,10 @@ function DetailModal({ payment, employees, onClose }: {
 }) {
   const method = (payment.method ?? payment.payment_method ?? "cash") as PayMethod;
   const empName = employees.find(e => e.id === payment.employee_id)?.name ?? null;
-  const chargedBy = (payment as Record<string, unknown>).charged_by as string | null ?? null;
+  const chargedById = (payment as Record<string, unknown>).charged_by as string | null ?? null;
+  const chargedBy = chargedById
+    ? (employees.find(e => e.id === chargedById)?.name ?? (chargedById.length < 40 ? chargedById : null) ?? "—")
+    : "—";
   const chargeType = (payment as Record<string, unknown>).charge_type as string | null ?? "caja";
   const status = (payment as Record<string, unknown>).status as string | null ?? "cobrado";
   const comprobante = (payment as Record<string, unknown>).reference as string | null ?? null;
@@ -637,13 +640,14 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
         {/* Table header */}
         <div className="overflow-x-auto">
           <div className="min-w-[700px]">
-            <div className="grid grid-cols-[60px_80px_1fr_1fr_90px_110px_110px_100px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+            <div className="grid grid-cols-[60px_70px_1fr_1fr_90px_100px_100px_110px_90px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
               <div>Hora</div>
               <div>Cliente</div>
               <div>Profesional</div>
               <div>Total</div>
               <div>Pago</div>
+              <div>Origen</div>
               <div>Cobrado por</div>
               <div>Estado</div>
             </div>
@@ -665,7 +669,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[60px_80px_1fr_1fr_90px_110px_110px_100px] px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
+                      className="grid grid-cols-[60px_70px_1fr_1fr_90px_100px_100px_110px_90px] px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
                     >
                       <div className="text-muted-foreground">{fecha}</div>
                       <div className="text-muted-foreground">{hora}</div>
@@ -675,6 +679,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                         ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground">—</div>
+                      <div><ChargeTypePill type="manual" /></div>
                       <div className="text-muted-foreground">—</div>
                       <div>
                         <button
@@ -696,11 +701,16 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const method = (p.method ?? p.payment_method ?? "cash") as PayMethod;
                   const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
                   const status = (p as Record<string, unknown>).status as string | null ?? "cobrado";
-                  const chargedBy = (p as Record<string, unknown>).charged_by as string | null ?? null;
+                  const chargeType = (p as Record<string, unknown>).charge_type as string | null ?? "caja";
+                  const chargedById = (p as Record<string, unknown>).charged_by as string | null ?? null;
+                  // Resolve charged_by: try to match against employee names, fall back to the value if it's already a name
+                  const chargedByName = chargedById
+                    ? (data.employees.find(e => e.id === chargedById)?.name ?? (chargedById.length < 40 ? chargedById : null) ?? "—")
+                    : "—";
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[60px_80px_1fr_1fr_90px_110px_110px_100px] px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[60px_70px_1fr_1fr_90px_100px_100px_110px_90px] px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground">{fecha}</div>
@@ -711,7 +721,8 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground truncate">{PAY_METHOD_LABEL[method] ?? method}</div>
-                      <div className="text-muted-foreground truncate">{chargedBy ?? "—"}</div>
+                      <div><ChargeTypePill type={chargeType} /></div>
+                      <div className="text-muted-foreground truncate">{chargedByName}</div>
                       <div className="flex items-center gap-1.5">
                         <StatusPill status={status} />
                       </div>
