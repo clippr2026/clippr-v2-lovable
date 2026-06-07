@@ -670,7 +670,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
         {/* Table header */}
         <div className="overflow-x-auto">
           <div className="min-w-[1100px]">
-            <div className="grid grid-cols-[55px_100px_minmax(130px,1fr)_minmax(130px,0.9fr)_minmax(170px,1.15fr)_95px_95px_95px_115px_90px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+            <div className="grid grid-cols-[55px_105px_minmax(130px,0.85fr)_minmax(120px,0.8fr)_minmax(230px,1.35fr)_95px_95px_95px_110px_85px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
               <div>Hora</div>
               <div>Cliente</div>
@@ -700,7 +700,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[55px_100px_minmax(130px,1fr)_minmax(130px,0.9fr)_minmax(170px,1.15fr)_95px_95px_95px_115px_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
+                      className="grid grid-cols-[55px_105px_minmax(130px,0.85fr)_minmax(120px,0.8fr)_minmax(230px,1.35fr)_95px_95px_95px_110px_85px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
                       <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
@@ -740,7 +740,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[55px_100px_minmax(130px,1fr)_minmax(130px,0.9fr)_minmax(170px,1.15fr)_95px_95px_95px_115px_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[55px_105px_minmax(130px,0.85fr)_minmax(120px,0.8fr)_minmax(230px,1.35fr)_95px_95px_95px_110px_85px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
