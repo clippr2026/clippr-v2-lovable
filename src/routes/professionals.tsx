@@ -405,26 +405,34 @@ function CobroModal({
           appointmentId: turno.id,
           chargeOrigin: "auto",
           chargedBy: userEmail,
+          notes: note || null,
         });
-        // Mark appointment as charged
-        await supabase.from("appointments").update({ status: "charged" }).eq("id", turno.id);
+        // Mark appointment as charged, store origin + note for audit
+        await supabase.from("appointments").update({
+          status: "charged",
+          charge_origin: "auto",
+          charged_by: userEmail,
+          ...(note.trim() ? { notes: note.trim() } : {}),
+        }).eq("id", turno.id);
         toast.success("✓ Cobro automático registrado");
       } else {
-        // Manual: el profesional envía el turno a Caja. No se registra cobro todavía.
+        // Manual: el profesional envía el turno a Caja
         const marker = "[PENDIENTE_CAJA]";
-        const cleanNote = note || turno.notes || "";
-        const nextNotes = cleanNote.includes(marker) ? cleanNote : `${marker} ${cleanNote}`.trim();
+        // Preserve existing note (stripped of marker) and append new note if provided
+        const existingClean = (turno.notes ?? "").replace(marker, "").trim();
+        const newNote = note.trim();
+        const combinedNote = [newNote || existingClean].filter(Boolean).join(" ");
+        const nextNotes = combinedNote ? `${marker} ${combinedNote}` : marker;
 
-        // 1) Intento persistir en Supabase
         await supabase
           .from("appointments")
           .update({
             status: "pending_payment",
             notes: nextNotes,
+            charge_origin: "manual",
           })
           .eq("id", turno.id);
 
-        // 2) Cola local para que el panel se actualice sí o sí y Caja lo vea en el mismo navegador
         saveManualPendingCharge({
           id: turno.id,
           business_id: businessId,
@@ -546,7 +554,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
   const statusLabel: Record<string, string> = {
     pending: "Pendiente",
-    pending_payment: "Pendiente de cobro",
+    pending_payment: "Pendiente",
     confirmed: "Confirmado",
     completed: "Completado",
     charged: "Cobrado",
@@ -554,16 +562,63 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     cancelled: "Cancelado",
     approved: "Aprobado",
   };
-  const statusColor: Record<string, string> = {
-    pending: "text-amber-300",
-    pending_payment: "text-amber-200",
-    confirmed: "text-sky-300",
-    completed: "text-emerald-300",
-    charged: "text-emerald-300",
-    blocked: "text-muted-foreground",
-    cancelled: "text-rose-300",
-    approved: "text-violet-300",
-  };
+
+  // Estado badge color: amarillo = pendiente, verde = cobrado
+  function getStatusBadge(status: string, isPending: boolean) {
+    const isPendingState = isPending || status === "pending" || status === "pending_payment";
+    const isCharged = status === "charged";
+    const isCancelled = status === "cancelled" || status === "blocked";
+    return cn(
+      "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1",
+      isPendingState && "bg-amber-500/10 ring-amber-400/25 text-amber-300",
+      isCharged && "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300",
+      isCancelled && "bg-white/5 ring-white/10 text-muted-foreground",
+      !isPendingState && !isCharged && !isCancelled && "bg-sky-500/10 ring-sky-400/25 text-sky-300",
+    );
+  }
+
+  function getStatusText(status: string, isPending: boolean) {
+    if (isPending || status === "pending_payment") return "Pendiente";
+    return statusLabel[status] ?? status;
+  }
+
+  // Acción: representa la última acción del PROFESIONAL, no el estado del cobro
+  // - Manual (sent to caja) → Enviado (azul), tanto si sigue pendiente como si ya fue cobrado por Caja
+  // - Auto (profesional cobró directamente) → Cobró (verde)
+  // - Disabled / sin acción → —
+  function getAccionBadge(t: import("@/hooks/use-professionals-data").ProfTurno, isSentToCaja: boolean) {
+    const wasSentManually =
+      isSentToCaja ||
+      String(t.notes ?? "").includes("[PENDIENTE_CAJA]") ||
+      t.status === "pending_payment";
+
+    if (wasSentManually) {
+      return (
+        <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-sky-500/10 ring-sky-400/25 text-sky-300">
+          Enviado
+        </span>
+      );
+    }
+    if (t.status === "charged") {
+      // Only show "Cobró" if it was charged directly (auto mode), not via caja
+      return (
+        <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-emerald-500/10 ring-emerald-400/25 text-emerald-300">
+          Cobró
+        </span>
+      );
+    }
+    if (t.status === "blocked" || t.status === "cancelled") {
+      return <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>;
+    }
+    return null; // will show action button if canShowAction
+  }
+
+  function getNoteDisplay(t: import("@/hooks/use-professionals-data").ProfTurno) {
+    if (!t.notes) return null;
+    const clean = t.notes.replace("[PENDIENTE_CAJA]", "").trim();
+    if (!clean) return null;
+    return clean;
+  }
 
   const canShowAction = (status: string) => {
     if (!canOperate) return false;
@@ -600,11 +655,12 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-[150px_90px_1.7fr_1.5fr_1fr_1fr_1fr_0.9fr] gap-4 px-5 py-3 border-b border-white/10 bg-white/[0.025] text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {/* Header: Fecha | Hora | Cliente | Servicio | Precio lista | Precio efectivo | Estado | Acción */}
+          <div className="grid grid-cols-[130px_80px_1.4fr_1.6fr_1fr_1fr_110px_100px] gap-3 px-5 py-3 border-b border-white/10 bg-white/[0.025] text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             <div>Fecha</div>
             <div>Hora</div>
             <div>Cliente</div>
-            <div>Servicio</div>
+            <div>Servicio / Nota</div>
             <div className="text-right">Precio lista</div>
             <div className="text-right">Precio efectivo</div>
             <div>Estado</div>
@@ -614,50 +670,52 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           {turnos.map((t, i) => {
             const listPrice = Number(t.service_price ?? 0);
             const cashPrice = listPrice;
+            const isSentToCaja = sentToCajaIds.has(t.id);
+            const isPending =
+              isSentToCaja ||
+              String(t.notes ?? "").includes("[PENDIENTE_CAJA]") ||
+              t.status === "pending_payment";
+            const noteText = getNoteDisplay(t);
+            const accionBadge = getAccionBadge(t, isSentToCaja);
             return (
               <div
                 key={t.id}
                 className={cn(
-                  "grid grid-cols-[150px_90px_1.7fr_1.5fr_1fr_1fr_1fr_0.9fr] gap-4 items-center px-5 py-4 text-sm",
+                  "grid grid-cols-[130px_80px_1.4fr_1.6fr_1fr_1fr_110px_100px] gap-3 items-center px-5 py-4 text-sm",
                   i < turnos.length - 1 && "border-b border-white/5"
                 )}
               >
                 <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatDate(t.starts_at)}</div>
                 <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatTime(t.starts_at)}</div>
                 <div className="font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
-                <div className="text-xs text-muted-foreground truncate">{t.service_name ?? "—"}</div>
+                <div className="min-w-0">
+                  <div className="text-xs text-muted-foreground truncate">{t.service_name ?? "—"}</div>
+                  {noteText && (
+                    <div className="text-[10px] text-sky-300/80 truncate mt-0.5" title={noteText}>
+                      📝 {noteText}
+                    </div>
+                  )}
+                </div>
                 <div className="text-right font-semibold tabular-nums whitespace-nowrap">{formatMoney(listPrice)}</div>
                 <div className="text-right font-semibold tabular-nums whitespace-nowrap text-emerald-300">{formatMoney(cashPrice)}</div>
                 <div>
-                  <span className={cn("text-[11px] font-semibold uppercase tracking-wider", sentToCajaIds.has(t.id) || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? "text-amber-200" : statusColor[t.status] ?? "text-muted-foreground")}>
-                    {sentToCajaIds.has(t.id) || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? "Pendiente de cobro" : statusLabel[t.status] ?? t.status}
+                  <span className={getStatusBadge(t.status, isPending)}>
+                    {getStatusText(t.status, isPending)}
                   </span>
                 </div>
                 <div className="flex justify-end">
-                  {sentToCajaIds.has(t.id) || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment" ? (
-                    <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-amber-500/10 ring-amber-400/25 text-amber-200">
-                      Enviado
-                    </span>
-                  ) : t.status === "charged" && String(t.notes ?? "").includes("[PENDIENTE_CAJA]") ? (
-                    <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-amber-500/10 ring-amber-400/25 text-amber-200">
-                      Enviado
-                    </span>
-                  ) : t.status === "charged" ? (
-                    <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-emerald-500/10 ring-emerald-400/25 text-emerald-300">
-                      Cobró
-                    </span>
-                  ) : t.status === "blocked" || t.status === "cancelled" ? (
-                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>
-                  ) : canShowAction(t) ? (
-                    <button onClick={() => setCobroTurno(t)}
-                      className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
-                        approvalMode === "auto"
-                          ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                          : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
-                      {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>
+                  {accionBadge ?? (
+                    canShowAction(t.status) ? (
+                      <button onClick={() => setCobroTurno(t)}
+                        className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
+                          approvalMode === "auto"
+                            ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                            : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
+                        {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>
+                    )
                   )}
                 </div>
               </div>
