@@ -1456,15 +1456,39 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
             <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{resultado.resumen}</p>
           </div>
 
-          {/* Impacto económico */}
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">📈 Facturación potencial estimada</p>
-            <p className="mt-3 font-display text-4xl font-semibold text-emerald-300 tracking-tight">
-              +${fmtNum(resultado.facturacionPotencial)}
-              <span className="ml-2 text-base font-normal text-emerald-300/70">por mes</span>
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{resultado.explicacionFacturacion}</p>
-          </div>
+          {/* Impacto económico — coherente con la recomendación */}
+          {resultado.nivel === "recomendado" ? (
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">📈 Facturación potencial estimada</p>
+              <p className="mt-3 font-display text-4xl font-semibold text-emerald-300 tracking-tight">
+                +${fmtNum(resultado.facturacionPotencial)}
+                <span className="ml-2 text-base font-normal text-emerald-300/70">por mes</span>
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{resultado.explicacionFacturacion}</p>
+            </div>
+          ) : resultado.nivel === "evaluar" ? (
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">📈 Potencial de crecimiento con el equipo actual</p>
+              <p className="mt-3 font-display text-4xl font-semibold text-amber-300 tracking-tight">
+                {Math.round((1 - ocupacion / 100) * 100)}%
+                <span className="ml-2 text-base font-normal text-amber-300/70">de capacidad disponible</span>
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                El equipo actual puede absorber más demanda antes de necesitar un profesional adicional. Hay margen para crecer sin sumar estructura.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">📅 Capacidad disponible actual</p>
+              <p className="mt-3 font-display text-4xl font-semibold text-foreground tracking-tight">
+                ~{Math.round(servicios * (1 - ocupacion / 100))}
+                <span className="ml-2 text-base font-normal text-muted-foreground">espacios libres por mes</span>
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                Todavía existen turnos disponibles con el equipo actual. Completar la agenda antes de incorporar un nuevo profesional maximiza la rentabilidad.
+              </p>
+            </div>
+          )}
 
           {/* Volver a analizar */}
           <button type="button" onClick={() => { setAnalizado(false); setResultado(null); }}
