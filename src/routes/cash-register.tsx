@@ -42,6 +42,20 @@ import {
   CalendarDays
 } from "lucide-react";
 
+const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
+
+function removeLocalManualPendingCharge(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(MANUAL_PENDING_KEY) || "[]") as Array<{ id: string }>;
+    window.localStorage.setItem(MANUAL_PENDING_KEY, JSON.stringify(rows.filter((item) => item.id !== id)));
+    window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
+  } catch {
+    // ignore
+  }
+}
+
+
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
     depositAppointmentId: (search.depositAppointmentId as string) ?? null,
@@ -56,8 +70,8 @@ export const Route = createFileRoute("/cash-register")({
   }),
   head: () => ({
     meta: [
-      { title: "Caja & Cobro — Clippr" },
-      { name: "description", content: "Caja del día, nueva venta, precios e inventario." },
+      { title: "Caja — Clippr" },
+      { name: "description", content: "Cobros, gastos y liquidaciones." },
     ],
   }),
   component: CashRegisterPage,
@@ -74,6 +88,10 @@ function CashRegisterPage() {
   const [tab, setTab] = useState<Tab>(
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
+
+  // Pending charge to process through the sale flow
+  const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
+
   // Toast on arrival from deposit/cobro flow
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -86,6 +104,12 @@ function CashRegisterPage() {
   useEffect(() => {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
+
+  // When a pending charge is picked, switch to the "nueva" tab
+  function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
+    setPendingToCharge(appt);
+    setTab("nueva");
+  }
 
   if (authLoading || !session) {
     return (
@@ -100,10 +124,22 @@ function CashRegisterPage() {
   return (
     <AppShell>
       <Header data={data} />
-      <Tabs tab={tab} onChange={setTab} />
+      <Tabs tab={tab} onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }} />
       <div className="mt-6">
-        {tab === "resumen" && <ResumenTab data={data} equipoEnabled={permissions.equipo} />}
-        {tab === "nueva" && <NuevaVentaTab data={data} />}
+        {tab === "resumen" && (
+          <ResumenTab
+            data={data}
+            equipoEnabled={permissions.equipo}
+            onCobrarPendiente={handleCobrarPendiente}
+          />
+        )}
+        {tab === "nueva" && (
+          <NuevaVentaTab
+            data={data}
+            pendingCharge={pendingToCharge}
+            onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
+          />
+        )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
@@ -112,7 +148,6 @@ function CashRegisterPage() {
         {tab === "profesionales" && (
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
-
       </div>
     </AppShell>
   );
@@ -125,6 +160,9 @@ function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
           Caja
         </h1>
+        <p className="mt-2 text-sm md:text-base text-muted-foreground">
+          Cobros, gastos y liquidaciones
+        </p>
       </div>
     </div>
   );
@@ -219,7 +257,15 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
 }
 
 // ───────────────────────────── RESUMEN
-function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
+function ResumenTab({
+  data,
+  equipoEnabled,
+  onCobrarPendiente,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  equipoEnabled: boolean;
+  onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
+}) {
   // Métodos más usados
   const topMethods = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -234,6 +280,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Cobrado",
       value: data.revHoy,
+      sub: "",
       icon: Wallet,
       tint: "from-amber-400/20 to-amber-500/0",
       money: true,
@@ -241,6 +288,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Pendiente",
       value: data.pendingAmount,
+      sub: "",
       icon: Clock,
       tint: "from-violet-400/25 to-violet-500/0",
       money: true,
@@ -248,6 +296,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Cobros",
       value: data.cobros,
+      sub: "",
       icon: ClipboardList,
       tint: "from-sky-400/25 to-sky-500/0",
       money: false,
@@ -255,6 +304,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     {
       label: "Clientes",
       value: data.cobros,
+      sub: "",
       icon: BarChart3,
       tint: "from-emerald-400/25 to-emerald-500/0",
       money: false,
@@ -284,6 +334,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
                     </span>
                   )}
                 </div>
+                {s.sub && <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>}
               </div>
               <div className="rounded-xl bg-white/[0.04] border border-white/5 p-2">
                 <s.icon className="size-3.5 text-foreground/80" />
@@ -293,7 +344,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
         ))}
       </div>
 
-      <History data={data} equipoEnabled={equipoEnabled} />
+      <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
     </div>
   );
 }
@@ -385,6 +436,7 @@ const CHARGE_TYPE_META: Record<string, { label: string; cls: string }> = {
 const STATUS_META: Record<string, { label: string; dot: string }> = {
   cobrado:     { label: "Cobrado",     dot: "bg-emerald-400" },
   pendiente:   { label: "Pendiente",   dot: "bg-amber-400"   },
+  pending_payment: { label: "Pendiente", dot: "bg-amber-400" },
   aprobado:    { label: "Aprobado",    dot: "bg-sky-400"     },
   anulado:     { label: "Anulado",     dot: "bg-rose-400"    },
   reembolsado: { label: "Reembolsado", dot: "bg-violet-400"  },
@@ -401,12 +453,42 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function ChargeTypePill({ type }: { type: string }) {
-  const m = CHARGE_TYPE_META[type] ?? { label: type, cls: "bg-white/5 ring-white/10 text-muted-foreground" };
+  const normalized = type === "desactivado" ? "caja" : type;
+  const m = CHARGE_TYPE_META[normalized] ?? { label: normalized, cls: "bg-white/5 ring-white/10 text-muted-foreground" };
   return (
     <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1", m.cls)}>
       {m.label}
     </span>
   );
+}
+
+function getChargeType(payment: Record<string, unknown>) {
+  const raw = String(payment.charge_type ?? payment.origin ?? payment.source ?? "caja");
+  if (["auto", "automatico", "automático"].includes(raw.toLowerCase())) return "auto";
+  if (["manual"].includes(raw.toLowerCase())) return "manual";
+  if (["desactivado", "disabled"].includes(raw.toLowerCase())) return "caja";
+  return raw || "caja";
+}
+
+function getChargedByLabel(payment: Record<string, unknown>, professionalName: string | null, chargeType: string) {
+  const raw = String(payment.charged_by_name ?? payment.cashier_name ?? payment.user_name ?? "").trim();
+  if (raw && !/^[0-9a-f]{8}-[0-9a-f-]{13,}$/i.test(raw)) return raw;
+  if (chargeType === "auto") return professionalName ?? "Profesional";
+  if (chargeType === "manual") return "Recepción";
+  return "Caja";
+}
+
+function getPaymentMethodLabel(payment: Record<string, unknown>) {
+  const method = String(payment.method ?? payment.payment_method ?? "cash") as PayMethod;
+  return PAY_METHOD_LABEL[method] ?? method;
+}
+
+function getSaleDetailLabel(payment: Record<string, unknown>) {
+  const serviceName = String(payment.service_name ?? "").trim();
+  const productName = String(payment.product_name ?? payment.catalog_name ?? "").trim();
+  const itemName = serviceName || productName || "—";
+  const qty = Number(payment.qty ?? payment.quantity ?? 1);
+  return qty > 1 && itemName !== "—" ? `${itemName} x${qty}` : itemName;
 }
 
 function DetailModal({ payment, employees, onClose }: {
@@ -416,11 +498,19 @@ function DetailModal({ payment, employees, onClose }: {
 }) {
   const method = (payment.method ?? payment.payment_method ?? "cash") as PayMethod;
   const empName = employees.find(e => e.id === payment.employee_id)?.name ?? null;
-  const chargedBy = (payment as Record<string, unknown>).charged_by as string | null ?? null;
+  const chargedById = (payment as Record<string, unknown>).charged_by as string | null ?? null;
+  const chargedBy = chargedById
+    ? (employees.find(e => e.id === chargedById)?.name ?? (chargedById.length < 40 ? chargedById : null) ?? "—")
+    : "—";
   const chargeType = (payment as Record<string, unknown>).charge_type as string | null ?? "caja";
   const status = (payment as Record<string, unknown>).status as string | null ?? "cobrado";
   const comprobante = (payment as Record<string, unknown>).reference as string | null ?? null;
   const obs = (payment as Record<string, unknown>).observations as string | null ?? null;
+  const sucursal = (payment as Record<string, unknown>).branch as string | null ?? null;
+  const paymentNumber = (payment as Record<string, unknown>).payment_number as number | string | null ?? null;
+  const discount = (payment as Record<string, unknown>).discount_amount as number | null ?? null;
+  const depositApplied = (payment as Record<string, unknown>).deposit_paid as number | null ?? null;
+
   const commission = payment.employee_id && employees.find(e => e.id === payment.employee_id)?.commission_pct
     ? Math.round(Number(payment.total ?? payment.amount ?? 0) * (employees.find(e => e.id === payment.employee_id)!.commission_pct! / 100))
     : null;
@@ -436,17 +526,29 @@ function DetailModal({ payment, employees, onClose }: {
     </div>
   );
 
+  const ventaNum = paymentNumber
+    ? `#${String(paymentNumber).padStart(6, "0")}`
+    : `#${payment.id.slice(-6).toUpperCase()}`;
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold">Detalle del cobro</h3>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-sm font-semibold">Detalle de venta</h3>
+              <span className="text-[11px] font-mono text-primary/80 bg-primary/10 px-2 py-0.5 rounded-lg">{ventaNum}</span>
+            </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">{fmtDT(payment.created_at)}</p>
           </div>
           <button onClick={onClose} className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs transition">Cerrar</button>
         </div>
+
         <div className="px-5 py-1 max-h-[72vh] overflow-y-auto">
+
+          {/* Total + estado */}
           <div className="py-3 border-b border-white/5 flex items-center justify-between gap-3 flex-wrap">
             <span className="font-display text-2xl font-semibold tabular-nums">
               ${Number(payment.total ?? payment.amount ?? 0).toLocaleString("es-AR")}
@@ -457,27 +559,54 @@ function DetailModal({ payment, employees, onClose }: {
             </div>
           </div>
 
-          <div className="mt-1 space-y-0">
+          {/* Bloque: Quién */}
+          <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Participantes</p>
             <Row label="Cliente"       value={payment.client_name ?? "—"} />
-            <Row label="Profesional"   value={empName} />
-            <Row label="Servicio"      value={payment.service_name ?? "—"} />
-            <Row label="Método de pago" value={PAY_METHOD_LABEL[method] ?? method} />
-            <Row label="Cobrado por"   value={chargedBy} />
-            <Row label="Tipo de cobro" value={<ChargeTypePill type={chargeType} />} />
-            <Row label="Estado"        value={<StatusPill status={status} />} />
-            {commission !== null && (
-              <Row label="Comisión prof." value={`$${commission.toLocaleString("es-AR")}`} />
-            )}
-            {comprobante && <Row label="Comprobante / Ref." value={comprobante} />}
-            {obs && <Row label="Observaciones" value={obs} />}
+            <Row label="Profesional"   value={empName ?? "—"} />
+            <Row label="Cobrado por"   value={chargedBy ?? "—"} />
+            {sucursal && <Row label="Sucursal" value={sucursal} />}
           </div>
 
+          {/* Bloque: Qué */}
+          <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Detalle del servicio</p>
+            <Row label="Servicio / Producto" value={payment.service_name ?? "—"} />
+            {discount && discount > 0 && (
+              <Row label="Descuento aplicado" value={<span className="text-amber-300">−${discount.toLocaleString("es-AR")}</span>} />
+            )}
+            {depositApplied && depositApplied > 0 && (
+              <Row label="Seña aplicada" value={<span className="text-primary">−${depositApplied.toLocaleString("es-AR")}</span>} />
+            )}
+            {commission !== null && (
+              <Row label="Comisión profesional" value={`$${commission.toLocaleString("es-AR")}`} />
+            )}
+          </div>
+
+          {/* Bloque: Cómo se cobró */}
+          <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Método de cobro</p>
+            <Row label="💳 Método de pago" value={PAY_METHOD_LABEL[method] ?? method} />
+            <Row label="📍 Origen del cobro" value={<ChargeTypePill type={chargeType} />} />
+            <Row label="Estado" value={<StatusPill status={status} />} />
+            {comprobante && <Row label="Referencia / Comprobante" value={comprobante} />}
+          </div>
+
+          {/* Bloque: Trazabilidad */}
           <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
             <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Trazabilidad</p>
-            <Row label="Registrado"  value={fmtDT(payment.created_at)} />
-            <Row label="Aprobado"    value={fmtDT((payment as Record<string, unknown>).approved_at as string | null ?? null)} />
-            <Row label="Cobrado"     value={fmtDT((payment as Record<string, unknown>).charged_at as string | null ?? payment.created_at)} />
+            <Row label="Nº de venta"  value={<span className="font-mono">{ventaNum}</span>} />
+            <Row label="Registrado"   value={fmtDT(payment.created_at)} />
+            <Row label="Cobrado"      value={fmtDT((payment as Record<string, unknown>).charged_at as string | null ?? payment.created_at)} />
           </div>
+
+          {obs && (
+            <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Observaciones</p>
+              <p className="text-xs text-muted-foreground">{obs}</p>
+            </div>
+          )}
+
           <div className="h-4" />
         </div>
       </div>
@@ -485,14 +614,16 @@ function DetailModal({ payment, employees, onClose }: {
   );
 }
 
-function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
+function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void }) {
   const rows = data.paymentsToday;
+  const pendingRows = data.pendingCharges;
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
   const [detailPayment, setDetailPayment] = React.useState<typeof rows[number] | null>(null);
   const [showAll, setShowAll] = React.useState(false);
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
+  const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {
     const groups = data.paymentsToday.reduce((acc, payment) => {
@@ -517,7 +648,7 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="text-sm font-semibold text-foreground">Cobros</h3>
             <span className="text-[11px] text-muted-foreground">
-              {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy
+{data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
             </span>
             {data.approvalModeEnabled && equipoEnabled && (
               <div className="flex gap-1 ml-1">
@@ -538,15 +669,17 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
 
         {/* Table header */}
         <div className="overflow-x-auto">
-          <div className="min-w-[700px]">
-            <div className="grid grid-cols-[60px_110px_1.2fr_1.2fr_110px_90px_90px_130px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+          <div className="min-w-[1100px]">
+            <div className="grid grid-cols-[55px_100px_minmax(130px,1fr)_minmax(130px,0.9fr)_minmax(170px,1.15fr)_95px_95px_95px_115px_90px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
               <div>Hora</div>
               <div>Cliente</div>
               <div>Profesional</div>
-              <div>Servicio</div>
-              <div>Total</div>
+              <div>Servicio / catálogo</div>
+              <div className="text-right">Total</div>
               <div>Método</div>
+              <div>Origen</div>
+              <div>Cobrado por</div>
               <div>Estado</div>
             </div>
 
@@ -555,39 +688,79 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
               <div className="px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
                 <Loader2 className="size-4 animate-spin" /> Cargando…
               </div>
-            ) : visibleRows.length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros hoy</div>
+            ) : !hasAnyRows ? (
+              <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros</div>
             ) : (
-              visibleRows.map((p) => {
-                const dt = new Date(p.created_at);
-                const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-                const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-                const method = (p.method ?? p.payment_method ?? "cash") as PayMethod;
-                const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
-                const status = (p as Record<string, unknown>).status as string | null ?? "cobrado";
-                const chargeType = (p as Record<string, unknown>).charge_type as string | null ?? null;
+              <>
+                {pendingRows.map((p) => {
+                  const dt = new Date(p.starts_at);
+                  const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+                  const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                  const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
 
-                return (
-                  <div key={p.id}
-                    className="grid grid-cols-[60px_110px_1.2fr_1.2fr_110px_90px_90px_130px] px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
-                    onClick={() => setDetailPayment(p)}
-                  >
-                    <div className="text-muted-foreground">{fecha}</div>
-                    <div className="text-muted-foreground">{hora}</div>
-                    <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
-                    <div className="text-muted-foreground truncate">{empName}</div>
-                    <div className="text-muted-foreground truncate">{p.service_name ?? "—"}</div>
-                    <div className="text-foreground tabular-nums font-medium">
-                      ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
+                  return (
+                    <div key={`pending-${p.id}`}
+                      className="grid grid-cols-[55px_100px_minmax(130px,1fr)_minmax(130px,0.9fr)_minmax(170px,1.15fr)_95px_95px_95px_115px_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
+                    >
+                      <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
+                      <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
+                      <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
+                      <div className="text-muted-foreground truncate">{empName}</div>
+                      <div className="text-muted-foreground truncate">{p.service_name ?? "—"}</div>
+                      <div className="text-foreground tabular-nums font-medium text-right">
+                        ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
+                      </div>
+                      <div className="text-muted-foreground">—</div>
+                      <div><ChargeTypePill type="manual" /></div>
+                      <div className="text-muted-foreground truncate">Recepción</div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => onCobrarPendiente(p)}
+                          className="rounded-lg bg-amber-300/90 px-3 py-1.5 text-[11px] font-bold text-black hover:bg-amber-200 transition"
+                        >
+                          Cobrar
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-emerald-300">{PAY_METHOD_LABEL[method] ?? method}</div>
-                    <div className="flex items-center gap-1.5">
-                      <StatusPill status={status} />
-                      {chargeType && <span className="hidden group-hover:inline"><ChargeTypePill type={chargeType} /></span>}
+                  );
+                })}
+
+                {visibleRows.map((p) => {
+                  const dt = new Date(p.created_at);
+                  const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+                  const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                  const paymentRecord = p as Record<string, unknown>;
+                  const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
+                  const status = paymentRecord.status as string | null ?? "cobrado";
+                  const chargeType = getChargeType(paymentRecord);
+                  const methodLabel = getPaymentMethodLabel(paymentRecord);
+                  const chargedByName = getChargedByLabel(paymentRecord, empName === "—" ? null : empName, chargeType);
+                  const saleDetail = getSaleDetailLabel(paymentRecord);
+
+                  return (
+                    <div key={p.id}
+                      className="grid grid-cols-[55px_100px_minmax(130px,1fr)_minmax(130px,0.9fr)_minmax(170px,1.15fr)_95px_95px_95px_115px_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      onClick={() => setDetailPayment(p)}
+                    >
+                      <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
+                      <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
+                      <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
+                      <div className="text-muted-foreground truncate">{empName}</div>
+                      <div className="text-muted-foreground truncate">{saleDetail}</div>
+                      <div className="text-foreground tabular-nums font-medium text-right">
+                        ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
+                      </div>
+                      <div className="text-muted-foreground truncate">{methodLabel}</div>
+                      <div><ChargeTypePill type={chargeType} /></div>
+                      <div className="text-muted-foreground truncate">{chargedByName}</div>
+                      <div className="flex items-center gap-1.5">
+                        <StatusPill status={status} />
+                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
@@ -714,22 +887,89 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
 // ───────────────────────────── NUEVA VENTA
 type MultiSplit = { method: string; amount: string };
 
-function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
-  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(1);
+type PendingCharge = ReturnType<typeof useCajaData>["pendingCharges"][number];
+
+function NuevaVentaTab({
+  data,
+  pendingCharge = null,
+  onPendingDone,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  pendingCharge?: PendingCharge | null;
+  onPendingDone?: () => void;
+}) {
+  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 3 : 1);
   const [cart, setCart] = React.useState<Record<string, number>>({});
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState<string>("");
   const [clientId, setClientId] = React.useState<string | null>(null);
-  const [client, setClient] = React.useState("");
+  const [client, setClient] = React.useState(pendingCharge?.client_name ?? "");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
-  const [employeeId, setEmployeeId] = React.useState<string>("");
+  const [employeeId, setEmployeeId] = React.useState<string>(pendingCharge?.employee_id ?? "");
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">("simple");
   const [received, setReceived] = React.useState("");
   const [splits, setSplits] = React.useState<MultiSplit[]>([{ method: "cash", amount: "" }]);
   const [submitting, setSubmitting] = React.useState(false);
+
+  // When pendingCharge arrives and services are loaded, inject the service into the cart
+  const pendingInjectedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!pendingCharge || pendingInjectedRef.current || data.services.length === 0) return;
+
+    // Try to match by name (case-insensitive)
+    const match = data.services.find(
+      (s) => s.name.toLowerCase() === (pendingCharge.service_name ?? "").toLowerCase()
+    );
+
+    if (match) {
+      setCart({ [match.id]: 1 });
+    } else if (pendingCharge.service_name) {
+      // Service not in catalogue — inject a virtual item keyed by a sentinel
+      // We'll handle the amount manually via a synthetic service entry below
+      // For now just leave cart empty; the service row will be shown via pendingCharge
+    }
+
+    pendingInjectedRef.current = true;
+  }, [pendingCharge, data.services]);
+
+  // If the service from pending is NOT in the catalogue we still need to show it in the cart.
+  // We build a synthetic catalogue entry and inject it.
+  const syntheticServiceId = pendingCharge ? `__pending__${pendingCharge.id}` : null;
+
+  const servicesWithSynthetic = React.useMemo(() => {
+    if (!pendingCharge || !syntheticServiceId) return data.services;
+    const alreadyMatched = data.services.some(
+      (s) => s.name.toLowerCase() === (pendingCharge.service_name ?? "").toLowerCase()
+    );
+    if (alreadyMatched) return data.services;
+    // Inject a synthetic read-only service
+    const synthetic = {
+      id: syntheticServiceId,
+      name: pendingCharge.service_name ?? "Servicio",
+      price: Number(pendingCharge.service_price ?? 0),
+      category: "Servicios",
+      is_catalog: false,
+      stock: null,
+    } as typeof data.services[0];
+    return [synthetic, ...data.services];
+  }, [data.services, pendingCharge, syntheticServiceId]);
+
+  // Inject synthetic into cart once services resolve
+  React.useEffect(() => {
+    if (!pendingCharge || !syntheticServiceId || pendingInjectedRef.current) return;
+    if (data.services.length === 0) return; // wait for load
+
+    const alreadyMatched = data.services.some(
+      (s) => s.name.toLowerCase() === (pendingCharge.service_name ?? "").toLowerCase()
+    );
+    if (!alreadyMatched) {
+      setCart({ [syntheticServiceId]: 1 });
+    }
+    pendingInjectedRef.current = true;
+  }, [pendingCharge, syntheticServiceId, data.services]);
 
   // Build categories: services first, then catalog categories (no "Todos")
   const categories = React.useMemo(() => {
@@ -746,7 +986,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     if (categories.length > 0 && !category) setCategory(categories[0]);
   }, [categories, category]);
 
-  const filtered = data.services.filter((i) => {
+  const filtered = servicesWithSynthetic.filter((i) => {
     const q = query.trim().toLowerCase();
     const matchesText = !q || `${i.name} ${i.category ?? ""}`.toLowerCase().includes(q);
     const matchesCategory = category === "Servicios"
@@ -773,7 +1013,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   }, [paymentOptions, method]);
 
   const cartItems = Object.entries(cart)
-    .map(([id, qty]) => { const svc = data.services.find((s) => s.id === id); return svc ? { svc, qty } : null; })
+    .map(([id, qty]) => { const svc = servicesWithSynthetic.find((s) => s.id === id); return svc ? { svc, qty } : null; })
     .filter((x): x is { svc: typeof data.services[0]; qty: number } => x !== null);
 
   const total = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
@@ -857,22 +1097,61 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         ? splits.filter((s) => Number(s.amount) > 0).map((s) => ({ method: s.method as PayMethod, amount: Number(s.amount) }))
         : undefined;
 
-      await registerPayment({
-        businessId: data.businessId,
-        employeeId: employeeId || null,
-        commissionPct: selectedEmployee?.commission_pct ?? null,
-        clientName: client.trim() || "Cliente del mostrador",
-        clientId: savedClientId,
-        items,
-        method,
-        splits: validSplits,
-        sessionId: data.cashSessionId,
-        chargedBy: data.profileId,
-      });
+      if (pendingCharge) {
+        // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
+        // 1. Actualizar estado del appointment a "charged"
+        const { error: updateError } = await supabase
+          .from("appointments")
+          .update({ status: "charged" })
+          .eq("id", pendingCharge.id)
+          .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
 
-      toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-      setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
-      setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
+        if (updateError) throw updateError;
+
+        // 2. Registrar el pago vinculado al appointment existente
+        await registerPayment({
+          businessId: data.businessId,
+          employeeId: employeeId || null,
+          employeeName: selectedEmployee?.name ?? null,
+          commissionPct: selectedEmployee?.commission_pct ?? null,
+          clientName: client.trim() || pendingCharge.client_name || "Cliente del mostrador",
+          clientId: savedClientId,
+          items,
+          method,
+          splits: validSplits,
+          appointmentId: pendingCharge.id,
+          sessionId: data.cashSessionId,
+          chargedBy: data.profileId,
+          chargeOrigin: "manual",
+        });
+
+        // 3. Limpiar de localStorage
+        removeLocalManualPendingCharge(pendingCharge.id);
+
+        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        onPendingDone?.();
+      } else {
+        // ── FLUJO NORMAL: nueva venta desde cero ──
+        await registerPayment({
+          businessId: data.businessId,
+          employeeId: employeeId || null,
+          employeeName: selectedEmployee?.name ?? null,
+          commissionPct: selectedEmployee?.commission_pct ?? null,
+          clientName: client.trim() || "Cliente del mostrador",
+          clientId: savedClientId,
+          items,
+          method,
+          splits: validSplits,
+          sessionId: data.cashSessionId,
+          chargedBy: data.profileId,
+          chargeOrigin: "caja",
+        });
+
+        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
+        setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
+      }
+
       await data.refresh();
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
@@ -888,6 +1167,23 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 
   return (
     <div className="space-y-5">
+      {pendingCharge && (
+        <Card className="px-5 py-3 flex items-center gap-3 border-amber-300/30 bg-amber-300/[0.06]">
+          <Clock className="size-4 text-amber-300 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-200">Continuando cobro pendiente</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {pendingCharge.client_name ?? "Sin cliente"} · {pendingCharge.service_name ?? "Servicio"} · ${Number(pendingCharge.service_price ?? 0).toLocaleString("es-AR")}
+            </p>
+          </div>
+          <button
+            onClick={() => onPendingDone?.()}
+            className="text-xs text-muted-foreground hover:text-foreground transition shrink-0"
+          >
+            Cancelar
+          </button>
+        </Card>
+      )}
       <Card className="p-1.5">
         <div className="grid grid-cols-4 gap-1">
           {stepItems.map((s) => {
