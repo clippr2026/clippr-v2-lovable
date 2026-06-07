@@ -282,9 +282,49 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     },
   ];
 
+  function removeLocalPendingCharge(appointmentId: string) {
+    if (typeof window === "undefined") return;
+
+    const storageKey = "clippr_pending_manual_charges";
+
+    try {
+      const rows = JSON.parse(window.localStorage.getItem(storageKey) || "[]") as Array<{ id: string }>;
+      const nextRows = rows.filter((row) => row.id !== appointmentId);
+      window.localStorage.setItem(storageKey, JSON.stringify(nextRows));
+      window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
+    } catch {
+      window.localStorage.removeItem(storageKey);
+      window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
+    }
+  }
+
   async function cobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
     if (!data.businessId) return toast.error("No se pudo identificar el negocio.");
+
     try {
+      const { data: appointment, error: appointmentError } = await supabase
+        .from("appointments")
+        .select("id,status")
+        .eq("id", appt.id)
+        .maybeSingle();
+
+      if (appointmentError) throw appointmentError;
+
+      if (appointment?.status === "charged") {
+        removeLocalPendingCharge(appt.id);
+        toast.info("Este servicio ya estaba cobrado.");
+        await data.refresh();
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("appointments")
+        .update({ status: "charged" })
+        .eq("id", appt.id)
+        .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
+
+      if (updateError) throw updateError;
+
       await registerPayment({
         businessId: data.businessId,
         employeeId: appt.employee_id,
@@ -294,14 +334,10 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
         appointmentId: appt.id,
         chargedBy: data.profileId,
         chargeOrigin: "manual",
+        status: "cobrado",
       });
 
-      const { error } = await supabase
-        .from("appointments")
-        .update({ status: "charged" })
-        .eq("id", appt.id);
-
-      if (error) throw error;
+      removeLocalPendingCharge(appt.id);
       toast.success("Cobro manual confirmado en Caja");
       await data.refresh();
     } catch (e) {
