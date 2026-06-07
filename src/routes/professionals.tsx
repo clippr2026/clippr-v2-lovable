@@ -648,8 +648,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
       ) : turnos.length === 0 ? (
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="glass rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-[65px_160px_1fr_95px_85px] gap-3 px-5 py-3 border-b border-white/10 bg-white/[0.025] text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="glass rounded-2xl overflow-hidden max-w-3xl mx-auto">
+          <div className="grid grid-cols-[15%_15%_40%_15%_15%] px-6 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
             <div>Hora</div>
             <div>Cliente</div>
             <div>Servicio / Catálogo</div>
@@ -669,16 +669,16 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               <div
                 key={t.id}
                 className={cn(
-                  "grid grid-cols-[65px_160px_1fr_95px_85px] gap-3 items-center px-5 py-3.5 text-sm",
+                  "grid grid-cols-[15%_15%_40%_15%_15%] items-center px-6 py-4 text-[15px]",
                   i < turnos.length - 1 && "border-b border-white/5"
                 )}
               >
-                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{formatTime(t.starts_at)}</div>
-                <div className="font-medium truncate">{t.client_name ?? "Sin cliente"}</div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{t.service_name ?? "—"}</div>
+                <div className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">{formatTime(t.starts_at)}</div>
+                <div className="font-medium truncate pr-2">{t.client_name ?? "Sin cliente"}</div>
+                <div className="min-w-0 pr-2">
+                  <div className="font-medium truncate">{t.service_name ?? "—"}</div>
                   {noteText && (
-                    <div className="text-[10px] text-sky-300/80 truncate mt-0.5" title={noteText}>
+                    <div className="text-xs text-sky-300/80 truncate mt-0.5" title={noteText}>
                       📝 {noteText}
                     </div>
                   )}
@@ -699,7 +699,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                         {approvalMode === "auto" ? "Cobrar" : "Enviar"}
                       </button>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )
                   )}
                 </div>
