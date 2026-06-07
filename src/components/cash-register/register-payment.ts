@@ -29,6 +29,7 @@ export type ChargeOrigin = "auto" | "manual" | "caja";
 export type RegisterPaymentInput = {
   businessId: string;
   employeeId?: string | null;
+  employeeName?: string | null;
   clientName: string;
   clientId?: string | null;
   items: RegisterPaymentItem[];
@@ -52,6 +53,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
     const payload: Record<string, unknown> = {
       business_id: input.businessId,
       employee_id: input.employeeId ?? null,
+      employee_name: input.employeeName ?? null,
       client_name: input.clientName || "Cliente del mostrador",
       service_name: item.serviceName,
       amount: item.amount,
