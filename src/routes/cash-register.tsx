@@ -467,7 +467,7 @@ function DetailModal({ payment, employees, onClose }: {
   onClose: () => void;
 }) {
   const method = (payment.method ?? payment.payment_method ?? "cash") as PayMethod;
-  const empName = employees.find(e => e.id === payment.employee_id)?.name ?? payment.employee_name ?? null;
+  const empName = employees.find(e => e.id === payment.employee_id)?.name ?? null;
   const chargedBy = (payment as Record<string, unknown>).charged_by as string | null ?? null;
   const chargeType = (payment as Record<string, unknown>).charge_type as string | null ?? "caja";
   const status = (payment as Record<string, unknown>).status as string | null ?? "cobrado";
@@ -650,7 +650,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
                   const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
                   const method = (p.method ?? p.payment_method ?? "cash") as PayMethod;
-                  const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? p.employee_name ?? "—";
+                  const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
                   const status = (p as Record<string, unknown>).status as string | null ?? "cobrado";
                   const chargeType = (p as Record<string, unknown>).charge_type as string | null ?? "caja";
 
