@@ -46,6 +46,7 @@ export type RegisterPaymentInput = {
   appointmentId?: string | null;
   chargeOrigin?: ChargeOrigin;
   status?: "cobrado" | "pendiente" | "anulado" | "reembolsado";
+  notes?: string | null;
 };
 
 function formatItemName(item: RegisterPaymentItem) {
@@ -93,6 +94,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
 
   if (input.sessionId) payload.session_id = input.sessionId;
   if (input.chargedBy) payload.charged_by = input.chargedBy;
+  if (input.notes?.trim()) payload.observations = input.notes.trim();
 
   const { data, error } = await supabase
     .from("payments")
