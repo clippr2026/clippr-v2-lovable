@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -201,7 +202,9 @@ export function useProfTurnos(
   const validFrom = from || today;
   const validTo = to || today;
 
-  return useQuery({
+  const qc = useQueryClient();
+
+  const query = useQuery({
     queryKey: ["prof-turnos", businessId, empId, validFrom, validTo],
     queryFn: async (): Promise<ProfTurno[]> => {
       const { data, error } = await supabase
@@ -216,8 +219,24 @@ export function useProfTurnos(
       return (data ?? []) as ProfTurno[];
     },
     enabled: !!businessId && !!empId,
-    staleTime: 30_000,
+    staleTime: 0,
   });
+
+  // Realtime: re-fetch cuando cambia cualquier appointment del negocio
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-turnos-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` },
+        () => { qc.invalidateQueries({ queryKey: ["prof-turnos", businessId, empId] }); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [businessId, empId, qc]);
+
+  return query;
 }
 
 // ── Register payment ──────────────────────────────────────────────────────
