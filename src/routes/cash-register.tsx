@@ -766,6 +766,9 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const methodLabel = getPaymentMethodLabel(paymentRecord);
                   const chargedByName = getChargedByLabel(paymentRecord, empName === "—" ? null : empName, chargeType);
                   const saleDetail = getSaleDetailLabel(paymentRecord);
+                  const paymentNote = getManualPendingNote(
+                    ((paymentRecord.observations as string | null) ?? (paymentRecord.notes as string | null) ?? null)
+                  );
 
                   return (
                     <div key={p.id}
@@ -776,7 +779,25 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
-                      <div className="text-muted-foreground truncate">{saleDetail}</div>
+                      <div className="text-muted-foreground truncate">
+                        <span>{saleDetail}</span>
+                        {paymentNote && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setPendingNoteModal({
+                                title: `${p.client_name ?? "Cliente"} · ${saleDetail}`,
+                                note: paymentNote,
+                              });
+                            }}
+                            className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
+                            title="Ver nota del profesional"
+                          >
+                            Ver nota
+                          </button>
+                        )}
+                      </div>
                       <div className="text-foreground tabular-nums font-medium text-right">
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
@@ -844,7 +865,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
             </div>
             <div className="p-5">
               <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Nota enviada a caja</p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Nota guardada</p>
                 <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{pendingNoteModal.note}</p>
               </div>
             </div>
