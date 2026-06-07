@@ -407,13 +407,8 @@ function CobroModal({
           chargedBy: userEmail,
           notes: note || null,
         });
-        // Mark appointment as charged, store origin + note for audit
-        await supabase.from("appointments").update({
-          status: "charged",
-          charge_origin: "auto",
-          charged_by: userEmail,
-          ...(note.trim() ? { notes: note.trim() } : {}),
-        }).eq("id", turno.id);
+        // Mark appointment as charged
+        await supabase.from("appointments").update({ status: "charged" }).eq("id", turno.id);
         toast.success("✓ Cobro automático registrado");
       } else {
         // Manual: el profesional envía el turno a Caja
@@ -429,7 +424,6 @@ function CobroModal({
           .update({
             status: "pending_payment",
             notes: nextNotes,
-            charge_origin: "manual",
           })
           .eq("id", turno.id);
 
