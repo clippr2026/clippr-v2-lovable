@@ -88,6 +88,10 @@ function CashRegisterPage() {
   const [tab, setTab] = useState<Tab>(
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
+
+  // Pending charge to process through the sale flow
+  const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
+
   // Toast on arrival from deposit/cobro flow
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -100,6 +104,12 @@ function CashRegisterPage() {
   useEffect(() => {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
+
+  // When a pending charge is picked, switch to the "nueva" tab
+  function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
+    setPendingToCharge(appt);
+    setTab("nueva");
+  }
 
   if (authLoading || !session) {
     return (
@@ -114,10 +124,22 @@ function CashRegisterPage() {
   return (
     <AppShell>
       <Header data={data} />
-      <Tabs tab={tab} onChange={setTab} />
+      <Tabs tab={tab} onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }} />
       <div className="mt-6">
-        {tab === "resumen" && <ResumenTab data={data} equipoEnabled={permissions.equipo} />}
-        {tab === "nueva" && <NuevaVentaTab data={data} />}
+        {tab === "resumen" && (
+          <ResumenTab
+            data={data}
+            equipoEnabled={permissions.equipo}
+            onCobrarPendiente={handleCobrarPendiente}
+          />
+        )}
+        {tab === "nueva" && (
+          <NuevaVentaTab
+            data={data}
+            pendingCharge={pendingToCharge}
+            onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
+          />
+        )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
@@ -126,7 +148,6 @@ function CashRegisterPage() {
         {tab === "profesionales" && (
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
-
       </div>
     </AppShell>
   );
@@ -236,7 +257,15 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
 }
 
 // ───────────────────────────── RESUMEN
-function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
+function ResumenTab({
+  data,
+  equipoEnabled,
+  onCobrarPendiente,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  equipoEnabled: boolean;
+  onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
+}) {
   // Métodos más usados
   const topMethods = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -282,69 +311,6 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
     },
   ];
 
-  function removeLocalPendingCharge(appointmentId: string) {
-    if (typeof window === "undefined") return;
-
-    const storageKey = "clippr_pending_manual_charges";
-
-    try {
-      const rows = JSON.parse(window.localStorage.getItem(storageKey) || "[]") as Array<{ id: string }>;
-      const nextRows = rows.filter((row) => row.id !== appointmentId);
-      window.localStorage.setItem(storageKey, JSON.stringify(nextRows));
-      window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
-    } catch {
-      window.localStorage.removeItem(storageKey);
-      window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
-    }
-  }
-
-  async function cobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
-    if (!data.businessId) return toast.error("No se pudo identificar el negocio.");
-
-    try {
-      const { data: appointment, error: appointmentError } = await supabase
-        .from("appointments")
-        .select("id,status")
-        .eq("id", appt.id)
-        .maybeSingle();
-
-      if (appointmentError) throw appointmentError;
-
-      if (appointment?.status === "charged") {
-        removeLocalPendingCharge(appt.id);
-        toast.info("Este servicio ya estaba cobrado.");
-        await data.refresh();
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from("appointments")
-        .update({ status: "charged" })
-        .eq("id", appt.id)
-        .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
-
-      if (updateError) throw updateError;
-
-      await registerPayment({
-        businessId: data.businessId,
-        employeeId: appt.employee_id,
-        clientName: appt.client_name ?? "Sin cliente",
-        items: [{ serviceName: appt.service_name ?? "Servicio", amount: Number(appt.service_price ?? 0) }],
-        method: "cash",
-        appointmentId: appt.id,
-        chargedBy: data.profileId,
-        chargeOrigin: "manual",
-        status: "cobrado",
-      });
-
-      removeLocalPendingCharge(appt.id);
-      toast.success("Cobro manual confirmado en Caja");
-      await data.refresh();
-    } catch (e) {
-      toast.error((e as Error).message || "No se pudo cobrar el pendiente");
-    }
-  }
-
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -378,7 +344,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
         ))}
       </div>
 
-      <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={cobrarPendiente} />
+      <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
     </div>
   );
 }
@@ -835,22 +801,89 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 // ───────────────────────────── NUEVA VENTA
 type MultiSplit = { method: string; amount: string };
 
-function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
-  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(1);
+type PendingCharge = ReturnType<typeof useCajaData>["pendingCharges"][number];
+
+function NuevaVentaTab({
+  data,
+  pendingCharge = null,
+  onPendingDone,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  pendingCharge?: PendingCharge | null;
+  onPendingDone?: () => void;
+}) {
+  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 3 : 1);
   const [cart, setCart] = React.useState<Record<string, number>>({});
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState<string>("");
   const [clientId, setClientId] = React.useState<string | null>(null);
-  const [client, setClient] = React.useState("");
+  const [client, setClient] = React.useState(pendingCharge?.client_name ?? "");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
-  const [employeeId, setEmployeeId] = React.useState<string>("");
+  const [employeeId, setEmployeeId] = React.useState<string>(pendingCharge?.employee_id ?? "");
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">("simple");
   const [received, setReceived] = React.useState("");
   const [splits, setSplits] = React.useState<MultiSplit[]>([{ method: "cash", amount: "" }]);
   const [submitting, setSubmitting] = React.useState(false);
+
+  // When pendingCharge arrives and services are loaded, inject the service into the cart
+  const pendingInjectedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!pendingCharge || pendingInjectedRef.current || data.services.length === 0) return;
+
+    // Try to match by name (case-insensitive)
+    const match = data.services.find(
+      (s) => s.name.toLowerCase() === (pendingCharge.service_name ?? "").toLowerCase()
+    );
+
+    if (match) {
+      setCart({ [match.id]: 1 });
+    } else if (pendingCharge.service_name) {
+      // Service not in catalogue — inject a virtual item keyed by a sentinel
+      // We'll handle the amount manually via a synthetic service entry below
+      // For now just leave cart empty; the service row will be shown via pendingCharge
+    }
+
+    pendingInjectedRef.current = true;
+  }, [pendingCharge, data.services]);
+
+  // If the service from pending is NOT in the catalogue we still need to show it in the cart.
+  // We build a synthetic catalogue entry and inject it.
+  const syntheticServiceId = pendingCharge ? `__pending__${pendingCharge.id}` : null;
+
+  const servicesWithSynthetic = React.useMemo(() => {
+    if (!pendingCharge || !syntheticServiceId) return data.services;
+    const alreadyMatched = data.services.some(
+      (s) => s.name.toLowerCase() === (pendingCharge.service_name ?? "").toLowerCase()
+    );
+    if (alreadyMatched) return data.services;
+    // Inject a synthetic read-only service
+    const synthetic = {
+      id: syntheticServiceId,
+      name: pendingCharge.service_name ?? "Servicio",
+      price: Number(pendingCharge.service_price ?? 0),
+      category: "Servicios",
+      is_catalog: false,
+      stock: null,
+    } as typeof data.services[0];
+    return [synthetic, ...data.services];
+  }, [data.services, pendingCharge, syntheticServiceId]);
+
+  // Inject synthetic into cart once services resolve
+  React.useEffect(() => {
+    if (!pendingCharge || !syntheticServiceId || pendingInjectedRef.current) return;
+    if (data.services.length === 0) return; // wait for load
+
+    const alreadyMatched = data.services.some(
+      (s) => s.name.toLowerCase() === (pendingCharge.service_name ?? "").toLowerCase()
+    );
+    if (!alreadyMatched) {
+      setCart({ [syntheticServiceId]: 1 });
+    }
+    pendingInjectedRef.current = true;
+  }, [pendingCharge, syntheticServiceId, data.services]);
 
   // Build categories: services first, then catalog categories (no "Todos")
   const categories = React.useMemo(() => {
@@ -867,7 +900,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
     if (categories.length > 0 && !category) setCategory(categories[0]);
   }, [categories, category]);
 
-  const filtered = data.services.filter((i) => {
+  const filtered = servicesWithSynthetic.filter((i) => {
     const q = query.trim().toLowerCase();
     const matchesText = !q || `${i.name} ${i.category ?? ""}`.toLowerCase().includes(q);
     const matchesCategory = category === "Servicios"
@@ -894,7 +927,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
   }, [paymentOptions, method]);
 
   const cartItems = Object.entries(cart)
-    .map(([id, qty]) => { const svc = data.services.find((s) => s.id === id); return svc ? { svc, qty } : null; })
+    .map(([id, qty]) => { const svc = servicesWithSynthetic.find((s) => s.id === id); return svc ? { svc, qty } : null; })
     .filter((x): x is { svc: typeof data.services[0]; qty: number } => x !== null);
 
   const total = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
@@ -978,23 +1011,59 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
         ? splits.filter((s) => Number(s.amount) > 0).map((s) => ({ method: s.method as PayMethod, amount: Number(s.amount) }))
         : undefined;
 
-      await registerPayment({
-        businessId: data.businessId,
-        employeeId: employeeId || null,
-        commissionPct: selectedEmployee?.commission_pct ?? null,
-        clientName: client.trim() || "Cliente del mostrador",
-        clientId: savedClientId,
-        items,
-        method,
-        splits: validSplits,
-        sessionId: data.cashSessionId,
-        chargedBy: data.profileId,
-        chargeOrigin: "caja",
-      });
+      if (pendingCharge) {
+        // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
+        // 1. Actualizar estado del appointment a "charged"
+        const { error: updateError } = await supabase
+          .from("appointments")
+          .update({ status: "charged" })
+          .eq("id", pendingCharge.id)
+          .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
 
-      toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-      setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
-      setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
+        if (updateError) throw updateError;
+
+        // 2. Registrar el pago vinculado al appointment existente
+        await registerPayment({
+          businessId: data.businessId,
+          employeeId: employeeId || null,
+          commissionPct: selectedEmployee?.commission_pct ?? null,
+          clientName: client.trim() || pendingCharge.client_name || "Cliente del mostrador",
+          clientId: savedClientId,
+          items,
+          method,
+          splits: validSplits,
+          appointmentId: pendingCharge.id,
+          sessionId: data.cashSessionId,
+          chargedBy: data.profileId,
+          chargeOrigin: "manual",
+        });
+
+        // 3. Limpiar de localStorage
+        removeLocalManualPendingCharge(pendingCharge.id);
+
+        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        onPendingDone?.();
+      } else {
+        // ── FLUJO NORMAL: nueva venta desde cero ──
+        await registerPayment({
+          businessId: data.businessId,
+          employeeId: employeeId || null,
+          commissionPct: selectedEmployee?.commission_pct ?? null,
+          clientName: client.trim() || "Cliente del mostrador",
+          clientId: savedClientId,
+          items,
+          method,
+          splits: validSplits,
+          sessionId: data.cashSessionId,
+          chargedBy: data.profileId,
+          chargeOrigin: "caja",
+        });
+
+        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
+        setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
+      }
+
       await data.refresh();
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
@@ -1010,6 +1079,23 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
 
   return (
     <div className="space-y-5">
+      {pendingCharge && (
+        <Card className="px-5 py-3 flex items-center gap-3 border-amber-300/30 bg-amber-300/[0.06]">
+          <Clock className="size-4 text-amber-300 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-200">Continuando cobro pendiente</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {pendingCharge.client_name ?? "Sin cliente"} · {pendingCharge.service_name ?? "Servicio"} · ${Number(pendingCharge.service_price ?? 0).toLocaleString("es-AR")}
+            </p>
+          </div>
+          <button
+            onClick={() => onPendingDone?.()}
+            className="text-xs text-muted-foreground hover:text-foreground transition shrink-0"
+          >
+            Cancelar
+          </button>
+        </Card>
+      )}
       <Card className="p-1.5">
         <div className="grid grid-cols-4 gap-1">
           {stepItems.map((s) => {
