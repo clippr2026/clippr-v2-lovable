@@ -128,7 +128,7 @@ function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
   const navigate = useNavigate();
-  const [advisorTab, setAdvisorTab] = React.useState<"analisis" | "simuladores">("analisis");
+  const [advisorTab, setAdvisorTab] = React.useState<"analisis" | "prioridades" | "simuladores">("analisis");
   const [priorityOpen, setPriorityOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -152,26 +152,9 @@ function AdvisorRoute() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
         <div className="flex items-center gap-2 shrink-0">
-          {/* Prioridad actual pill */}
-          {priorityAction && (
-            <button
-              type="button"
-              onClick={() => setPriorityOpen((v) => !v)}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all",
-                priorityOpen
-                  ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-amber-400/30 bg-amber-400/[0.08] text-amber-300 hover:bg-amber-400/[0.14]"
-              )}
-            >
-              <Target className="h-3.5 w-3.5" />
-              Prioridad actual
-              {priorityOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
-          )}
-          {/* Tabs */}
           {([
             { key: "analisis", label: "📊 Análisis" },
+            { key: "prioridades", label: "🎯 Prioridades" },
             { key: "simuladores", label: "💰 Simuladores" },
           ] as const).map((t) => (
             <button
@@ -191,34 +174,12 @@ function AdvisorRoute() {
         </div>
       </div>
 
-      {/* Priority expand panel */}
-      {priorityOpen && priorityAction && (
-        <div className="mt-3 rounded-3xl border border-primary/40 bg-primary/[0.08] p-5 shadow-[0_0_45px_rgba(88,101,242,0.16)]">
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div className="max-w-2xl">
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Prioridad actual</div>
-              <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white">{priorityAction.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{priorityAction.detail}</p>
-              <p className="mt-3 text-sm font-semibold text-emerald-300">{priorityAction.impact}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPriorityOpen(false)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
-            >
-              <Sparkles className="h-4 w-4" />
-              Tomar acción
-            </button>
-          </div>
-        </div>
-      )}
-
       <AdvisorContent advisorTab={advisorTab} setAdvisorTab={setAdvisorTab} />
     </AppShell>
   );
 }
 
-function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisorTab: "analisis" | "simuladores"; setAdvisorTab: (t: "analisis" | "simuladores") => void }) {
+function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisorTab: "analisis" | "prioridades" | "simuladores"; setAdvisorTab: (t: "analisis" | "prioridades" | "simuladores") => void }) {
   const [shouldAnimateResults, setShouldAnimateResults] = React.useState(false);
   const animationProgress = useResultAnimation(shouldAnimateResults);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
@@ -298,7 +259,6 @@ function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisor
   }, [reports]);
 
   const [showExtraRecommendation] = React.useState(true);
-  const [selectedRecommendation, setSelectedRecommendation] = React.useState<AdvisorAction | null>(null);
   const [resolvedRecommendations, setResolvedRecommendations] = React.useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     const saved = localStorage.getItem("clippr_advisor_resolved_recommendations_demo");
@@ -310,10 +270,6 @@ function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisor
     }
   });
 
-  const actions = getDemoActions(showExtraRecommendation);
-  const pendingActions = actions.filter((action) => !resolvedRecommendations.includes(action.title));
-  const priorityAction = pendingActions[0] ?? null;
-  const strategicIdea = getStrategicIdea();
   const healthTone = getHealthTone(DEMO.health);
   const animatedHealth = Math.round(DEMO.health * animationProgress);
   const animatedProfit = Math.round(DEMO.profit * animationProgress);
@@ -328,7 +284,6 @@ function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisor
       }
       return next;
     });
-    setSelectedRecommendation(null);
   }
 
   function handleResetRecommendations() {
@@ -362,6 +317,15 @@ function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisor
           ticket={DEMO.ticket}
           clientes={DEMO.clients}
           ocupacion={DEMO.occupancy}
+        />
+      )}
+
+      {advisorTab === "prioridades" && (
+        <PrioridadesTab
+          actions={getDemoActions(showExtraRecommendation).slice(0, 3)}
+          resolvedRecommendations={resolvedRecommendations}
+          onResolve={handleResolveRecommendation}
+          onReset={handleResetRecommendations}
         />
       )}
 
@@ -457,14 +421,6 @@ function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisor
         </div>
 
               </GlassCard>
-
-      {selectedRecommendation ? (
-        <RecommendationDetailModal
-          action={selectedRecommendation}
-          onClose={() => setSelectedRecommendation(null)}
-          onResolve={() => handleResolveRecommendation(selectedRecommendation)}
-        />
-      ) : null}
 
       {infoModal ? (
         <InfoModal content={infoModal} onClose={() => setInfoModal(null)} />
@@ -817,6 +773,173 @@ function ActionCard({ action, onOpen }: { action: AdvisorAction; onOpen: () => v
   );
 }
 
+// ─── PRIORIDADES TAB ─────────────────────────────────────────────────────────
+
+function PrioridadesTab({
+  actions,
+  resolvedRecommendations,
+  onResolve,
+  onReset,
+}: {
+  actions: AdvisorAction[];
+  resolvedRecommendations: string[];
+  onResolve: (action: AdvisorAction) => void;
+  onReset: () => void;
+}) {
+  const pending = actions.filter((a) => !resolvedRecommendations.includes(a.title));
+  const [idx, setIdx] = React.useState(0);
+
+  // Advance to next when resolved
+  React.useEffect(() => {
+    if (idx >= pending.length && pending.length > 0) setIdx(0);
+  }, [pending.length, idx]);
+
+  const current = pending[idx] ?? null;
+
+  if (!current) {
+    return (
+      <GlassCard className="p-8 text-center">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-emerald-400/10 ring-1 ring-emerald-400/20">
+          <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+        </div>
+        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">🎉 ¡Estás al día!</h2>
+        <p className="mt-2 max-w-md mx-auto text-sm text-muted-foreground">
+          No se detectaron nuevas acciones prioritarias para hoy. Tu negocio está funcionando correctamente según los indicadores actuales.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Volvé mañana para revisar nuevas oportunidades detectadas por la IA.</p>
+        <button
+          type="button"
+          onClick={onReset}
+          className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+        >
+          Reiniciar recomendaciones
+        </button>
+      </GlassCard>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Progress dots */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-muted-foreground">
+          {resolvedRecommendations.filter(r => actions.some(a => a.title === r)).length} de {actions.length} resueltas
+        </span>
+        <div className="flex gap-1.5">
+          {actions.map((a, i) => {
+            const resolved = resolvedRecommendations.includes(a.title);
+            const isCurrent = !resolved && pending.indexOf(a) === idx;
+            return (
+              <div
+                key={a.title}
+                className={cn(
+                  "h-1.5 rounded-full transition-all",
+                  resolved ? "w-6 bg-emerald-400" : isCurrent ? "w-6 bg-primary" : "w-4 bg-white/20"
+                )}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main card */}
+      <GlassCard className="p-6 sm:p-8">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
+              🎯 Prioridad #{idx + 1} detectada por IA
+            </div>
+            <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-white">{current.title}</h2>
+          </div>
+          {pending.length > 1 && (
+            <div className="flex gap-2">
+              {pending.map((a, i) => (
+                <button
+                  key={a.title}
+                  type="button"
+                  onClick={() => setIdx(i)}
+                  className={cn(
+                    "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
+                    i === idx
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  #{i + 1}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Oportunidad + Impacto */}
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">🔍 Oportunidad detectada</div>
+            <p className="mt-3 text-sm leading-relaxed text-white">{current.problem}</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">💰 Impacto estimado</div>
+            <div className="mt-3 font-display text-3xl font-semibold text-emerald-300">{current.impact}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Basado en datos reales de los últimos 30 días.</p>
+          </div>
+        </div>
+
+        {/* Cómo tomar acción */}
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="text-sm font-semibold text-white">✅ Cómo tomar acción</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {current.howToAct.map((step) => (
+              <div key={step} className="flex items-start gap-2.5">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                <span className="text-sm text-muted-foreground leading-relaxed">{step}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Mensaje sugerido */}
+        <MessageSugeridoBlock suggestedMessage={current.suggestedMessage} />
+
+        {/* Marcar como resuelto */}
+        <div className="mt-6 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onResolve(current)}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_rgba(52,211,153,0.5)] transition hover:brightness-110"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Marcar como resuelto
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {pending.length > 1 ? `Quedan ${pending.length - 1} más` : "Última prioridad"}
+          </span>
+        </div>
+      </GlassCard>
+    </div>
+  );
+}
+
+function MessageSugeridoBlock({ suggestedMessage }: { suggestedMessage: string }) {
+  const [message, setMessage] = React.useState(suggestedMessage);
+  React.useEffect(() => { setMessage(suggestedMessage); }, [suggestedMessage]);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+      <div className="text-sm font-semibold text-white">💬 Mensaje sugerido editable</div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Adaptalo al tono de tu negocio. Sirve para WhatsApp, email, Instagram o campañas.
+      </p>
+      <textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        className="mt-3 min-h-[110px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition placeholder:text-muted-foreground focus:border-primary/50 resize-none"
+      />
+    </div>
+  );
+}
+
 function RecommendationDetailModal({
   action,
   onClose,
@@ -827,43 +950,34 @@ function RecommendationDetailModal({
   onResolve: () => void;
 }) {
   const [message, setMessage] = React.useState(action.suggestedMessage);
-
-  React.useEffect(() => {
-    setMessage(action.suggestedMessage);
-  }, [action.suggestedMessage]);
+  React.useEffect(() => { setMessage(action.suggestedMessage); }, [action.suggestedMessage]);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-background p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Recomendación IA</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">🎯 Prioridad detectada por IA</div>
             <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">{action.title}</h2>
-                      </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
-          >
+          </div>
+          <button type="button" onClick={onClose}
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white">
             Cerrar
           </button>
         </div>
-
         <div className="mt-6 grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Problema detectado</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">🔍 Oportunidad detectada</div>
             <p className="mt-2 text-sm leading-relaxed text-white">{action.problem}</p>
           </div>
-
           <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Impacto estimado</div>
-            <p className="mt-2 text-sm leading-relaxed text-white">{action.opportunity}</p>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">💰 Impacto estimado</div>
+            <div className="mt-2 font-display text-2xl font-semibold text-emerald-300">{action.impact}</div>
+            <p className="mt-1 text-xs text-muted-foreground">Basado en datos reales de los últimos 30 días.</p>
           </div>
         </div>
-
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-sm font-semibold text-white">Cómo tomar acción</div>
+          <div className="text-sm font-semibold text-white">✅ Cómo tomar acción</div>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             {action.howToAct.map((step) => (
               <div key={step} className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -873,25 +987,16 @@ function RecommendationDetailModal({
             ))}
           </div>
         </div>
-
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-sm font-semibold text-white">Mensaje sugerido editable</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Adaptalo al tono de tu negocio. Sirve para WhatsApp, email o mensaje directo.
-          </p>
-          <textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            className="mt-3 min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition placeholder:text-muted-foreground focus:border-primary/50"
-          />
+          <div className="text-sm font-semibold text-white">💬 Mensaje sugerido editable</div>
+          <p className="mt-1 text-xs text-muted-foreground">Adaptalo al tono de tu negocio. Sirve para WhatsApp, email o mensaje directo.</p>
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)}
+            className="mt-3 min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition focus:border-primary/50" />
         </div>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onResolve}
-            className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
-          >
+        <div className="mt-5">
+          <button type="button" onClick={onResolve}
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20">
+            <CheckCircle2 className="h-3.5 w-3.5" />
             Marcar como resuelto
           </button>
         </div>
