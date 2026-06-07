@@ -41,6 +41,8 @@ type AdvisorAction = {
   title: string;
   detail: string;
   impact: string;
+  impactAmount: string;
+  impactExplanation: string;
   button: string;
   tone: ActionTone;
   problem: string;
@@ -532,6 +534,8 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Recuperar clientes",
       detail: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
+      impactAmount: `+${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
+      impactExplanation: `Facturación recuperable si ${DEMO.inactiveClients} clientes inactivos vuelven al menos una vez. Basado en el ticket promedio actual de ${fmtAR(DEMO.ticket)}.`,
       button: "Tomar acción",
       tone: "client",
       problem: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
@@ -553,6 +557,8 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Llenar horarios libres",
       detail: `Mañana tenés ${DEMO.emptySlotsTomorrow} espacios vacíos.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
+      impactAmount: `+${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
+      impactExplanation: `Ingresos que se perderían si los ${DEMO.emptySlotsTomorrow} turnos disponibles mañana quedan vacíos. Cada turno vale en promedio ${fmtAR(DEMO.ticket)}.`,
       button: "Tomar acción",
       tone: "warning",
       problem: `Mañana hay ${DEMO.emptySlotsTomorrow} horarios disponibles sin ocupar.`,
@@ -574,6 +580,8 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Aumentar facturación por cliente",
       detail: "El ticket promedio puede mejorar con servicios complementarios, productos o combos de mayor valor.",
       impact: `Potencial estimado: +${fmtAR(DEMO.payments * 1000)}`,
+      impactAmount: `+${fmtAR(DEMO.payments * 1000)}`,
+      impactExplanation: `Si agregás en promedio $1.000 por venta, sobre los ${DEMO.payments} servicios del período, podés generar este ingreso adicional sin necesidad de sumar nuevos clientes.`,
       button: "Tomar acción",
       tone: "money",
       problem: "Hay oportunidad de aumentar la facturación por cliente sin subir precios de forma directa.",
@@ -595,6 +603,8 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Reactivar clientes VIP",
       detail: `${DEMO.vipInactive} clientes VIP no visitan hace 30 días.`,
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
+      impactAmount: `+${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
+      impactExplanation: `Estimado si los ${DEMO.vipInactive} clientes VIP inactivos regresan. Son clientes de alto valor con un ticket promedio de ${fmtAR(DEMO.ticket)}.`,
       button: "Tomar acción",
       tone: "growth",
       problem: `${DEMO.vipInactive} clientes VIP no volvieron en los últimos 30 días.`,
@@ -616,6 +626,8 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Confirmar turnos",
       detail: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       impact: "Reduce ausencias y huecos de agenda.",
+      impactAmount: `${DEMO.unconfirmedAppointments} turnos`,
+      impactExplanation: `Confirmarlos reduce el riesgo de ausencias y turnos perdidos. Cada turno sin confirmar representa un posible hueco de ${fmtAR(DEMO.ticket)} que no podés reasignar a tiempo.`,
       button: "Tomar acción",
       tone: "neutral",
       problem: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
@@ -637,6 +649,8 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       title: "Impulsar el día más flojo",
       detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
       impact: `Potencial con 30% OFF: +${fmtAR(Math.round(8 * DEMO.ticket * 0.7))}`,
+      impactAmount: `+${fmtAR(Math.round(8 * DEMO.ticket * 0.7))} por mes`,
+      impactExplanation: `Ingresos adicionales si completás 8 turnos vacíos los ${DEMO.lowDay}s con una promoción del 30% OFF. La diferencia de ocupación entre ese día y el promedio semanal indica una oportunidad concreta sin necesidad de nuevos clientes.`,
       button: "Tomar acción",
       tone: "growth",
       problem: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} tiene menor ocupación que el resto de la semana.`,
@@ -820,57 +834,14 @@ function PrioridadesTab({
 
   return (
     <div className="space-y-4">
-      {/* Progress dots */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-muted-foreground">
-          {resolvedRecommendations.filter(r => actions.some(a => a.title === r)).length} de {actions.length} resueltas
-        </span>
-        <div className="flex gap-1.5">
-          {actions.map((a, i) => {
-            const resolved = resolvedRecommendations.includes(a.title);
-            const isCurrent = !resolved && pending.indexOf(a) === idx;
-            return (
-              <div
-                key={a.title}
-                className={cn(
-                  "h-1.5 rounded-full transition-all",
-                  resolved ? "w-6 bg-emerald-400" : isCurrent ? "w-6 bg-primary" : "w-4 bg-white/20"
-                )}
-              />
-            );
-          })}
-        </div>
-      </div>
-
       {/* Main card */}
       <GlassCard className="p-6 sm:p-8">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
-              🎯 Prioridad #{idx + 1} detectada por IA
-            </div>
-            <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-white">{current.title}</h2>
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
+            🎯 Prioridad detectada por IA
           </div>
-          {pending.length > 1 && (
-            <div className="flex gap-2">
-              {pending.map((a, i) => (
-                <button
-                  key={a.title}
-                  type="button"
-                  onClick={() => setIdx(i)}
-                  className={cn(
-                    "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
-                    i === idx
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  #{i + 1}
-                </button>
-              ))}
-            </div>
-          )}
+          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-white">{current.title}</h2>
         </div>
 
         {/* Oportunidad + Impacto */}
@@ -879,10 +850,12 @@ function PrioridadesTab({
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">🔍 Oportunidad detectada</div>
             <p className="mt-3 text-sm leading-relaxed text-white">{current.problem}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">💰 Impacto estimado</div>
-            <div className="mt-3 font-display text-3xl font-semibold text-emerald-300">{current.impact}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Basado en datos reales de los últimos 30 días.</p>
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 flex flex-col justify-between">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">💰 Oportunidad económica</div>
+            <div className="mt-3 font-display text-4xl font-semibold tracking-tight text-emerald-300 leading-none">
+              {current.impactAmount}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground leading-relaxed">{current.impactExplanation}</p>
           </div>
         </div>
 
@@ -912,9 +885,6 @@ function PrioridadesTab({
             <CheckCircle2 className="h-4 w-4" />
             Marcar como resuelto
           </button>
-          <span className="text-xs text-muted-foreground">
-            {pending.length > 1 ? `Quedan ${pending.length - 1} más` : "Última prioridad"}
-          </span>
         </div>
       </GlassCard>
     </div>
