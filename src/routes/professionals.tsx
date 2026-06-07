@@ -638,9 +638,13 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                     <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-amber-500/10 ring-amber-400/25 text-amber-200">
                       Enviado
                     </span>
+                  ) : t.status === "charged" && String(t.notes ?? "").includes("[PENDIENTE_CAJA]") ? (
+                    <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-amber-500/10 ring-amber-400/25 text-amber-200">
+                      Enviado
+                    </span>
                   ) : t.status === "charged" ? (
                     <span className="rounded-lg px-3 py-1.5 text-[11px] font-semibold ring-1 whitespace-nowrap bg-emerald-500/10 ring-emerald-400/25 text-emerald-300">
-                      Cobrado
+                      Cobró
                     </span>
                   ) : t.status === "blocked" || t.status === "cancelled" ? (
                     <span className="text-[11px] text-muted-foreground uppercase tracking-wider">—</span>
