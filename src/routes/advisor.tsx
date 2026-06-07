@@ -128,6 +128,7 @@ function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
   const navigate = useNavigate();
+  const [advisorTab, setAdvisorTab] = React.useState<"analisis" | "simuladores">("analisis");
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
@@ -145,13 +146,35 @@ function AdvisorRoute() {
 
   return (
     <AppShell>
-      <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-      <AdvisorContent />
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
+        <div className="flex gap-1.5 shrink-0">
+          {([
+            { key: "analisis", label: "📊 Análisis" },
+            { key: "simuladores", label: "💰 Simuladores" },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setAdvisorTab(t.key)}
+              className={cn(
+                "rounded-xl px-4 py-2 text-sm font-semibold transition-all",
+                advisorTab === t.key
+                  ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <AdvisorContent advisorTab={advisorTab} setAdvisorTab={setAdvisorTab} />
     </AppShell>
   );
 }
 
-function AdvisorContent() {
+function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisorTab: "analisis" | "simuladores"; setAdvisorTab: (t: "analisis" | "simuladores") => void }) {
   const [shouldAnimateResults, setShouldAnimateResults] = React.useState(false);
   const animationProgress = useResultAnimation(shouldAnimateResults);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
@@ -271,8 +294,6 @@ function AdvisorContent() {
     }
   }
 
-  const [advisorTab, setAdvisorTab] = React.useState<"analisis" | "simuladores">("analisis");
-
   if (!analysisStarted) {
     return (
       <StartAnalysis
@@ -290,28 +311,6 @@ function AdvisorContent() {
 
   return (
     <div className="space-y-6">
-      {/* Tab nav */}
-      <div className="flex gap-2">
-        {([
-          { key: "analisis", label: "📊 Análisis del negocio" },
-          { key: "simuladores", label: "💰 Simuladores" },
-        ] as const).map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setAdvisorTab(t.key)}
-            className={cn(
-              "rounded-xl px-4 py-2 text-sm font-semibold transition-all",
-              advisorTab === t.key
-                ? "bg-primary/15 text-primary ring-1 ring-primary/30"
-                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={DEMO.payments}
@@ -1474,9 +1473,9 @@ Respondé SOLO con un JSON válido, sin markdown ni texto extra, con esta estruc
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Escenarios</p>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { label: "Conservador", emoji: "🔴", serviciosN: conservador, impacto: impactoConservador, desc: "−10% de servicios", cls: "border-rose-400/20 bg-rose-400/[0.05]", val: "text-rose-300" },
-              { label: "Normal",      emoji: "🟡", serviciosN: normal,      impacto: impactoNormal,      desc: "misma cantidad",   cls: "border-amber-400/20 bg-amber-400/[0.05]", val: "text-amber-300" },
-              { label: "Optimista",   emoji: "🟢", serviciosN: optimista,   impacto: impactoOptimista,   desc: "+10% de servicios",cls: "border-emerald-400/20 bg-emerald-400/[0.05]", val: "text-emerald-300" },
+              { label: "Conservador", emoji: "🔴", serviciosN: conservador, impacto: impactoConservador, desc: "si baja un 10% la demanda", cls: "border-rose-400/20 bg-rose-400/[0.05]", val: "text-rose-300" },
+              { label: "Normal",      emoji: "🟡", serviciosN: normal,      impacto: impactoNormal,      desc: "si la demanda se mantiene igual",   cls: "border-amber-400/20 bg-amber-400/[0.05]", val: "text-amber-300" },
+              { label: "Optimista",   emoji: "🟢", serviciosN: optimista,   impacto: impactoOptimista,   desc: "si sube un 10% la demanda",cls: "border-emerald-400/20 bg-emerald-400/[0.05]", val: "text-emerald-300" },
             ].map((sc) => (
               <div key={sc.label} className={cn("rounded-2xl border p-4", sc.cls)}>
                 <div className="flex items-center gap-2">
