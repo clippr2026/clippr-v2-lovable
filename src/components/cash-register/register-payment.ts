@@ -30,8 +30,11 @@ export type RegisterPaymentInput = {
   businessId: string;
   employeeId?: string | null;
   clientName: string;
+  clientId?: string | null;
   items: RegisterPaymentItem[];
   method: PayMethod;
+  splits?: Array<{ method: PayMethod; amount: number }>;
+  commissionPct?: number | null;
   sessionId?: string | null;
   chargedBy?: string | null;
   appointmentId?: string | null;
