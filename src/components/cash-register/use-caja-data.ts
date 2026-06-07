@@ -61,6 +61,7 @@ export type Payment = {
   service_name: string | null;
   created_at: string;
   employee_id: string | null;
+  employee_name?: string | null;
   appointment_id: string | null;
   charged_by?: string | null;
   charge_type?: "auto" | "manual" | "caja" | string | null;
@@ -135,7 +136,8 @@ export function useCajaData() {
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")
-        .select("id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at")
+        .select("id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,employee_name,appointment_id,charged_by,charge_type,status,charged_at")
+        .eq("business_id", businessId)
         .gte("created_at", today.toISOString())
         .lte("created_at", todayEnd.toISOString())
         .order("created_at", { ascending: false }),
