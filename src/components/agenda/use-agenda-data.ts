@@ -279,7 +279,6 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     business_id: input.business_id,
     client_id: input.client_id ?? null,
     client_name: input.client_name,
-    client_phone: input.client_phone ?? null,
     employee_id: input.employee_id,
     service_name: input.service_name,
     service_price: input.service_price,
@@ -288,9 +287,6 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     duration_min: input.duration_min,
     status: input.status ?? "pending",
     notes: input.notes ?? null,
-    deposit_amount: input.deposit_amount ?? null,
-    deposit_paid: input.deposit_paid ?? null,
-    deposit_status: input.deposit_status ?? null,
     updated_at: new Date().toISOString(),
   };
   if (!input.id) {
