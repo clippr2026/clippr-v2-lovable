@@ -213,7 +213,7 @@ export function useProfTurnos(
     queryFn: async (): Promise<ProfTurno[]> => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,charge_origin,charged_by,payment_method")
+        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
         .gte("starts_at", validFrom + "T00:00:00")
@@ -229,9 +229,9 @@ export function useProfTurnos(
         ends_at: row.ends_at,
         status: row.status,
         notes: row.notes,
-        charge_origin: (row as Record<string, unknown>).charge_origin as string | null ?? null,
-        charged_by: (row as Record<string, unknown>).charged_by as string | null ?? null,
-        payment_method: (row as Record<string, unknown>).payment_method as string | null ?? null,
+        charge_origin: null,
+        charged_by: null,
+        payment_method: null,
       })) as ProfTurno[];
     },
     enabled: !!businessId && !!empId,
