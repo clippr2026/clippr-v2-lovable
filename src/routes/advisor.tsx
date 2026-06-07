@@ -1090,288 +1090,6 @@ function SimuladoresTab(props: SimuladorProps) {
   );
 }
 
-// ─── SIMULADOR NUEVO PROFESIONAL ─────────────────────────────────────────────
-
-type ProfSimResult = {
-  nivel: "recomendado" | "evaluar" | "no_recomendado";
-  titulo: string;
-  resumen: string;
-  breakdown: {
-    ocupacion: string;
-    demanda: string;
-    retorno: string;
-    plazo: string;
-    riesgo: string;
-    conclusion: string;
-  };
-};
-
-function SimuladorProfesional({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
-  const [sueldoBase, setSueldoBase] = React.useState("");
-  const [comision, setComision] = React.useState("50");
-  const [simulado, setSimulado] = React.useState(false);
-  const [loadingIA, setLoadingIA] = React.useState(false);
-  const [resultado, setResultado] = React.useState<ProfSimResult | null>(null);
-  const [showBreakdown, setShowBreakdown] = React.useState(false);
-
-  const sueldoNum = Number(sueldoBase.replace(/\D/g, "")) || 0;
-  const comisionNum = Math.min(100, Math.max(0, Number(comision) || 50));
-
-  // Estimación: si agrego un profesional, ¿cuánto más podría generar?
-  // Asume que puede atender ~80% de lo que atiende el promedio actual
-  const serviciosPorProf = servicios > 0 ? servicios : 1;
-  const serviciosNuevoProf = Math.round(serviciosPorProf * 0.8);
-  const facturacionExtra = serviciosNuevoProf * ticket;
-  const comisionExtra = (facturacionExtra * comisionNum) / 100;
-  const costoTotal = sueldoNum + comisionExtra;
-  const gananciaNetaEstimada = facturacionExtra - costoTotal;
-  const roiMensual = costoTotal > 0 ? Math.round((gananciaNetaEstimada / costoTotal) * 100) : 0;
-  const mesesRetorno = gananciaNetaEstimada > 0
-    ? Math.ceil(costoTotal / gananciaNetaEstimada)
-    : null;
-
-  const SUELDO_PRESETS = [150000, 250000, 400000, 600000];
-  const COMISION_PRESETS = [30, 40, 50, 60];
-
-  async function calcular() {
-    if (!sueldoNum) return;
-    setSimulado(true);
-    setLoadingIA(true);
-    setResultado(null);
-    setShowBreakdown(false);
-
-    try {
-      const prompt = `Sos el asesor financiero de un negocio de barbería/salón de belleza. Analizá si conviene contratar un nuevo profesional.
-
-DATOS DEL NEGOCIO (último período):
-- Servicios realizados: ${servicios}
-- Facturación: $${fmtNum(facturacion)}
-- Ticket promedio: $${fmtNum(ticket)}
-- Clientes atendidos: ${clientes}
-- Ocupación promedio: ${ocupacion}%
-
-COSTO DEL NUEVO PROFESIONAL:
-- Sueldo base mensual: $${fmtNum(sueldoNum)}
-- Comisión: ${comisionNum}%
-- Servicios estimados que podría atender: ${serviciosNuevoProf}
-- Facturación extra estimada: $${fmtNum(facturacionExtra)}
-- Costo total (sueldo + comisiones): $${fmtNum(costoTotal)}
-- Ganancia neta estimada: $${fmtNum(gananciaNetaEstimada)}
-- ROI mensual estimado: ${roiMensual}%
-
-Reglas:
-- Si ocupación >= 75% y ganancia neta > 0: nivel = "recomendado"
-- Si ocupación entre 55-74% o ganancia neta marginal: nivel = "evaluar"
-- Si ocupación < 55% o ganancia neta negativa: nivel = "no_recomendado"
-
-Respondé SOLO con un JSON válido, sin markdown:
-{"nivel":"recomendado","titulo":"texto corto","resumen":"2-3 oraciones con datos concretos","breakdown":{"ocupacion":"1 oración sobre la ocupación actual","demanda":"1 oración sobre si hay demanda suficiente para otro profesional","retorno":"1 oración sobre el ROI y retorno de la inversión","plazo":"1 oración sobre el plazo estimado de recupero","riesgo":"1 oración sobre el riesgo principal","conclusion":"1 oración de conclusión"}}`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      const json = await res.json();
-      const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean) as ProfSimResult;
-      setResultado(parsed);
-    } catch {
-      const nivel: ProfSimResult["nivel"] = ocupacion >= 75 && gananciaNetaEstimada > 0
-        ? "recomendado"
-        : ocupacion >= 55
-        ? "evaluar"
-        : "no_recomendado";
-      setResultado({
-        nivel,
-        titulo: nivel === "recomendado" ? "Alta ocupación, momento de crecer" : nivel === "evaluar" ? "Evaluar antes de contratar" : "Completar la agenda primero",
-        resumen: nivel === "recomendado"
-          ? `Tu ocupación del ${ocupacion}% indica que hay demanda para un nuevo profesional. Con ${serviciosNuevoProf} servicios estimados, la ganancia neta sería de $${fmtNum(gananciaNetaEstimada)} por mes.`
-          : nivel === "evaluar"
-          ? `Tu ocupación del ${ocupacion}% es moderada. Un nuevo profesional podría generar $${fmtNum(gananciaNetaEstimada)} netos, pero hay que asegurarse de tener la demanda antes de contratar.`
-          : `Tu ocupación del ${ocupacion}% muestra que la agenda no está completa. Antes de sumar un profesional, trabajá en llenar los turnos actuales.`,
-        breakdown: {
-          ocupacion: `Ocupación actual: ${ocupacion}%. ${ocupacion >= 75 ? "Alta — hay demanda para otro profesional." : ocupacion >= 55 ? "Moderada — puede funcionar con captación activa." : "Baja — la agenda tiene mucha disponibilidad libre."}`,
-          demanda: `Con ${servicios} servicios actuales, el nuevo profesional podría atender ~${serviciosNuevoProf} servicios por mes.`,
-          retorno: `ROI mensual estimado: ${roiMensual}%. Facturación extra: $${fmtNum(facturacionExtra)}.`,
-          plazo: mesesRetorno ? `El costo se recuperaría en aproximadamente ${mesesRetorno} mes${mesesRetorno > 1 ? "es" : ""}.` : "El costo no se recupera con los números actuales.",
-          riesgo: "El riesgo principal es que el nuevo profesional no llegue a llenar su agenda desde el inicio.",
-          conclusion: gananciaNetaEstimada > 0 ? `La incorporación generaría $${fmtNum(gananciaNetaEstimada)} de ganancia neta mensual.` : "Los costos superan la facturación estimada con la demanda actual.",
-        },
-      });
-    } finally {
-      setLoadingIA(false);
-    }
-  }
-
-  const nivelMeta = {
-    recomendado: { emoji: "🟢", label: "Recomendado", cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300" },
-    evaluar: { emoji: "🟡", label: "Evaluar", cls: "border-amber-400/30 bg-amber-400/[0.07]", titleCls: "text-amber-300" },
-    no_recomendado: { emoji: "🔴", label: "No recomendado", cls: "border-rose-400/30 bg-rose-400/[0.07]", titleCls: "text-rose-300" },
-  };
-
-  return (
-    <GlassCard className="p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Badge icon={TrendingUp}>Simulador de crecimiento</Badge>
-          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🧑‍💼 ¿Conviene sumar un profesional?</h2>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Calculá cuánto costaría contratar uno nuevo y si la demanda actual lo justifica.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {[
-            { label: "Ocupación", value: `${ocupacion}%` },
-            { label: "Ticket prom.", value: `$${fmtNum(ticket)}` },
-            { label: "Servicios/mes", value: fmtNum(servicios) },
-          ].map((d) => (
-            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[90px]">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{d.label}</div>
-              <div className="mt-1 text-sm font-semibold tabular-nums">{d.value}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Inputs */}
-      <div className="mt-6 grid gap-5 sm:grid-cols-2">
-        <div className="space-y-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Sueldo base mensual</p>
-          <div className="flex flex-wrap gap-2">
-            {SUELDO_PRESETS.map((p) => (
-              <button key={p} type="button" onClick={() => setSueldoBase(String(p))}
-                className={cn("rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
-                  sueldoNum === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
-                ${fmtNum(p)}
-              </button>
-            ))}
-          </div>
-          <input type="text" inputMode="numeric" placeholder="Otro monto" value={sueldoBase}
-            onChange={(e) => setSueldoBase(e.target.value.replace(/\D/g, ""))}
-            className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
-        </div>
-
-        <div className="space-y-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Comisión sobre servicios</p>
-          <div className="flex flex-wrap gap-2">
-            {COMISION_PRESETS.map((p) => (
-              <button key={p} type="button" onClick={() => setComision(String(p))}
-                className={cn("rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
-                  comisionNum === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
-                {p}%
-              </button>
-            ))}
-          </div>
-          <input type="text" inputMode="numeric" placeholder="Otra comisión %" value={comision}
-            onChange={(e) => setComision(e.target.value.replace(/\D/g, ""))}
-            className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <button type="button" onClick={calcular} disabled={!sueldoNum || loadingIA}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40">
-          {loadingIA ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Calcular
-        </button>
-      </div>
-
-      {simulado && sueldoNum > 0 && (
-        <div className="mt-6 space-y-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Proyección mensual</p>
-
-          {/* Números clave */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: "Servicios estimados", value: fmtNum(serviciosNuevoProf), sub: "del nuevo profesional", cls: "text-foreground" },
-              { label: "Facturación extra", value: `+$${fmtNum(facturacionExtra)}`, sub: "ingresos adicionales", cls: "text-emerald-300" },
-              { label: "Costo total", value: `-$${fmtNum(costoTotal)}`, sub: `sueldo + ${comisionNum}% comisión`, cls: "text-rose-300" },
-              { label: "Ganancia neta", value: `${gananciaNetaEstimada >= 0 ? "+" : ""}$${fmtNum(gananciaNetaEstimada)}`, sub: "por mes estimada", cls: gananciaNetaEstimada >= 0 ? "text-emerald-300" : "text-rose-300" },
-            ].map((m) => (
-              <div key={m.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{m.label}</p>
-                <p className={cn("mt-1.5 font-display text-xl font-semibold tabular-nums", m.cls)}>{m.value}</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">{m.sub}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Retorno */}
-          <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
-                <TrendingUp className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">Punto de retorno</p>
-                <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                  {mesesRetorno
-                    ? <>El costo del nuevo profesional se recuperaría en <span className="font-semibold text-white">{mesesRetorno} mes{mesesRetorno > 1 ? "es" : ""}</span> con una ganancia neta de <span className="font-semibold text-white">${fmtNum(gananciaNetaEstimada)}/mes</span>.</>
-                    : <>Con los números actuales, el costo supera la facturación estimada. Conviene esperar a que la ocupación sea mayor.</>
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* IA */}
-          {loadingIA ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex items-center gap-3">
-              <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
-              <div>
-                <p className="text-sm font-semibold">Analizando viabilidad…</p>
-                <p className="text-xs text-muted-foreground mt-0.5">La IA está evaluando ocupación, demanda y ROI.</p>
-              </div>
-            </div>
-          ) : resultado ? (
-            <div className={cn("rounded-2xl border p-5 space-y-4", nivelMeta[resultado.nivel].cls)}>
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{nivelMeta[resultado.nivel].emoji}</span>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
-                  <p className={cn("text-base font-semibold", nivelMeta[resultado.nivel].titleCls)}>
-                    {nivelMeta[resultado.nivel].label} — {resultado.titulo}
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{resultado.resumen}</p>
-              <button type="button" onClick={() => setShowBreakdown((v) => !v)}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition">
-                {showBreakdown ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                {showBreakdown ? "Ocultar análisis" : "Ver análisis"}
-              </button>
-              {showBreakdown && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {[
-                    { label: "✅ Ocupación actual", value: resultado.breakdown.ocupacion },
-                    { label: "✅ Demanda", value: resultado.breakdown.demanda },
-                    { label: "✅ Retorno de inversión", value: resultado.breakdown.retorno },
-                    { label: "✅ Plazo estimado", value: resultado.breakdown.plazo },
-                    { label: "✅ Riesgo principal", value: resultado.breakdown.riesgo },
-                    { label: "✅ Conclusión", value: resultado.breakdown.conclusion },
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{item.label}</p>
-                      <p className="mt-1.5 text-xs text-foreground leading-relaxed">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      )}
-    </GlassCard>
-  );
-}
-
 // ─── SIMULADOR DE PRECIOS ────────────────────────────────────────────────────
 
 type SimuladorProps = {
@@ -1384,16 +1102,14 @@ type SimuladorProps = {
 
 type IARecomendacion = {
   nivel: "recomendado" | "evaluar" | "no_recomendado";
-  titulo: string;
   resumen: string;
-  breakdown: {
-    ocupacion: string;
-    clientesNuevos: string;
-    cancelaciones: string;
-    horarios: string;
-    disponibilidad: string;
-    tendencia: string;
-  };
+};
+
+type ProfSimResult = {
+  nivel: "recomendado" | "evaluar" | "no_recomendado";
+  resumen: string;
+  facturacionPotencial: number;
+  explicacionFacturacion: string;
 };
 
 const PRESETS = [500, 1000, 2000, 5000];
@@ -1402,18 +1118,22 @@ function fmtNum(n: number) {
   return n.toLocaleString("es-AR");
 }
 
+const nivelMeta = {
+  recomendado: { emoji: "🟢", label: "Recomendado", cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
+  evaluar:     { emoji: "🟡", label: "Evaluar con cuidado", cls: "border-amber-400/30 bg-amber-400/[0.07]", titleCls: "text-amber-300", dot: "bg-amber-400" },
+  no_recomendado: { emoji: "🔴", label: "No recomendado actualmente", cls: "border-rose-400/30 bg-rose-400/[0.07]", titleCls: "text-rose-300", dot: "bg-rose-400" },
+};
+
 function SimuladorPrecios({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
   const [aumento, setAumento] = React.useState("");
   const [simulado, setSimulado] = React.useState(false);
   const [loadingIA, setLoadingIA] = React.useState(false);
   const [recomendacion, setRecomendacion] = React.useState<IARecomendacion | null>(null);
-  const [showBreakdown, setShowBreakdown] = React.useState(false);
   const aumentoNum = Math.max(0, Number(aumento.replace(/\D/g, "")) || 0);
 
   const conservador = Math.round(servicios * 0.9);
   const normal = servicios;
   const optimista = Math.round(servicios * 1.1);
-
   const impactoConservador = conservador * aumentoNum;
   const impactoNormal = normal * aumentoNum;
   const impactoOptimista = optimista * aumentoNum;
@@ -1428,100 +1148,75 @@ function SimuladorPrecios({ servicios, facturacion, ticket, clientes, ocupacion 
     setSimulado(true);
     setLoadingIA(true);
     setRecomendacion(null);
-    setShowBreakdown(false);
 
     try {
-      const prompt = `Sos el asesor financiero de un negocio de barbería/salón de belleza. Analizá si conviene aumentar el precio promedio de los servicios.
+      const prompt = `Sos el asesor financiero de un negocio de barbería/salón. Respondé SOLO con JSON válido, sin markdown.
 
-DATOS DEL NEGOCIO (último período):
-- Servicios realizados: ${servicios}
+DATOS:
+- Servicios/mes: ${servicios}
 - Facturación: $${fmtNum(facturacion)}
 - Ticket promedio: $${fmtNum(ticket)}
-- Clientes atendidos: ${clientes}
-- Ocupación promedio: ${ocupacion}%
-- Aumento propuesto por servicio: $${fmtNum(aumentoNum)}
-- Nuevo ticket promedio estimado: $${fmtNum(nuevoPrecioPromedio)}
-- Punto de equilibrio: pueden perder hasta ${serviciosPerdibles} servicios (${pctPerdible}%) y mantener la misma facturación
+- Clientes: ${clientes}
+- Ocupación: ${ocupacion}%
+- Aumento propuesto: $${fmtNum(aumentoNum)}/servicio
+- Nuevo ticket estimado: $${fmtNum(nuevoPrecioPromedio)}
+- Punto equilibrio: pueden perder ${serviciosPerdibles} servicios (${pctPerdible}%) y mantener la facturación
 
-Reglas de nivel:
-- Si ocupación >= 80%: nivel = "recomendado"
-- Si ocupación entre 60-79%: nivel = "evaluar"
-- Si ocupación < 60%: nivel = "no_recomendado"
+Reglas: ocupación>=80% → "recomendado", 60-79% → "evaluar", <60% → "no_recomendado"
 
-Respondé SOLO con un JSON válido, sin markdown ni texto extra, con esta estructura:
-{"nivel":"recomendado","titulo":"texto corto","resumen":"2-3 oraciones con datos concretos","breakdown":{"ocupacion":"1 oración","clientesNuevos":"1 oración","cancelaciones":"1 oración","horarios":"1 oración","disponibilidad":"1 oración","tendencia":"1 oración"}}`;
+JSON: {"nivel":"recomendado","resumen":"2 oraciones concretas explicando por qué conviene o no, usando los datos reales"}`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
-        }),
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 400, messages: [{ role: "user", content: prompt }] }),
       });
-
       const json = await res.json();
       const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean) as IARecomendacion;
-      setRecomendacion(parsed);
+      setRecomendacion(JSON.parse(text.replace(/```json|```/g, "").trim()) as IARecomendacion);
     } catch {
       const nivel: IARecomendacion["nivel"] = ocupacion >= 80 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
       setRecomendacion({
         nivel,
-        titulo: nivel === "recomendado" ? "Alta ocupación, momento ideal" : nivel === "evaluar" ? "Evaluar con cuidado" : "Priorizar captación primero",
         resumen: nivel === "recomendado"
-          ? `Tu ocupación del ${ocupacion}% es alta. La demanda sostiene la agenda y un aumento de $${fmtNum(aumentoNum)} mejoraría la rentabilidad sin afectar significativamente la demanda.`
+          ? `Tu ocupación del ${ocupacion}% es alta y la demanda sostiene la agenda. Un aumento de $${fmtNum(aumentoNum)} por servicio es viable sin afectar significativamente la demanda.`
           : nivel === "evaluar"
-          ? `Tu ocupación del ${ocupacion}% es moderada. El aumento puede funcionar si se comunica bien, pero conviene monitorear la respuesta de los clientes.`
-          : `Tu ocupación del ${ocupacion}% muestra capacidad libre. Antes de subir precios, trabajá en llenar la agenda para maximizar el impacto.`,
-        breakdown: {
-          ocupacion: `Ocupación actual: ${ocupacion}%. ${ocupacion >= 80 ? "La agenda está casi completa." : ocupacion >= 60 ? "Hay margen de mejora." : "Existe capacidad sin utilizar."}`,
-          clientesNuevos: `${clientes} clientes atendidos en el período analizado.`,
-          cancelaciones: "Riesgo bajo si el aumento es gradual y comunicado con anticipación.",
-          horarios: ocupacion >= 80 ? "La mayoría de los turnos están ocupados." : "Existen franjas horarias disponibles.",
-          disponibilidad: `Capacidad libre estimada: ${Math.round((1 - ocupacion / 100) * 100)}% de los turnos.`,
-          tendencia: "Tendencia estable según los datos del período.",
-        },
+          ? `Tu ocupación del ${ocupacion}% es moderada. El aumento puede funcionar pero conviene comunicarlo con anticipación y monitorear la respuesta.`
+          : `Tu ocupación del ${ocupacion}% muestra capacidad libre. Antes de subir precios conviene trabajar en completar la agenda actual.`,
       });
     } finally {
       setLoadingIA(false);
     }
   }
 
-  const nivelMeta = {
-    recomendado: { emoji: "🟢", label: "Recomendado", cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300" },
-    evaluar: { emoji: "🟡", label: "Evaluar", cls: "border-amber-400/30 bg-amber-400/[0.07]", titleCls: "text-amber-300" },
-    no_recomendado: { emoji: "🔴", label: "No recomendado", cls: "border-rose-400/30 bg-rose-400/[0.07]", titleCls: "text-rose-300" },
-  };
-
   return (
-    <GlassCard className="p-5 sm:p-6">
+    <GlassCard className="p-5 sm:p-6 space-y-6">
+      {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Badge icon={DollarSign}>Simulador de precios</Badge>
-          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">💰 ¿Conviene subir los precios?</h2>
+          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">💰 Simulador de precios</h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Simulá un aumento y recibí una recomendación basada en los datos reales de tu negocio.
+            Simulá un aumento y la IA analiza si conviene según los datos reales de tu negocio.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
           {[
-            { label: "Servicios", value: fmtNum(servicios) },
-            { label: "Facturación", value: `$${fmtNum(facturacion)}` },
-            { label: "Ticket prom.", value: `$${fmtNum(ticket)}` },
+            { label: "📅 Ocupación", value: `${ocupacion}%` },
+            { label: "💰 Facturación", value: `$${fmtNum(facturacion)}` },
+            { label: "🎟️ Ticket prom.", value: `$${fmtNum(ticket)}` },
           ].map((d) => (
-            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[90px]">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{d.label}</div>
+            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[100px]">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{d.label}</div>
               <div className="mt-1 text-sm font-semibold tabular-nums">{d.value}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="mt-6 space-y-3">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">¿Cuánto querés aumentar el precio promedio?</p>
+      {/* Input */}
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">¿Cuánto querés aumentar el precio promedio?</p>
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((p) => (
             <button key={p} type="button" onClick={() => setAumento(String(p))}
@@ -1532,7 +1227,7 @@ Respondé SOLO con un JSON válido, sin markdown ni texto extra, con esta estruc
           ))}
           <input type="text" inputMode="numeric" placeholder="Otro monto" value={aumento}
             onChange={(e) => setAumento(e.target.value.replace(/\D/g, ""))}
-            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 w-36 placeholder:text-muted-foreground/50" />
+            className="w-36 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
           <button type="button" onClick={calcular} disabled={!aumentoNum || loadingIA}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40">
             {loadingIA ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -1541,90 +1236,70 @@ Respondé SOLO con un JSON válido, sin markdown ni texto extra, con esta estruc
         </div>
       </div>
 
+      {/* Resultados */}
       {simulado && aumentoNum > 0 && (
-        <div className="mt-6 space-y-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Escenarios</p>
+        <div className="space-y-4">
+          {/* Escenarios */}
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Resultado de la simulación</p>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { label: "Conservador", emoji: "🔴", serviciosN: conservador, impacto: impactoConservador, desc: "si baja un 10% la demanda", cls: "border-rose-400/20 bg-rose-400/[0.05]", val: "text-rose-300" },
-              { label: "Normal",      emoji: "🟡", serviciosN: normal,      impacto: impactoNormal,      desc: "si la demanda se mantiene igual",   cls: "border-amber-400/20 bg-amber-400/[0.05]", val: "text-amber-300" },
-              { label: "Optimista",   emoji: "🟢", serviciosN: optimista,   impacto: impactoOptimista,   desc: "si sube un 10% la demanda",cls: "border-emerald-400/20 bg-emerald-400/[0.05]", val: "text-emerald-300" },
+              { label: "Escenario Conservador", emoji: "🔴", sub: "−10% de demanda", serviciosN: conservador, impacto: impactoConservador, val: "text-rose-300", cls: "border-rose-400/20 bg-rose-400/[0.05]" },
+              { label: "Escenario Normal",       emoji: "🟡", sub: "demanda se mantiene", serviciosN: normal,      impacto: impactoNormal,      val: "text-amber-300", cls: "border-amber-400/20 bg-amber-400/[0.05]" },
+              { label: "Escenario Optimista",    emoji: "🟢", sub: "+10% de demanda", serviciosN: optimista,   impacto: impactoOptimista,   val: "text-emerald-300", cls: "border-emerald-400/20 bg-emerald-400/[0.05]" },
             ].map((sc) => (
               <div key={sc.label} className={cn("rounded-2xl border p-4", sc.cls)}>
                 <div className="flex items-center gap-2">
-                  <span className="text-base">{sc.emoji}</span>
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{sc.label}</span>
+                  <span>{sc.emoji}</span>
+                  <span className="text-xs font-semibold text-muted-foreground">{sc.label}</span>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">{fmtNum(sc.serviciosN)} servicios × ${fmtNum(aumentoNum)}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{fmtNum(sc.serviciosN)} servicios × +${fmtNum(aumentoNum)}</p>
                 <p className={cn("mt-1.5 font-display text-2xl font-semibold tabular-nums", sc.val)}>+${fmtNum(sc.impacto)}</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">por mes · {sc.desc}</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">por mes · {sc.sub}</p>
                 <div className="mt-3 border-t border-white/[0.06] pt-2.5">
-                  <p className="text-[10px] text-muted-foreground">Impacto anual estimado</p>
+                  <p className="text-[10px] text-muted-foreground">📅 Impacto anual estimado</p>
                   <p className={cn("text-sm font-semibold tabular-nums", sc.val)}>+${fmtNum(sc.impacto * 12)}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
-                <Minus className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">Punto de equilibrio</p>
-                <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                  Con este aumento podés perder hasta{" "}
-                  <span className="font-semibold text-white">{fmtNum(serviciosPerdibles)} servicios por mes ({pctPerdible}%)</span>{" "}
-                  y seguir manteniendo tu facturación actual de{" "}
-                  <span className="font-semibold text-white">${fmtNum(facturacion)}</span>.
-                </p>
-              </div>
+          {/* Punto de equilibrio */}
+          <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-4 flex items-start gap-3">
+            <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
+              <Minus className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Punto de equilibrio</p>
+              <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                Con este aumento podés perder hasta{" "}
+                <span className="font-semibold text-white">{fmtNum(serviciosPerdibles)} servicios por mes ({pctPerdible}%)</span>{" "}
+                y seguir manteniendo tu facturación actual de{" "}
+                <span className="font-semibold text-white">${fmtNum(facturacion)}</span>.
+              </p>
             </div>
           </div>
 
+          {/* Recomendación IA */}
           {loadingIA ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex items-center gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex items-center gap-3">
               <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
               <div>
-                <p className="text-sm font-semibold">Analizando datos del negocio…</p>
-                <p className="text-xs text-muted-foreground mt-0.5">La IA está evaluando ocupación, tendencia y demanda.</p>
+                <p className="text-sm font-semibold">Analizando tu negocio…</p>
+                <p className="text-xs text-muted-foreground mt-0.5">La IA evalúa ocupación, tendencia y demanda.</p>
               </div>
             </div>
           ) : recomendacion ? (
-            <div className={cn("rounded-2xl border p-5 space-y-4", nivelMeta[recomendacion.nivel].cls)}>
+            <div className={cn("rounded-2xl border p-5", nivelMeta[recomendacion.nivel].cls)}>
               <div className="flex items-center gap-3">
-                <span className="text-xl">{nivelMeta[recomendacion.nivel].emoji}</span>
+                <span className="text-2xl">{nivelMeta[recomendacion.nivel].emoji}</span>
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
                   <p className={cn("text-base font-semibold", nivelMeta[recomendacion.nivel].titleCls)}>
-                    {nivelMeta[recomendacion.nivel].label} — {recomendacion.titulo}
+                    {nivelMeta[recomendacion.nivel].label}
                   </p>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{recomendacion.resumen}</p>
-              <button type="button" onClick={() => setShowBreakdown((v) => !v)}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition">
-                {showBreakdown ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                {showBreakdown ? "Ocultar análisis" : "Ver análisis"}
-              </button>
-              {showBreakdown && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {[
-                    { label: "✅ Ocupación",            value: recomendacion.breakdown.ocupacion },
-                    { label: "✅ Clientes nuevos",       value: recomendacion.breakdown.clientesNuevos },
-                    { label: "✅ Cancelaciones",         value: recomendacion.breakdown.cancelaciones },
-                    { label: "✅ Horarios completos",    value: recomendacion.breakdown.horarios },
-                    { label: "✅ Disponibilidad restante", value: recomendacion.breakdown.disponibilidad },
-                    { label: "✅ Tendencia de demanda",  value: recomendacion.breakdown.tendencia },
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{item.label}</p>
-                      <p className="mt-1.5 text-xs text-foreground leading-relaxed">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{recomendacion.resumen}</p>
             </div>
           ) : null}
         </div>
@@ -1632,3 +1307,173 @@ Respondé SOLO con un JSON válido, sin markdown ni texto extra, con esta estruc
     </GlassCard>
   );
 }
+
+// ─── SIMULADOR PROFESIONAL ────────────────────────────────────────────────────
+
+function SimuladorProfesional({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
+  const [loadingIA, setLoadingIA] = React.useState(false);
+  const [resultado, setResultado] = React.useState<ProfSimResult | null>(null);
+  const [analizado, setAnalizado] = React.useState(false);
+
+  // Estimación automática: nuevo profesional absorbe ~80% de la demanda promedio actual
+  const serviciosNuevoProf = Math.round(servicios * 0.8);
+  const facturacionPotencial = serviciosNuevoProf * ticket;
+
+  async function analizar() {
+    setLoadingIA(true);
+    setAnalizado(true);
+    setResultado(null);
+
+    try {
+      const prompt = `Sos el asesor de negocio de una barbería/salón. Analizá si conviene incorporar un nuevo profesional. Respondé SOLO con JSON válido, sin markdown.
+
+DATOS DEL NEGOCIO:
+- Servicios realizados/mes: ${servicios}
+- Facturación mensual: $${fmtNum(facturacion)}
+- Ticket promedio: $${fmtNum(ticket)}
+- Clientes atendidos: ${clientes}
+- Ocupación promedio: ${ocupacion}%
+- Servicios que podría absorber un nuevo profesional (estimado 80%): ${serviciosNuevoProf}
+- Facturación potencial adicional: $${fmtNum(facturacionPotencial)}
+
+Reglas:
+- ocupación >= 80%: nivel = "recomendado"
+- ocupación 60-79%: nivel = "evaluar"  
+- ocupación < 60%: nivel = "no_recomendado"
+
+JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos reales explicando por qué sí o no conviene","facturacionPotencial":${facturacionPotencial},"explicacionFacturacion":"1 oración explicando cómo se calculó la facturación potencial"}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
+      });
+      const json = await res.json();
+      const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
+      setResultado(JSON.parse(text.replace(/```json|```/g, "").trim()) as ProfSimResult);
+    } catch {
+      const nivel: ProfSimResult["nivel"] = ocupacion >= 80 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
+      setResultado({
+        nivel,
+        resumen: nivel === "recomendado"
+          ? `Tu ocupación del ${ocupacion}% es alta y se detectó demanda sostenida. La agenda tiene capacidad limitada para absorber más clientes con el equipo actual.`
+          : nivel === "evaluar"
+          ? `Tu ocupación del ${ocupacion}% es moderada. Todavía hay margen antes de necesitar un nuevo profesional, pero conviene monitorear la tendencia.`
+          : `Tu ocupación del ${ocupacion}% indica que la agenda tiene espacio disponible. Completar los turnos actuales antes de sumar un profesional es la mejor estrategia.`,
+        facturacionPotencial,
+        explicacionFacturacion: `Basado en ${serviciosNuevoProf} servicios estimados que podría atender un nuevo profesional (80% del volumen actual) al ticket promedio de $${fmtNum(ticket)}.`,
+      });
+    } finally {
+      setLoadingIA(false);
+    }
+  }
+
+  return (
+    <GlassCard className="p-5 sm:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Badge icon={TrendingUp}>Análisis de equipo</Badge>
+          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">👥 ¿Conviene incorporar un profesional?</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            La IA analiza la ocupación, demanda y capacidad actual para recomendarte si es el momento.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {[
+            { label: "📅 Ocupación", value: `${ocupacion}%` },
+            { label: "🎟️ Ticket prom.", value: `$${fmtNum(ticket)}` },
+            { label: "💰 Facturación", value: `$${fmtNum(facturacion)}` },
+          ].map((d) => (
+            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[100px]">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{d.label}</div>
+              <div className="mt-1 text-sm font-semibold tabular-nums">{d.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Qué analiza la IA */}
+      {!analizado && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">La IA va a analizar</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              "Ocupación promedio del período",
+              "Horarios completos y sin disponibilidad",
+              "Tendencia de crecimiento de clientes",
+              "Capacidad disponible actual",
+              "Ticket promedio y facturación",
+              "Servicios realizados y demanda",
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Botón analizar */}
+      {!analizado && (
+        <button type="button" onClick={analizar}
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-6 py-2.5 text-sm font-semibold text-white transition hover:brightness-110">
+          <Sparkles className="h-4 w-4" />
+          Analizar ahora
+        </button>
+      )}
+
+      {/* Loading */}
+      {loadingIA && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Analizando tu negocio…</p>
+            <p className="text-xs text-muted-foreground mt-0.5">La IA evalúa ocupación, demanda, horarios y tendencia de clientes.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Resultado */}
+      {!loadingIA && resultado && (
+        <div className="space-y-4">
+          {/* Recomendación */}
+          <div className={cn("rounded-2xl border p-5", nivelMeta[resultado.nivel].cls)}>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{nivelMeta[resultado.nivel].emoji}</span>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
+                <p className={cn("text-base font-semibold", nivelMeta[resultado.nivel].titleCls)}>
+                  {resultado.nivel === "recomendado"
+                    ? "Se recomienda incorporar un profesional"
+                    : resultado.nivel === "evaluar"
+                    ? "Todavía no es necesario"
+                    : "No se recomienda actualmente"}
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{resultado.resumen}</p>
+          </div>
+
+          {/* Impacto económico */}
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">📈 Facturación potencial estimada</p>
+            <p className="mt-3 font-display text-4xl font-semibold text-emerald-300 tracking-tight">
+              +${fmtNum(resultado.facturacionPotencial)}
+              <span className="ml-2 text-base font-normal text-emerald-300/70">por mes</span>
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{resultado.explicacionFacturacion}</p>
+          </div>
+
+          {/* Volver a analizar */}
+          <button type="button" onClick={() => { setAnalizado(false); setResultado(null); }}
+            className="text-xs font-semibold text-muted-foreground hover:text-foreground transition">
+            Volver a analizar
+          </button>
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
