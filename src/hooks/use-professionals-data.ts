@@ -50,6 +50,10 @@ export type ProfTurno = {
   ends_at: string | null;
   status: string;
   notes: string | null;
+  // audit fields
+  charge_origin: string | null;
+  charged_by: string | null;
+  payment_method: string | null;
 };
 
 // ── Professionals list ─────────────────────────────────────────────────────
@@ -209,14 +213,26 @@ export function useProfTurnos(
     queryFn: async (): Promise<ProfTurno[]> => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes")
+        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,charge_origin,charged_by,payment_method")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
         .gte("starts_at", validFrom + "T00:00:00")
         .lte("starts_at", validTo + "T23:59:59")
         .order("starts_at", { ascending: true });
       if (error) throw new Error(error.message);
-      return (data ?? []) as ProfTurno[];
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        client_name: row.client_name,
+        service_name: row.service_name,
+        service_price: row.service_price,
+        starts_at: row.starts_at,
+        ends_at: row.ends_at,
+        status: row.status,
+        notes: row.notes,
+        charge_origin: (row as Record<string, unknown>).charge_origin as string | null ?? null,
+        charged_by: (row as Record<string, unknown>).charged_by as string | null ?? null,
+        payment_method: (row as Record<string, unknown>).payment_method as string | null ?? null,
+      })) as ProfTurno[];
     },
     enabled: !!businessId && !!empId,
     staleTime: 30_000,
