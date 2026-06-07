@@ -219,7 +219,7 @@ export function useProfTurnos(
       return (data ?? []) as ProfTurno[];
     },
     enabled: !!businessId && !!empId,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   // Realtime: re-fetch cuando cambia cualquier appointment del negocio
