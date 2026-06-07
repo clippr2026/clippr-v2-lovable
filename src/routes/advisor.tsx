@@ -18,6 +18,11 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  DollarSign,
+  TrendingDown,
+  Minus,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 export const Route = createFileRoute("/advisor")({
@@ -442,6 +447,15 @@ function AdvisorContent() {
         </div>
 
               </GlassCard>
+
+      <SimuladorPrecios
+        servicios={DEMO.payments}
+        facturacion={DEMO.revenue}
+        ticket={DEMO.ticket}
+        clientes={DEMO.clients}
+        ocupacion={DEMO.occupancy}
+      />
+
       {selectedRecommendation ? (
         <RecommendationDetailModal
           action={selectedRecommendation}
@@ -941,3 +955,263 @@ function ReportPlaceholder({ month }: { month: string }) {
   );
 }
 
+// ─── SIMULADOR DE PRECIOS ────────────────────────────────────────────────────
+
+type SimuladorProps = {
+  servicios: number;
+  facturacion: number;
+  ticket: number;
+  clientes: number;
+  ocupacion: number;
+};
+
+type IARecomendacion = {
+  nivel: "recomendado" | "evaluar" | "no_recomendado";
+  titulo: string;
+  resumen: string;
+  breakdown: {
+    ocupacion: string;
+    clientesNuevos: string;
+    cancelaciones: string;
+    horarios: string;
+    disponibilidad: string;
+    tendencia: string;
+  };
+};
+
+const PRESETS = [500, 1000, 2000, 5000];
+
+function fmtNum(n: number) {
+  return n.toLocaleString("es-AR");
+}
+
+function SimuladorPrecios({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
+  const [aumento, setAumento] = React.useState("");
+  const [simulado, setSimulado] = React.useState(false);
+  const [loadingIA, setLoadingIA] = React.useState(false);
+  const [recomendacion, setRecomendacion] = React.useState<IARecomendacion | null>(null);
+  const [showBreakdown, setShowBreakdown] = React.useState(false);
+  const aumentoNum = Math.max(0, Number(aumento.replace(/\D/g, "")) || 0);
+
+  const conservador = Math.round(servicios * 0.9);
+  const normal = servicios;
+  const optimista = Math.round(servicios * 1.1);
+
+  const impactoConservador = conservador * aumentoNum;
+  const impactoNormal = normal * aumentoNum;
+  const impactoOptimista = optimista * aumentoNum;
+
+  const nuevoPrecioPromedio = ticket + aumentoNum;
+  const serviciosEquilibrio = nuevoPrecioPromedio > 0 ? Math.floor(facturacion / nuevoPrecioPromedio) : servicios;
+  const serviciosPerdibles = Math.max(0, servicios - serviciosEquilibrio);
+  const pctPerdible = servicios > 0 ? ((serviciosPerdibles / servicios) * 100).toFixed(1) : "0";
+
+  async function calcular() {
+    if (!aumentoNum) return;
+    setSimulado(true);
+    setLoadingIA(true);
+    setRecomendacion(null);
+    setShowBreakdown(false);
+
+    try {
+      const prompt = `Sos el asesor financiero de un negocio de barbería/salón de belleza. Analizá si conviene aumentar el precio promedio de los servicios.
+
+DATOS DEL NEGOCIO (último período):
+- Servicios realizados: ${servicios}
+- Facturación: $${fmtNum(facturacion)}
+- Ticket promedio: $${fmtNum(ticket)}
+- Clientes atendidos: ${clientes}
+- Ocupación promedio: ${ocupacion}%
+- Aumento propuesto por servicio: $${fmtNum(aumentoNum)}
+- Nuevo ticket promedio estimado: $${fmtNum(nuevoPrecioPromedio)}
+- Punto de equilibrio: pueden perder hasta ${serviciosPerdibles} servicios (${pctPerdible}%) y mantener la misma facturación
+
+Reglas de nivel:
+- Si ocupación >= 80%: nivel = "recomendado"
+- Si ocupación entre 60-79%: nivel = "evaluar"
+- Si ocupación < 60%: nivel = "no_recomendado"
+
+Respondé SOLO con un JSON válido, sin markdown ni texto extra, con esta estructura:
+{"nivel":"recomendado","titulo":"texto corto","resumen":"2-3 oraciones con datos concretos","breakdown":{"ocupacion":"1 oración","clientesNuevos":"1 oración","cancelaciones":"1 oración","horarios":"1 oración","disponibilidad":"1 oración","tendencia":"1 oración"}}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      const json = await res.json();
+      const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean) as IARecomendacion;
+      setRecomendacion(parsed);
+    } catch {
+      const nivel: IARecomendacion["nivel"] = ocupacion >= 80 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
+      setRecomendacion({
+        nivel,
+        titulo: nivel === "recomendado" ? "Alta ocupación, momento ideal" : nivel === "evaluar" ? "Evaluar con cuidado" : "Priorizar captación primero",
+        resumen: nivel === "recomendado"
+          ? `Tu ocupación del ${ocupacion}% es alta. La demanda sostiene la agenda y un aumento de $${fmtNum(aumentoNum)} mejoraría la rentabilidad sin afectar significativamente la demanda.`
+          : nivel === "evaluar"
+          ? `Tu ocupación del ${ocupacion}% es moderada. El aumento puede funcionar si se comunica bien, pero conviene monitorear la respuesta de los clientes.`
+          : `Tu ocupación del ${ocupacion}% muestra capacidad libre. Antes de subir precios, trabajá en llenar la agenda para maximizar el impacto.`,
+        breakdown: {
+          ocupacion: `Ocupación actual: ${ocupacion}%. ${ocupacion >= 80 ? "La agenda está casi completa." : ocupacion >= 60 ? "Hay margen de mejora." : "Existe capacidad sin utilizar."}`,
+          clientesNuevos: `${clientes} clientes atendidos en el período analizado.`,
+          cancelaciones: "Riesgo bajo si el aumento es gradual y comunicado con anticipación.",
+          horarios: ocupacion >= 80 ? "La mayoría de los turnos están ocupados." : "Existen franjas horarias disponibles.",
+          disponibilidad: `Capacidad libre estimada: ${Math.round((1 - ocupacion / 100) * 100)}% de los turnos.`,
+          tendencia: "Tendencia estable según los datos del período.",
+        },
+      });
+    } finally {
+      setLoadingIA(false);
+    }
+  }
+
+  const nivelMeta = {
+    recomendado: { emoji: "🟢", label: "Recomendado", cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300" },
+    evaluar: { emoji: "🟡", label: "Evaluar", cls: "border-amber-400/30 bg-amber-400/[0.07]", titleCls: "text-amber-300" },
+    no_recomendado: { emoji: "🔴", label: "No recomendado", cls: "border-rose-400/30 bg-rose-400/[0.07]", titleCls: "text-rose-300" },
+  };
+
+  return (
+    <GlassCard className="p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Badge icon={DollarSign}>Simulador de precios</Badge>
+          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">💰 ¿Conviene subir los precios?</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            Simulá un aumento y recibí una recomendación basada en los datos reales de tu negocio.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {[
+            { label: "Servicios", value: fmtNum(servicios) },
+            { label: "Facturación", value: `$${fmtNum(facturacion)}` },
+            { label: "Ticket prom.", value: `$${fmtNum(ticket)}` },
+          ].map((d) => (
+            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[90px]">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{d.label}</div>
+              <div className="mt-1 text-sm font-semibold tabular-nums">{d.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">¿Cuánto querés aumentar el precio promedio?</p>
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((p) => (
+            <button key={p} type="button" onClick={() => setAumento(String(p))}
+              className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+                aumentoNum === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+              +${fmtNum(p)}
+            </button>
+          ))}
+          <input type="text" inputMode="numeric" placeholder="Otro monto" value={aumento}
+            onChange={(e) => setAumento(e.target.value.replace(/\D/g, ""))}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 w-36 placeholder:text-muted-foreground/50" />
+          <button type="button" onClick={calcular} disabled={!aumentoNum || loadingIA}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40">
+            {loadingIA ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Calcular
+          </button>
+        </div>
+      </div>
+
+      {simulado && aumentoNum > 0 && (
+        <div className="mt-6 space-y-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Escenarios</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { label: "Conservador", emoji: "🔴", serviciosN: conservador, impacto: impactoConservador, desc: "−10% de servicios", cls: "border-rose-400/20 bg-rose-400/[0.05]", val: "text-rose-300" },
+              { label: "Normal",      emoji: "🟡", serviciosN: normal,      impacto: impactoNormal,      desc: "misma cantidad",   cls: "border-amber-400/20 bg-amber-400/[0.05]", val: "text-amber-300" },
+              { label: "Optimista",   emoji: "🟢", serviciosN: optimista,   impacto: impactoOptimista,   desc: "+10% de servicios",cls: "border-emerald-400/20 bg-emerald-400/[0.05]", val: "text-emerald-300" },
+            ].map((sc) => (
+              <div key={sc.label} className={cn("rounded-2xl border p-4", sc.cls)}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{sc.emoji}</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{sc.label}</span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{fmtNum(sc.serviciosN)} servicios × ${fmtNum(aumentoNum)}</p>
+                <p className={cn("mt-1.5 font-display text-2xl font-semibold tabular-nums", sc.val)}>+${fmtNum(sc.impacto)}</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">por mes · {sc.desc}</p>
+                <div className="mt-3 border-t border-white/[0.06] pt-2.5">
+                  <p className="text-[10px] text-muted-foreground">Impacto anual estimado</p>
+                  <p className={cn("text-sm font-semibold tabular-nums", sc.val)}>+${fmtNum(sc.impacto * 12)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
+                <Minus className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Punto de equilibrio</p>
+                <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                  Con este aumento podés perder hasta{" "}
+                  <span className="font-semibold text-white">{fmtNum(serviciosPerdibles)} servicios por mes ({pctPerdible}%)</span>{" "}
+                  y seguir manteniendo tu facturación actual de{" "}
+                  <span className="font-semibold text-white">${fmtNum(facturacion)}</span>.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {loadingIA ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Analizando datos del negocio…</p>
+                <p className="text-xs text-muted-foreground mt-0.5">La IA está evaluando ocupación, tendencia y demanda.</p>
+              </div>
+            </div>
+          ) : recomendacion ? (
+            <div className={cn("rounded-2xl border p-5 space-y-4", nivelMeta[recomendacion.nivel].cls)}>
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{nivelMeta[recomendacion.nivel].emoji}</span>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
+                  <p className={cn("text-base font-semibold", nivelMeta[recomendacion.nivel].titleCls)}>
+                    {nivelMeta[recomendacion.nivel].label} — {recomendacion.titulo}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">{recomendacion.resumen}</p>
+              <button type="button" onClick={() => setShowBreakdown((v) => !v)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition">
+                {showBreakdown ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {showBreakdown ? "Ocultar análisis" : "Ver análisis"}
+              </button>
+              {showBreakdown && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { label: "✅ Ocupación",            value: recomendacion.breakdown.ocupacion },
+                    { label: "✅ Clientes nuevos",       value: recomendacion.breakdown.clientesNuevos },
+                    { label: "✅ Cancelaciones",         value: recomendacion.breakdown.cancelaciones },
+                    { label: "✅ Horarios completos",    value: recomendacion.breakdown.horarios },
+                    { label: "✅ Disponibilidad restante", value: recomendacion.breakdown.disponibilidad },
+                    { label: "✅ Tendencia de demanda",  value: recomendacion.breakdown.tendencia },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{item.label}</p>
+                      <p className="mt-1.5 text-xs text-foreground leading-relaxed">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
