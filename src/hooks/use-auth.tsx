@@ -188,10 +188,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      hydrate(data.session);
-    });
+    async function init() {
+      // 1. Intentar sesión activa de Supabase
+      const { data } = await supabase.auth.getSession();
+
+      if (data.session) {
+        if (mounted) hydrate(data.session);
+        return;
+      }
+
+      // 2. Si no hay sesión activa pero el usuario marcó "Recordarme",
+      //    intentar renovar con el refresh token guardado
+      const savedRefreshToken = localStorage.getItem("clippr_refresh_token");
+      const rememberActive = localStorage.getItem("clippr_remember_login") === "1";
+
+      if (rememberActive && savedRefreshToken) {
+        try {
+          const { data: refreshData, error } = await supabase.auth.refreshSession({
+            refresh_token: savedRefreshToken,
+          });
+          if (!error && refreshData.session) {
+            // Actualizar el refresh token guardado
+            localStorage.setItem("clippr_refresh_token", refreshData.session.refresh_token ?? "");
+            if (mounted) hydrate(refreshData.session);
+            return;
+          }
+        } catch {
+          // Refresh token inválido, limpiar
+          localStorage.removeItem("clippr_refresh_token");
+          localStorage.removeItem("clippr_remember_login");
+          localStorage.removeItem("clippr_remember_email");
+        }
+      }
+
+      if (mounted) hydrate(null);
+    }
+
+    void init();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (!mounted) return;
@@ -201,6 +234,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setBusinessId(null);
         setLoading(false);
         return;
+      }
+      // Actualizar refresh token guardado cuando Supabase lo renueva automáticamente
+      if (s?.refresh_token && localStorage.getItem("clippr_remember_login") === "1") {
+        localStorage.setItem("clippr_refresh_token", s.refresh_token);
       }
       hydrate(s);
     });
@@ -214,24 +251,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = React.useCallback(async (email: string, password: string, remember = false) => {
     const cleanEmail = email.trim();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
       password,
     });
 
-    if (!error) {
+    if (!error && data.session) {
       if (remember) {
         localStorage.setItem("clippr_remember_login", "1");
         localStorage.setItem("clippr_remember_email", cleanEmail);
+        // Guardar refresh token para restaurar sesión aunque el browser se cierre
+        localStorage.setItem("clippr_refresh_token", data.session.refresh_token ?? "");
       } else {
         localStorage.removeItem("clippr_remember_login");
         localStorage.removeItem("clippr_remember_email");
+        localStorage.removeItem("clippr_refresh_token");
       }
 
-      // Fuerza la lectura de la sesión persistida por Supabase.
-      // Con persistSession activo, mientras el usuario no cierre sesión desde la app,
-      // al volver a entrar se hidrata la sesión y no vuelve a pedir login.
-      const { data } = await supabase.auth.getSession();
       await hydrate(data.session);
     }
 
@@ -241,6 +277,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = React.useCallback(async () => {
     localStorage.removeItem("clippr_remember_login");
     localStorage.removeItem("clippr_remember_email");
+    localStorage.removeItem("clippr_refresh_token");
     await supabase.auth.signOut();
   }, []);
 
