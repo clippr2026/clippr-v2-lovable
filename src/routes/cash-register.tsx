@@ -55,6 +55,11 @@ function removeLocalManualPendingCharge(id: string) {
   }
 }
 
+function getManualPendingNote(notes?: string | null) {
+  return String(notes ?? "")
+    .replace("[PENDIENTE_CAJA]", "")
+    .trim();
+}
 
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -505,7 +510,7 @@ function DetailModal({ payment, employees, onClose }: {
   const chargeType = (payment as Record<string, unknown>).charge_type as string | null ?? "caja";
   const status = (payment as Record<string, unknown>).status as string | null ?? "cobrado";
   const comprobante = (payment as Record<string, unknown>).reference as string | null ?? null;
-  const obs = (payment as Record<string, unknown>).observations as string | null ?? null;
+  const obs = ((payment as Record<string, unknown>).observations as string | null ?? null) || ((payment as Record<string, unknown>).notes as string | null ?? null);
   const sucursal = (payment as Record<string, unknown>).branch as string | null ?? null;
   const paymentNumber = (payment as Record<string, unknown>).payment_number as number | string | null ?? null;
   const discount = (payment as Record<string, unknown>).discount_amount as number | null ?? null;
@@ -602,8 +607,8 @@ function DetailModal({ payment, employees, onClose }: {
 
           {obs && (
             <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Observaciones</p>
-              <p className="text-xs text-muted-foreground">{obs}</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Nota / Observaciones</p>
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{obs}</p>
             </div>
           )}
 
@@ -698,6 +703,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
                   const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
                   const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
+                  const pendingNote = getManualPendingNote(p.notes);
 
                   return (
                     <div key={`pending-${p.id}`}
@@ -707,7 +713,14 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
-                      <div className="text-muted-foreground truncate">{p.service_name ?? "—"}</div>
+                      <div className="text-muted-foreground truncate">
+                        <span>{p.service_name ?? "—"}</span>
+                        {pendingNote && (
+                          <span className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20">
+                            Nota
+                          </span>
+                        )}
+                      </div>
                       <div className="text-foreground tabular-nums font-medium text-right">
                         ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
                       </div>
@@ -1103,11 +1116,13 @@ function NuevaVentaTab({
         : undefined;
 
       if (pendingCharge) {
+        const professionalNote = getManualPendingNote(pendingCharge.notes);
+
         // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
-        // 1. Actualizar estado del appointment a "charged"
+        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno
         const { error: updateError } = await supabase
           .from("appointments")
-          .update({ status: "charged" })
+          .update({ status: "charged", notes: professionalNote || null })
           .eq("id", pendingCharge.id)
           .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
 
@@ -1128,6 +1143,7 @@ function NuevaVentaTab({
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "manual",
+          notes: professionalNote || null,
         });
 
         // 3. Limpiar de localStorage
@@ -1180,6 +1196,11 @@ function NuevaVentaTab({
             <p className="text-xs text-muted-foreground truncate">
               {pendingCharge.client_name ?? "Sin cliente"} · {pendingCharge.service_name ?? "Servicio"} · ${Number(pendingCharge.service_price ?? 0).toLocaleString("es-AR")}
             </p>
+            {getManualPendingNote(pendingCharge.notes) && (
+              <p className="mt-1 text-xs text-amber-100/90 truncate">
+                Nota del profesional: {getManualPendingNote(pendingCharge.notes)}
+              </p>
+            )}
           </div>
           <button
             onClick={() => onPendingDone?.()}
