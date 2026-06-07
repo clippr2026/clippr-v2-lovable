@@ -624,6 +624,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
   return (
     <div className="space-y-4 animate-fade-up">
+      {/* Bloque centrado: banner + título + tabla comparten el mismo eje */}
+      <div className="max-w-4xl mx-auto space-y-3">
       {/* Mode explanation banner */}
       {approvalModeEnabled && canOperate ? (
         <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
@@ -648,8 +650,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
       ) : turnos.length === 0 ? (
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="glass rounded-2xl overflow-hidden max-w-3xl mx-auto">
-          <div className="grid grid-cols-[15%_15%_40%_15%_15%] px-6 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-[15%_20%_35%_15%_15%] px-6 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
             <div>Hora</div>
             <div>Cliente</div>
             <div>Servicio / Catálogo</div>
@@ -669,7 +671,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               <div
                 key={t.id}
                 className={cn(
-                  "grid grid-cols-[15%_15%_40%_15%_15%] items-center px-6 py-4 text-[15px]",
+                  "grid grid-cols-[15%_20%_35%_15%_15%] items-center px-6 py-4 text-[15px]",
                   i < turnos.length - 1 && "border-b border-white/5"
                 )}
               >
@@ -708,6 +710,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           })}
         </div>
       )}
+      </div>{/* /max-w-4xl */}
 
       {canOperate && cobroTurno && businessId && empId && (
         <CobroModal
