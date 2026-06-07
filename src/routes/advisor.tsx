@@ -129,6 +129,7 @@ function AdvisorRoute() {
   const { loading, session } = useAuth();
   const navigate = useNavigate();
   const [advisorTab, setAdvisorTab] = React.useState<"analisis" | "simuladores">("analisis");
+  const [priorityOpen, setPriorityOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
@@ -144,11 +145,31 @@ function AdvisorRoute() {
     );
   }
 
+  const priorityAction = getDemoActions(true)[0] ?? null;
+
   return (
     <AppShell>
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-        <div className="flex gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Prioridad actual pill */}
+          {priorityAction && (
+            <button
+              type="button"
+              onClick={() => setPriorityOpen((v) => !v)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all",
+                priorityOpen
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-amber-400/30 bg-amber-400/[0.08] text-amber-300 hover:bg-amber-400/[0.14]"
+              )}
+            >
+              <Target className="h-3.5 w-3.5" />
+              Prioridad actual
+              {priorityOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+          )}
+          {/* Tabs */}
           {([
             { key: "analisis", label: "📊 Análisis" },
             { key: "simuladores", label: "💰 Simuladores" },
@@ -169,6 +190,29 @@ function AdvisorRoute() {
           ))}
         </div>
       </div>
+
+      {/* Priority expand panel */}
+      {priorityOpen && priorityAction && (
+        <div className="mt-3 rounded-3xl border border-primary/40 bg-primary/[0.08] p-5 shadow-[0_0_45px_rgba(88,101,242,0.16)]">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div className="max-w-2xl">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Prioridad actual</div>
+              <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white">{priorityAction.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{priorityAction.detail}</p>
+              <p className="mt-3 text-sm font-semibold text-emerald-300">{priorityAction.impact}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPriorityOpen(false)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
+            >
+              <Sparkles className="h-4 w-4" />
+              Tomar acción
+            </button>
+          </div>
+        </div>
+      )}
+
       <AdvisorContent advisorTab={advisorTab} setAdvisorTab={setAdvisorTab} />
     </AppShell>
   );
@@ -322,74 +366,6 @@ function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisor
       )}
 
       {advisorTab === "analisis" && (<>
-      <GlassCard className="p-5 sm:p-6">
-        <div>
-          <Badge icon={Target}>Qué hacer hoy</Badge>
-          <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">
-            {priorityAction ? "Prioridad actual" : "🎉 Todo al día"}
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {priorityAction
-              ? "La mayor oportunidad de crecimiento detectada hoy."
-              : "No se detectaron oportunidades importantes en este momento. Podés revisar una idea estratégica para seguir creciendo."}
-          </p>
-        </div>
-
-        {priorityAction ? (
-          <div
-            className="mt-5 rounded-3xl border border-primary/40 bg-primary/[0.08] p-5 shadow-[0_0_45px_rgba(88,101,242,0.16)] transition-all duration-1000"
-            style={{
-              opacity: shouldAnimateResults ? animationProgress : 1,
-              transform: shouldAnimateResults ? `translateY(${Math.round((1 - animationProgress) * 10)}px)` : "translateY(0px)",
-            }}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-5">
-              <div className="max-w-2xl">
-                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Prioridad actual</div>
-                <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white">{priorityAction.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{priorityAction.detail}</p>
-                <p className="mt-3 text-sm font-semibold text-emerald-300">{priorityAction.impact}</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedRecommendation(priorityAction)}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-accent px-4 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
-              >
-                <Sparkles className="h-4 w-4" />
-                Tomar acción
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
-            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Sin urgencias</div>
-              <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white">Todo al día</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Las prioridades importantes ya fueron resueltas o no superan el impacto mínimo para mostrarse.
-              </p>
-              <button
-                type="button"
-                onClick={handleResetRecommendations}
-                className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
-              >
-                Recalcular prioridades demo
-              </button>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Idea estratégica</div>
-              <h3 className="mt-3 font-display text-xl font-semibold tracking-tight text-white">{strategicIdea.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{strategicIdea.detail}</p>
-              <p className="mt-3 text-xs font-semibold text-emerald-300">{strategicIdea.impact}</p>
-            </div>
-          </div>
-        )}
-      </GlassCard>
-
-
-
       <section className="grid gap-4">
         <GlassCard className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
