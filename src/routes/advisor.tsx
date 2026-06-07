@@ -1325,7 +1325,7 @@ function SimuladorProfesional({ servicios, facturacion, ticket, clientes, ocupac
     setResultado(null);
 
     try {
-      const prompt = `Sos el asesor de negocio de una barbería/salón. Analizá si conviene incorporar un nuevo profesional. Respondé SOLO con JSON válido, sin markdown.
+      const prompt = `Sos el asesor de negocio de un servicio profesional (puede ser barbería, peluquería, uñas, estética, masajes, psicología, nutrición, odontología, tatuajes u otro negocio de servicios). Analizá si conviene incorporar un nuevo profesional. Respondé SOLO con JSON válido, sin markdown.
 
 DATOS DEL NEGOCIO:
 - Servicios realizados/mes: ${servicios}
@@ -1333,15 +1333,19 @@ DATOS DEL NEGOCIO:
 - Ticket promedio: $${fmtNum(ticket)}
 - Clientes atendidos: ${clientes}
 - Ocupación promedio: ${ocupacion}%
-- Servicios que podría absorber un nuevo profesional (estimado 80%): ${serviciosNuevoProf}
-- Facturación potencial adicional: $${fmtNum(facturacionPotencial)}
 
-Reglas:
-- ocupación >= 80%: nivel = "recomendado"
-- ocupación 60-79%: nivel = "evaluar"  
-- ocupación < 60%: nivel = "no_recomendado"
+CRITERIO DE EVALUACIÓN (basado exclusivamente en ocupación y demanda, NO en métricas por profesional):
+- Ocupación < 65%: nivel = "no_recomendado" → hay capacidad disponible con el equipo actual
+- Ocupación 65-79%: nivel = "evaluar" → monitorear, todavía no es necesario
+- Ocupación 80-89%: nivel = "recomendado" → comenzar a evaluar incorporación
+- Ocupación >= 90%: nivel = "recomendado" → se recomienda incorporar un profesional
 
-JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos reales explicando por qué sí o no conviene","facturacionPotencial":${facturacionPotencial},"explicacionFacturacion":"1 oración explicando cómo se calculó la facturación potencial"}`;
+Facturación potencial (solo calcular si nivel = "recomendado"):
+- Estimá cuánta demanda adicional existe que no se puede absorber con la capacidad actual
+- Basate en la ocupación y el ticket promedio, NO en "servicios por profesional por día"
+- facturacionPotencial debe ser 0 si nivel != "recomendado"
+
+JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos reales explicando la recomendación basada en ocupación y demanda","facturacionPotencial":0,"explicacionFacturacion":"solo completar si nivel = recomendado, sino dejar vacío"}`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -1352,16 +1356,19 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
       const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
       setResultado(JSON.parse(text.replace(/```json|```/g, "").trim()) as ProfSimResult);
     } catch {
-      const nivel: ProfSimResult["nivel"] = ocupacion >= 80 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
+      const nivel: ProfSimResult["nivel"] = ocupacion >= 80 ? "recomendado" : ocupacion >= 65 ? "evaluar" : "no_recomendado";
+      const facturacionPotencial = nivel === "recomendado" ? Math.round(servicios * 0.8 * ticket) : 0;
       setResultado({
         nivel,
         resumen: nivel === "recomendado"
-          ? `Tu ocupación del ${ocupacion}% es alta y se detectó demanda sostenida. La agenda tiene capacidad limitada para absorber más clientes con el equipo actual.`
+          ? `Tu ocupación del ${ocupacion}% indica que la agenda está casi completa. La demanda actual supera la capacidad disponible y se detectan horarios sin disponibilidad de forma recurrente.`
           : nivel === "evaluar"
-          ? `Tu ocupación del ${ocupacion}% es moderada. Todavía hay margen antes de necesitar un nuevo profesional, pero conviene monitorear la tendencia.`
-          : `Tu ocupación del ${ocupacion}% indica que la agenda tiene espacio disponible. Completar los turnos actuales antes de sumar un profesional es la mejor estrategia.`,
+          ? `Tu ocupación del ${ocupacion}% es moderada. Todavía existe capacidad para crecer con el equipo actual. Se recomienda volver a analizar cuando la ocupación supere el 80%.`
+          : `Tu ocupación del ${ocupacion}% indica que hay capacidad disponible con el equipo actual. Antes de incorporar personal, conviene trabajar en completar la agenda existente.`,
         facturacionPotencial,
-        explicacionFacturacion: `Basado en ${serviciosNuevoProf} servicios estimados que podría atender un nuevo profesional (80% del volumen actual) al ticket promedio de $${fmtNum(ticket)}.`,
+        explicacionFacturacion: nivel === "recomendado"
+          ? `Basado en la demanda que no puede absorberse con la capacidad actual al ${ocupacion}% de ocupación y un ticket promedio de $${fmtNum(ticket)}.`
+          : "",
       });
     } finally {
       setLoadingIA(false);
@@ -1446,7 +1453,9 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
                 <p className={cn("text-base font-semibold", nivelMeta[resultado.nivel].titleCls)}>
                   {resultado.nivel === "recomendado"
-                    ? "Se recomienda incorporar un profesional"
+                    ? ocupacion >= 90
+                      ? "Se recomienda incorporar un profesional"
+                      : "Comenzar a evaluar la incorporación"
                     : resultado.nivel === "evaluar"
                     ? "Todavía no es necesario"
                     : "No se recomienda actualmente"}
@@ -1474,7 +1483,7 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
                 <span className="ml-2 text-base font-normal text-amber-300/70">de capacidad disponible</span>
               </p>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                El equipo actual puede absorber más demanda antes de necesitar un profesional adicional. Hay margen para crecer sin sumar estructura.
+                Ocupación actual: {ocupacion}%. Todavía existe capacidad suficiente para crecer con el equipo actual. Se recomienda volver a analizar cuando la ocupación supere el 80%.
               </p>
             </div>
           ) : (
