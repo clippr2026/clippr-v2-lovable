@@ -639,13 +639,13 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
         {/* Table header */}
         <div className="overflow-x-auto">
-          <div className="min-w-[700px]">
-            <div className="grid grid-cols-[60px_70px_1fr_1fr_90px_100px_100px_110px_90px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+          <div className="min-w-[980px]">
+            <div className="grid grid-cols-[52px_64px_minmax(120px,1fr)_minmax(120px,1fr)_92px_86px_96px_minmax(110px,0.8fr)_82px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.14em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
               <div>Hora</div>
               <div>Cliente</div>
               <div>Profesional</div>
-              <div>Total</div>
+              <div className="text-right">Total</div>
               <div>Pago</div>
               <div>Origen</div>
               <div>Cobrado por</div>
@@ -669,18 +669,18 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[60px_70px_1fr_1fr_90px_100px_100px_110px_90px] px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
+                      className="grid grid-cols-[52px_64px_minmax(120px,1fr)_minmax(120px,1fr)_92px_86px_96px_minmax(110px,0.8fr)_82px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
                     >
-                      <div className="text-muted-foreground">{fecha}</div>
-                      <div className="text-muted-foreground">{hora}</div>
+                      <div className="text-muted-foreground tabular-nums">{fecha}</div>
+                      <div className="text-muted-foreground tabular-nums">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
-                      <div className="text-foreground tabular-nums font-medium">
+                      <div className="text-foreground tabular-nums font-medium text-right">
                         ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground">—</div>
                       <div><ChargeTypePill type="manual" /></div>
-                      <div className="text-muted-foreground">—</div>
+                      <div className="text-muted-foreground truncate">—</div>
                       <div>
                         <button
                           type="button"
@@ -703,21 +703,20 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const status = (p as Record<string, unknown>).status as string | null ?? "cobrado";
                   const chargeType = (p as Record<string, unknown>).charge_type as string | null ?? "caja";
                   const chargedById = (p as Record<string, unknown>).charged_by as string | null ?? null;
-                  // Resolve charged_by: try to match against employee names, fall back to the value if it's already a name
-                  const chargedByName = chargedById
-                    ? (data.employees.find(e => e.id === chargedById)?.name ?? (chargedById.length < 40 ? chargedById : null) ?? "—")
-                    : "—";
+                  const chargedByEmployee = chargedById ? data.employees.find(e => e.id === chargedById)?.name : null;
+                  const chargedByName = chargedByEmployee
+                    ?? (chargeType === "auto" ? empName : chargeType === "manual" ? "Recepción" : "Caja");
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[60px_70px_1fr_1fr_90px_100px_100px_110px_90px] px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[52px_64px_minmax(120px,1fr)_minmax(120px,1fr)_92px_86px_96px_minmax(110px,0.8fr)_82px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
-                      <div className="text-muted-foreground">{fecha}</div>
-                      <div className="text-muted-foreground">{hora}</div>
+                      <div className="text-muted-foreground tabular-nums">{fecha}</div>
+                      <div className="text-muted-foreground tabular-nums">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
-                      <div className="text-foreground tabular-nums font-medium">
+                      <div className="text-foreground tabular-nums font-medium text-right">
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground truncate">{PAY_METHOD_LABEL[method] ?? method}</div>
