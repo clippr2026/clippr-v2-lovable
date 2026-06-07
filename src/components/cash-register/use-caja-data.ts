@@ -136,7 +136,7 @@ export function useCajaData() {
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")
-        .select("id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,employee_name,appointment_id,charged_by,charge_type,status,charged_at")
+        .select("id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at")
         .eq("business_id", businessId)
         .gte("created_at", today.toISOString())
         .lte("created_at", todayEnd.toISOString())
