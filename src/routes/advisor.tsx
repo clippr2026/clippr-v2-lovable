@@ -271,6 +271,8 @@ function AdvisorContent() {
     }
   }
 
+  const [advisorTab, setAdvisorTab] = React.useState<"analisis" | "simuladores">("analisis");
+
   if (!analysisStarted) {
     return (
       <StartAnalysis
@@ -288,6 +290,39 @@ function AdvisorContent() {
 
   return (
     <div className="space-y-6">
+      {/* Tab nav */}
+      <div className="flex gap-2">
+        {([
+          { key: "analisis", label: "📊 Análisis del negocio" },
+          { key: "simuladores", label: "💰 Simuladores" },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setAdvisorTab(t.key)}
+            className={cn(
+              "rounded-xl px-4 py-2 text-sm font-semibold transition-all",
+              advisorTab === t.key
+                ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {advisorTab === "simuladores" && (
+        <SimuladoresTab
+          servicios={DEMO.payments}
+          facturacion={DEMO.revenue}
+          ticket={DEMO.ticket}
+          clientes={DEMO.clients}
+          ocupacion={DEMO.occupancy}
+        />
+      )}
+
+      {advisorTab === "analisis" && (<>
       <GlassCard className="p-5 sm:p-6">
         <div>
           <Badge icon={Target}>Qué hacer hoy</Badge>
@@ -448,14 +483,6 @@ function AdvisorContent() {
 
               </GlassCard>
 
-      <SimuladorPrecios
-        servicios={DEMO.payments}
-        facturacion={DEMO.revenue}
-        ticket={DEMO.ticket}
-        clientes={DEMO.clients}
-        ocupacion={DEMO.occupancy}
-      />
-
       {selectedRecommendation ? (
         <RecommendationDetailModal
           action={selectedRecommendation}
@@ -467,6 +494,7 @@ function AdvisorContent() {
       {infoModal ? (
         <InfoModal content={infoModal} onClose={() => setInfoModal(null)} />
       ) : null}
+      </>)}
     </div>
   );
 }
@@ -952,6 +980,323 @@ function ReportPlaceholder({ month }: { month: string }) {
       <p className="mt-1 text-xs text-muted-foreground">Sin informe guardado.</p>
       <p className="mt-4 text-xs text-muted-foreground">Se va a crear automáticamente cuando corresponda.</p>
     </div>
+  );
+}
+
+// ─── SIMULADORES TAB ─────────────────────────────────────────────────────────
+
+function SimuladoresTab(props: SimuladorProps) {
+  const [sim, setSim] = React.useState<"precios" | "profesional">("precios");
+
+  return (
+    <div className="space-y-5">
+      {/* Selector interno */}
+      <div className="flex gap-2">
+        {([
+          { key: "precios", label: "💰 Simulador de precios" },
+          { key: "profesional", label: "🧑‍💼 Sumar un profesional" },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setSim(t.key)}
+            className={cn(
+              "rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all",
+              sim === t.key
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {sim === "precios" && <SimuladorPrecios {...props} />}
+      {sim === "profesional" && <SimuladorProfesional {...props} />}
+    </div>
+  );
+}
+
+// ─── SIMULADOR NUEVO PROFESIONAL ─────────────────────────────────────────────
+
+type ProfSimResult = {
+  nivel: "recomendado" | "evaluar" | "no_recomendado";
+  titulo: string;
+  resumen: string;
+  breakdown: {
+    ocupacion: string;
+    demanda: string;
+    retorno: string;
+    plazo: string;
+    riesgo: string;
+    conclusion: string;
+  };
+};
+
+function SimuladorProfesional({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
+  const [sueldoBase, setSueldoBase] = React.useState("");
+  const [comision, setComision] = React.useState("50");
+  const [simulado, setSimulado] = React.useState(false);
+  const [loadingIA, setLoadingIA] = React.useState(false);
+  const [resultado, setResultado] = React.useState<ProfSimResult | null>(null);
+  const [showBreakdown, setShowBreakdown] = React.useState(false);
+
+  const sueldoNum = Number(sueldoBase.replace(/\D/g, "")) || 0;
+  const comisionNum = Math.min(100, Math.max(0, Number(comision) || 50));
+
+  // Estimación: si agrego un profesional, ¿cuánto más podría generar?
+  // Asume que puede atender ~80% de lo que atiende el promedio actual
+  const serviciosPorProf = servicios > 0 ? servicios : 1;
+  const serviciosNuevoProf = Math.round(serviciosPorProf * 0.8);
+  const facturacionExtra = serviciosNuevoProf * ticket;
+  const comisionExtra = (facturacionExtra * comisionNum) / 100;
+  const costoTotal = sueldoNum + comisionExtra;
+  const gananciaNetaEstimada = facturacionExtra - costoTotal;
+  const roiMensual = costoTotal > 0 ? Math.round((gananciaNetaEstimada / costoTotal) * 100) : 0;
+  const mesesRetorno = gananciaNetaEstimada > 0
+    ? Math.ceil(costoTotal / gananciaNetaEstimada)
+    : null;
+
+  const SUELDO_PRESETS = [150000, 250000, 400000, 600000];
+  const COMISION_PRESETS = [30, 40, 50, 60];
+
+  async function calcular() {
+    if (!sueldoNum) return;
+    setSimulado(true);
+    setLoadingIA(true);
+    setResultado(null);
+    setShowBreakdown(false);
+
+    try {
+      const prompt = `Sos el asesor financiero de un negocio de barbería/salón de belleza. Analizá si conviene contratar un nuevo profesional.
+
+DATOS DEL NEGOCIO (último período):
+- Servicios realizados: ${servicios}
+- Facturación: $${fmtNum(facturacion)}
+- Ticket promedio: $${fmtNum(ticket)}
+- Clientes atendidos: ${clientes}
+- Ocupación promedio: ${ocupacion}%
+
+COSTO DEL NUEVO PROFESIONAL:
+- Sueldo base mensual: $${fmtNum(sueldoNum)}
+- Comisión: ${comisionNum}%
+- Servicios estimados que podría atender: ${serviciosNuevoProf}
+- Facturación extra estimada: $${fmtNum(facturacionExtra)}
+- Costo total (sueldo + comisiones): $${fmtNum(costoTotal)}
+- Ganancia neta estimada: $${fmtNum(gananciaNetaEstimada)}
+- ROI mensual estimado: ${roiMensual}%
+
+Reglas:
+- Si ocupación >= 75% y ganancia neta > 0: nivel = "recomendado"
+- Si ocupación entre 55-74% o ganancia neta marginal: nivel = "evaluar"
+- Si ocupación < 55% o ganancia neta negativa: nivel = "no_recomendado"
+
+Respondé SOLO con un JSON válido, sin markdown:
+{"nivel":"recomendado","titulo":"texto corto","resumen":"2-3 oraciones con datos concretos","breakdown":{"ocupacion":"1 oración sobre la ocupación actual","demanda":"1 oración sobre si hay demanda suficiente para otro profesional","retorno":"1 oración sobre el ROI y retorno de la inversión","plazo":"1 oración sobre el plazo estimado de recupero","riesgo":"1 oración sobre el riesgo principal","conclusion":"1 oración de conclusión"}}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      const json = await res.json();
+      const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean) as ProfSimResult;
+      setResultado(parsed);
+    } catch {
+      const nivel: ProfSimResult["nivel"] = ocupacion >= 75 && gananciaNetaEstimada > 0
+        ? "recomendado"
+        : ocupacion >= 55
+        ? "evaluar"
+        : "no_recomendado";
+      setResultado({
+        nivel,
+        titulo: nivel === "recomendado" ? "Alta ocupación, momento de crecer" : nivel === "evaluar" ? "Evaluar antes de contratar" : "Completar la agenda primero",
+        resumen: nivel === "recomendado"
+          ? `Tu ocupación del ${ocupacion}% indica que hay demanda para un nuevo profesional. Con ${serviciosNuevoProf} servicios estimados, la ganancia neta sería de $${fmtNum(gananciaNetaEstimada)} por mes.`
+          : nivel === "evaluar"
+          ? `Tu ocupación del ${ocupacion}% es moderada. Un nuevo profesional podría generar $${fmtNum(gananciaNetaEstimada)} netos, pero hay que asegurarse de tener la demanda antes de contratar.`
+          : `Tu ocupación del ${ocupacion}% muestra que la agenda no está completa. Antes de sumar un profesional, trabajá en llenar los turnos actuales.`,
+        breakdown: {
+          ocupacion: `Ocupación actual: ${ocupacion}%. ${ocupacion >= 75 ? "Alta — hay demanda para otro profesional." : ocupacion >= 55 ? "Moderada — puede funcionar con captación activa." : "Baja — la agenda tiene mucha disponibilidad libre."}`,
+          demanda: `Con ${servicios} servicios actuales, el nuevo profesional podría atender ~${serviciosNuevoProf} servicios por mes.`,
+          retorno: `ROI mensual estimado: ${roiMensual}%. Facturación extra: $${fmtNum(facturacionExtra)}.`,
+          plazo: mesesRetorno ? `El costo se recuperaría en aproximadamente ${mesesRetorno} mes${mesesRetorno > 1 ? "es" : ""}.` : "El costo no se recupera con los números actuales.",
+          riesgo: "El riesgo principal es que el nuevo profesional no llegue a llenar su agenda desde el inicio.",
+          conclusion: gananciaNetaEstimada > 0 ? `La incorporación generaría $${fmtNum(gananciaNetaEstimada)} de ganancia neta mensual.` : "Los costos superan la facturación estimada con la demanda actual.",
+        },
+      });
+    } finally {
+      setLoadingIA(false);
+    }
+  }
+
+  const nivelMeta = {
+    recomendado: { emoji: "🟢", label: "Recomendado", cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300" },
+    evaluar: { emoji: "🟡", label: "Evaluar", cls: "border-amber-400/30 bg-amber-400/[0.07]", titleCls: "text-amber-300" },
+    no_recomendado: { emoji: "🔴", label: "No recomendado", cls: "border-rose-400/30 bg-rose-400/[0.07]", titleCls: "text-rose-300" },
+  };
+
+  return (
+    <GlassCard className="p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Badge icon={TrendingUp}>Simulador de crecimiento</Badge>
+          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">🧑‍💼 ¿Conviene sumar un profesional?</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            Calculá cuánto costaría contratar uno nuevo y si la demanda actual lo justifica.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {[
+            { label: "Ocupación", value: `${ocupacion}%` },
+            { label: "Ticket prom.", value: `$${fmtNum(ticket)}` },
+            { label: "Servicios/mes", value: fmtNum(servicios) },
+          ].map((d) => (
+            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[90px]">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{d.label}</div>
+              <div className="mt-1 text-sm font-semibold tabular-nums">{d.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Inputs */}
+      <div className="mt-6 grid gap-5 sm:grid-cols-2">
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Sueldo base mensual</p>
+          <div className="flex flex-wrap gap-2">
+            {SUELDO_PRESETS.map((p) => (
+              <button key={p} type="button" onClick={() => setSueldoBase(String(p))}
+                className={cn("rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
+                  sueldoNum === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+                ${fmtNum(p)}
+              </button>
+            ))}
+          </div>
+          <input type="text" inputMode="numeric" placeholder="Otro monto" value={sueldoBase}
+            onChange={(e) => setSueldoBase(e.target.value.replace(/\D/g, ""))}
+            className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Comisión sobre servicios</p>
+          <div className="flex flex-wrap gap-2">
+            {COMISION_PRESETS.map((p) => (
+              <button key={p} type="button" onClick={() => setComision(String(p))}
+                className={cn("rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
+                  comisionNum === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+                {p}%
+              </button>
+            ))}
+          </div>
+          <input type="text" inputMode="numeric" placeholder="Otra comisión %" value={comision}
+            onChange={(e) => setComision(e.target.value.replace(/\D/g, ""))}
+            className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <button type="button" onClick={calcular} disabled={!sueldoNum || loadingIA}
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40">
+          {loadingIA ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Calcular
+        </button>
+      </div>
+
+      {simulado && sueldoNum > 0 && (
+        <div className="mt-6 space-y-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.18em]">Proyección mensual</p>
+
+          {/* Números clave */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Servicios estimados", value: fmtNum(serviciosNuevoProf), sub: "del nuevo profesional", cls: "text-foreground" },
+              { label: "Facturación extra", value: `+$${fmtNum(facturacionExtra)}`, sub: "ingresos adicionales", cls: "text-emerald-300" },
+              { label: "Costo total", value: `-$${fmtNum(costoTotal)}`, sub: `sueldo + ${comisionNum}% comisión`, cls: "text-rose-300" },
+              { label: "Ganancia neta", value: `${gananciaNetaEstimada >= 0 ? "+" : ""}$${fmtNum(gananciaNetaEstimada)}`, sub: "por mes estimada", cls: gananciaNetaEstimada >= 0 ? "text-emerald-300" : "text-rose-300" },
+            ].map((m) => (
+              <div key={m.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{m.label}</p>
+                <p className={cn("mt-1.5 font-display text-xl font-semibold tabular-nums", m.cls)}>{m.value}</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">{m.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Retorno */}
+          <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
+                <TrendingUp className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Punto de retorno</p>
+                <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                  {mesesRetorno
+                    ? <>El costo del nuevo profesional se recuperaría en <span className="font-semibold text-white">{mesesRetorno} mes{mesesRetorno > 1 ? "es" : ""}</span> con una ganancia neta de <span className="font-semibold text-white">${fmtNum(gananciaNetaEstimada)}/mes</span>.</>
+                    : <>Con los números actuales, el costo supera la facturación estimada. Conviene esperar a que la ocupación sea mayor.</>
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* IA */}
+          {loadingIA ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Analizando viabilidad…</p>
+                <p className="text-xs text-muted-foreground mt-0.5">La IA está evaluando ocupación, demanda y ROI.</p>
+              </div>
+            </div>
+          ) : resultado ? (
+            <div className={cn("rounded-2xl border p-5 space-y-4", nivelMeta[resultado.nivel].cls)}>
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{nivelMeta[resultado.nivel].emoji}</span>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
+                  <p className={cn("text-base font-semibold", nivelMeta[resultado.nivel].titleCls)}>
+                    {nivelMeta[resultado.nivel].label} — {resultado.titulo}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">{resultado.resumen}</p>
+              <button type="button" onClick={() => setShowBreakdown((v) => !v)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition">
+                {showBreakdown ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {showBreakdown ? "Ocultar análisis" : "Ver análisis"}
+              </button>
+              {showBreakdown && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { label: "✅ Ocupación actual", value: resultado.breakdown.ocupacion },
+                    { label: "✅ Demanda", value: resultado.breakdown.demanda },
+                    { label: "✅ Retorno de inversión", value: resultado.breakdown.retorno },
+                    { label: "✅ Plazo estimado", value: resultado.breakdown.plazo },
+                    { label: "✅ Riesgo principal", value: resultado.breakdown.riesgo },
+                    { label: "✅ Conclusión", value: resultado.breakdown.conclusion },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{item.label}</p>
+                      <p className="mt-1.5 text-xs text-foreground leading-relaxed">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </GlassCard>
   );
 }
 
