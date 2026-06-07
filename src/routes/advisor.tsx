@@ -130,8 +130,14 @@ function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
   const navigate = useNavigate();
-  const [advisorTab, setAdvisorTab] = React.useState<"analisis" | "prioridades" | "simuladores">("analisis");
+  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">("acciones");
   const [priorityOpen, setPriorityOpen] = React.useState(false);
+  const [analysisStarted, setAnalysisStarted] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    const today = new Date().toISOString().slice(0, 10);
+    return localStorage.getItem("clippr_advisor_last_daily_analysis") === today;
+  });
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
@@ -153,10 +159,11 @@ function AdvisorRoute() {
     <AppShell>
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-        <div className="flex items-center gap-2 shrink-0">
+        {analysisStarted && !isAnalyzing && (
+          <div className="flex items-center gap-2 shrink-0">
           {([
+            { key: "acciones", label: "🎯 Acciones recomendadas" },
             { key: "analisis", label: "📊 Análisis" },
-            { key: "prioridades", label: "🎯 Prioridades" },
             { key: "simuladores", label: "💰 Simuladores" },
           ] as const).map((t) => (
             <button
@@ -174,25 +181,40 @@ function AdvisorRoute() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
-      <AdvisorContent advisorTab={advisorTab} setAdvisorTab={setAdvisorTab} />
+      <AdvisorContent
+        advisorTab={advisorTab}
+        setAdvisorTab={setAdvisorTab}
+        analysisStarted={analysisStarted}
+        setAnalysisStarted={setAnalysisStarted}
+        isAnalyzing={isAnalyzing}
+        setIsAnalyzing={setIsAnalyzing}
+      />
     </AppShell>
   );
 }
 
-function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisorTab: "analisis" | "prioridades" | "simuladores"; setAdvisorTab: (t: "analisis" | "prioridades" | "simuladores") => void }) {
+function AdvisorContent({
+  advisorTab,
+  setAdvisorTab: _setAdvisorTab,
+  analysisStarted,
+  setAnalysisStarted,
+  isAnalyzing,
+  setIsAnalyzing,
+}: {
+  advisorTab: "acciones" | "analisis" | "simuladores";
+  setAdvisorTab: (t: "acciones" | "analisis" | "simuladores") => void;
+  analysisStarted: boolean;
+  setAnalysisStarted: (v: boolean) => void;
+  isAnalyzing: boolean;
+  setIsAnalyzing: (v: boolean) => void;
+}) {
   const [shouldAnimateResults, setShouldAnimateResults] = React.useState(false);
   const animationProgress = useResultAnimation(shouldAnimateResults);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   const todayKey = getTodayKey();
-  const needsDailyAnalysis = React.useMemo(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("clippr_advisor_last_daily_analysis") !== todayKey;
-  }, [todayKey]);
-
-  const [analysisStarted, setAnalysisStarted] = React.useState(() => !needsDailyAnalysis);
-  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
 
   const [analysisStep, setAnalysisStep] = React.useState(0);
   const [reports, setReports] = React.useState<Array<{ month: string; health: number; growth: number; profit: number; revenue: number }>>(() => {
@@ -322,7 +344,7 @@ function AdvisorContent({ advisorTab, setAdvisorTab: _setAdvisorTab }: { advisor
         />
       )}
 
-      {advisorTab === "prioridades" && (
+      {advisorTab === "acciones" && (
         <PrioridadesTab
           actions={getDemoActions(showExtraRecommendation).slice(0, 3)}
           resolvedRecommendations={resolvedRecommendations}
