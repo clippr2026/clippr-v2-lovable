@@ -280,7 +280,6 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     client_id: input.client_id ?? null,
     client_name: input.client_name,
     client_phone: input.client_phone ?? null,
-    client_email: input.client_email ?? null,
     employee_id: input.employee_id,
     service_name: input.service_name,
     service_price: input.service_price,
