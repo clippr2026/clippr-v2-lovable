@@ -836,10 +836,6 @@ function CobroModal({
   );
 }
 
-function fmtMoney(n: number) {
-  return "$" + Math.round(n).toLocaleString("es-AR");
-}
-
 function CobroModal({
   turno, empId, businessId, mode, userEmail, onClose, onDone,
 }: {
