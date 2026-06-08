@@ -1042,16 +1042,23 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
             // Historial del turno
             const historial = readHistorialCobro(t.id);
-            // Si no hay historial registrado pero hay evidencia de acciones, inferir
+            // Fallback solo usa evidencia del propio turno, nunca el modo actual de cobro
             const historialDisplay: HistorialEvento[] = historial.length > 0 ? historial : (() => {
               const events: HistorialEvento[] = [];
-              if (isSentToCaja || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment") {
+              const sentManually = isSentToCaja
+                || String(t.notes ?? "").includes("[PENDIENTE_CAJA]")
+                || t.status === "pending_payment";
+
+              if (sentManually) {
+                // Evidencia de envío manual está en el propio registro
                 events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Envió a caja" });
-              }
-              if (t.status === "charged" && approvalMode === "manual") {
-                events.push({ time: "—", user: "Caja", action: "Cobró" });
+                if (t.status === "charged") {
+                  // Caja lo cobró después — no sabemos la hora exacta
+                  events.push({ time: "—", user: "Caja", action: "Cobró" });
+                }
               } else if (t.status === "charged") {
-                events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Cobró" });
+                // No hay evidencia de envío manual → fue cobro directo (auto)
+                events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Cobro directo" });
               }
               return events;
             })();
