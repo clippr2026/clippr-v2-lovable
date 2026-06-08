@@ -627,7 +627,9 @@ function CobroModal({
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{item.name}</div>
                     </div>
-                    <div className="text-sm font-semibold tabular-nums shrink-0">{fmtMoney(item.amount)}</div>
+                    {items.length > 1 && (
+                      <div className="text-sm font-semibold tabular-nums shrink-0">{fmtMoney(item.amount)}</div>
+                    )}
                     <button type="button" onClick={() => startEdit(item)}
                       className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white transition px-2 py-1 rounded-lg hover:bg-white/[0.06]">
                       Editar
