@@ -123,6 +123,7 @@ function shortName(email: string | null | undefined): string {
 }
 
 
+const COLORS = [
   { color: "from-amber-400 to-amber-600", ring: "ring-amber-400/60" },
   { color: "from-emerald-300 to-emerald-500", ring: "ring-emerald-400/60" },
   { color: "from-violet-300 to-violet-500", ring: "ring-violet-400/60" },
