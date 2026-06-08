@@ -1227,6 +1227,9 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
   // Load price_catalog to classify each sale by real origin
   const [serviceNames, setServiceNames] = React.useState<Set<string>>(new Set());
   const [catalogNames, setCatalogNames] = React.useState<Set<string>>(new Set());
+  // Original-case names for display
+  const [serviceNamesOrig, setServiceNamesOrig] = React.useState<string[]>([]);
+  const [catalogNamesOrig, setCatalogNamesOrig] = React.useState<string[]>([]);
   const [catalogLoaded, setCatalogLoaded] = React.useState(false);
 
   React.useEffect(() => {
@@ -1236,38 +1239,81 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
         supabase.from("price_catalog").select("name").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null),
         supabase.from("price_catalog").select("name").eq("business_id", businessId).eq("active", true).is("duration_min", null),
       ]);
-      setServiceNames(new Set((svcs ?? []).map(s => (s.name as string).trim().toLowerCase())));
-      setCatalogNames(new Set((prods ?? []).map(p => (p.name as string).trim().toLowerCase())));
+      const svcOrig = (svcs ?? []).map(s => s.name as string);
+      const prodOrig = (prods ?? []).map(p => p.name as string);
+      setServiceNamesOrig(svcOrig);
+      setCatalogNamesOrig(prodOrig);
+      setServiceNames(new Set(svcOrig.map(n => n.trim().toLowerCase())));
+      setCatalogNames(new Set(prodOrig.map(n => n.trim().toLowerCase())));
       setCatalogLoaded(true);
     })();
   }, [businessId]);
 
-  // Aggregate by service_name
+  // Aggregate sales against real catalog names only
   const aggregated = React.useMemo(() => {
-    const map = new Map<string, { total: number; isService: boolean; isCatalog: boolean }>();
+    if (!catalogLoaded) return [];
+
+    // All known real names (service + catalog), longest first to avoid partial matches
+    const allReal = [
+      ...serviceNamesOrig.map(n => ({ name: n.trim().toLowerCase(), displayName: n, isService: true, isCatalog: false })),
+      ...catalogNamesOrig.map(n => ({ name: n.trim().toLowerCase(), displayName: n, isService: false, isCatalog: true })),
+    ].sort((a, b) => b.name.length - a.name.length);
+
+    const map = new Map<string, { displayName: string; total: number; isService: boolean; isCatalog: boolean }>();
+
     for (const s of sales) {
-      const raw = (s.service_name ?? "Sin nombre").trim();
-      const key = raw.toLowerCase();
-      const isService = serviceNames.has(key);
-      const isCatalog = catalogNames.has(key);
-      const prev = map.get(raw);
-      if (prev) {
-        prev.total += Number(s.total ?? 0);
+      const rawName = (s.service_name ?? "").trim().toLowerCase();
+      const saleTotal = Number(s.total ?? 0);
+
+      if (!rawName || saleTotal <= 0) continue;
+
+      // Find which real catalog items appear in this payment's service_name
+      const matched: typeof allReal = [];
+      let remaining = rawName;
+      for (const real of allReal) {
+        if (remaining.includes(real.name)) {
+          matched.push(real);
+          // Remove matched segment to avoid double-counting
+          remaining = remaining.split(real.name).join(" ");
+        }
+      }
+
+      if (matched.length === 0) {
+        // No match → skip entirely (seña, x2, internal text, etc.)
+        continue;
+      }
+
+      if (matched.length === 1) {
+        const key = matched[0].name;
+        const existing = map.get(key);
+        if (existing) {
+          existing.total += saleTotal;
+        } else {
+          map.set(key, { displayName: matched[0].displayName, total: saleTotal, isService: matched[0].isService, isCatalog: matched[0].isCatalog });
+        }
       } else {
-        map.set(raw, { total: Number(s.total ?? 0), isService, isCatalog });
+        // Multiple items: split total evenly
+        const share = saleTotal / matched.length;
+        for (const real of matched) {
+          const existing = map.get(real.name);
+          if (existing) {
+            existing.total += share;
+          } else {
+            map.set(real.name, { displayName: real.displayName, total: share, isService: real.isService, isCatalog: real.isCatalog });
+          }
+        }
       }
     }
-    return Array.from(map.entries())
-      .map(([name, v]) => ({ name, ...v }))
+
+    return Array.from(map.values())
       .sort((a, b) => b.total - a.total);
-  }, [sales, serviceNames, catalogNames]);
+  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded]);
 
   const filtered = React.useMemo(() => {
     if (tab === "services") return aggregated.filter(i => i.isService);
     if (tab === "catalog")  return aggregated.filter(i => i.isCatalog);
     return aggregated;
   }, [aggregated, tab]);
-
   const grandTotal = filtered.reduce((s, i) => s + i.total, 0);
   const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
   const fmtPct = (n: number) => grandTotal > 0 ? ((n / grandTotal) * 100).toFixed(1) + "%" : "0%";
@@ -1351,9 +1397,9 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
           {/* Legend */}
           <div className="flex-1 w-full space-y-2 min-w-0">
             {filtered.slice(0, 7).map((item, i) => (
-              <div key={item.name} className="flex items-center gap-3 min-w-0">
+              <div key={item.displayName} className="flex items-center gap-3 min-w-0">
                 <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                <div className="flex-1 text-sm truncate min-w-0">{item.name}</div>
+                <div className="flex-1 text-sm truncate min-w-0">{item.displayName}</div>
                 <div className="tabular-nums text-xs text-muted-foreground shrink-0">{fmt(item.total)}</div>
                 <div className="tabular-nums text-xs font-semibold shrink-0 w-12 text-right">{fmtPct(item.total)}</div>
               </div>
