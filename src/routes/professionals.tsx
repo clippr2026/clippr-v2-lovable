@@ -902,6 +902,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
     if (!businessId) return new Set();
     return new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id));
@@ -1080,9 +1081,13 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                 <div className="min-w-0 pr-2">
                   <div className="font-medium truncate pt-0.5">{t.service_name ?? "—"}</div>
                   {noteText && (
-                    <div className="text-[10px] text-sky-300/80 truncate mt-1" title={noteText}>
-                      📝 {noteText}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNotaTurno(t)}
+                      className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
+                    >
+                      📄 Ver nota
+                    </button>
                   )}
                 </div>
 
@@ -1135,6 +1140,30 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
             refetch();
           }}
         />
+      )}
+
+      {notaTurno && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setNotaTurno(null)}>
+          <div className="glass-strong rounded-3xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Nota del turno</div>
+                <div className="mt-1 font-semibold text-base">{notaTurno.service_name ?? "—"}</div>
+              </div>
+              <button type="button" onClick={() => setNotaTurno(null)}
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition shrink-0">
+                ✕
+              </button>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <div>{formatDate(notaTurno.starts_at)} · {formatTime(notaTurno.starts_at)}</div>
+              <div>{notaTurno.client_name ?? "Sin cliente"}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words">
+              {getNoteDisplay(notaTurno) ?? "—"}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
