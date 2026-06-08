@@ -1204,7 +1204,7 @@ function StatsView({
       </div>
 
       {/* Servicios Desglose */}
-      <ServiciosDesglose sales={sales} />
+      <ServiciosDesglose sales={sales} businessId={businessId} />
     </div>
   );
 }
@@ -1221,30 +1221,50 @@ const PIE_COLORS = [
   "oklch(0.75 0.14 95)",   // lime
 ];
 
-function ServiciosDesglose({ sales }: { sales: ProfSale[] }) {
+function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessId: string | null }) {
   const [tab, setTab] = React.useState<"all" | "services" | "catalog">("all");
 
-  // Aggregate by service_name — detect catalog items by checking if appointment_id is null
+  // Load price_catalog to classify each sale by real origin
+  const [serviceNames, setServiceNames] = React.useState<Set<string>>(new Set());
+  const [catalogNames, setCatalogNames] = React.useState<Set<string>>(new Set());
+  const [catalogLoaded, setCatalogLoaded] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!businessId) return;
+    (async () => {
+      const [{ data: svcs }, { data: prods }] = await Promise.all([
+        supabase.from("price_catalog").select("name").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null),
+        supabase.from("price_catalog").select("name").eq("business_id", businessId).eq("active", true).is("duration_min", null),
+      ]);
+      setServiceNames(new Set((svcs ?? []).map(s => (s.name as string).trim().toLowerCase())));
+      setCatalogNames(new Set((prods ?? []).map(p => (p.name as string).trim().toLowerCase())));
+      setCatalogLoaded(true);
+    })();
+  }, [businessId]);
+
+  // Aggregate by service_name
   const aggregated = React.useMemo(() => {
-    const map = new Map<string, { total: number; isProduct: boolean }>();
+    const map = new Map<string, { total: number; isService: boolean; isCatalog: boolean }>();
     for (const s of sales) {
-      const name = (s.service_name ?? "Sin nombre").trim();
-      const isProduct = !s.appointment_id; // catalog items have no appointment
-      const prev = map.get(name);
+      const raw = (s.service_name ?? "Sin nombre").trim();
+      const key = raw.toLowerCase();
+      const isService = serviceNames.has(key);
+      const isCatalog = catalogNames.has(key);
+      const prev = map.get(raw);
       if (prev) {
         prev.total += Number(s.total ?? 0);
       } else {
-        map.set(name, { total: Number(s.total ?? 0), isProduct });
+        map.set(raw, { total: Number(s.total ?? 0), isService, isCatalog });
       }
     }
     return Array.from(map.entries())
-      .map(([name, v]) => ({ name, total: v.total, isProduct: v.isProduct }))
+      .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.total - a.total);
-  }, [sales]);
+  }, [sales, serviceNames, catalogNames]);
 
   const filtered = React.useMemo(() => {
-    if (tab === "services") return aggregated.filter(i => !i.isProduct);
-    if (tab === "catalog")  return aggregated.filter(i => i.isProduct);
+    if (tab === "services") return aggregated.filter(i => i.isService);
+    if (tab === "catalog")  return aggregated.filter(i => i.isCatalog);
     return aggregated;
   }, [aggregated, tab]);
 
