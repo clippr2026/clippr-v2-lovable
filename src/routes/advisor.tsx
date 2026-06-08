@@ -335,7 +335,7 @@ function AdvisorContent({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={DEMO.payments}
@@ -358,11 +358,15 @@ function AdvisorContent({
       {advisorTab === "analisis" && (<>
 
       {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-      <GlassCard className="p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-6">
-          <Badge icon={HeartPulse}>Salud del negocio</Badge>
+      <div>
+        {/* Separador de sección */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Salud del negocio</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-        <h2 className="font-display text-2xl font-semibold tracking-tight mb-1">❤️ ¿Cómo está tu negocio hoy?</h2>
+      <GlassCard className="p-7 sm:p-10 border border-white/[0.07]">
+        <h2 className="font-display text-3xl font-bold tracking-tight mb-1">❤️ ¿Cómo está tu negocio hoy?</h2>
         <p className="text-sm text-muted-foreground mb-8">Análisis de los indicadores del período actual.</p>
 
         <div className="grid md:grid-cols-2 gap-6 items-center">
@@ -436,9 +440,17 @@ function AdvisorContent({
           </div>
         </div>
       </GlassCard>
+      </div>{/* /Salud */}
 
       {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-      <GlassCard className="p-6 sm:p-8 space-y-6">
+      <div>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Evolución del negocio</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+        </div>
+      <GlassCard className="p-7 sm:p-10 space-y-8 border border-white/[0.07]">
+        <h2 className="font-display text-3xl font-bold tracking-tight">📈 Evolución del negocio</h2>
 
         {/* Bloque superior: +18% */}
         <div className="relative flex items-center gap-5 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-5">
@@ -560,14 +572,20 @@ function AdvisorContent({
           </div>
         </div>
       </GlassCard>
+      </div>{/* /Evolución */}
 
       {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
-      <GlassCard className="p-6 sm:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Historial de análisis</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+        </div>
+      <GlassCard className="p-7 sm:p-10 border border-white/[0.07]">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
           <div>
-            <Badge icon={Sparkles}>Informe mensual automático</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">📅 Historial de análisis</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h2 className="font-display text-3xl font-bold tracking-tight">📅 Historial de análisis</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
               Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
             </p>
           </div>
@@ -588,6 +606,7 @@ function AdvisorContent({
           )}
         </div>
       </GlassCard>
+      </div>{/* /Historial */}
 
       {infoModal ? (
         <InfoModal content={infoModal} onClose={() => setInfoModal(null)} />
