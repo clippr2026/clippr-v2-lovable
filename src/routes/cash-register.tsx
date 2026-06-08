@@ -76,6 +76,61 @@ function getHistorialCobro(appointmentId?: string | null): HistorialEvento[] {
   }
 }
 
+
+function normalizeHistorialEventKey(event: HistorialEvento) {
+  return `${event.time}__${event.user}__${event.action}`;
+}
+
+function uniqueHistorialEvents(events: HistorialEvento[]) {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    const key = normalizeHistorialEventKey(event);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getHistorialCobroByIds(ids: Array<unknown>): HistorialEvento[] {
+  const normalizedIds = Array.from(
+    new Set(
+      ids
+        .map((id) => (id === null || id === undefined ? "" : String(id).trim()))
+        .filter(Boolean)
+    )
+  );
+
+  return uniqueHistorialEvents(normalizedIds.flatMap((id) => getHistorialCobro(id)));
+}
+
+function buildPaidHistorialEvents(
+  payment: Record<string, unknown>,
+  fallbackCobroEvent: HistorialEvento,
+): HistorialEvento[] {
+  const savedEvents = getHistorialCobroByIds([
+    payment.appointment_id,
+    payment.appointmentId,
+    payment.appointment,
+    payment.pending_charge_id,
+    payment.pendingChargeId,
+    payment.sale_id,
+    payment.saleId,
+    payment.id,
+  ]);
+
+  if (savedEvents.length === 0) return [fallbackCobroEvent];
+
+  const alreadyHasCobro = savedEvents.some((event) => event.action === "Cobró");
+
+  // Si el servicio fue enviado a Caja y el pago ya existe, el historial debe conservar
+  // "Envió a caja" y sumar "Cobró". Nunca se compacta a una sola línea.
+  if (!alreadyHasCobro) {
+    return uniqueHistorialEvents([...savedEvents, fallbackCobroEvent]);
+  }
+
+  return savedEvents;
+}
+
 function HistorialCell({ events }: { events: HistorialEvento[] }) {
   if (events.length === 0) {
     return <span className="text-muted-foreground">—</span>;
@@ -807,11 +862,11 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const paymentNote = getManualPendingNote(
                     ((paymentRecord.observations as string | null) ?? (paymentRecord.notes as string | null) ?? null)
                   );
-                  const appointmentId = String(
-                    paymentRecord.appointment_id ?? paymentRecord.appointmentId ?? paymentRecord.appointment ?? p.id ?? ""
-                  );
-                  const savedEvents = getHistorialCobro(appointmentId);
-                  const fallbackEvents = savedEvents.length > 0 ? savedEvents : [{ time: hora, user: chargedByName, action: "Cobró" }];
+                  const historialEvents = buildPaidHistorialEvents(paymentRecord, {
+                    time: hora,
+                    user: chargedByName,
+                    action: "Cobró",
+                  });
 
                   return (
                     <div key={p.id}
@@ -845,7 +900,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground truncate">{methodLabel}</div>
-                      <div><HistorialCell events={fallbackEvents} /></div>
+                      <div><HistorialCell events={historialEvents} /></div>
                     </div>
                   );
                 })}
