@@ -925,8 +925,13 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   const formatMoney = (value: number | null | undefined) =>
     value == null ? "—" : `$${Number(value).toLocaleString("es-AR")}`;
 
-  const formatDate = (value: string) =>
-    new Date(value).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const formatDate = (value: string) => {
+    const d = new Date(value);
+    const day = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
+    const cap = day.charAt(0).toUpperCase() + day.slice(1);
+    const dmy = d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+    return `${cap} ${dmy}`;
+  };
 
   const formatTime = (value: string) =>
     new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
