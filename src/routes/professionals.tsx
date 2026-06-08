@@ -154,7 +154,7 @@ async function appendHistorialCobro(
 
 // Cuando se carga la vista, sincronizar Supabase → localStorage para cada turno
 // Esto cubre el caso de que otro dispositivo haya escrito eventos
-async function syncHistorialFromDB(appointmentIds: string[]) {
+async function syncHistorialFromDB(appointmentIds: string[]): Promise<void> {
   if (!appointmentIds.length) return;
   try {
     const { data } = await supabase
@@ -960,10 +960,15 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
 
+  // Version counter — increments after each DB sync to trigger re-render
+  const [historialVersion, setHistorialVersion] = React.useState(0);
+
   // Sync historial from Supabase when turnos load (covers multi-device scenarios)
   React.useEffect(() => {
     if (turnos.length > 0) {
-      syncHistorialFromDB(turnos.map(t => t.id));
+      syncHistorialFromDB(turnos.map(t => t.id)).then(() => {
+        setHistorialVersion(v => v + 1);
+      });
     }
   }, [turnos]);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
@@ -1086,6 +1091,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           </div>
 
           {turnos.map((t, i) => {
+            void historialVersion; // triggers re-render when sync completes
             const isSentToCaja = sentToCajaIds.has(t.id);
             const isPending =
               isSentToCaja ||
@@ -1094,7 +1100,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
             const noteText = getNoteDisplay(t);
 
             // Historial: solo eventos guardados. Sin fallback ni recálculo.
-            const historialDisplay = readHistorialCobro(t.id);
+            // historialVersion ensures re-read after syncHistorialFromDB completes
+            const historialDisplay = readHistorialCobro(t.id); // eslint-disable-line react-hooks/exhaustive-deps
 
             // Botón de acción (solo si no hay eventos aún)
             const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
