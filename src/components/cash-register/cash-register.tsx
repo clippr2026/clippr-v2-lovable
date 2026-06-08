@@ -1112,27 +1112,23 @@ function NuevaVentaTab({
         {
           const now = new Date();
           const hhmm = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-          const cashierName = (() => {
-            const raw = String(data.profileId ?? "");
-            // profileId is a UUID — use selectedEmployee name or fallback
-            return selectedEmployee?.name ?? "Recepción";
-          })();
-          const newEvent = {
+          const cashierName = selectedEmployee?.name ?? "Recepción";
+          const newEvent: Record<string, unknown> = {
             ts: now.toISOString(),
             time: hhmm,
             user: cashierName,
             role: "recepcion",
             action: "Cobró",
           };
-          // Read existing events from Supabase, append, write back
+          // Read existing events, append, write back atomically
           supabase.from("appointments").select("cobro_events").eq("id", pendingCharge.id).single()
             .then(({ data: apptRow }) => {
-              const prev: unknown[] = (apptRow as Record<string, unknown> | null)?.cobro_events as unknown[] ?? [];
-              supabase.from("appointments")
+              const prev = ((apptRow as Record<string, unknown> | null)?.cobro_events as unknown[] ?? []);
+              return supabase.from("appointments")
                 .update({ cobro_events: [...prev, newEvent] } as Record<string, unknown>)
-                .eq("id", pendingCharge.id)
-                .then(() => {/* persisted */});
-            });
+                .eq("id", pendingCharge.id);
+            })
+            .catch(() => { /* no-op if cobro_events column doesn't exist yet */ });
         }
 
         // 2. Registrar el pago vinculado al appointment existente
