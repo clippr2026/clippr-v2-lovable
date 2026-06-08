@@ -1043,12 +1043,10 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               if (isSentToCaja || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment") {
                 events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Envió a caja" });
               }
-              if (t.status === "charged") {
-                if (isSentToCaja || String(t.notes ?? "").includes("[PENDIENTE_CAJA]")) {
-                  events.push({ time: "—", user: "Caja", action: "Cobró" });
-                } else {
-                  events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Cobró" });
-                }
+              if (t.status === "charged" && approvalMode === "manual") {
+                events.push({ time: "—", user: "Caja", action: "Cobró" });
+              } else if (t.status === "charged") {
+                events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Cobró" });
               }
               return events;
             })();
