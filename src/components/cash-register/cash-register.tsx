@@ -1108,6 +1108,33 @@ function NuevaVentaTab({
 
         if (updateError) throw updateError;
 
+        // Append "Cobró" event to cobro_events log (immutable audit trail)
+        {
+          const now = new Date();
+          const hhmm = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+          const cashierName = (() => {
+            const raw = String(data.profileId ?? "");
+            // profileId is a UUID — use selectedEmployee name or fallback
+            return selectedEmployee?.name ?? "Recepción";
+          })();
+          const newEvent = {
+            ts: now.toISOString(),
+            time: hhmm,
+            user: cashierName,
+            role: "recepcion",
+            action: "Cobró",
+          };
+          // Read existing events from Supabase, append, write back
+          supabase.from("appointments").select("cobro_events").eq("id", pendingCharge.id).single()
+            .then(({ data: apptRow }) => {
+              const prev: unknown[] = (apptRow as Record<string, unknown> | null)?.cobro_events as unknown[] ?? [];
+              supabase.from("appointments")
+                .update({ cobro_events: [...prev, newEvent] } as Record<string, unknown>)
+                .eq("id", pendingCharge.id)
+                .then(() => {/* persisted */});
+            });
+        }
+
         // 2. Registrar el pago vinculado al appointment existente
         await registerPayment({
           businessId: data.businessId,
