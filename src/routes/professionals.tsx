@@ -704,14 +704,6 @@ function CobroModal({
           </div>
 
           {/* ── Items ── */}
-          {mode === "manual" ? (
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Servicio</div>
-                <div className="text-sm font-medium">{items.map(i => i.name).join(" + ")}</div>
-              </div>
-            </div>
-          ) : (
           <div className="space-y-2">
             {items.map((item) => (
               <div key={item.id}>
@@ -758,16 +750,7 @@ function CobroModal({
             )}
           </div>
 
-          </div>
-          )}
-
-          {/* ── Nota (modo manual) */}
-          {mode === "manual" && (
-            <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Nota opcional para Caja"
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm min-h-[90px]" />
-          )}
-
-                    {/* ── Pago (solo modo auto) ── */}
+          {/* ── Pago (solo modo auto) ── */}
           {mode === "auto" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
