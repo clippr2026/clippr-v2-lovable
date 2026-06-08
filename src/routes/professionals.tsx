@@ -575,6 +575,7 @@ function CobroModal({
   const [multiPay, setMultiPay] = useState(false);
   const [splits, setSplits] = useState<SplitEntry[]>([{ method: "cash", amount: "" }]);
 
+  // Keep single-pay amount in sync with total when not manually edited
   const splitTotal = splits.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const remaining = total - splitTotal;
   const isBalanced = Math.abs(remaining) < 1;
@@ -607,13 +608,21 @@ function CobroModal({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // balance for single pay (always balanced)
-  const canConfirm = mode !== "auto" || !multiPay || isBalanced || showVuelto;
+  // In single pay mode, if no amount typed, treat as total (auto-covers)
+  const effectiveSplitTotal = !multiPay && !splits[0]?.amount ? total : splitTotal;
+  const effectiveRemaining = total - effectiveSplitTotal;
+  const effectiveIsBalanced = Math.abs(effectiveRemaining) < 1;
+  const effectiveIsOver = effectiveSplitTotal > total;
+  const effectiveShowVuelto = effectiveIsOver && splits.some(s => s.method === "cash");
+
+  const canConfirm = mode !== "auto" || (
+    splits.length > 0 && (effectiveIsBalanced || effectiveShowVuelto)
+  );
 
   // ── Confirm ───────────────────────────────────────────────────────────────
   async function confirm() {
-    if (mode === "auto" && multiPay && !isBalanced && !showVuelto) {
-      toast.error(`Falta distribuir ${fmtMoney(remaining)}.`);
+    if (mode === "auto" && !effectiveIsBalanced && !effectiveShowVuelto) {
+      toast.error(`Falta distribuir ${fmtMoney(effectiveRemaining)}.`);
       return;
     }
     setSaving(true);
@@ -621,6 +630,7 @@ function CobroModal({
       const now = new Date();
       const hhmm = now.toTimeString().slice(0, 5);
       const actor = shortName(userEmail);
+      // Use first split method; if amount empty, use total
       const primaryMethod: PayMethod = splits[0]?.method ?? "cash";
 
       if (mode === "auto") {
@@ -730,31 +740,69 @@ function CobroModal({
 
           {/* ── Pago (solo modo auto) ── */}
           {mode === "auto" && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Método de pago</div>
-                {!multiPay && (
-                  <button type="button" onClick={() => { setMultiPay(true); addSplit(); }}
+                {!multiPay ? (
+                  <button type="button" onClick={() => {
+                    setMultiPay(true);
+                    // Start multi with current method + remaining
+                    setSplits([{ method: splits[0]?.method ?? "cash", amount: String(total) }]);
+                  }}
                     className="text-[10px] font-semibold text-primary hover:text-primary/80 transition">
                     Pago múltiple
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => {
+                    setMultiPay(false);
+                    setSplits([{ method: "cash", amount: String(total) }]);
+                  }}
+                    className="text-[10px] font-semibold text-muted-foreground hover:text-white transition">
+                    Pago simple
                   </button>
                 )}
               </div>
 
               {!multiPay ? (
-                /* Single method selector */
-                <div className="grid grid-cols-3 gap-2">
-                  {ALL_METHODS.map(m => (
-                    <button key={m} type="button"
-                      onClick={() => setSplits([{ method: m, amount: "" }])}
-                      className={cn("rounded-xl py-2 text-xs font-medium ring-1 transition-all",
-                        splits[0]?.method === m ? "bg-primary/20 ring-primary/50 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:ring-white/20")}>
-                      {PAY_LABELS[m]}
-                    </button>
-                  ))}
+                /* ── Single method: selector + amount field ── */
+                <div className="space-y-2">
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {ALL_METHODS.map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setSplits([{ method: m, amount: splits[0]?.amount || String(total) }])}
+                        className={cn("rounded-xl py-2 text-xs font-medium ring-1 transition-all",
+                          splits[0]?.method === m
+                            ? "bg-primary/20 ring-primary/50 text-foreground"
+                            : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:ring-white/20")}>
+                        {PAY_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Amount input */}
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                    <input
+                      type="text" inputMode="numeric"
+                      value={splits[0]?.amount ?? ""}
+                      onChange={e => setSplits([{ method: splits[0]?.method ?? "cash", amount: e.target.value.replace(/\D/g, "") }])}
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-sm tabular-nums focus:outline-none focus:border-primary/40"
+                    />
+                  </div>
+                  {/* Balance for single pay */}
+                  {splits[0]?.amount && (
+                    <div className={cn("rounded-xl px-4 py-2 text-xs font-semibold flex items-center justify-between",
+                      isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
+                      : showVuelto ? "bg-sky-500/10 ring-1 ring-sky-400/20 text-sky-300"
+                      : isOver && !hasCash ? "hidden"
+                      : "bg-amber-500/10 ring-1 ring-amber-400/20 text-amber-300")}>
+                      {isBalanced ? <span>✓ Total cubierto</span>
+                      : showVuelto ? <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
+                      : <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>}
+                    </div>
+                  )}
                 </div>
               ) : (
-                /* Multi-method rows */
+                /* ── Multi method rows ── */
                 <div className="space-y-2">
                   {splits.map((entry, idx) => {
                     const usedMethods = new Set(splits.filter((_, i) => i !== idx).map(s => s.method));
@@ -791,21 +839,16 @@ function CobroModal({
                       + Agregar método
                     </button>
                   )}
-
-                  {/* Balance indicator */}
+                  {/* Balance */}
                   {splitTotal > 0 && (
                     <div className={cn("rounded-xl px-4 py-2 text-xs font-semibold flex items-center justify-between",
                       isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
                       : showVuelto ? "bg-sky-500/10 ring-1 ring-sky-400/20 text-sky-300"
-                      : isOver ? "hidden"  // over without cash → show nothing
+                      : isOver && !hasCash ? "hidden"
                       : "bg-amber-500/10 ring-1 ring-amber-400/20 text-amber-300")}>
-                      {isBalanced ? (
-                        <span>✓ Total cubierto</span>
-                      ) : showVuelto ? (
-                        <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
-                      ) : (
-                        <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>
-                      )}
+                      {isBalanced ? <span>✓ Total cubierto</span>
+                      : showVuelto ? <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
+                      : <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>}
                     </div>
                   )}
                 </div>
