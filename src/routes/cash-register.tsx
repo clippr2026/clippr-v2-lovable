@@ -43,6 +43,29 @@ import {
 } from "lucide-react";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
+const HISTORIAL_KEY = "clippr_cobros_historial";
+
+type HistorialEvento = {
+  time: string;
+  user: string;
+  action: string;
+};
+
+function appendHistorialCobro(appointmentId: string, evento: HistorialEvento) {
+  if (typeof window === "undefined") return;
+  try {
+    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_KEY) || "{}") as Record<string, HistorialEvento[]>;
+    const prev = all[appointmentId] ?? [];
+    if (!prev.some((e) => e.time === evento.time && e.user === evento.user && e.action === evento.action)) {
+      all[appointmentId] = [...prev, evento];
+      window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(all));
+      window.dispatchEvent(new CustomEvent("clippr:cobros-historial-updated"));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 
 function removeLocalManualPendingCharge(id: string) {
   if (typeof window === "undefined") return;
@@ -1211,7 +1234,12 @@ function NuevaVentaTab({
           notes: professionalNote || null,
         });
 
-        // 3. Limpiar de localStorage
+        // 3. Registrar en el historial del profesional que Caja/Recepción cobró el pendiente manual
+        const now = new Date();
+        const hhmm = now.toTimeString().slice(0, 5);
+        appendHistorialCobro(pendingCharge.id, { time: hhmm, user: "Recepción", action: "Cobró" });
+
+        // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
