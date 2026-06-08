@@ -1108,28 +1108,43 @@ function NuevaVentaTab({
 
         if (updateError) throw updateError;
 
-        // Append "Cobró" event to cobro_events log (immutable audit trail)
-        {
+        // ── Append "Cobró" event — AWAITED, never fire-and-forget ──────────────
+        try {
           const now = new Date();
           const hhmm = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-          const cashierName = selectedEmployee?.name ?? "Recepción";
-          const newEvent: Record<string, unknown> = {
+
+          // Get cashier name from auth session (not from selectedEmployee — that's the pro)
+          let cashierName = "Recepción";
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser?.email) {
+            const local = authUser.email.split("@")[0];
+            cashierName = local.split(/[._-]/)[0].charAt(0).toUpperCase() + local.split(/[._-]/)[0].slice(1);
+          }
+
+          const newEvent = {
             ts: now.toISOString(),
             time: hhmm,
             user: cashierName,
             role: "recepcion",
             action: "Cobró",
           };
-          // Read existing events, append, write back atomically
-          supabase.from("appointments").select("cobro_events").eq("id", pendingCharge.id).single()
-            .then(({ data: apptRow }) => {
-              const prev = ((apptRow as Record<string, unknown> | null)?.cobro_events as unknown[] ?? []);
-              return supabase.from("appointments")
-                .update({ cobro_events: [...prev, newEvent] } as Record<string, unknown>)
-                .eq("id", pendingCharge.id);
-            })
-            .catch(() => { /* no-op if cobro_events column doesn't exist yet */ });
+
+          // Read current events then append — all awaited
+          const { data: apptRow } = await supabase
+            .from("appointments")
+            .select("cobro_events")
+            .eq("id", pendingCharge.id)
+            .single();
+
+          const prev: unknown[] = ((apptRow as Record<string, unknown> | null)?.cobro_events as unknown[]) ?? [];
+          await supabase
+            .from("appointments")
+            .update({ cobro_events: [...prev, newEvent] } as Record<string, unknown>)
+            .eq("id", pendingCharge.id);
+        } catch {
+          // cobro_events column may not exist yet — cobro still succeeds
         }
+        // ── Fin append ─────────────────────────────────────────────────────────
 
         // 2. Registrar el pago vinculado al appointment existente
         await registerPayment({
