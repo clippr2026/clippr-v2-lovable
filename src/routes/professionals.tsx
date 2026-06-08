@@ -432,6 +432,414 @@ function fmtMoney(n: number) {
   return "$" + Math.round(n).toLocaleString("es-AR");
 }
 
+// Inline service/catalog searcher used inside edit row
+function ItemPicker({
+  businessId, currentName, currentAmount,
+  onSelect, onClose,
+}: {
+  businessId: string;
+  currentName: string; currentAmount: string;
+  onSelect: (name: string, amount: number) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [editAmount, setEditAmount] = useState(currentAmount);
+  const [options, setOptions] = useState<{ id: string; name: string; price: number; type: "service" | "product" }[]>([]);
+  const [selected, setSelected] = useState<{ name: string; price: number } | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!businessId) return;
+    async function load() {
+      const [{ data: svcs }, { data: prods }] = await Promise.all([
+        supabase.from("price_catalog").select("id,name,price").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null).order("name"),
+        supabase.from("price_catalog").select("id,name,price").eq("business_id", businessId).eq("active", true).is("duration_min", null).order("name"),
+      ]);
+      const all = [
+        ...(svcs ?? []).map(s => ({ id: s.id, name: s.name as string, price: Number(s.price ?? 0), type: "service" as const })),
+        ...(prods ?? []).map(p => ({ id: p.id, name: p.name as string, price: Number(p.price ?? 0), type: "product" as const })),
+      ];
+      setOptions(all);
+      // Pre-select current
+      const match = all.find(o => o.name === currentName);
+      if (match) { setSelected({ name: match.name, price: match.price }); }
+      else if (currentName) setSelected({ name: currentName, price: Number(currentAmount) || 0 });
+    }
+    load();
+  }, [businessId, currentName, currentAmount]);
+
+  React.useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const filtered = query.trim()
+    ? options.filter(o => o.name.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  function pick(opt: { name: string; price: number }) {
+    setSelected(opt);
+    setEditAmount(String(opt.price));
+    setQuery(opt.name);
+  }
+
+  return (
+    <div className="rounded-2xl border border-primary/30 bg-primary/[0.06] p-3 space-y-2">
+      <div className="relative">
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setSelected(null); }}
+          placeholder="Buscar servicio o producto…"
+          className="w-full rounded-xl bg-white/[0.06] ring-1 ring-white/15 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white text-xs px-1">✕</button>
+        )}
+      </div>
+
+      {/* Dropdown results */}
+      {!selected && filtered.length > 0 && (
+        <div className="rounded-xl bg-black/40 border border-white/10 max-h-36 overflow-y-auto divide-y divide-white/5">
+          {filtered.slice(0, 12).map(opt => (
+            <button key={opt.id} type="button"
+              onClick={() => pick(opt)}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/[0.06] transition text-left">
+              <span>{opt.name}</span>
+              <span className="text-xs text-muted-foreground tabular-nums">{fmtMoney(opt.price)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Price edit */}
+      {selected && (
+        <div className="flex gap-2 items-center">
+          <div className="flex-1 text-sm font-medium truncate text-white">{selected.name}</div>
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+            <input type="text" inputMode="numeric"
+              value={editAmount}
+              onChange={e => setEditAmount(e.target.value.replace(/\D/g, ""))}
+              className="w-28 rounded-xl bg-white/[0.06] ring-1 ring-white/15 pl-5 pr-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-primary/40"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button type="button" onClick={onClose}
+          className="flex-1 rounded-xl ring-1 ring-white/10 py-2 text-xs text-muted-foreground hover:text-white transition">
+          Cancelar
+        </button>
+        <button type="button"
+          disabled={!selected}
+          onClick={() => selected && onSelect(selected.name, Math.max(0, Number(editAmount) || 0))}
+          className="flex-1 rounded-xl bg-primary/15 ring-1 ring-primary/30 py-2 text-xs font-semibold text-primary hover:bg-primary/25 transition disabled:opacity-40">
+          Listo
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CobroModal({
+  turno, empId, businessId, mode, userEmail, onClose, onDone,
+}: {
+  turno: import("@/hooks/use-professionals-data").ProfTurno;
+  empId: string; businessId: string; mode: "auto" | "manual";
+  userEmail: string | null; onClose: () => void; onDone: () => void;
+}) {
+  // ── Items ──────────────────────────────────────────────────────────────────
+  const initPrice = Number(turno.service_price ?? 0);
+  const [items, setItems] = useState<LineItem[]>([
+    { id: "main", name: turno.service_name ?? "Servicio", amount: initPrice },
+  ]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [addingItem, setAddingItem] = useState(false);
+
+  const total = items.reduce((s, i) => s + i.amount, 0);
+
+  function applyEdit(id: string, name: string, amount: number) {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, name, amount } : i));
+    setEditingId(null);
+  }
+  function applyAdd(name: string, amount: number) {
+    setItems(prev => [...prev, { id: crypto.randomUUID(), name, amount }]);
+    setAddingItem(false);
+  }
+  function removeItem(id: string) {
+    setItems(prev => prev.filter(i => i.id !== id));
+    if (editingId === id) setEditingId(null);
+  }
+
+  // ── Pagos ──────────────────────────────────────────────────────────────────
+  const [multiPay, setMultiPay] = useState(false);
+  const [splits, setSplits] = useState<SplitEntry[]>([{ method: "cash", amount: "" }]);
+
+  const splitTotal = splits.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const remaining = total - splitTotal;
+  const isBalanced = Math.abs(remaining) < 1;
+  const hasCash = splits.some(s => s.method === "cash");
+  const isOver = splitTotal > total;
+  const overAmount = splitTotal - total;
+  const showVuelto = isOver && hasCash;
+
+  function addSplit() {
+    const used = new Set(splits.map(s => s.method));
+    const next = ALL_METHODS.find(m => !used.has(m));
+    if (!next) return;
+    setSplits(prev => [...prev, { method: next, amount: "" }]);
+  }
+  function removeSplit(idx: number) {
+    setSplits(prev => prev.filter((_, i) => i !== idx));
+  }
+  function setSplitMethod(idx: number, m: PayMethod) {
+    setSplits(prev => prev.map((e, i) => i === idx ? { ...e, method: m } : e));
+  }
+  function setSplitAmount(idx: number, v: string) {
+    setSplits(prev => prev.map((e, i) => i === idx ? { ...e, amount: v.replace(/[^0-9]/g, "") } : e));
+  }
+  function fillRemaining(idx: number) {
+    const rem = total - splits.reduce((s, e, i) => i !== idx ? s + (Number(e.amount) || 0) : s, 0);
+    if (rem > 0) setSplitAmount(idx, String(Math.round(rem)));
+  }
+
+  // ── Nota ──────────────────────────────────────────────────────────────────
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // balance for single pay (always balanced)
+  const canConfirm = mode !== "auto" || !multiPay || isBalanced || showVuelto;
+
+  // ── Confirm ───────────────────────────────────────────────────────────────
+  async function confirm() {
+    if (mode === "auto" && multiPay && !isBalanced && !showVuelto) {
+      toast.error(`Falta distribuir ${fmtMoney(remaining)}.`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const now = new Date();
+      const hhmm = now.toTimeString().slice(0, 5);
+      const actor = shortName(userEmail);
+      const primaryMethod: PayMethod = splits[0]?.method ?? "cash";
+
+      if (mode === "auto") {
+        await registerPayment({
+          businessId, employeeId: empId,
+          clientName: turno.client_name ?? "Sin cliente",
+          items: items.map(i => ({ serviceName: i.name, amount: i.amount })),
+          method: primaryMethod,
+          appointmentId: turno.id, chargeOrigin: "auto", chargedBy: userEmail,
+          notes: note || null,
+        });
+        await supabase.from("appointments").update({ status: "charged", notes: note || null }).eq("id", turno.id);
+        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Cobro directo" });
+        toast.success("✓ Cobro registrado");
+      } else {
+        const marker = "[PENDIENTE_CAJA]";
+        const itemsStr = items.map(i => `${i.name} ${fmtMoney(i.amount)}`).join(", ");
+        const noteParts = [note.trim(), itemsStr].filter(Boolean).join(" | ");
+        const nextNotes = noteParts ? `${marker} ${noteParts}` : marker;
+        await supabase.from("appointments").update({ status: "pending_payment", notes: nextNotes }).eq("id", turno.id);
+        saveManualPendingCharge({
+          id: turno.id, business_id: businessId, employee_id: empId,
+          client_name: turno.client_name ?? null,
+          service_name: items.map(i => i.name).join(" + "),
+          service_price: total, starts_at: turno.starts_at, notes: nextNotes,
+        });
+        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Envió a caja" });
+        toast.success("✓ Enviado a Caja");
+      }
+      onDone(); onClose();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/75 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass-strong rounded-3xl w-full max-w-md flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+
+        {/* ── Scrollable body ── */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+
+          {/* Mode banner */}
+          <div className={cn("rounded-2xl px-4 py-2.5 text-sm ring-1",
+            mode === "auto" ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-200" : "bg-amber-500/10 ring-amber-400/20 text-amber-200")}>
+            <span className="font-semibold">{mode === "auto" ? "⚡ Cobro automático" : "👁 Enviar a Caja"}</span>
+            <span className="text-xs opacity-70 ml-2">{mode === "auto" ? "Se registra directamente en caja." : "Recepción revisará y confirmará."}</span>
+          </div>
+
+          {/* Client + total */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-display font-semibold text-lg leading-tight">{turno.client_name ?? "Sin cliente"}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {new Date(turno.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+            <div className="font-display text-2xl font-light tabular-nums">{fmtMoney(total)}</div>
+          </div>
+
+          {/* ── Items ── */}
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div key={item.id}>
+                {editingId === item.id ? (
+                  <ItemPicker
+                    businessId={businessId}
+                    currentName={item.name}
+                    currentAmount={String(item.amount)}
+                    onSelect={(name, amount) => applyEdit(item.id, name, amount)}
+                    onClose={() => setEditingId(null)}
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                    <div className="flex-1 min-w-0 text-sm font-medium truncate">{item.name}</div>
+                    {items.length > 1 && (
+                      <div className="text-sm font-semibold tabular-nums shrink-0">{fmtMoney(item.amount)}</div>
+                    )}
+                    <button type="button" onClick={() => setEditingId(item.id)}
+                      className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white transition px-2 py-1 rounded-lg hover:bg-white/[0.06]">
+                      Editar
+                    </button>
+                    {items.length > 1 && (
+                      <button type="button" onClick={() => removeItem(item.id)}
+                        className="shrink-0 text-rose-400/60 hover:text-rose-300 transition text-xs px-1">✕</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Add item picker */}
+            {addingItem ? (
+              <ItemPicker
+                businessId={businessId}
+                currentName="" currentAmount="0"
+                onSelect={applyAdd}
+                onClose={() => setAddingItem(false)}
+              />
+            ) : (
+              <button type="button" onClick={() => setAddingItem(true)}
+                className="w-full rounded-2xl border border-dashed border-white/15 hover:border-white/25 hover:bg-white/[0.02] transition py-2.5 text-xs font-semibold text-muted-foreground flex items-center justify-center gap-2">
+                <span className="text-base leading-none">+</span> Agregar ítem
+              </button>
+            )}
+          </div>
+
+          {/* ── Pago (solo modo auto) ── */}
+          {mode === "auto" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Método de pago</div>
+                {!multiPay && (
+                  <button type="button" onClick={() => { setMultiPay(true); addSplit(); }}
+                    className="text-[10px] font-semibold text-primary hover:text-primary/80 transition">
+                    Pago múltiple
+                  </button>
+                )}
+              </div>
+
+              {!multiPay ? (
+                /* Single method selector */
+                <div className="grid grid-cols-3 gap-2">
+                  {ALL_METHODS.map(m => (
+                    <button key={m} type="button"
+                      onClick={() => setSplits([{ method: m, amount: "" }])}
+                      className={cn("rounded-xl py-2 text-xs font-medium ring-1 transition-all",
+                        splits[0]?.method === m ? "bg-primary/20 ring-primary/50 text-foreground" : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:ring-white/20")}>
+                      {PAY_LABELS[m]}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* Multi-method rows */
+                <div className="space-y-2">
+                  {splits.map((entry, idx) => {
+                    const usedMethods = new Set(splits.filter((_, i) => i !== idx).map(s => s.method));
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="relative">
+                          <select value={entry.method}
+                            onChange={e => setSplitMethod(idx, e.target.value as PayMethod)}
+                            className="appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/40 pr-7 cursor-pointer">
+                            {ALL_METHODS.filter(m => !usedMethods.has(m)).map(m => (
+                              <option key={m} value={m}>{PAY_LABELS[m]}</option>
+                            ))}
+                          </select>
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">▾</span>
+                        </div>
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                          <input type="text" inputMode="numeric" value={entry.amount}
+                            placeholder={idx === splits.length - 1 && remaining > 0 ? String(Math.round(remaining)) : "0"}
+                            onFocus={() => !entry.amount && fillRemaining(idx)}
+                            onChange={e => setSplitAmount(idx, e.target.value)}
+                            className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-sm tabular-nums focus:outline-none focus:border-primary/40" />
+                        </div>
+                        {splits.length > 1 && (
+                          <button type="button" onClick={() => removeSplit(idx)}
+                            className="rounded-xl px-2.5 py-2.5 text-xs text-rose-400/60 hover:text-rose-300 hover:bg-rose-500/10 transition ring-1 ring-rose-400/15">✕</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {splits.length < ALL_METHODS.length && (
+                    <button type="button" onClick={addSplit}
+                      className="w-full text-[10px] font-semibold text-primary hover:text-primary/80 transition py-1">
+                      + Agregar método
+                    </button>
+                  )}
+
+                  {/* Balance indicator */}
+                  {splitTotal > 0 && (
+                    <div className={cn("rounded-xl px-4 py-2 text-xs font-semibold flex items-center justify-between",
+                      isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
+                      : showVuelto ? "bg-sky-500/10 ring-1 ring-sky-400/20 text-sky-300"
+                      : isOver ? "hidden"  // over without cash → show nothing
+                      : "bg-amber-500/10 ring-1 ring-amber-400/20 text-amber-300")}>
+                      {isBalanced ? (
+                        <span>✓ Total cubierto</span>
+                      ) : showVuelto ? (
+                        <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
+                      ) : (
+                        <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Nota */}
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Nota opcional…"
+            className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-white/30" />
+        </div>
+
+        {/* ── Footer fijo ── */}
+        <div className="p-4 pt-0 flex gap-3 border-t border-white/[0.06]">
+          <button onClick={onClose}
+            className="flex-1 rounded-xl ring-1 ring-white/10 py-3 text-sm text-muted-foreground hover:text-foreground transition">
+            Cancelar
+          </button>
+          <button onClick={confirm} disabled={saving || !canConfirm}
+            className={cn("flex-1 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-40",
+              mode === "auto" ? "bg-gradient-to-r from-emerald-400 to-emerald-500 text-background"
+                             : "bg-gradient-to-r from-amber-300 to-amber-500 text-background")}>
+            {saving ? "Guardando…" : mode === "auto" ? "Confirmar cobro" : "Enviar a Caja"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function fmtMoney(n: number) {
+  return "$" + Math.round(n).toLocaleString("es-AR");
+}
+
 function CobroModal({
   turno, empId, businessId, mode, userEmail, onClose, onDone,
 }: {
@@ -450,293 +858,6 @@ function CobroModal({
 
   const total = items.reduce((s, i) => s + i.amount, 0);
 
-  function startEdit(item: LineItem) {
-    setEditingId(item.id);
-    setEditName(item.name);
-    setEditAmount(String(item.amount));
-  }
-  function saveEdit() {
-    if (!editingId) return;
-    setItems(prev => prev.map(i => i.id === editingId
-      ? { ...i, name: editName.trim() || i.name, amount: Math.max(0, Number(editAmount) || 0) }
-      : i));
-    setEditingId(null);
-  }
-  function addItem() {
-    const id = crypto.randomUUID();
-    setItems(prev => [...prev, { id, name: "Servicio / producto", amount: 0 }]);
-    setEditingId(id);
-    setEditName("Servicio / producto");
-    setEditAmount("0");
-  }
-  function removeItem(id: string) {
-    setItems(prev => prev.filter(i => i.id !== id));
-    if (editingId === id) setEditingId(null);
-  }
-
-  // ── Pagos ──────────────────────────────────────────────────────────────────
-  const [splits, setSplits] = useState<SplitEntry[]>([{ method: "cash", amount: "" }]);
-
-  const splitTotal = splits.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const remaining = total - splitTotal;
-  const isBalanced = Math.abs(remaining) < 1;
-
-  function addSplit() {
-    const used = new Set(splits.map(s => s.method));
-    const next = ALL_METHODS.find(m => !used.has(m));
-    if (!next) return;
-    setSplits(prev => [...prev, { method: next, amount: "" }]);
-  }
-  function removeSplit(idx: number) {
-    setSplits(prev => prev.filter((_, i) => i !== idx));
-  }
-  function setSplitMethod(idx: number, m: PayMethod) {
-    setSplits(prev => prev.map((e, i) => i === idx ? { ...e, method: m } : e));
-  }
-  function setSplitAmount(idx: number, v: string) {
-    setSplits(prev => prev.map((e, i) => i === idx ? { ...e, amount: v.replace(/[^0-9]/g, "") } : e));
-  }
-  // Auto-fill remaining on focus
-  function fillRemaining(idx: number) {
-    const rem = total - splits.reduce((s, e, i) => i !== idx ? s + (Number(e.amount) || 0) : s, 0);
-    if (rem > 0) setSplitAmount(idx, String(Math.round(rem)));
-  }
-
-  // ── Nota ──────────────────────────────────────────────────────────────────
-  const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  // ── Confirm ───────────────────────────────────────────────────────────────
-  async function confirm() {
-    if (mode === "auto" && !isBalanced) {
-      toast.error(`Falta distribuir ${fmtMoney(remaining)} entre los métodos de pago.`);
-      return;
-    }
-    setSaving(true);
-    try {
-      const now = new Date();
-      const hhmm = now.toTimeString().slice(0, 5);
-      const actor = shortName(userEmail);
-      // Primary method for registerPayment = first split or cash
-      const primaryMethod: PayMethod = splits[0]?.method ?? "cash";
-
-      if (mode === "auto") {
-        await registerPayment({
-          businessId, employeeId: empId,
-          clientName: turno.client_name ?? "Sin cliente",
-          items: items.map(i => ({ serviceName: i.name, amount: i.amount })),
-          method: primaryMethod,
-          appointmentId: turno.id,
-          chargeOrigin: "auto",
-          chargedBy: userEmail,
-          notes: note || null,
-        });
-        await supabase.from("appointments")
-          .update({ status: "charged", notes: note || null })
-          .eq("id", turno.id);
-        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Cobro directo" });
-        toast.success("✓ Cobro registrado");
-      } else {
-        const marker = "[PENDIENTE_CAJA]";
-        const itemsStr = items.map(i => `${i.name} ${fmtMoney(i.amount)}`).join(", ");
-        const noteParts = [note.trim(), itemsStr].filter(Boolean).join(" | ");
-        const nextNotes = noteParts ? `${marker} ${noteParts}` : marker;
-        await supabase.from("appointments")
-          .update({ status: "pending_payment", notes: nextNotes })
-          .eq("id", turno.id);
-        saveManualPendingCharge({
-          id: turno.id, business_id: businessId, employee_id: empId,
-          client_name: turno.client_name ?? null,
-          service_name: items.map(i => i.name).join(" + "),
-          service_price: total, starts_at: turno.starts_at, notes: nextNotes,
-        });
-        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Envió a caja" });
-        toast.success("✓ Enviado a Caja");
-      }
-      onDone(); onClose();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally { setSaving(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/75 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="glass-strong rounded-3xl w-full max-w-md flex flex-col max-h-[90vh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* ── Scrollable body ── */}
-        <div className="overflow-y-auto flex-1 p-6 space-y-5">
-
-          {/* Mode banner */}
-          <div className={cn("rounded-2xl px-4 py-2.5 text-sm ring-1",
-            mode === "auto" ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-200"
-                           : "bg-amber-500/10 ring-amber-400/20 text-amber-200")}>
-            <span className="font-semibold">{mode === "auto" ? "⚡ Cobro automático" : "👁 Enviar a Caja"}</span>
-            <span className="text-xs opacity-70 ml-2">
-              {mode === "auto" ? "Se registra directamente en caja." : "Recepción revisará y confirmará."}
-            </span>
-          </div>
-
-          {/* Client header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-display font-semibold text-lg leading-tight">{turno.client_name ?? "Sin cliente"}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{new Date(turno.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div>
-            </div>
-            <div className="font-display text-2xl font-light tabular-nums">{fmtMoney(total)}</div>
-          </div>
-
-          {/* ── Items ── */}
-          <div className="space-y-2">
-            {items.map((item) => (
-              <div key={item.id}>
-                {editingId === item.id ? (
-                  <div className="rounded-2xl border border-primary/30 bg-primary/[0.06] p-3 space-y-2">
-                    <input
-                      autoFocus
-                      value={editName}
-                      onChange={e => setEditName(e.target.value)}
-                      placeholder="Nombre del servicio / producto"
-                      className="w-full rounded-xl bg-white/[0.05] ring-1 ring-white/15 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                    />
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                        <input
-                          type="text" inputMode="numeric"
-                          value={editAmount}
-                          onChange={e => setEditAmount(e.target.value.replace(/\D/g, ""))}
-                          className="w-full rounded-xl bg-white/[0.05] ring-1 ring-white/15 pl-6 pr-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-primary/40"
-                        />
-                      </div>
-                      <button type="button" onClick={saveEdit}
-                        className="rounded-xl bg-primary/15 ring-1 ring-primary/30 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/25 transition">
-                        Listo
-                      </button>
-                      {items.length > 1 && (
-                        <button type="button" onClick={() => removeItem(item.id)}
-                          className="rounded-xl bg-rose-500/10 ring-1 ring-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition">
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{item.name}</div>
-                    </div>
-                    {items.length > 1 && (
-                      <div className="text-sm font-semibold tabular-nums shrink-0">{fmtMoney(item.amount)}</div>
-                    )}
-                    <button type="button" onClick={() => startEdit(item)}
-                      className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white transition px-2 py-1 rounded-lg hover:bg-white/[0.06]">
-                      Editar
-                    </button>
-                    {items.length > 1 && (
-                      <button type="button" onClick={() => removeItem(item.id)}
-                        className="shrink-0 text-rose-400/60 hover:text-rose-300 transition text-xs px-1">✕</button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-
-            <button type="button" onClick={addItem}
-              className="w-full rounded-2xl border border-dashed border-white/15 bg-transparent hover:border-white/25 hover:bg-white/[0.02] transition py-2.5 text-xs font-semibold text-muted-foreground flex items-center justify-center gap-2">
-              <span className="text-base leading-none">+</span> Agregar servicio / producto
-            </button>
-          </div>
-
-          {/* ── Métodos de pago (solo modo auto) ── */}
-          {mode === "auto" && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Método de pago</div>
-                {splits.length < ALL_METHODS.length && (
-                  <button type="button" onClick={addSplit}
-                    className="text-[10px] font-semibold text-primary hover:text-primary/80 transition">
-                    + Agregar método
-                  </button>
-                )}
-              </div>
-
-              {splits.map((entry, idx) => {
-                const usedMethods = new Set(splits.filter((_, i) => i !== idx).map(s => s.method));
-                return (
-                  <div key={idx} className="flex items-center gap-2">
-                    {/* Method selector */}
-                    <div className="relative">
-                      <select
-                        value={entry.method}
-                        onChange={e => setSplitMethod(idx, e.target.value as PayMethod)}
-                        className="appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/40 pr-7 cursor-pointer"
-                      >
-                        {ALL_METHODS.filter(m => !usedMethods.has(m)).map(m => (
-                          <option key={m} value={m}>{PAY_LABELS[m]}</option>
-                        ))}
-                      </select>
-                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">▾</span>
-                    </div>
-
-                    {/* Amount */}
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                      <input
-                        type="text" inputMode="numeric"
-                        value={entry.amount}
-                        placeholder={idx === splits.length - 1 && remaining > 0 ? String(Math.round(remaining)) : "0"}
-                        onFocus={() => !entry.amount && fillRemaining(idx)}
-                        onChange={e => setSplitAmount(idx, e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-sm tabular-nums focus:outline-none focus:border-primary/40"
-                      />
-                    </div>
-
-                    {/* Remove split */}
-                    {splits.length > 1 && (
-                      <button type="button" onClick={() => removeSplit(idx)}
-                        className="rounded-xl px-2.5 py-2.5 text-xs text-rose-400/60 hover:text-rose-300 hover:bg-rose-500/10 transition ring-1 ring-rose-400/15">
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Balance indicator */}
-              <div className={cn("rounded-xl px-4 py-2 text-xs font-semibold flex items-center justify-between transition",
-                isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
-                           : remaining > 0 ? "bg-amber-500/10 ring-1 ring-amber-400/20 text-amber-300"
-                           : "bg-rose-500/10 ring-1 ring-rose-400/20 text-rose-300")}>
-                <span>{isBalanced ? "✓ Total cubierto" : remaining > 0 ? `Falta cubrir` : `Excede por`}</span>
-                {!isBalanced && <span className="tabular-nums">{fmtMoney(Math.abs(remaining))}</span>}
-              </div>
-            </div>
-          )}
-
-          {/* Nota */}
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Nota opcional…"
-            className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-white/30" />
-        </div>
-
-        {/* ── Footer fijo ── */}
-        <div className="p-4 pt-0 flex gap-3 border-t border-white/[0.06]">
-          <button onClick={onClose}
-            className="flex-1 rounded-xl ring-1 ring-white/10 py-3 text-sm text-muted-foreground hover:text-foreground transition">
-            Cancelar
-          </button>
-          <button onClick={confirm} disabled={saving || (mode === "auto" && !isBalanced && splitTotal > 0)}
-            className={cn("flex-1 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-40",
-              mode === "auto" ? "bg-gradient-to-r from-emerald-400 to-emerald-500 text-background"
-                             : "bg-gradient-to-r from-amber-300 to-amber-500 text-background")}>
-            {saving ? "Guardando…" : mode === "auto" ? "Confirmar cobro" : "Enviar a Caja"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, from, to, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
