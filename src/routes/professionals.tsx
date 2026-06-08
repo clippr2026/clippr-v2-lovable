@@ -655,7 +655,7 @@ function CobroModal({
           notes: note || null,
         });
         await supabase.from("appointments").update({ status: "charged", notes: note || null }).eq("id", turno.id);
-        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Cobro directo" });
+        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Cobró" });
         toast.success("✓ Cobro registrado");
       } else {
         const marker = "[PENDIENTE_CAJA]";
@@ -1006,13 +1006,11 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-[11%_9%_17%_24%_10%_10%_19%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+          <div className="grid grid-cols-[12%_10%_20%_28%_30%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
             <div>Fecha</div>
             <div>Hora</div>
             <div>Cliente</div>
             <div>Servicio / Catálogo</div>
-            <div>Estado</div>
-            <div>Origen</div>
             <div>Historial</div>
           </div>
 
@@ -1048,7 +1046,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               if (t.status === "charged" && approvalMode === "manual") {
                 events.push({ time: "—", user: "Caja", action: "Cobró" });
               } else if (t.status === "charged") {
-                events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Cobro directo" });
+                events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Cobró" });
               }
               return events;
             })();
@@ -1060,7 +1058,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               <div
                 key={t.id}
                 className={cn(
-                  "grid grid-cols-[11%_9%_17%_24%_10%_10%_19%] items-start px-5 py-4 text-sm",
+                  "grid grid-cols-[12%_10%_20%_28%_30%] items-start px-5 py-4 text-sm",
                   i < turnos.length - 1 && "border-b border-white/5"
                 )}
               >
@@ -1074,20 +1072,6 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                       📝 {noteText}
                     </div>
                   )}
-                </div>
-
-                {/* Estado */}
-                <div className="pt-0.5">
-                  <span className={getStatusBadge(t.status, isPending)}>
-                    {getStatusText(t.status, isPending)}
-                  </span>
-                </div>
-
-                {/* Origen */}
-                <div className="pt-0.5">
-                  <span className={cn("text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1", origenColor)}>
-                    {origenLabel}
-                  </span>
                 </div>
 
                 {/* Historial */}
