@@ -52,7 +52,7 @@ type AdvisorAction = {
   howToAct: string[];
   suggestedMessage: string;
   actionButtons: string[];
-  occupancyOptions?: { label: string; emoji: string; recommended?: boolean; discount?: number }[];
+  occupancyOptions?: { label: string; emoji: string; recommended?: boolean; discount?: number; message?: string }[];
 };
 
 
@@ -851,11 +851,16 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
         `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos [beneficio]. Respondé este mensaje y te ayudamos a coordinar.`,
       actionButtons: ["Crear beneficio", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
       occupancyOptions: [
-        { emoji: "🎁", label: "Beneficio sin descuento", recommended: true },
-        { emoji: "⭐", label: "Upgrade de servicio" },
-        { emoji: "💸", label: "10% OFF", discount: 10 },
-        { emoji: "💸", label: "15% OFF", discount: 15 },
-        { emoji: "⚙️", label: "Personalizado" },
+        { emoji: "🎁", label: "Beneficio sin descuento", recommended: true, discount: 0,
+          message: `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos una bebida de regalo. Respondé este mensaje y te ayudamos a coordinar.` },
+        { emoji: "⭐", label: "Upgrade de servicio", discount: 0,
+          message: `Hola 👋 Reservá tu turno para el ${DEMO.lowDay} y te incluimos un upgrade de servicio sin cargo. Es nuestra forma de reconocer tu preferencia. Escribinos y te contamos los horarios disponibles.` },
+        { emoji: "💸", label: "10% OFF", discount: 10,
+          message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 10% de descuento por tiempo limitado. Respondé este mensaje y te reservamos el lugar.` },
+        { emoji: "💸", label: "15% OFF", discount: 15,
+          message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 15% de descuento especial. Si te interesa, respondé y te ayudamos a reservar.` },
+        { emoji: "⚙️", label: "Personalizado", discount: undefined,
+          message: "" },
       ],
     });
   }
@@ -1159,6 +1164,18 @@ function PrioridadesTab({
 }) {
   const pending = actions.filter((a) => !resolvedRecommendations.includes(a.title));
   const [idx, setIdx] = React.useState(0);
+  const [selectedOptionIdx, setSelectedOptionIdx] = React.useState<number>(0);
+  const [customBenefit, setCustomBenefit] = React.useState("");
+  const [customDiscount, setCustomDiscount] = React.useState("");
+  const [customMsg, setCustomMsg] = React.useState("");
+
+  // Reset option selection when action changes
+  React.useEffect(() => {
+    setSelectedOptionIdx(0);
+    setCustomBenefit("");
+    setCustomDiscount("");
+    setCustomMsg("");
+  }, [idx]);
 
   // Advance to next when resolved
   React.useEffect(() => {
@@ -1230,38 +1247,145 @@ function PrioridadesTab({
         </div>
 
         {/* Opciones de acción para baja ocupación */}
-        {current.occupancyOptions && (
-          <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/[0.05] p-5">
-            <div className="text-sm font-semibold text-white mb-1">¿Qué tipo de acción querés implementar?</div>
-            <p className="text-xs text-muted-foreground mb-4">Clippr recomienda priorizar beneficios antes de bajar precios para proteger la rentabilidad.</p>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {current.occupancyOptions.map((opt) => (
-                <div
-                  key={opt.label}
-                  className={cn(
-                    "relative flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition cursor-pointer hover:border-primary/40",
-                    opt.recommended
-                      ? "border-emerald-400/30 bg-emerald-400/[0.07]"
-                      : "border-white/10 bg-white/[0.03]"
-                  )}
-                >
-                  <span className="text-base">{opt.emoji}</span>
-                  <span className={opt.recommended ? "font-semibold text-emerald-300" : "text-muted-foreground"}>
-                    {opt.label}
-                  </span>
-                  {opt.recommended && (
-                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full ring-1 ring-emerald-400/20 whitespace-nowrap">
-                      Recomendado
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {current.occupancyOptions && (() => {
+          const opts = current.occupancyOptions!;
+          const selOpt = opts[selectedOptionIdx];
+          const isCustom = selOpt?.label === "Personalizado";
+          const discountPct = isCustom
+            ? Math.max(0, Math.min(100, Number(customDiscount) || 0))
+            : (selOpt?.discount ?? 0);
 
-        {/* Mensaje sugerido */}
-        <MessageSugeridoBlock suggestedMessage={current.suggestedMessage} />
+          // Recalculate impact based on selected option
+          const baseAmount = Math.round(8 * DEMO.ticket);
+          const adjustedAmount = discountPct > 0
+            ? Math.round(baseAmount * (1 - discountPct / 100))
+            : baseAmount;
+          const diffVsBase = adjustedAmount - baseAmount;
+
+          // Derive active message
+          const activeMsg = isCustom
+            ? customMsg
+            : (selOpt?.message ?? current.suggestedMessage);
+
+          // Reco text based on selection
+          const recoText = (() => {
+            if (isCustom) return "Configurá los detalles del beneficio personalizado y la IA ajustará la recomendación.";
+            if (!selOpt?.discount) return "Mantener el precio protege tu margen. Un beneficio de bajo costo puede ser suficiente para activar la demanda en este día.";
+            if (selOpt.discount <= 10) return `Un ${selOpt.discount}% de descuento es moderado. Puede impulsar la demanda, pero considerá que reduce el ingreso por turno. Aplicalo por tiempo limitado y medí la respuesta.`;
+            return `Un ${selOpt.discount}% de descuento es significativo. Solo conviene si la ocupación de este día sigue siendo baja después de probar opciones sin descuento.`;
+          })();
+
+          return (
+            <div className="mt-4 space-y-4">
+              {/* Selector de opción */}
+              <div className="rounded-2xl border border-primary/20 bg-primary/[0.05] p-5">
+                <div className="text-sm font-semibold text-white mb-1">¿Qué tipo de acción querés implementar?</div>
+                <p className="text-xs text-muted-foreground mb-4">Clippr recomienda priorizar beneficios antes de bajar precios para proteger la rentabilidad.</p>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {opts.map((opt, i) => {
+                    const isSelected = selectedOptionIdx === i;
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => setSelectedOptionIdx(i)}
+                        className={cn(
+                          "relative flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition text-left",
+                          isSelected
+                            ? opt.recommended
+                              ? "border-emerald-400/50 bg-emerald-400/[0.12] ring-1 ring-emerald-400/30"
+                              : "border-primary/50 bg-primary/[0.12] ring-1 ring-primary/30"
+                            : "border-white/10 bg-white/[0.03] hover:border-white/20"
+                        )}
+                      >
+                        <span className="text-base shrink-0">{opt.emoji}</span>
+                        <span className={cn("font-medium", isSelected ? (opt.recommended ? "text-emerald-300" : "text-primary") : "text-muted-foreground")}>
+                          {opt.label}
+                        </span>
+                        {opt.recommended && (
+                          <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full ring-1 ring-emerald-400/20 whitespace-nowrap shrink-0">
+                            Recomendado
+                          </span>
+                        )}
+                        {isSelected && !opt.recommended && (
+                          <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Personalizado: campos extra */}
+                {isCustom && (
+                  <div className="mt-4 grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Nombre del beneficio</label>
+                      <input type="text" placeholder="Ej: Shampoo gratis"
+                        value={customBenefit} onChange={(e) => setCustomBenefit(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Descuento % (0 = sin descuento)</label>
+                      <input type="text" inputMode="numeric" placeholder="Ej: 0 o 10"
+                        value={customDiscount} onChange={(e) => setCustomDiscount(e.target.value.replace(/\D/g, ""))}
+                        className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Oportunidad económica recalculada */}
+              {discountPct > 0 && (
+                <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 flex items-start gap-3">
+                  <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Con un <span className="font-semibold text-amber-300">{discountPct}% de descuento</span> la oportunidad económica se reduce a{" "}
+                    <span className="font-semibold text-white">+{fmtAR(adjustedAmount)}/mes</span>{" "}
+                    (vs {fmtAR(baseAmount)} sin descuento). Diferencia: <span className="text-rose-300 font-semibold">{fmtAR(diffVsBase)}</span>.
+                  </p>
+                </div>
+              )}
+
+              {/* Recomendación dinámica según opción */}
+              <div className={cn(
+                "rounded-2xl border p-4",
+                !selOpt?.discount ? "border-emerald-400/20 bg-emerald-400/[0.05]" :
+                selOpt.discount <= 10 ? "border-amber-400/20 bg-amber-400/[0.05]" :
+                "border-rose-400/20 bg-rose-400/[0.05]"
+              )}>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Recomendación IA</div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{recoText}</p>
+              </div>
+
+              {/* Mensaje reactivo */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <div className="text-sm font-semibold text-white">💬 Mensaje sugerido editable</div>
+                <p className="mt-1 text-xs text-muted-foreground">Adaptalo al tono de tu negocio. Sirve para WhatsApp, email, Instagram o campañas.</p>
+                <textarea
+                  value={isCustom ? customMsg : activeMsg}
+                  onChange={(e) => {
+                    if (isCustom) setCustomMsg(e.target.value);
+                  }}
+                  readOnly={!isCustom}
+                  className={cn(
+                    "mt-3 min-h-[110px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition resize-none",
+                    isCustom ? "focus:border-primary/50" : "cursor-default opacity-90"
+                  )}
+                />
+                {!isCustom && (
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    Seleccioná "Personalizado" para editar el mensaje libremente.
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Mensaje sugerido estándar (solo si no hay occupancyOptions) */}
+        {!current.occupancyOptions && (
+          <MessageSugeridoBlock suggestedMessage={current.suggestedMessage} />
+        )}
 
         {/* Marcar como resuelto */}
         <div className="mt-6 flex items-center gap-3">
