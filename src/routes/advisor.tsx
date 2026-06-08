@@ -356,87 +356,227 @@ function AdvisorContent({
       )}
 
       {advisorTab === "analisis" && (<>
-      <section className="grid gap-4">
-        <GlassCard className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div>
-              <Badge icon={HeartPulse}>Salud del negocio</Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">❤️ ¿Cómo está tu negocio hoy?</h2>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Análisis de los indicadores del período actual.</p>
-            </div>
 
-            <div className="text-right">
-              <div className={cn("font-display text-6xl font-semibold tracking-tight", healthTone.text)}>{animatedHealth}</div>
+      {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
+      <GlassCard className="p-6 sm:p-8">
+        <div className="flex items-center gap-2 mb-6">
+          <Badge icon={HeartPulse}>Salud del negocio</Badge>
+        </div>
+        <h2 className="font-display text-2xl font-semibold tracking-tight mb-1">❤️ ¿Cómo está tu negocio hoy?</h2>
+        <p className="text-sm text-muted-foreground mb-8">Análisis de los indicadores del período actual.</p>
+
+        <div className="grid md:grid-cols-2 gap-6 items-center">
+          {/* Left: circular gauge + bar */}
+          <div className="flex flex-col items-center gap-6">
+            <div className="relative flex items-center justify-center">
+              {/* SVG ring */}
+              <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
+                {/* Track */}
+                <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="14" />
+                {/* Progress */}
+                <circle
+                  cx="100" cy="100" r="84" fill="none"
+                  stroke="url(#healthGrad)" strokeWidth="14"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 84}`}
+                  strokeDashoffset={`${2 * Math.PI * 84 * (1 - animatedHealth / 100)}`}
+                  className="transition-all duration-700"
+                />
+                <defs>
+                  <linearGradient id="healthGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#4ade80" />
+                    <stop offset="100%" stopColor="#818cf8" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* Center text */}
+              <div className="absolute flex flex-col items-center">
+                <span className={cn("font-display text-6xl font-bold leading-none", healthTone.text)}>{animatedHealth}</span>
+                <span className="text-sm text-muted-foreground mt-1">/100</span>
+              </div>
+            </div>
+            {/* Info below circle */}
+            <div className="text-center">
               <div className="text-sm text-muted-foreground">Puntaje de salud</div>
-              <div className={cn("mt-1 text-xs font-semibold", healthTone.text)}>{healthTone.label}</div>
-              <p className="mt-1 max-w-[260px] text-right text-xs leading-relaxed text-muted-foreground">{healthTone.message}</p>
+              <div className={cn("mt-1 text-xl font-bold", healthTone.text)}>{healthTone.label}</div>
+              <p className="mt-2 text-xs text-muted-foreground max-w-[220px] leading-relaxed">{healthTone.message}</p>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full h-2.5 overflow-hidden rounded-full bg-white/10">
+              <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-700", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
             </div>
           </div>
 
-          <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-sm font-semibold">¿Qué impacta en tu puntaje?</div>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <ReasonItem tone="good" text="Utilidad: +30%" />
-              <ReasonItem tone="good" text="Captación de clientes: +16%" />
-              <ReasonItem tone="good" text="Ocupación: 62%" />
-              <ReasonItem tone="warning" text={`${DEMO.inactiveClients} clientes para recuperar`} />
-              <ReasonItem tone="warning" text={`${DEMO.freeSlotsMonth} espacios libres para completar`} />
+          {/* Right: impact panel */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 h-full">
+            <div className="text-base font-semibold mb-5">¿Qué impacta en tu puntaje?</div>
+            <div className="space-y-4">
+              {[
+                { tone: "good" as const, label: "Utilidad",             value: "+30%" },
+                { tone: "good" as const, label: "Captación de clientes", value: "+16%" },
+                { tone: "good" as const, label: "Ocupación",            value: "62%"  },
+                { tone: "warning" as const, label: `${DEMO.inactiveClients} clientes para recuperar`, value: "" },
+                { tone: "warning" as const, label: "144 turnos disponibles sin ocupar", value: "" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    {item.tone === "good"
+                      ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                      : <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />}
+                    <span className="text-sm text-muted-foreground">{item.label}</span>
+                  </div>
+                  {item.value && (
+                    <span className={cn("text-sm font-bold", item.tone === "good" ? "text-emerald-300" : "text-amber-300")}>
+                      {item.value}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-        </GlassCard>
+        </div>
+      </GlassCard>
 
-        <GlassCard className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-6">
+      {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
+      <GlassCard className="p-6 sm:p-8 space-y-6">
+
+        {/* Bloque superior: +18% */}
+        <div className="relative flex items-center gap-5 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-5">
+          {/* Icono izquierda */}
+          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-emerald-400/10 ring-1 ring-emerald-400/20">
+            <TrendingUp className="h-8 w-8 text-emerald-400" />
+          </div>
+          {/* Textos */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Evolución del negocio</div>
+            <div className="flex items-baseline gap-3 mt-1 flex-wrap">
+              <span className="font-display text-6xl font-bold text-emerald-300 leading-none">+18%</span>
+              <span className="text-base text-muted-foreground">vs mes anterior</span>
+            </div>
+          </div>
+          {/* Info btn arriba derecha */}
+          <button
+            type="button"
+            onClick={() => setInfoModal(INFO_CONTENT.growth)}
+            className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full border border-primary/40 bg-primary/10 text-xs font-bold text-primary transition hover:bg-primary/20"
+            aria-label="Información de crecimiento"
+          >i</button>
+        </div>
+
+        {/* Etiqueta IMPULSADOS POR */}
+        <div className="flex flex-col items-center gap-1 text-center">
+          <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">Impulsados por</div>
+          <div className="text-muted-foreground text-lg leading-none">↓</div>
+        </div>
+
+        {/* 3 tarjetas: Clientes / Ticket / Ocupación */}
+        <div className="grid md:grid-cols-3 gap-4">
+          {/* Clientes nuevos */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex flex-col gap-4">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-400/10 ring-1 ring-violet-400/20">
+              <Users className="h-7 w-7 text-violet-400" />
+            </div>
             <div>
-              <Badge icon={TrendingUp}>
-                <button
-                  type="button"
-                  onClick={() => setInfoModal(INFO_CONTENT.growth)}
-                  className="grid h-10 w-10 place-items-center rounded-full border border-primary/40 bg-primary/15 text-xs font-bold text-primary transition hover:bg-primary/25"
-                  aria-label="Información de crecimiento"
-                >
-                  i
-                </button>
-              </Badge>
-              <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">📈 Evolución del negocio +18%</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Respecto al período anterior.</p>
-              
+              <div className="text-sm text-muted-foreground">Clientes nuevos</div>
+              <div className="font-display text-5xl font-bold text-violet-300 mt-2 leading-none">
+                {Math.round(45 * animationProgress)}
+              </div>
             </div>
-
-            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-right">
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">UTILIDAD +30%</div>
-              <div className="mt-2 font-display text-3xl font-semibold text-emerald-300">{fmtAR(animatedProfit)}</div>
+            <div className="rounded-xl bg-violet-400/10 px-4 py-2.5">
+              <div className="text-sm font-bold text-violet-300">+16%</div>
+              <div className="text-xs text-muted-foreground">vs mes anterior</div>
             </div>
           </div>
-<div className="mt-6 grid max-w-4xl mx-auto gap-6 md:grid-cols-3">
-<GrowthMetric label="Clientes nuevos" value={`${Math.round(45 * animationProgress)}`} detail={`+16% vs mes anterior`} info={INFO_CONTENT.clients} onInfo={setInfoModal} />
-            <GrowthMetric label="Ticket promedio" value={`+${fmtAR(Math.round((DEMO.ticket - DEMO.previousTicket) * animationProgress))}`} detail={`+10% vs mes anterior`} info={INFO_CONTENT.ticket} onInfo={setInfoModal} />
-            <GrowthMetric label="Ocupación" value={`${Math.round(DEMO.occupancy * animationProgress)}%`} detail={`+8 puntos vs mes anterior`} info={INFO_CONTENT.occupancy} onInfo={setInfoModal} />
+
+          {/* Ticket promedio */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex flex-col gap-4">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-sky-400/10 ring-1 ring-sky-400/20">
+              <DollarSign className="h-7 w-7 text-sky-400" />
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Ticket promedio</div>
+              <div className="font-display text-4xl font-bold text-sky-300 mt-2 leading-none">
+                {fmtAR(Math.round(DEMO.ticket * animationProgress))}
+              </div>
+            </div>
+            <div className="rounded-xl bg-sky-400/10 px-4 py-2.5">
+              <div className="text-sm font-bold text-sky-300">+10%</div>
+              <div className="text-xs text-muted-foreground">vs mes anterior</div>
+            </div>
           </div>
-        </GlassCard>
 
-      </section>
-
-      <GlassCard className="p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Badge icon={Sparkles}>Informe mensual automático</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">📅 Historial de análisis</h2>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-muted-foreground">
-            Próximo informe automático: <span className="font-semibold text-white">1 de julio</span>
+          {/* Ocupación */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex flex-col gap-4">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-orange-400/10 ring-1 ring-orange-400/20">
+              <ClipboardList className="h-7 w-7 text-orange-400" />
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Ocupación</div>
+              <div className="font-display text-5xl font-bold text-orange-300 mt-2 leading-none">
+                {Math.round(DEMO.occupancy * animationProgress)}%
+              </div>
+            </div>
+            <div className="rounded-xl bg-orange-400/10 px-4 py-2.5">
+              <div className="text-sm font-bold text-orange-300">+8%</div>
+              <div className="text-xs text-muted-foreground">vs mes anterior</div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {/* Etiqueta GENERARON MÁS */}
+        <div className="flex flex-col items-center gap-1 text-center">
+          <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">Generaron más</div>
+          <div className="text-muted-foreground text-lg leading-none">↓</div>
+        </div>
+
+        {/* Bloque Utilidad gigante */}
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] px-8 py-7 flex items-center justify-between gap-6">
+          {/* Left */}
+          <div className="z-10">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25">
+                <DollarSign className="h-6 w-6 text-emerald-400" />
+              </div>
+              <div className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">Utilidad</div>
+              <span className="rounded-lg bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/25">+30%</span>
+            </div>
+            <div className="font-display text-5xl sm:text-6xl font-bold text-emerald-300 mt-4 leading-none">
+              {fmtAR(animatedProfit)}
+            </div>
+          </div>
+          {/* Right: sparkline SVG */}
+          <div className="shrink-0 opacity-80">
+            <svg width="160" height="80" viewBox="0 0 160 80" fill="none">
+              <defs>
+                <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4ade80" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M0 70 C30 65, 50 55, 70 45 S110 20, 160 5" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+              <path d="M0 70 C30 65, 50 55, 70 45 S110 20, 160 5 L160 80 L0 80 Z" fill="url(#sparkFill)" />
+              <circle cx="160" cy="5" r="5" fill="#4ade80" />
+            </svg>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
+      <GlassCard className="p-6 sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div>
+            <Badge icon={Sparkles}>Informe mensual automático</Badge>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">📅 Historial de análisis</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-muted-foreground shrink-0">
+            Próximo informe: <span className="font-semibold text-white">1 de julio</span>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
           {reports.map((report) => (
             <ReportCard key={report.month} report={report} />
           ))}
@@ -447,8 +587,7 @@ function AdvisorContent({
             <ReportCard report={{ month: "Abril 2026", health: 71, growth: 8, profit: 1180000, revenue: 2780000 }} />
           )}
         </div>
-
-              </GlassCard>
+      </GlassCard>
 
       {infoModal ? (
         <InfoModal content={infoModal} onClose={() => setInfoModal(null)} />
