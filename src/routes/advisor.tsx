@@ -52,6 +52,7 @@ type AdvisorAction = {
   howToAct: string[];
   suggestedMessage: string;
   actionButtons: string[];
+  occupancyOptions?: { label: string; emoji: string; recommended?: boolean; discount?: number }[];
 };
 
 
@@ -63,12 +64,12 @@ type InfoModalContent = {
 
 const INFO_CONTENT = {
   growth: {
-    title: "Crecimiento del negocio",
-    description: "Mide cuánto creció la utilidad del negocio frente al mes anterior.",
+    title: "Evolución del negocio",
+    description: "Mide cómo evolucionó la utilidad del negocio frente al mes anterior — tanto mejoras como caídas.",
     points: [
       "Fórmula: utilidad actual vs utilidad del mes anterior.",
       "Utilidad = facturación - gastos - comisiones.",
-      "Clientes, ticket y ocupación explican qué impulsó el crecimiento.",
+      "Clientes, ticket y ocupación explican qué impulsó la evolución.",
     ],
   },
   clients: {
@@ -829,25 +830,33 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
   }
 
   if (showExtraRecommendation) {
+    const dayLabel = DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1);
     actions.unshift({
-      title: "Impulsar el día más flojo",
-      detail: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} viene con menor ocupación que el resto de la semana.`,
-      impact: `Potencial con 30% OFF: +${fmtAR(Math.round(8 * DEMO.ticket * 0.7))}`,
-      impactAmount: `+${fmtAR(Math.round(8 * DEMO.ticket * 0.7))} por mes`,
-      impactExplanation: `Ingresos adicionales si completás 8 turnos vacíos los ${DEMO.lowDay}s con una promoción del 30% OFF. La diferencia de ocupación entre ese día y el promedio semanal indica una oportunidad concreta sin necesidad de nuevos clientes.`,
+      title: "Impulsar el día con menor ocupación",
+      detail: `${dayLabel} presenta una ocupación inferior al promedio semanal.`,
+      impact: `Oportunidad estimada: +${fmtAR(Math.round(8 * DEMO.ticket))} sin bajar precios`,
+      impactAmount: `+${fmtAR(Math.round(8 * DEMO.ticket))} por mes`,
+      impactExplanation: `Completar 8 turnos vacíos los ${DEMO.lowDay}s al precio normal generaría aproximadamente ${fmtAR(Math.round(8 * DEMO.ticket))} de facturación mensual sin afectar los márgenes. Implementar descuentos agresivos reduce la utilidad por turno — preferí acciones que aumenten la demanda sin ceder rentabilidad.`,
       button: "Tomar acción",
       tone: "growth",
-      problem: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} tiene menor ocupación que el resto de la semana.`,
-      opportunity: `Recuperar 8 espacios en el día de menor ocupación con una promoción de 30% OFF podría generar aproximadamente ${fmtAR(Math.round(8 * DEMO.ticket * 0.7))} de facturación mensual.`,
+      problem: `${dayLabel} tiene menor ocupación que el resto de la semana — hay turnos disponibles sin cubrir.`,
+      opportunity: `Aumentar la demanda ese día con beneficios o acciones focalizadas puede sumar hasta ${fmtAR(Math.round(8 * DEMO.ticket))} mensuales sin reducir precios.`,
       howToAct: [
-        "Crear una acción exclusiva para el día con menor ocupación.",
-        "Ofrecer un beneficio por reservar en ese día.",
-        "Enviar la propuesta a clientes activos.",
-        "Medir si sube la ocupación de ese día en la semana siguiente.",
+        "Priorizar beneficios sin descuento: regalo, upgrade o atención preferencial.",
+        "Enviar la propuesta a clientes activos con turno reciente.",
+        "Publicar disponibilidad ese día en redes o estados de WhatsApp.",
+        "Medir si sube la ocupación la semana siguiente para ajustar la estrategia.",
       ],
       suggestedMessage:
-        "Hola 👋 Tenemos algunos horarios disponibles para [día] y activamos un 30% OFF para quienes reserven ese día. Si te interesa, respondé este mensaje y te contamos los horarios disponibles.",
-      actionButtons: ["Crear campaña", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
+        `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos [beneficio]. Respondé este mensaje y te ayudamos a coordinar.`,
+      actionButtons: ["Crear beneficio", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
+      occupancyOptions: [
+        { emoji: "🎁", label: "Beneficio sin descuento", recommended: true },
+        { emoji: "⭐", label: "Upgrade de servicio" },
+        { emoji: "💸", label: "10% OFF", discount: 10 },
+        { emoji: "💸", label: "15% OFF", discount: 15 },
+        { emoji: "⚙️", label: "Personalizado" },
+      ],
     });
   }
 
@@ -1219,6 +1228,37 @@ function PrioridadesTab({
             ))}
           </div>
         </div>
+
+        {/* Opciones de acción para baja ocupación */}
+        {current.occupancyOptions && (
+          <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/[0.05] p-5">
+            <div className="text-sm font-semibold text-white mb-1">¿Qué tipo de acción querés implementar?</div>
+            <p className="text-xs text-muted-foreground mb-4">Clippr recomienda priorizar beneficios antes de bajar precios para proteger la rentabilidad.</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {current.occupancyOptions.map((opt) => (
+                <div
+                  key={opt.label}
+                  className={cn(
+                    "relative flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition cursor-pointer hover:border-primary/40",
+                    opt.recommended
+                      ? "border-emerald-400/30 bg-emerald-400/[0.07]"
+                      : "border-white/10 bg-white/[0.03]"
+                  )}
+                >
+                  <span className="text-base">{opt.emoji}</span>
+                  <span className={opt.recommended ? "font-semibold text-emerald-300" : "text-muted-foreground"}>
+                    {opt.label}
+                  </span>
+                  {opt.recommended && (
+                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full ring-1 ring-emerald-400/20 whitespace-nowrap">
+                      Recomendado
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Mensaje sugerido */}
         <MessageSugeridoBlock suggestedMessage={current.suggestedMessage} />
