@@ -836,25 +836,6 @@ function CobroModal({
   );
 }
 
-function CobroModal({
-  turno, empId, businessId, mode, userEmail, onClose, onDone,
-}: {
-  turno: import("@/hooks/use-professionals-data").ProfTurno;
-  empId: string; businessId: string; mode: "auto" | "manual";
-  userEmail: string | null; onClose: () => void; onDone: () => void;
-}) {
-  // ── Items ──────────────────────────────────────────────────────────────────
-  const initPrice = Number(turno.service_price ?? 0);
-  const [items, setItems] = useState<LineItem[]>([
-    { id: "main", name: turno.service_name ?? "Servicio", amount: initPrice },
-  ]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editAmount, setEditAmount] = useState("");
-
-  const total = items.reduce((s, i) => s + i.amount, 0);
-
-
 function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, from, to, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
