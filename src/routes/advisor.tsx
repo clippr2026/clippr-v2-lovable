@@ -134,7 +134,7 @@ function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
   const navigate = useNavigate();
-  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores" | "preguntale">("analisis");
+  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">("analisis");
   const [priorityOpen, setPriorityOpen] = React.useState(false);
   const [analysisStarted, setAnalysisStarted] = React.useState(() => {
     if (typeof window === "undefined") return false;
@@ -166,10 +166,9 @@ function AdvisorRoute() {
         {analysisStarted && !isAnalyzing && (
           <div className="flex items-center gap-2 shrink-0">
           {([
-            { key: "analisis",   label: "📊 Análisis" },
-            { key: "preguntale", label: "🔍 Preguntale a tu negocio" },
-            { key: "acciones",   label: "🎯 Acciones recomendadas" },
-            { key: "simuladores",label: "💰 Simuladores" },
+            { key: "analisis",    label: "📊 Análisis" },
+            { key: "acciones",    label: "🎯 Acciones recomendadas" },
+            { key: "simuladores", label: "💰 Simuladores" },
           ] as const).map((t) => (
             <button
               key={t.key}
@@ -209,8 +208,8 @@ function AdvisorContent({
   isAnalyzing,
   setIsAnalyzing,
 }: {
-  advisorTab: "acciones" | "analisis" | "simuladores" | "preguntale";
-  setAdvisorTab: (t: "acciones" | "analisis" | "simuladores" | "preguntale") => void;
+  advisorTab: "acciones" | "analisis" | "simuladores";
+  setAdvisorTab: (t: "acciones" | "analisis" | "simuladores") => void;
   analysisStarted: boolean;
   setAnalysisStarted: (v: boolean) => void;
   isAnalyzing: boolean;
@@ -240,11 +239,12 @@ function AdvisorContent({
     if (!isAnalyzing) return;
 
     const steps = [
-      "Revisando utilidad del mes...",
-      "Analizando clientes activos...",
-      "Detectando horarios libres...",
-      "Buscando oportunidades de recuperación...",
-      "Generando acciones recomendadas...",
+      "Analizando rentabilidad",
+      "Analizando fidelización",
+      "Analizando ocupación de agenda",
+      "Analizando dependencia del dueño",
+      "Detectando oportunidades",
+      "Generando plan de acción",
     ];
 
     let index = 0;
@@ -260,9 +260,9 @@ function AdvisorContent({
         setTimeout(() => {
           setShouldAnimateResults(true);
           setIsAnalyzing(false);
-        }, 700);
+        }, 800);
       }
-    }, 2000);
+    }, 1400);
 
     return () => window.clearInterval(interval);
   }, [isAnalyzing, todayKey]);
@@ -340,10 +340,6 @@ function AdvisorContent({
 
   return (
     <div className="space-y-10">
-      {advisorTab === "preguntale" && (
-        <PreguntaleTab businessId={businessId} />
-      )}
-
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={DEMO.payments}
@@ -659,62 +655,162 @@ function useResultAnimation(enabled = false) {
 }
 
 function StartAnalysis({ onStart }: { onStart: () => void }) {
-  return (
-    <div className="grid min-h-[560px] place-items-center">
-      <GlassCard className="w-full max-w-xl p-8 text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-primary/10 ring-1 ring-primary/20">
-          <Brain className="h-7 w-7 text-primary" />
-        </div>
-        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Asesor IA Clippr</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tu consultor virtual analiza utilidad, clientes, ocupación, caja y oportunidades para ayudarte a crecer.
-        </p>
+  const indicators = [
+    { emoji: "❤️", label: "Salud del negocio" },
+    { emoji: "👥", label: "Fidelización" },
+    { emoji: "📈", label: "Evolución del negocio" },
+    { emoji: "💰", label: "Rentabilidad" },
+    { emoji: "📅", label: "Ocupación" },
+  ];
 
-        <button
-          type="button"
-          onClick={onStart}
-          className="mt-6 inline-flex h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-primary to-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-14px_oklch(0.65_0.28_290/0.7)] transition hover:brightness-110"
-        >
-          Analizar negocio
-        </button>
-      </GlassCard>
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
+      {/* Logo / Icono central */}
+      <div className="relative mb-8">
+        <div className="grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20 ring-1 ring-primary/30 shadow-[0_0_60px_-10px_oklch(0.65_0.28_290/0.4)]">
+          <Brain className="h-12 w-12 text-primary" />
+        </div>
+        {/* Pulse ring */}
+        <div className="absolute inset-0 rounded-3xl ring-1 ring-primary/20 animate-ping" style={{ animationDuration: "2.5s" }} />
+      </div>
+
+      {/* Título */}
+      <div className="text-center max-w-lg mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">Asesor Clippr</p>
+        <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight mb-4">
+          Descubrí qué está frenando el crecimiento de tu negocio
+        </h1>
+        <p className="text-base text-muted-foreground leading-relaxed">
+          Obtené un diagnóstico completo en segundos y recibí acciones concretas para aumentar tus ingresos.
+        </p>
+      </div>
+
+      {/* Indicadores */}
+      <div className="flex flex-wrap justify-center gap-2 mb-10 max-w-xl">
+        {indicators.map((ind) => (
+          <div
+            key={ind.label}
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-muted-foreground"
+          >
+            <span>{ind.emoji}</span>
+            <span>{ind.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      <button
+        type="button"
+        onClick={onStart}
+        className="group relative inline-flex h-14 items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-primary to-accent px-8 text-base font-bold text-white shadow-[0_16px_40px_-12px_oklch(0.65_0.28_290/0.6)] transition hover:brightness-110 hover:shadow-[0_20px_48px_-12px_oklch(0.65_0.28_290/0.7)] hover:scale-[1.02] active:scale-[0.99]"
+      >
+        <Brain className="h-5 w-5" />
+        Analizar mi negocio
+      </button>
+
+      <p className="mt-4 text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
+        Analizamos ventas, clientes, agenda y rentabilidad para detectar oportunidades de crecimiento.
+      </p>
     </div>
   );
 }
 
 function AnalysisLoader({ step }: { step: number }) {
   const steps = [
-    "Revisando utilidad del mes...",
-    "Analizando clientes activos...",
-    "Detectando horarios libres...",
-    "Buscando oportunidades de recuperación...",
-    "Generando acciones recomendadas...",
+    { label: "Analizando rentabilidad",          icon: "💰" },
+    { label: "Analizando fidelización",          icon: "👥" },
+    { label: "Analizando ocupación de agenda",   icon: "📅" },
+    { label: "Analizando dependencia del dueño", icon: "🧑‍💼" },
+    { label: "Detectando oportunidades",         icon: "🔍" },
+    { label: "Generando plan de acción",         icon: "📋" },
   ];
 
-  return (
-    <div className="grid min-h-[560px] place-items-center">
-      <GlassCard className="w-full max-w-xl p-8 text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-primary/10 ring-1 ring-primary/20">
-          <Loader2 className="h-7 w-7 animate-spin text-primary" />
-        </div>
-        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">Analizando tu negocio</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Clippr está leyendo caja, clientes, turnos y rendimiento.</p>
+  const pct = Math.round((Math.max(0, step) / steps.length) * 100);
 
-        <div className="mt-6 space-y-3 text-left">
-          {steps.map((item, index) => (
-            <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
-              {index < step ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              ) : index === step ? (
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              ) : (
-                <div className="h-4 w-4 rounded-full border border-white/20" />
-              )}
-              <span className={index <= step ? "text-white" : "text-muted-foreground"}>{item}</span>
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
+      <div className="w-full max-w-lg">
+        {/* Header */}
+        <div className="flex flex-col items-center text-center mb-10">
+          <div className="relative mb-6">
+            <div className="grid h-20 w-20 place-items-center rounded-3xl bg-primary/10 ring-1 ring-primary/25">
+              <Brain className="h-10 w-10 text-primary" />
             </div>
-          ))}
+            {/* Rotating border */}
+            <svg className="absolute inset-0 animate-spin" style={{ animationDuration: "3s" }} viewBox="0 0 80 80" fill="none" width="80" height="80">
+              <circle cx="40" cy="40" r="38" stroke="url(#spinGrad)" strokeWidth="2" strokeDasharray="60 180" strokeLinecap="round" />
+              <defs>
+                <linearGradient id="spinGrad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="oklch(0.65 0.28 290)" />
+                  <stop offset="100%" stopColor="transparent" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h2 className="font-display text-3xl font-bold tracking-tight">Analizando tu negocio</h2>
+          <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+            Clippr está leyendo caja, clientes, turnos y rendimiento para generar tu diagnóstico.
+          </p>
         </div>
-      </GlassCard>
+
+        {/* Progress bar */}
+        <div className="mb-6">
+          <div className="flex justify-between text-xs text-muted-foreground mb-2">
+            <span>Analizando…</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-1000"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Steps */}
+        <div className="space-y-3">
+          {steps.map((item, index) => {
+            const done    = index < step;
+            const current = index === step;
+            const pending = index > step;
+            return (
+              <div
+                key={item.label}
+                className={cn(
+                  "flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-500",
+                  done    && "border-emerald-400/25 bg-emerald-400/[0.06]",
+                  current && "border-primary/30 bg-primary/[0.07] ring-1 ring-primary/20",
+                  pending && "border-white/8 bg-white/[0.02] opacity-50",
+                )}
+              >
+                {/* Status icon */}
+                <div className="shrink-0 w-6 h-6 flex items-center justify-center">
+                  {done    && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
+                  {current && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                  {pending && <div className="h-4 w-4 rounded-full border-2 border-white/15" />}
+                </div>
+                {/* Emoji */}
+                <span className="text-lg shrink-0">{item.icon}</span>
+                {/* Label */}
+                <span className={cn(
+                  "text-sm font-medium flex-1",
+                  done    && "text-emerald-300",
+                  current && "text-white",
+                  pending && "text-muted-foreground",
+                )}>
+                  {item.label}
+                </span>
+                {/* Done checkmark text */}
+                {done && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/70 shrink-0">
+                    Listo
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1572,338 +1668,6 @@ function ReportPlaceholder({ month }: { month: string }) {
       <p className="text-sm font-semibold text-white">{month}</p>
       <p className="mt-1 text-xs text-muted-foreground">Sin informe guardado.</p>
       <p className="mt-4 text-xs text-muted-foreground">Se va a crear automáticamente cuando corresponda.</p>
-    </div>
-  );
-}
-
-// ─── PREGUNTALE A TU NEGOCIO ─────────────────────────────────────────────────
-
-type Pregunta = {
-  id: string;
-  emoji: string;
-  label: string;
-  prompt: string;
-};
-
-const PREGUNTAS_SUGERIDAS: Pregunta[] = [
-  {
-    id: "ganar_mas",
-    emoji: "💰",
-    label: "¿Qué debería hacer para ganar más dinero?",
-    prompt: "ganar_mas",
-  },
-  {
-    id: "frenando",
-    emoji: "📉",
-    label: "¿Qué está frenando mi negocio hoy?",
-    prompt: "frenando",
-  },
-  {
-    id: "oportunidad",
-    emoji: "📈",
-    label: "¿Cuál es mi mayor oportunidad de crecimiento?",
-    prompt: "oportunidad",
-  },
-  {
-    id: "clientes",
-    emoji: "👥",
-    label: "¿Qué clientes debería recuperar?",
-    prompt: "clientes",
-  },
-  {
-    id: "impacto",
-    emoji: "⚡",
-    label: "¿Qué acción tendría el mayor impacto esta semana?",
-    prompt: "impacto",
-  },
-];
-
-type RespuestaIA = {
-  titulo: string;
-  cuerpo: string;
-  acciones: string[];
-  oportunidad?: string;
-};
-
-function generarRespuesta(prompt: string): RespuestaIA {
-  const d = DEMO;
-
-  if (prompt === "ganar_mas" || prompt.includes("ganar") || prompt.includes("dinero") || prompt.includes("ingreso")) {
-    const potClientes = Math.round(d.inactiveClients * d.ticket * 0.2);
-    const potOcupacion = Math.round(d.freeSlotsMonth * d.ticket * 0.3);
-    const potTicket = Math.round(d.payments * 1500);
-    const mayor = Math.max(potClientes, potOcupacion, potTicket);
-    return {
-      titulo: "Tres palancas para aumentar tus ingresos",
-      cuerpo: `Con los datos actuales, las oportunidades más concretas son: recuperar ${d.inactiveClients} clientes inactivos (potencial +${fmtAR(potClientes)}/mes), completar ${d.freeSlotsMonth} espacios libres en agenda (potencial +${fmtAR(potOcupacion)}/mes) y aumentar el ticket promedio en $1.500 por servicio (potencial +${fmtAR(potTicket)}/mes). La mayor oportunidad individual es ${mayor === potClientes ? "recuperar clientes" : mayor === potOcupacion ? "completar la agenda" : "aumentar el ticket"}, con un potencial de +${fmtAR(mayor)} adicionales por mes.`,
-      acciones: [
-        `Contactar ${d.inactiveClients} clientes inactivos con un beneficio especial`,
-        `Implementar un beneficio para completar los ${d.freeSlotsMonth} horarios libres`,
-        `Ofrecer un producto o servicio complementario por visita`,
-        "Revisar los precios de servicios con ocupación alta",
-      ],
-      oportunidad: `+${fmtAR(potClientes + potOcupacion)} potencial combinado`,
-    };
-  }
-
-  if (prompt === "frenando" || prompt.includes("frena") || prompt.includes("problema") || prompt.includes("cuello")) {
-    const ocupPct = d.occupancy;
-    const bottleneck = ocupPct < 60
-      ? { titulo: "Baja ocupación", detalle: `Tu ocupación actual es del ${ocupPct}%, lo que significa que hay ${d.freeSlotsMonth} espacios disponibles sin cubrir este mes. Antes de subir precios o contratar personal, el foco debería estar en llenar la agenda.` }
-      : d.inactiveClients > 20
-      ? { titulo: "Clientes que no vuelven", detalle: `Tenés ${d.inactiveClients} clientes que no regresaron en más de 45 días. Si el 20% volviera con su ticket habitual de ${fmtAR(d.ticket)}, sumarías ${fmtAR(Math.round(d.inactiveClients * 0.2 * d.ticket))} adicionales.` }
-      : { titulo: "Ticket promedio con margen para crecer", detalle: `Tu ocupación está en ${ocupPct}% y la captación es positiva. El principal freno es que el ticket promedio de ${fmtAR(d.ticket)} tiene margen de crecimiento a través de servicios complementarios o ajuste de precios moderado.` };
-    return {
-      titulo: `El principal freno hoy: ${bottleneck.titulo}`,
-      cuerpo: bottleneck.detalle,
-      acciones: [
-        "Revisar qué días tienen menor ocupación y activar una acción específica",
-        `Contactar los ${d.inactiveClients} clientes inactivos con un mensaje personalizado`,
-        "Analizar si hay servicios subpreciados que frenan la percepción de valor",
-        "Medir la tasa de retorno de clientes nuevos vs mes anterior",
-      ],
-    };
-  }
-
-  if (prompt === "oportunidad" || prompt.includes("oportunidad") || prompt.includes("crecimiento")) {
-    const opts = [
-      { label: "Recuperar clientes inactivos", valor: Math.round(d.inactiveClients * d.ticket * 0.25) },
-      { label: "Completar agenda los días bajos", valor: Math.round(8 * d.ticket * 4) },
-      { label: "Aumentar ticket promedio", valor: Math.round(d.payments * 2000) },
-    ].sort((a, b) => b.valor - a.valor);
-    return {
-      titulo: "Tu mayor oportunidad este mes",
-      cuerpo: `La oportunidad con mayor potencial económico es "${opts[0].label}" con un estimado de +${fmtAR(opts[0].valor)}/mes. En segundo lugar, "${opts[1].label}" podría sumar +${fmtAR(opts[1].valor)}/mes. El crecimiento más sostenible combina las dos primeras: clientes existentes bien atendidos son la base más rentable.`,
-      acciones: opts.map(o => `${o.label}: potencial +${fmtAR(o.valor)}/mes`),
-      oportunidad: `+${fmtAR(opts[0].valor + opts[1].valor)} combinadas`,
-    };
-  }
-
-  if (prompt === "clientes" || prompt.includes("cliente") || prompt.includes("recuperar") || prompt.includes("inactiv")) {
-    const pot20 = Math.round(d.inactiveClients * 0.2 * d.ticket);
-    return {
-      titulo: `${d.inactiveClients} clientes para recuperar`,
-      cuerpo: `Hay ${d.inactiveClients} clientes que no volvieron en más de 45 días. Si recuperás el 20% con un beneficio simple (sin descuento), podrías sumar aproximadamente ${fmtAR(pot20)} en el mes. Los clientes con mayor ticket promedio histórico son los que conviene priorizar primero.`,
-      acciones: [
-        "Segmentar por fecha de última visita y ticket histórico",
-        "Enviar mensaje personalizado: 'Hace un tiempo que no te vemos...'",
-        "Ofrecer un beneficio sin descuento: regalo, upgrade, atención prioritaria",
-        "Medir cuántos responden en 7 días y ajustar el mensaje si hace falta",
-      ],
-      oportunidad: `+${fmtAR(pot20)} potencial (20% de recupero)`,
-    };
-  }
-
-  if (prompt === "impacto" || prompt.includes("impacto") || prompt.includes("semana") || prompt.includes("urgente")) {
-    return {
-      titulo: "La acción de mayor impacto esta semana",
-      cuerpo: `Con ${d.inactiveClients} clientes inactivos y ${d.emptySlotsTomorrow} turnos disponibles mañana, la acción más concreta es contactar hoy a 10-15 clientes inactivos con un mensaje simple y ofrecer un turno para esta semana. Esto puede mover la aguja en 48 horas sin costo adicional.`,
-      acciones: [
-        `Seleccionar 10-15 clientes inactivos con mayor ticket histórico`,
-        "Enviar mensaje personalizado hoy antes de las 18hs",
-        `Ofrecer turnos disponibles de ${d.emptySlotsTomorrow > 0 ? "mañana" : "esta semana"}`,
-        "Medir respuesta al día siguiente y hacer seguimiento",
-      ],
-      oportunidad: `+${fmtAR(Math.round(10 * d.ticket))} potencial en 7 días`,
-    };
-  }
-
-  // Pregunta libre — respuesta genérica contextualizada
-  return {
-    titulo: "Análisis basado en tus datos",
-    cuerpo: `Tu negocio tiene una ocupación del ${d.occupancy}%, ${d.inactiveClients} clientes inactivos y ${d.freeSlotsMonth} espacios libres en agenda este mes. La utilidad creció un ${d.growth}% respecto al mes anterior, con un ticket promedio de ${fmtAR(d.ticket)}. Para una respuesta más precisa, probá una de las preguntas sugeridas o reformulá tu consulta en términos de ocupación, clientes o precios.`,
-    acciones: [
-      "¿Qué debería hacer para ganar más dinero?",
-      "¿Qué está frenando mi negocio?",
-      "¿Qué clientes debería recuperar?",
-    ],
-  };
-}
-
-function PreguntaleTab({ businessId: _businessId }: { businessId?: string | null }) {
-  const [query, setQuery] = React.useState("");
-  const [respuesta, setRespuesta] = React.useState<RespuestaIA | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [preguntaActiva, setPreguntaActiva] = React.useState<string | null>(null);
-  const inputRef = React.useRef<HTMLTextAreaElement>(null);
-
-  function responder(promptKey: string, label: string) {
-    setPreguntaActiva(promptKey);
-    setQuery(label);
-    setLoading(true);
-    setRespuesta(null);
-    setTimeout(() => {
-      setRespuesta(generarRespuesta(promptKey));
-      setLoading(false);
-    }, 900 + Math.random() * 600);
-  }
-
-  function handleSubmit() {
-    if (!query.trim()) return;
-    const q = query.toLowerCase();
-    const match = PREGUNTAS_SUGERIDAS.find(p => q.includes(p.emoji) || q.includes(p.id));
-    const prompt = match?.prompt ?? query;
-    responder(prompt, query);
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <GlassCard className="p-7 sm:p-10 border border-white/[0.07]">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 ring-1 ring-primary/20 shrink-0">
-            <Brain className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h2 className="font-display text-3xl font-bold tracking-tight">🔍 Preguntale a tu negocio</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Tu asesor de negocios personal, impulsado por IA y tus propios datos.</p>
-          </div>
-        </div>
-
-        {/* Campo de pregunta */}
-        <div className="relative">
-          <textarea
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
-            placeholder="¿Qué querés saber sobre tu negocio?"
-            rows={2}
-            className="w-full rounded-2xl border border-white/15 bg-white/[0.04] px-5 py-4 pr-36 text-base text-white outline-none transition placeholder:text-muted-foreground/50 focus:border-primary/50 focus:bg-white/[0.06] resize-none leading-relaxed"
-          />
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!query.trim() || loading}
-            className="absolute right-3 top-3 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Preguntar
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">Presioná Enter o hacé clic en Preguntar. La IA usa los datos reales de tu negocio.</p>
-      </GlassCard>
-
-      {/* Preguntas sugeridas */}
-      {!respuesta && !loading && (
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground px-1">Preguntas frecuentes</p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {PREGUNTAS_SUGERIDAS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => responder(p.prompt, p.label)}
-                className={cn(
-                  "flex items-start gap-3 rounded-2xl border p-4 text-left transition-all",
-                  preguntaActiva === p.prompt
-                    ? "border-primary/40 bg-primary/[0.08] ring-1 ring-primary/20"
-                    : "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
-                )}
-              >
-                <span className="text-xl mt-0.5 shrink-0">{p.emoji}</span>
-                <span className="text-sm text-muted-foreground leading-snug">{p.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <GlassCard className="p-8">
-          <div className="flex items-center gap-4">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 ring-1 ring-primary/20 shrink-0">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-            <div>
-              <p className="font-semibold text-white">Analizando tu negocio…</p>
-              <p className="text-sm text-muted-foreground mt-0.5">La IA está procesando tus datos para darte una respuesta concreta.</p>
-            </div>
-          </div>
-          <div className="mt-6 space-y-2">
-            {["Leyendo indicadores del período…", "Cruzando datos de clientes y ocupación…", "Calculando oportunidades económicas…"].map((step, i) => (
-              <div key={step} className="flex items-center gap-2.5 text-xs text-muted-foreground">
-                <div className="h-1.5 w-1.5 rounded-full bg-primary/40 animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
-                {step}
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-      )}
-
-      {/* Respuesta */}
-      {respuesta && !loading && (
-        <div className="space-y-4">
-          {/* Card principal */}
-          <GlassCard className="p-7 sm:p-8 border border-primary/15 space-y-6">
-            {/* Header respuesta */}
-            <div className="flex items-start gap-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
-                <Brain className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary mb-1">Respuesta IA · Basada en tus datos</p>
-                <h3 className="font-display text-xl font-bold text-white">{respuesta.titulo}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setRespuesta(null); setQuery(""); setPreguntaActiva(null); }}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-white hover:bg-white/[0.08] shrink-0"
-              >
-                Nueva pregunta
-              </button>
-            </div>
-
-            {/* Cuerpo */}
-            <p className="text-sm text-muted-foreground leading-relaxed">{respuesta.cuerpo}</p>
-
-            {/* Oportunidad económica */}
-            {respuesta.oportunidad && (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] px-5 py-4 flex items-center gap-4">
-                <DollarSign className="h-6 w-6 text-emerald-400 shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">Oportunidad económica estimada</p>
-                  <p className="font-display text-2xl font-bold text-emerald-300 mt-0.5">{respuesta.oportunidad}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Acciones */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-sm font-semibold text-white mb-4">✅ Pasos concretos a seguir</p>
-              <div className="space-y-3">
-                {respuesta.acciones.map((accion, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="mt-1 h-5 w-5 shrink-0 grid place-items-center rounded-full bg-primary/15 text-[10px] font-bold text-primary ring-1 ring-primary/20">
-                      {i + 1}
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{accion}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </GlassCard>
-
-          {/* Sugerencias relacionadas */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground px-1">Otras preguntas relacionadas</p>
-            <div className="flex flex-wrap gap-2">
-              {PREGUNTAS_SUGERIDAS.filter(p => p.id !== preguntaActiva).slice(0, 3).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => responder(p.prompt, p.label)}
-                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-muted-foreground transition hover:border-white/20 hover:text-white"
-                >
-                  <span>{p.emoji}</span>
-                  <span>{p.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
