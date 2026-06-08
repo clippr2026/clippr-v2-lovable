@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Bell,
   Brain,
+  BarChart2,
   CheckCircle2,
   ClipboardList,
   HeartPulse,
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Users,
   DollarSign,
   TrendingDown,
   Minus,
@@ -420,6 +422,8 @@ function AdvisorContent({
       </section>
 
 
+      <HistorialMesAnterior />
+
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -691,6 +695,170 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
 
   return actions;
 }
+
+// ─── DATOS MES ANTERIOR ───────────────────────────────────────────────────────
+
+const DEMO_PREV = {
+  month: "Mayo 2026",
+  revenue: 3462000,
+  expenses: 1902000,
+  profit: 1560000,
+  clientsTotal: 742,
+  clientsNew: 45,
+  ticket: 55500,
+  occupancy: 54,
+  growth: 18,
+  weeklyRevenue: [680000, 820000, 960000, 1002000],
+  weeklyProfit:  [280000, 350000, 440000, 490000],
+  weeklyClients: [160, 182, 198, 202],
+};
+
+// ─── HISTORIAL MES ANTERIOR ───────────────────────────────────────────────────
+
+function HistorialMesAnterior() {
+  const [activeMetric, setActiveMetric] = React.useState<"revenue" | "profit" | "clients">("revenue");
+
+  const metricConfig = {
+    revenue: { label: "Facturación", color: "#a78bfa", data: DEMO_PREV.weeklyRevenue, fmt: (v: number) => fmtAR(v) },
+    profit:  { label: "Utilidad",   color: "#34d399", data: DEMO_PREV.weeklyProfit,   fmt: (v: number) => fmtAR(v) },
+    clients: { label: "Clientes",   color: "#60a5fa", data: DEMO_PREV.weeklyClients,  fmt: (v: number) => String(v) },
+  };
+
+  const cfg = metricConfig[activeMetric];
+  const CHART_H = 90;
+
+  const impulsores: { tone: "good" | "warning"; text: string }[] = [
+    { tone: "good",    text: "Clientes nuevos +16% vs período anterior" },
+    { tone: "good",    text: "Ticket promedio +10% vs período anterior" },
+    { tone: "good",    text: "Ocupación +8 puntos vs período anterior" },
+    { tone: "warning", text: `${DEMO.inactiveClients} clientes sin retorno en +45 días` },
+    { tone: "warning", text: `${DEMO.freeSlotsMonth} turnos disponibles sin ocupar` },
+  ];
+
+  const statCards = [
+    { label: "Ingresos",           value: fmtAR(DEMO_PREV.revenue),       sub: "Facturación bruta",       color: "text-violet-300", bg: "bg-violet-400/10 ring-1 ring-violet-400/20" },
+    { label: "Gastos",             value: fmtAR(DEMO_PREV.expenses),      sub: "Costos del período",      color: "text-rose-300",   bg: "bg-rose-400/10 ring-1 ring-rose-400/20" },
+    { label: "Utilidad",           value: fmtAR(DEMO_PREV.profit),        sub: "Ganancia neta",           color: "text-emerald-300",bg: "bg-emerald-400/10 ring-1 ring-emerald-400/20" },
+    { label: "Clientes atendidos", value: String(DEMO_PREV.clientsTotal), sub: "Total del mes",           color: "text-sky-300",    bg: "bg-sky-400/10 ring-1 ring-sky-400/20" },
+    { label: "Clientes nuevos",    value: String(DEMO_PREV.clientsNew),   sub: "+16% vs mes previo",      color: "text-sky-300",    bg: "bg-sky-400/10 ring-1 ring-sky-400/20" },
+    { label: "Ticket promedio",    value: fmtAR(DEMO_PREV.ticket),        sub: "+10% vs mes previo",      color: "text-amber-300",  bg: "bg-amber-400/10 ring-1 ring-amber-400/20" },
+    { label: "Ocupación",          value: `${DEMO_PREV.occupancy}%`,      sub: "+8 pts vs mes previo",    color: "text-orange-300", bg: "bg-orange-400/10 ring-1 ring-orange-400/20" },
+  ];
+
+  const maxVal = Math.max(...cfg.data);
+
+  return (
+    <GlassCard className="p-5 sm:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-white/10">
+            <BarChart2 className="h-3.5 w-3.5" />
+            Historial del mes anterior
+          </div>
+          <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight">📅 {DEMO_PREV.month}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Resumen completo del período anterior para comparar con el mes actual.</p>
+        </div>
+        <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-right shrink-0">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Crecimiento</div>
+          <div className="mt-1 font-display text-3xl font-semibold text-primary">+{DEMO_PREV.growth}%</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">vs mes previo</div>
+        </div>
+      </div>
+
+      {/* Tarjetas métricas */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {statCards.map((card) => (
+          <div key={card.label} className={cn("rounded-2xl p-4", card.bg)}>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider">{card.label}</div>
+            <div className={cn("mt-2 font-display text-xl font-semibold", card.color)}>{card.value}</div>
+            <div className="mt-1 text-[10px] text-muted-foreground">{card.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tendencia semanal */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="text-sm font-semibold">Tendencia semanal</div>
+          <div className="flex gap-2">
+            {(["revenue", "profit", "clients"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setActiveMetric(k)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ring-1",
+                  activeMetric === k
+                    ? k === "revenue" ? "bg-violet-500/15 ring-violet-400/30 text-violet-300"
+                      : k === "profit" ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300"
+                      : "bg-sky-500/15 ring-sky-400/30 text-sky-300"
+                    : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {metricConfig[k].label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-end gap-3">
+          {cfg.data.map((val, i) => {
+            const barH = Math.max(8, Math.round((val / maxVal) * CHART_H));
+            const labels = ["Sem 1", "Sem 2", "Sem 3", "Sem 4"];
+            return (
+              <div key={i} className="flex flex-col items-center gap-1.5 flex-1">
+                <div className="text-[10px] font-semibold truncate w-full text-center" style={{ color: cfg.color }}>
+                  {cfg.fmt(val)}
+                </div>
+                <div className="w-full rounded-t-lg relative" style={{ height: `${CHART_H}px`, backgroundColor: "rgba(255,255,255,0.04)" }}>
+                  <div
+                    className="absolute bottom-0 w-full rounded-t-lg transition-all duration-700"
+                    style={{ height: `${barH}px`, backgroundColor: cfg.color, opacity: 0.75 }}
+                  />
+                </div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap">{labels[i]}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Principales impulsores */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="text-sm font-semibold mb-4">Principales impulsores del resultado</div>
+        <div className="grid sm:grid-cols-2 gap-2.5">
+          {impulsores.map((item) => (
+            <div key={item.text} className="flex items-start gap-2 text-sm">
+              {item.tone === "good" ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+              )}
+              <span className="text-muted-foreground leading-snug">{item.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Resumen IA */}
+      <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="grid h-7 w-7 place-items-center rounded-xl bg-primary/15 ring-1 ring-primary/25">
+            <Brain className="h-4 w-4 text-primary" />
+          </div>
+          <div className="text-sm font-semibold text-primary">Resumen IA</div>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          La utilidad de {DEMO_PREV.month} creció un{" "}
+          <span className="font-semibold text-emerald-300">+30%</span> respecto al mes previo, impulsada principalmente por el aumento de clientes nuevos (+16%) y el ticket promedio (+10%). La ocupación mejoró 8 puntos alcanzando el 62%. Sin embargo, persisten{" "}
+          <span className="font-semibold text-amber-300">{DEMO.freeSlotsMonth} espacios libres en agenda</span> y{" "}
+          <span className="font-semibold text-amber-300">{DEMO.inactiveClients} clientes inactivos</span> que representan una oportunidad concreta de crecimiento para el mes actual.
+        </p>
+      </div>
+    </GlassCard>
+  );
+}
+
 
 function getStrategicIdea() {
   return {
