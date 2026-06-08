@@ -76,6 +76,13 @@ export async function registerPayment(input: RegisterPaymentInput) {
 
   const saleSummary = buildSaleSummary(input.items) || "Venta";
 
+  // Resolve charged_by: must be a UUID. Get it from supabase auth session.
+  let chargedByUuid: string | null = null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    chargedByUuid = user?.id ?? null;
+  } catch { /* silently fail */ }
+
   const payload: Record<string, unknown> = {
     business_id: input.businessId,
     employee_id: input.employeeId ?? null,
@@ -93,7 +100,8 @@ export async function registerPayment(input: RegisterPaymentInput) {
   };
 
   if (input.sessionId) payload.session_id = input.sessionId;
-  if (input.chargedBy) payload.charged_by = input.chargedBy;
+  // Only set charged_by if it's a valid UUID (never an email)
+  if (chargedByUuid) payload.charged_by = chargedByUuid;
   if (input.notes?.trim()) payload.observations = input.notes.trim();
 
   const { data, error } = await supabase
