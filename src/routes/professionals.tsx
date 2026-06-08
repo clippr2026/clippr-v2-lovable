@@ -1204,32 +1204,146 @@ function StatsView({
       </div>
 
       {/* Servicios Desglose */}
-      <ServiciosDesglose />
+      <ServiciosDesglose sales={sales} />
     </div>
   );
 }
 
-function ServiciosDesglose() {
-  // No data yet — will be populated from real appointments once analytics are available
+type ProfSale = ReturnType<typeof useProfSales> extends { data: (infer T)[] | undefined } ? T : never;
+
+const PIE_COLORS = [
+  "oklch(0.72 0.22 300)",  // violet
+  "oklch(0.72 0.20 200)",  // sky
+  "oklch(0.72 0.22 145)",  // emerald
+  "oklch(0.78 0.18 60)",   // amber
+  "oklch(0.72 0.22 15)",   // rose
+  "oklch(0.72 0.18 250)",  // blue
+  "oklch(0.75 0.14 95)",   // lime
+];
+
+function ServiciosDesglose({ sales }: { sales: ProfSale[] }) {
+  const [tab, setTab] = React.useState<"all" | "services" | "catalog">("all");
+
+  // Aggregate by service_name — detect catalog items by checking if appointment_id is null
+  const aggregated = React.useMemo(() => {
+    const map = new Map<string, { total: number; isProduct: boolean }>();
+    for (const s of sales) {
+      const name = (s.service_name ?? "Sin nombre").trim();
+      const isProduct = !s.appointment_id; // catalog items have no appointment
+      const prev = map.get(name);
+      if (prev) {
+        prev.total += Number(s.total ?? 0);
+      } else {
+        map.set(name, { total: Number(s.total ?? 0), isProduct });
+      }
+    }
+    return Array.from(map.entries())
+      .map(([name, v]) => ({ name, total: v.total, isProduct: v.isProduct }))
+      .sort((a, b) => b.total - a.total);
+  }, [sales]);
+
+  const filtered = React.useMemo(() => {
+    if (tab === "services") return aggregated.filter(i => !i.isProduct);
+    if (tab === "catalog")  return aggregated.filter(i => i.isProduct);
+    return aggregated;
+  }, [aggregated, tab]);
+
+  const grandTotal = filtered.reduce((s, i) => s + i.total, 0);
+  const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+  const fmtPct = (n: number) => grandTotal > 0 ? ((n / grandTotal) * 100).toFixed(1) + "%" : "0%";
+
+  // SVG donut chart
+  const RADIUS = 70;
+  const CX = 90;
+  const CY = 90;
+  const STROKE = 28;
+  const circumference = 2 * Math.PI * RADIUS;
+
+  const arcs = React.useMemo(() => {
+    let offset = 0;
+    return filtered.map((item, i) => {
+      const pct = grandTotal > 0 ? item.total / grandTotal : 0;
+      const dash = pct * circumference;
+      const gap = circumference - dash;
+      const arc = { item, dash, gap, offset: offset * circumference, color: PIE_COLORS[i % PIE_COLORS.length] };
+      offset += pct;
+      return arc;
+    });
+  }, [filtered, grandTotal, circumference]);
+
   return (
     <div className="glass rounded-2xl p-5 relative overflow-hidden">
       <div className="absolute -top-16 -left-16 h-56 w-56 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
-      <div className="flex items-start justify-between">
+
+      <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Servicios</div>
           <div className="mt-0.5 text-2xl font-display font-light tracking-tight">Desglose</div>
         </div>
-      </div>
-      <div className="mt-8 flex flex-col items-center justify-center py-8 text-center text-sm text-muted-foreground gap-2">
-        <div className="h-10 w-10 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center mb-1">
-          <svg viewBox="0 0 24 24" className="h-5 w-5 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M3 3v16a2 2 0 002 2h16" strokeLinecap="round"/>
-            <path d="M7 16l4-4 4 4 5-5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+        {/* Tabs */}
+        <div className="flex gap-1 rounded-xl bg-white/[0.05] p-1">
+          {([["all", "Todos"], ["services", "Servicios"], ["catalog", "Catálogo"]] as const).map(([k, l]) => (
+            <button key={k} type="button" onClick={() => setTab(k)}
+              className={cn("rounded-lg px-3 py-1 text-xs font-semibold transition-all",
+                tab === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground")}>
+              {l}
+            </button>
+          ))}
         </div>
-        Sin datos aún
-        <span className="text-xs opacity-60">Los datos aparecerán cuando haya turnos registrados</span>
       </div>
+
+      {grandTotal === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center text-sm text-muted-foreground gap-2">
+          <div className="h-10 w-10 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center mb-1">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M3 3v16a2 2 0 002 2h16" strokeLinecap="round"/>
+              <path d="M7 16l4-4 4 4 5-5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          Sin datos aún
+          <span className="text-xs opacity-60">Los datos aparecerán cuando haya turnos registrados</span>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          {/* Donut */}
+          <div className="shrink-0 relative">
+            <svg width="180" height="180" viewBox="0 0 180 180">
+              {arcs.map((arc, i) => (
+                <circle key={i}
+                  cx={CX} cy={CY} r={RADIUS}
+                  fill="none"
+                  stroke={arc.color}
+                  strokeWidth={STROKE}
+                  strokeDasharray={`${arc.dash} ${arc.gap}`}
+                  strokeDashoffset={-arc.offset}
+                  strokeLinecap="butt"
+                  style={{ transform: "rotate(-90deg)", transformOrigin: `${CX}px ${CY}px`, transition: "stroke-dasharray 0.5s" }}
+                />
+              ))}
+              {/* Center total */}
+              <text x={CX} y={CY - 8} textAnchor="middle" fill="white" fontSize="11" opacity="0.5" fontFamily="sans-serif">Total</text>
+              <text x={CX} y={CY + 10} textAnchor="middle" fill="white" fontSize="14" fontWeight="600" fontFamily="sans-serif">
+                {fmt(grandTotal)}
+              </text>
+            </svg>
+          </div>
+
+          {/* Legend */}
+          <div className="flex-1 w-full space-y-2 min-w-0">
+            {filtered.slice(0, 7).map((item, i) => (
+              <div key={item.name} className="flex items-center gap-3 min-w-0">
+                <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                <div className="flex-1 text-sm truncate min-w-0">{item.name}</div>
+                <div className="tabular-nums text-xs text-muted-foreground shrink-0">{fmt(item.total)}</div>
+                <div className="tabular-nums text-xs font-semibold shrink-0 w-12 text-right">{fmtPct(item.total)}</div>
+              </div>
+            ))}
+            {filtered.length > 7 && (
+              <div className="text-xs text-muted-foreground pl-5">+{filtered.length - 7} más</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
