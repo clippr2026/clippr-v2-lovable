@@ -432,7 +432,8 @@ function fmtMoney(n: number) {
   return "$" + Math.round(n).toLocaleString("es-AR");
 }
 
-// Inline service/catalog searcher used inside edit row
+// ── Inline item editor ─────────────────────────────────────────────────────
+// The item row itself becomes the search field — no separate buscador above.
 function ItemPicker({
   businessId, currentName, currentAmount,
   onSelect, onClose,
@@ -442,97 +443,108 @@ function ItemPicker({
   onSelect: (name: string, amount: number) => void;
   onClose: () => void;
 }) {
-  const [query, setQuery] = useState("");
+  // Start with current name so the field is pre-filled, ready to edit
+  const [query, setQuery] = useState(currentName);
   const [editAmount, setEditAmount] = useState(currentAmount);
-  const [options, setOptions] = useState<{ id: string; name: string; price: number; type: "service" | "product" }[]>([]);
-  const [selected, setSelected] = useState<{ name: string; price: number } | null>(null);
+  const [options, setOptions] = useState<{ id: string; name: string; price: number }[]>([]);
+  const [selected, setSelected] = useState<{ name: string; price: number } | null>(
+    currentName ? { name: currentName, price: Number(currentAmount) || 0 } : null
+  );
+  const [showDropdown, setShowDropdown] = useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!businessId) return;
-    async function load() {
+    (async () => {
       const [{ data: svcs }, { data: prods }] = await Promise.all([
         supabase.from("price_catalog").select("id,name,price").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null).order("name"),
         supabase.from("price_catalog").select("id,name,price").eq("business_id", businessId).eq("active", true).is("duration_min", null).order("name"),
       ]);
-      const all = [
-        ...(svcs ?? []).map(s => ({ id: s.id, name: s.name as string, price: Number(s.price ?? 0), type: "service" as const })),
-        ...(prods ?? []).map(p => ({ id: p.id, name: p.name as string, price: Number(p.price ?? 0), type: "product" as const })),
-      ];
-      setOptions(all);
-      // Pre-select current
-      const match = all.find(o => o.name === currentName);
-      if (match) { setSelected({ name: match.name, price: match.price }); }
-      else if (currentName) setSelected({ name: currentName, price: Number(currentAmount) || 0 });
-    }
-    load();
-  }, [businessId, currentName, currentAmount]);
+      setOptions([
+        ...(svcs ?? []).map(s => ({ id: s.id, name: s.name as string, price: Number(s.price ?? 0) })),
+        ...(prods ?? []).map(p => ({ id: p.id, name: p.name as string, price: Number(p.price ?? 0) })),
+      ]);
+    })();
+  }, [businessId]);
 
-  React.useEffect(() => { inputRef.current?.focus(); }, []);
+  React.useEffect(() => {
+    // Auto-focus and select all text so user can type immediately
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
 
   const filtered = query.trim()
     ? options.filter(o => o.name.toLowerCase().includes(query.toLowerCase()))
-    : options;
+    : options.slice(0, 8);
 
   function pick(opt: { name: string; price: number }) {
     setSelected(opt);
-    setEditAmount(String(opt.price));
     setQuery(opt.name);
+    setEditAmount(String(opt.price));
+    setShowDropdown(false);
   }
+
+  const canSave = selected !== null;
 
   return (
     <div className="rounded-2xl border border-primary/30 bg-primary/[0.06] p-3 space-y-2">
+      {/* The item name IS the search field */}
       <div className="relative">
         <input
           ref={inputRef}
           value={query}
-          onChange={e => { setQuery(e.target.value); setSelected(null); }}
+          onChange={e => {
+            setQuery(e.target.value);
+            setSelected(null);        // deselect while typing
+            setShowDropdown(true);
+          }}
+          onFocus={() => setShowDropdown(true)}
           placeholder="Buscar servicio o producto…"
-          className="w-full rounded-xl bg-white/[0.06] ring-1 ring-white/15 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+          className="w-full rounded-xl bg-white/[0.07] ring-1 ring-primary/30 px-3 py-2.5 text-sm font-medium text-white focus:outline-none focus:ring-primary/50 placeholder:font-normal placeholder:text-muted-foreground/60"
         />
         {query && (
-          <button type="button" onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white text-xs px-1">✕</button>
+          <button type="button"
+            onClick={() => { setQuery(""); setSelected(null); setShowDropdown(true); inputRef.current?.focus(); }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white text-xs w-5 h-5 flex items-center justify-center rounded-full hover:bg-white/10 transition">
+            ✕
+          </button>
         )}
       </div>
 
-      {/* Dropdown results */}
-      {!selected && filtered.length > 0 && (
-        <div className="rounded-xl bg-black/40 border border-white/10 max-h-36 overflow-y-auto divide-y divide-white/5">
-          {filtered.slice(0, 12).map(opt => (
+      {/* Dropdown — only while searching (no selection yet or explicitly opened) */}
+      {showDropdown && filtered.length > 0 && (
+        <div className="rounded-xl bg-[#0d0d14] border border-white/10 max-h-40 overflow-y-auto divide-y divide-white/[0.05] shadow-xl">
+          {filtered.slice(0, 10).map(opt => (
             <button key={opt.id} type="button"
+              onMouseDown={e => e.preventDefault()} // prevent blur before click
               onClick={() => pick(opt)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/[0.06] transition text-left">
-              <span>{opt.name}</span>
-              <span className="text-xs text-muted-foreground tabular-nums">{fmtMoney(opt.price)}</span>
+              className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-white/[0.06] transition text-left gap-3">
+              <span className="truncate">{opt.name}</span>
+              <span className="text-xs text-muted-foreground tabular-nums shrink-0">{fmtMoney(opt.price)}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Price edit */}
-      {selected && (
-        <div className="flex gap-2 items-center">
-          <div className="flex-1 text-sm font-medium truncate text-white">{selected.name}</div>
-          <div className="relative">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
-            <input type="text" inputMode="numeric"
-              value={editAmount}
-              onChange={e => setEditAmount(e.target.value.replace(/\D/g, ""))}
-              className="w-28 rounded-xl bg-white/[0.06] ring-1 ring-white/15 pl-5 pr-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-primary/40"
-            />
-          </div>
-        </div>
-      )}
+      {/* Price edit — shown after selection */}
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+        <input
+          type="text" inputMode="numeric"
+          value={editAmount}
+          onChange={e => setEditAmount(e.target.value.replace(/\D/g, ""))}
+          placeholder="0"
+          className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 pl-6 pr-3 py-2.5 text-sm tabular-nums text-white focus:outline-none focus:ring-primary/40"
+        />
+      </div>
 
       <div className="flex gap-2">
         <button type="button" onClick={onClose}
           className="flex-1 rounded-xl ring-1 ring-white/10 py-2 text-xs text-muted-foreground hover:text-white transition">
           Cancelar
         </button>
-        <button type="button"
-          disabled={!selected}
-          onClick={() => selected && onSelect(selected.name, Math.max(0, Number(editAmount) || 0))}
+        <button type="button" disabled={!canSave}
+          onClick={() => canSave && onSelect(selected!.name, Math.max(0, Number(editAmount) || 0))}
           className="flex-1 rounded-xl bg-primary/15 ring-1 ring-primary/30 py-2 text-xs font-semibold text-primary hover:bg-primary/25 transition disabled:opacity-40">
           Listo
         </button>
@@ -608,15 +620,15 @@ function CobroModal({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // In single pay mode, if no amount typed, treat as total (auto-covers)
-  const effectiveSplitTotal = !multiPay && !splits[0]?.amount ? total : splitTotal;
+  // In single pay mode, if no amount typed, treat as NOT covered (require explicit entry)
+  const effectiveSplitTotal = splitTotal;
   const effectiveRemaining = total - effectiveSplitTotal;
   const effectiveIsBalanced = Math.abs(effectiveRemaining) < 1;
   const effectiveIsOver = effectiveSplitTotal > total;
   const effectiveShowVuelto = effectiveIsOver && splits.some(s => s.method === "cash");
 
   const canConfirm = mode !== "auto" || (
-    splits.length > 0 && (effectiveIsBalanced || effectiveShowVuelto)
+    splits.length > 0 && splitTotal > 0 && (effectiveIsBalanced || effectiveShowVuelto)
   );
 
   // ── Confirm ───────────────────────────────────────────────────────────────
@@ -746,8 +758,7 @@ function CobroModal({
                 {!multiPay ? (
                   <button type="button" onClick={() => {
                     setMultiPay(true);
-                    // Start multi with current method + remaining
-                    setSplits([{ method: splits[0]?.method ?? "cash", amount: String(total) }]);
+                    setSplits([{ method: splits[0]?.method ?? "cash", amount: splits[0]?.amount ?? "" }]);
                   }}
                     className="text-[10px] font-semibold text-primary hover:text-primary/80 transition">
                     Pago múltiple
@@ -755,7 +766,7 @@ function CobroModal({
                 ) : (
                   <button type="button" onClick={() => {
                     setMultiPay(false);
-                    setSplits([{ method: "cash", amount: String(total) }]);
+                    setSplits([{ method: "cash", amount: "" }]);
                   }}
                     className="text-[10px] font-semibold text-muted-foreground hover:text-white transition">
                     Pago simple
@@ -769,7 +780,7 @@ function CobroModal({
                   <div className="grid grid-cols-5 gap-1.5">
                     {ALL_METHODS.map(m => (
                       <button key={m} type="button"
-                        onClick={() => setSplits([{ method: m, amount: splits[0]?.amount || String(total) }])}
+                        onClick={() => setSplits([{ method: m, amount: splits[0]?.amount ?? "" }])}
                         className={cn("rounded-xl py-2 text-xs font-medium ring-1 transition-all",
                           splits[0]?.method === m
                             ? "bg-primary/20 ring-primary/50 text-foreground"
