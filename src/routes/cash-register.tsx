@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
-const HISTORIAL_KEY = "clippr_cobros_historial";
+const HISTORIAL_KEY = "clippr_cobros_historial_v2";
 
 type HistorialEvento = {
   time: string;
@@ -66,6 +66,91 @@ function appendHistorialCobro(appointmentId: string, evento: HistorialEvento) {
   }
 }
 
+function getHistorialCobro(appointmentId?: string | null): HistorialEvento[] {
+  if (typeof window === "undefined" || !appointmentId) return [];
+  try {
+    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_KEY) || "{}") as Record<string, HistorialEvento[]>;
+    return all[appointmentId] ?? [];
+  } catch {
+    return [];
+  }
+}
+
+
+function normalizeHistorialEventKey(event: HistorialEvento) {
+  return `${event.time}__${event.user}__${event.action}`;
+}
+
+function uniqueHistorialEvents(events: HistorialEvento[]) {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    const key = normalizeHistorialEventKey(event);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getHistorialCobroByIds(ids: Array<unknown>): HistorialEvento[] {
+  const normalizedIds = Array.from(
+    new Set(
+      ids
+        .map((id) => (id === null || id === undefined ? "" : String(id).trim()))
+        .filter(Boolean)
+    )
+  );
+
+  return uniqueHistorialEvents(normalizedIds.flatMap((id) => getHistorialCobro(id)));
+}
+
+function buildPaidHistorialEvents(
+  payment: Record<string, unknown>,
+  fallbackCobroEvent: HistorialEvento,
+): HistorialEvento[] {
+  const savedEvents = getHistorialCobroByIds([
+    payment.appointment_id,
+    payment.appointmentId,
+    payment.appointment,
+    payment.pending_charge_id,
+    payment.pendingChargeId,
+    payment.sale_id,
+    payment.saleId,
+    payment.id,
+  ]);
+
+  if (savedEvents.length === 0) return [fallbackCobroEvent];
+
+  const alreadyHasCobro = savedEvents.some((event) => event.action === "Cobró");
+
+  // Si el servicio fue enviado a Caja y el pago ya existe, el historial debe conservar
+  // "Envió a caja" y sumar "Cobró". Nunca se compacta a una sola línea.
+  if (!alreadyHasCobro) {
+    return uniqueHistorialEvents([...savedEvents, fallbackCobroEvent]);
+  }
+
+  return savedEvents;
+}
+
+function HistorialCell({ events }: { events: HistorialEvento[] }) {
+  if (events.length === 0) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  return (
+    <div className="space-y-1 leading-tight">
+      {events.map((event, index) => (
+        <div key={`${event.time}-${event.user}-${event.action}-${index}`} className="whitespace-nowrap">
+          <span className="text-muted-foreground">{event.time}</span>{" "}
+          <span className="font-semibold text-foreground/90">{event.user}</span>{" "}
+          <span className="text-muted-foreground">→</span>{" "}
+          <span className={cn(event.action === "Cobró" ? "text-emerald-300" : "text-sky-300")}>
+            {event.action}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function removeLocalManualPendingCharge(id: string) {
   if (typeof window === "undefined") return;
@@ -698,18 +783,17 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
         {/* Table header */}
         <div className="overflow-x-auto">
-          <div className="min-w-[1180px]">
-            <div className="grid grid-cols-[70px_minmax(150px,1fr)_minmax(130px,0.9fr)_minmax(300px,1.6fr)_95px_90px_110px_110px_95px_90px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+          <div className="min-w-[1240px]">
+            <div className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_95px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
+              <div>Hora</div>
               <div>Cliente</div>
               <div>Profesional</div>
               <div>Servicio / catálogo</div>
-              <div className="text-right">Total</div>
+              <div className="text-right">Monto</div>
               <div>Método</div>
-              <div>Origen</div>
-              <div>Cobrado por</div>
-              <div>Estado</div>
-              <div>Acción</div>
+              <div>Historial</div>
+              <div className="text-right">Acción</div>
             </div>
 
             {/* Rows */}
@@ -727,10 +811,12 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
                   const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
                   const pendingNote = getManualPendingNote(p.notes);
+                  const historialEvents = getHistorialCobro(p.id);
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[70px_minmax(150px,1fr)_minmax(130px,0.9fr)_minmax(300px,1.6fr)_95px_90px_110px_110px_95px_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
+                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_95px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035] hover:bg-amber-400/[0.06] transition cursor-pointer"
+                      onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
                       <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
@@ -759,16 +845,15 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                         ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground">—</div>
-                      <div><ChargeTypePill type="manual" /></div>
-                      <div className="text-muted-foreground truncate">—</div>
-                      <div className="flex items-center gap-1.5">
-                        <StatusPill status="pendiente" />
-                      </div>
-                      <div>
+                      <div><HistorialCell events={historialEvents} /></div>
+                      <div className="flex justify-end">
                         <button
                           type="button"
-                          onClick={() => onCobrarPendiente(p)}
-                          className="rounded-lg bg-amber-300/90 px-3 py-1.5 text-[11px] font-bold text-black hover:bg-amber-200 transition"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onCobrarPendiente(p);
+                          }}
+                          className="inline-flex items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-400/20 transition"
                         >
                           Cobrar
                         </button>
@@ -783,7 +868,6 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
                   const paymentRecord = p as Record<string, unknown>;
                   const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
-                  const status = paymentRecord.status as string | null ?? "cobrado";
                   const chargeType = getChargeType(paymentRecord);
                   const methodLabel = getPaymentMethodLabel(paymentRecord);
                   const chargedByName = getChargedByLabel(paymentRecord, empName === "—" ? null : empName, chargeType);
@@ -791,10 +875,15 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const paymentNote = getManualPendingNote(
                     ((paymentRecord.observations as string | null) ?? (paymentRecord.notes as string | null) ?? null)
                   );
+                  const historialEvents = buildPaidHistorialEvents(paymentRecord, {
+                    time: hora,
+                    user: chargedByName,
+                    action: "Cobró",
+                  });
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[70px_minmax(150px,1fr)_minmax(130px,0.9fr)_minmax(300px,1.6fr)_95px_90px_110px_110px_95px_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_95px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -824,12 +913,8 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground truncate">{methodLabel}</div>
-                      <div><ChargeTypePill type={chargeType} /></div>
-                      <div className="text-muted-foreground truncate">{chargedByName}</div>
-                      <div className="flex items-center gap-1.5">
-                        <StatusPill status={status} />
-                      </div>
-                      <div className="text-muted-foreground">—</div>
+                      <div><HistorialCell events={historialEvents} /></div>
+                      <div />
                     </div>
                   );
                 })}
