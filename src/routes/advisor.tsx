@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertTriangle,
   Bell,
@@ -214,6 +215,7 @@ function AdvisorContent({
   isAnalyzing: boolean;
   setIsAnalyzing: (v: boolean) => void;
 }) {
+  const { businessId } = useAuth();
   const [shouldAnimateResults, setShouldAnimateResults] = React.useState(false);
   const animationProgress = useResultAnimation(shouldAnimateResults);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
@@ -344,6 +346,7 @@ function AdvisorContent({
           ticket={DEMO.ticket}
           clientes={DEMO.clients}
           ocupacion={DEMO.occupancy}
+          businessId={businessId}
         />
       )}
 
@@ -1611,6 +1614,7 @@ type SimuladorProps = {
   ticket: number;
   clientes: number;
   ocupacion: number;
+  businessId?: string | null;
 };
 
 type IARecomendacion = {
@@ -1624,6 +1628,79 @@ type ProfSimResult = {
   facturacionPotencial: number;
   explicacionFacturacion: string;
 };
+
+type ServicioReal = {
+  id: string;
+  nombre: string;
+  precio: number;
+  mensual: number; // estimated from appointments (or 0 if unavailable)
+};
+
+function useServicesData(businessId: string | null | undefined) {
+  const [servicios, setServicios] = React.useState<ServicioReal[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!businessId) { setLoading(false); return; }
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      try {
+        // Load active services from price_catalog (duration_min != null → es servicio)
+        const { data: catalog } = await supabase
+          .from("price_catalog")
+          .select("id,name,price,duration_min")
+          .eq("business_id", businessId)
+          .eq("active", true)
+          .not("duration_min", "is", null)
+          .order("name");
+
+        if (cancelled) return;
+
+        // Load current month appointments to estimate monthly count per service
+        const now = new Date();
+        const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+        const { data: appts } = await supabase
+          .from("appointments")
+          .select("service_name,status")
+          .eq("business_id", businessId)
+          .gte("starts_at", from)
+          .lte("starts_at", to)
+          .not("status", "in", "(cancelled,blocked)");
+
+        if (cancelled) return;
+
+        // Count appointments per service name (case-insensitive match)
+        const countMap: Record<string, number> = {};
+        for (const a of appts ?? []) {
+          const key = (a.service_name ?? "").toLowerCase().trim();
+          countMap[key] = (countMap[key] ?? 0) + 1;
+        }
+
+        const mapped: ServicioReal[] = (catalog ?? []).map((s) => ({
+          id: s.id,
+          nombre: s.name,
+          precio: Number(s.price ?? 0),
+          mensual: countMap[(s.name ?? "").toLowerCase().trim()] ?? 0,
+        }));
+
+        setServicios(mapped);
+      } catch {
+        // silently fail — component will show empty state
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [businessId]);
+
+  return { servicios, loading };
+}
 
 const PRESETS = [500, 1000, 2000, 5000];
 
@@ -1640,14 +1717,6 @@ const nivelMeta = {
 };
 
 // Servicios demo (en producción vendrían de price_catalog de Supabase)
-const SERVICIOS_DEMO = [
-  { id: "corte",       nombre: "Corte",            precio: 14500, mensual: 300 },
-  { id: "corte_barba", nombre: "Corte + Barba",    precio: 22000, mensual: 180 },
-  { id: "color",       nombre: "Color",             precio: 35000, mensual: 60  },
-  { id: "unas",        nombre: "Uñas",              precio: 18000, mensual: 120 },
-  { id: "pestanas",    nombre: "Pestañas",          precio: 28000, mensual: 45  },
-];
-
 const PRESETS_PCT  = [10, 15, 20];
 const PRESETS_FIJO = [500, 1000, 2000, 5000];
 
@@ -1661,64 +1730,44 @@ function getRecomendacion(
   const pctAumento = precioActual > 0 ? (aumentoNum / precioActual) * 100 : 0;
   const pctPerdible = cantidadMensual > 0 ? (serviciosPerdibles / cantidadMensual) * 100 : 0;
 
-  // Aumento muy agresivo (>30%)
   if (pctAumento > 30) {
-    return {
-      nivel: "alto_riesgo",
-      resumen: `Este aumento representa un ${pctAumento.toFixed(0)}% sobre el precio actual, lo que es demasiado alto en relación a la demanda. Podrías perder más clientes de los que compensaría el nuevo precio. Considerá hacerlo en dos etapas.`,
-    };
+    return { nivel: "alto_riesgo", resumen: `Este aumento representa un ${pctAumento.toFixed(0)}% sobre el precio actual, lo que es demasiado alto en relación a la demanda. Podrías perder más clientes de los que compensaría el nuevo precio. Considerá hacerlo en dos etapas.` };
   }
-
-  // Ocupación alta + aumento moderado → recomendado
   if (ocupacion >= 80 && pctAumento <= 15) {
-    return {
-      nivel: "recomendado",
-      resumen: `Tu ocupación es alta (${ocupacion}%) y el aumento es moderado (${pctAumento.toFixed(0)}%). Este cambio parece seguro: podés perder hasta ${serviciosPerdibles} servicios al mes y seguir facturando lo mismo. Podés aplicarlo directamente.`,
-    };
+    return { nivel: "recomendado", resumen: `Tu ocupación es alta (${ocupacion}%) y el aumento es moderado (${pctAumento.toFixed(0)}%). Este cambio parece seguro: podés perder hasta ${serviciosPerdibles} servicios al mes y seguir facturando lo mismo. Podés aplicarlo directamente.` };
   }
-
-  // Ocupación alta + aumento alto
   if (ocupacion >= 80 && pctAumento > 15) {
-    return {
-      nivel: "progresivo",
-      resumen: `Tu ocupación es alta (${ocupacion}%) pero el aumento es considerable (${pctAumento.toFixed(0)}%). Conviene aplicarlo primero en clientes nuevos y servicios premium durante 2 semanas antes de generalizarlo.`,
-    };
+    return { nivel: "progresivo", resumen: `Tu ocupación es alta (${ocupacion}%) pero el aumento es considerable (${pctAumento.toFixed(0)}%). Conviene aplicarlo primero en clientes nuevos y servicios premium durante 2 semanas antes de generalizarlo.` };
   }
-
-  // Ocupación media + aumento moderado
   if (ocupacion >= 60 && pctAumento <= 15) {
-    return {
-      nivel: "progresivo",
-      resumen: `Tu ocupación es moderada (${ocupacion}%) y el aumento es razonable (${pctAumento.toFixed(0)}%). Puede funcionar bien, pero conviene comunicarlo con anticipación y medir la respuesta los primeros 15 días. Podés perder hasta ${serviciosPerdibles} turnos sin perder facturación.`,
-    };
+    return { nivel: "progresivo", resumen: `Tu ocupación es moderada (${ocupacion}%) y el aumento es razonable (${pctAumento.toFixed(0)}%). Puede funcionar bien, pero conviene comunicarlo con anticipación y medir la respuesta los primeros 15 días. Podés perder hasta ${serviciosPerdibles} turnos sin perder facturación.` };
   }
-
-  // Ocupación media + aumento alto
   if (ocupacion >= 60 && pctAumento > 15) {
-    return {
-      nivel: "evaluar",
-      resumen: `Tu ocupación es del ${ocupacion}% y el aumento es del ${pctAumento.toFixed(0)}%. El riesgo es medio-alto. Antes de aplicarlo en toda la agenda, probalo en servicios premium o con clientes nuevos y medí el impacto real.`,
-    };
+    return { nivel: "evaluar", resumen: `Tu ocupación es del ${ocupacion}% y el aumento es del ${pctAumento.toFixed(0)}%. El riesgo es medio-alto. Antes de aplicarlo en toda la agenda, probalo en servicios premium o con clientes nuevos y medí el impacto real.` };
   }
-
-  // Ocupación baja
-  return {
-    nivel: "no_recomendado",
-    resumen: `Tu ocupación actual (${ocupacion}%) todavía tiene margen libre. Subir precios ahora podría frenar la captación de nuevos clientes justo cuando más los necesitás. Primero conviene completar la agenda y luego revisar los precios.`,
-  };
+  return { nivel: "no_recomendado", resumen: `Tu ocupación actual (${ocupacion}%) todavía tiene margen libre. Subir precios ahora podría frenar la captación de nuevos clientes justo cuando más los necesitás. Primero conviene completar la agenda y luego revisar los precios.` };
 }
 
-function SimuladorPrecios({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
-  const [servicioId, setServicioId] = React.useState<string>("corte");
+function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
+  const { servicios: serviciosReales, loading: loadingServicios } = useServicesData(businessId);
+  const [servicioId, setServicioId] = React.useState<string | null>(null);
   const [tipoAumento, setTipoAumento] = React.useState<"fijo" | "pct">("fijo");
   const [aumentoFijo, setAumentoFijo] = React.useState("");
   const [aumentoPct, setAumentoPct] = React.useState("");
   const [simulado, setSimulado] = React.useState(false);
 
-  const servicio = SERVICIOS_DEMO.find(s => s.id === servicioId) ?? SERVICIOS_DEMO[0];
-  const precioActual = servicio.precio;
-  const cantidadMensual = servicio.mensual;
+  // Auto-select first service once loaded
+  React.useEffect(() => {
+    if (serviciosReales.length > 0 && !servicioId) {
+      setServicioId(serviciosReales[0].id);
+    }
+  }, [serviciosReales, servicioId]);
+
+  const servicio = serviciosReales.find(s => s.id === servicioId) ?? serviciosReales[0] ?? null;
+  const precioActual = servicio?.precio ?? 0;
+  const cantidadMensual = servicio?.mensual ?? 0;
   const facturacionServicio = precioActual * cantidadMensual;
+
 
   // Calcular aumento en pesos
   const aumentoNum = tipoAumento === "fijo"
@@ -1762,28 +1811,40 @@ function SimuladorPrecios({ servicios, facturacion, ticket, clientes, ocupacion 
       {/* Paso 1: Elegir servicio */}
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">1. Elegí el servicio a simular</p>
-        <div className="flex flex-wrap gap-2">
-          {SERVICIOS_DEMO.map((s) => (
-            <button key={s.id} type="button"
-              onClick={() => { setServicioId(s.id); reset(); }}
-              className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
-                servicioId === s.id
-                  ? "border-primary/50 bg-primary/15 text-primary"
-                  : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
-              {s.nombre}
-            </button>
-          ))}
-        </div>
+        {loadingServicios ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando servicios…
+          </div>
+        ) : serviciosReales.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground">
+            No hay servicios activos. Creá servicios en <span className="font-semibold text-white">Configuración → Servicios</span> para usar el simulador.
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {serviciosReales.map((s) => (
+              <button key={s.id} type="button"
+                onClick={() => { setServicioId(s.id); reset(); }}
+                className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+                  servicioId === s.id
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+                {s.nombre}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Paso 2: Datos actuales del servicio */}
+      {servicio && (
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">2. Datos actuales — {servicio.nombre}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
             { label: "Precio actual",      value: `$${fmtNum(precioActual)}` },
-            { label: "Servicios/mes",      value: fmtNum(cantidadMensual) },
-            { label: "Facturación/mes",    value: `$${fmtNum(facturacionServicio)}` },
+            { label: "Servicios este mes", value: cantidadMensual > 0 ? fmtNum(cantidadMensual) : "—" },
+            { label: "Facturación/mes",    value: cantidadMensual > 0 ? `$${fmtNum(facturacionServicio)}` : "—" },
             { label: "Ocupación",          value: `${ocupacion}%` },
             { label: "Ticket prom. (total)", value: `$${fmtNum(ticket)}` },
           ].map((d) => (
@@ -1793,7 +1854,13 @@ function SimuladorPrecios({ servicios, facturacion, ticket, clientes, ocupacion 
             </div>
           ))}
         </div>
+        {cantidadMensual === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No se registraron turnos para <span className="font-semibold text-white">{servicio.nombre}</span> en el mes actual. La simulación usará el precio del servicio; el ingreso extra estimado se calculará por unidad.
+          </p>
+        )}
       </div>
+      )}
 
       {/* Paso 3: Elegir aumento */}
       <div className="space-y-3">
