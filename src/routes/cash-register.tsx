@@ -43,26 +43,62 @@ import {
 } from "lucide-react";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
-const HISTORIAL_KEY = "clippr_cobros_historial";
+const HISTORIAL_KEY = "clippr_cobros_historial_v2";
 
 type HistorialEvento = {
+  ts: string;
   time: string;
   user: string;
-  action: string;
+  role: "profesional" | "recepcion" | "sistema";
+  action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó";
 };
 
-function appendHistorialCobro(appointmentId: string, evento: HistorialEvento) {
+function readHistorialCobroLS(appointmentId: string): HistorialEvento[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_KEY) || "{}") as Record<string, HistorialEvento[]>;
+    return all[appointmentId] ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHistorialCobroLS(appointmentId: string, events: HistorialEvento[]) {
   if (typeof window === "undefined") return;
   try {
     const all = JSON.parse(window.localStorage.getItem(HISTORIAL_KEY) || "{}") as Record<string, HistorialEvento[]>;
-    const prev = all[appointmentId] ?? [];
-    if (!prev.some((e) => e.time === evento.time && e.user === evento.user && e.action === evento.action)) {
-      all[appointmentId] = [...prev, evento];
-      window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(all));
-      window.dispatchEvent(new CustomEvent("clippr:cobros-historial-updated"));
-    }
+    all[appointmentId] = events;
+    window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(all));
+    window.dispatchEvent(new CustomEvent("clippr:cobros-historial-updated"));
   } catch {
     // ignore
+  }
+}
+
+async function appendHistorialCobro(
+  appointmentId: string,
+  evento: Omit<HistorialEvento, "ts">,
+) {
+  const full: HistorialEvento = { ...evento, ts: new Date().toISOString() };
+  const prev = readHistorialCobroLS(appointmentId);
+
+  if (prev.some((e) => e.time === full.time && e.user === full.user && e.action === full.action)) return;
+
+  const next = [...prev, full].sort((a, b) => {
+    const at = a.ts ? new Date(a.ts).getTime() : 0;
+    const bt = b.ts ? new Date(b.ts).getTime() : 0;
+    return at - bt;
+  });
+
+  writeHistorialCobroLS(appointmentId, next);
+
+  try {
+    await supabase
+      .from("appointments")
+      .update({ cobro_events: next } as Record<string, unknown>)
+      .eq("id", appointmentId);
+  } catch {
+    // Si la columna cobro_events todavía no existe, localStorage mantiene el historial.
   }
 }
 
@@ -1237,7 +1273,7 @@ function NuevaVentaTab({
         // 3. Registrar en el historial del profesional que Caja/Recepción cobró el pendiente manual
         const now = new Date();
         const hhmm = now.toTimeString().slice(0, 5);
-        appendHistorialCobro(pendingCharge.id, { time: hhmm, user: "Recepción", action: "Cobró" });
+        await appendHistorialCobro(pendingCharge.id, { time: hhmm, user: "Recepción", role: "recepcion", action: "Cobró" });
 
         // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);

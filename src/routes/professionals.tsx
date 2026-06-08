@@ -119,7 +119,11 @@ function writeHistorialLS(appointmentId: string, events: HistorialEvento[]) {
 
 // Lee los eventos del turno. Cache local tiene prioridad en misma sesión.
 function readHistorialCobro(appointmentId: string): HistorialEvento[] {
-  return readHistorialLS(appointmentId);
+  return readHistorialLS(appointmentId).sort((a, b) => {
+    const at = a.ts ? new Date(a.ts).getTime() : 0;
+    const bt = b.ts ? new Date(b.ts).getTime() : 0;
+    return at - bt;
+  });
 }
 
 // Agrega un evento — escribe a localStorage inmediatamente y persiste a Supabase.
@@ -983,12 +987,19 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     const syncPending = () => {
       setSentToCajaIds(new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id)));
     };
+    const syncHistorial = () => {
+      setHistorialVersion((v) => v + 1);
+    };
     syncPending();
     window.addEventListener("clippr:manual-pending-updated", syncPending);
+    window.addEventListener("clippr:cobros-historial-updated", syncHistorial);
     window.addEventListener("storage", syncPending);
+    window.addEventListener("storage", syncHistorial);
     return () => {
       window.removeEventListener("clippr:manual-pending-updated", syncPending);
+      window.removeEventListener("clippr:cobros-historial-updated", syncHistorial);
       window.removeEventListener("storage", syncPending);
+      window.removeEventListener("storage", syncHistorial);
     };
   }, [businessId]);
 
