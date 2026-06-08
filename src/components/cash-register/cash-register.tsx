@@ -44,6 +44,92 @@ import {
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
+// ─── HISTORIAL DE COBROS ─────────────────────────────────────────────────────
+// IMPORTANTE: debe ser la MISMA key que usa Professionals.
+// Antes Caja usaba "clippr_cobros_historial" y Profesionales usaba
+// "clippr_cobros_historial_v2". Eso hacía que Caja guardara "Cobró"
+// en otro historial y la vista de Profesionales nunca lo mostrara.
+const HISTORIAL_KEY = "clippr_cobros_historial_v2";
+const HISTORIAL_OLD_KEY = "clippr_cobros_historial";
+
+type HistorialEvento = {
+  ts: string;
+  time: string;
+  user: string;
+  role: "profesional" | "recepcion" | "sistema";
+  action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó";
+};
+
+function readHistorialStore(): Record<string, HistorialEvento[]> {
+  if (typeof window === "undefined") return {};
+  try {
+    const current = JSON.parse(window.localStorage.getItem(HISTORIAL_KEY) || "{}") as Record<string, HistorialEvento[]>;
+    const legacy = JSON.parse(window.localStorage.getItem(HISTORIAL_OLD_KEY) || "{}") as Record<string, Partial<HistorialEvento>[]>;
+
+    // Migración suave: si hubiera eventos viejos guardados por Caja con la key anterior,
+    // los pasamos a la key nueva sin pisar lo existente.
+    let changed = false;
+    for (const [appointmentId, events] of Object.entries(legacy)) {
+      if (!events?.length) continue;
+      const prev = current[appointmentId] ?? [];
+      const migrated = events.map((e) => ({
+        ts: e.ts ?? new Date().toISOString(),
+        time: e.time ?? "--:--",
+        user: e.user ?? "Recepción",
+        role: e.role ?? "recepcion",
+        action: e.action ?? "Cobró",
+      })) as HistorialEvento[];
+      const merged = [...prev];
+      for (const ev of migrated) {
+        const exists = merged.some((x) => x.time === ev.time && x.user === ev.user && x.action === ev.action);
+        if (!exists) merged.push(ev);
+      }
+      if (merged.length !== prev.length) {
+        current[appointmentId] = merged;
+        changed = true;
+      }
+    }
+    if (changed) window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(current));
+    return current;
+  } catch {
+    return {};
+  }
+}
+
+async function appendHistorialCobro(appointmentId: string, evento: Omit<HistorialEvento, "ts">) {
+  if (typeof window === "undefined") return;
+
+  const full: HistorialEvento = { ...evento, ts: new Date().toISOString() };
+
+  try {
+    const all = readHistorialStore();
+    const prev = all[appointmentId] ?? [];
+
+    // No reemplazar eventos. Solo evitar duplicados exactos.
+    if (!prev.some((e) => e.time === full.time && e.user === full.user && e.action === full.action)) {
+      const next = [...prev, full];
+      all[appointmentId] = next;
+      window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(all));
+
+      // Persistir también en Supabase si existe la columna cobro_events.
+      // Si no existe o falla por tipos/RLS, localStorage igual mantiene el historial local.
+      try {
+        await supabase
+          .from("appointments")
+          .update({ cobro_events: next } as Record<string, unknown>)
+          .eq("id", appointmentId);
+      } catch {
+        // ignore
+      }
+
+      window.dispatchEvent(new CustomEvent("clippr:cobros-historial-updated"));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+
 function removeLocalManualPendingCharge(id: string) {
   if (typeof window === "undefined") return;
   try {
@@ -55,6 +141,11 @@ function removeLocalManualPendingCharge(id: string) {
   }
 }
 
+function getManualPendingNote(notes?: string | null) {
+  return String(notes ?? "")
+    .replace("[PENDIENTE_CAJA]", "")
+    .trim();
+}
 
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -505,7 +596,7 @@ function DetailModal({ payment, employees, onClose }: {
   const chargeType = (payment as Record<string, unknown>).charge_type as string | null ?? "caja";
   const status = (payment as Record<string, unknown>).status as string | null ?? "cobrado";
   const comprobante = (payment as Record<string, unknown>).reference as string | null ?? null;
-  const obs = (payment as Record<string, unknown>).observations as string | null ?? null;
+  const obs = ((payment as Record<string, unknown>).observations as string | null ?? null) || ((payment as Record<string, unknown>).notes as string | null ?? null);
   const sucursal = (payment as Record<string, unknown>).branch as string | null ?? null;
   const paymentNumber = (payment as Record<string, unknown>).payment_number as number | string | null ?? null;
   const discount = (payment as Record<string, unknown>).discount_amount as number | null ?? null;
@@ -602,8 +693,8 @@ function DetailModal({ payment, employees, onClose }: {
 
           {obs && (
             <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Observaciones</p>
-              <p className="text-xs text-muted-foreground">{obs}</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Nota / Observaciones</p>
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{obs}</p>
             </div>
           )}
 
@@ -620,6 +711,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
   const [detailPayment, setDetailPayment] = React.useState<typeof rows[number] | null>(null);
+  const [pendingNoteModal, setPendingNoteModal] = React.useState<{ title: string; note: string } | null>(null);
   const [showAll, setShowAll] = React.useState(false);
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
@@ -669,8 +761,8 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
         {/* Table header */}
         <div className="overflow-x-auto">
-          <div className="min-w-[1100px]">
-            <div className="grid grid-cols-[55px_105px_minmax(130px,0.85fr)_minmax(120px,0.8fr)_minmax(230px,1.35fr)_95px_95px_95px_110px_85px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+          <div className="min-w-[1180px]">
+            <div className="grid grid-cols-[55px_105px_minmax(130px,0.8fr)_minmax(115px,0.75fr)_minmax(220px,1.25fr)_95px_90px_90px_100px_90px_85px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
               <div>Hora</div>
               <div>Cliente</div>
@@ -681,6 +773,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
               <div>Origen</div>
               <div>Cobrado por</div>
               <div>Estado</div>
+              <div>Acción</div>
             </div>
 
             {/* Rows */}
@@ -697,22 +790,44 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
                   const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
                   const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
+                  const pendingNote = getManualPendingNote(p.notes);
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[55px_105px_minmax(130px,0.85fr)_minmax(120px,0.8fr)_minmax(230px,1.35fr)_95px_95px_95px_110px_85px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
+                      className="grid grid-cols-[55px_105px_minmax(130px,0.8fr)_minmax(115px,0.75fr)_minmax(220px,1.25fr)_95px_90px_90px_100px_90px_85px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035]"
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
                       <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
-                      <div className="text-muted-foreground truncate">{p.service_name ?? "—"}</div>
+                      <div className="text-muted-foreground truncate">
+                        <span>{p.service_name ?? "—"}</span>
+                        {pendingNote && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setPendingNoteModal({
+                                title: `${p.client_name ?? "Cliente"} · ${p.service_name ?? "Servicio"}`,
+                                note: pendingNote,
+                              });
+                            }}
+                            className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
+                            title="Ver nota del profesional"
+                          >
+                            Ver nota
+                          </button>
+                        )}
+                      </div>
                       <div className="text-foreground tabular-nums font-medium text-right">
                         ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground">—</div>
                       <div><ChargeTypePill type="manual" /></div>
-                      <div className="text-muted-foreground truncate">Recepción</div>
+                      <div className="text-muted-foreground truncate">—</div>
+                      <div className="flex items-center gap-1.5">
+                        <StatusPill status="pendiente" />
+                      </div>
                       <div>
                         <button
                           type="button"
@@ -737,17 +852,38 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   const methodLabel = getPaymentMethodLabel(paymentRecord);
                   const chargedByName = getChargedByLabel(paymentRecord, empName === "—" ? null : empName, chargeType);
                   const saleDetail = getSaleDetailLabel(paymentRecord);
+                  const paymentNote = getManualPendingNote(
+                    ((paymentRecord.observations as string | null) ?? (paymentRecord.notes as string | null) ?? null)
+                  );
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[55px_105px_minmax(130px,0.85fr)_minmax(120px,0.8fr)_minmax(230px,1.35fr)_95px_95px_95px_110px_85px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[55px_105px_minmax(130px,0.8fr)_minmax(115px,0.75fr)_minmax(220px,1.25fr)_95px_90px_90px_100px_90px_85px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
                       <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
-                      <div className="text-muted-foreground truncate">{saleDetail}</div>
+                      <div className="text-muted-foreground truncate">
+                        <span>{saleDetail}</span>
+                        {paymentNote && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setPendingNoteModal({
+                                title: `${p.client_name ?? "Cliente"} · ${saleDetail}`,
+                                note: paymentNote,
+                              });
+                            }}
+                            className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
+                            title="Ver nota del profesional"
+                          >
+                            Ver nota
+                          </button>
+                        )}
+                      </div>
                       <div className="text-foreground tabular-nums font-medium text-right">
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
@@ -757,6 +893,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       <div className="flex items-center gap-1.5">
                         <StatusPill status={status} />
                       </div>
+                      <div className="text-muted-foreground">—</div>
                     </div>
                   );
                 })}
@@ -788,6 +925,38 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
           employees={data.employees}
           onClose={() => setDetailPayment(null)}
         />
+      )}
+
+      {pendingNoteModal && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setPendingNoteModal(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold">Nota del profesional</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">{pendingNoteModal.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingNoteModal(null)}
+                className="rounded-lg bg-white/5 px-3 py-1.5 text-xs transition hover:bg-white/10"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="p-5">
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Nota guardada</p>
+                <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{pendingNoteModal.note}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Closeout modal */}
@@ -1098,53 +1267,17 @@ function NuevaVentaTab({
         : undefined;
 
       if (pendingCharge) {
+        const professionalNote = getManualPendingNote(pendingCharge.notes);
+
         // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
-        // 1. Actualizar estado del appointment a "charged"
+        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno
         const { error: updateError } = await supabase
           .from("appointments")
-          .update({ status: "charged" })
+          .update({ status: "charged", notes: professionalNote || null })
           .eq("id", pendingCharge.id)
           .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
 
         if (updateError) throw updateError;
-
-        // ── Append "Cobró" event — AWAITED, never fire-and-forget ──────────────
-        try {
-          const now = new Date();
-          const hhmm = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-
-          // Get cashier name from auth session (not from selectedEmployee — that's the pro)
-          let cashierName = "Recepción";
-          const { data: { user: authUser } } = await supabase.auth.getUser();
-          if (authUser?.email) {
-            const local = authUser.email.split("@")[0];
-            cashierName = local.split(/[._-]/)[0].charAt(0).toUpperCase() + local.split(/[._-]/)[0].slice(1);
-          }
-
-          const newEvent = {
-            ts: now.toISOString(),
-            time: hhmm,
-            user: cashierName,
-            role: "recepcion",
-            action: "Cobró",
-          };
-
-          // Read current events then append — all awaited
-          const { data: apptRow } = await supabase
-            .from("appointments")
-            .select("cobro_events")
-            .eq("id", pendingCharge.id)
-            .single();
-
-          const prev: unknown[] = ((apptRow as Record<string, unknown> | null)?.cobro_events as unknown[]) ?? [];
-          await supabase
-            .from("appointments")
-            .update({ cobro_events: [...prev, newEvent] } as Record<string, unknown>)
-            .eq("id", pendingCharge.id);
-        } catch {
-          // cobro_events column may not exist yet — cobro still succeeds
-        }
-        // ── Fin append ─────────────────────────────────────────────────────────
 
         // 2. Registrar el pago vinculado al appointment existente
         await registerPayment({
@@ -1161,9 +1294,15 @@ function NuevaVentaTab({
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "manual",
+          notes: professionalNote || null,
         });
 
-        // 3. Limpiar de localStorage
+        // 3. Registrar en el historial del profesional que Caja/Recepción cobró el pendiente manual
+        const now = new Date();
+        const hhmm = now.toTimeString().slice(0, 5);
+        await appendHistorialCobro(pendingCharge.id, { time: hhmm, user: "Recepción", role: "recepcion", action: "Cobró" });
+
+        // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
@@ -1213,6 +1352,11 @@ function NuevaVentaTab({
             <p className="text-xs text-muted-foreground truncate">
               {pendingCharge.client_name ?? "Sin cliente"} · {pendingCharge.service_name ?? "Servicio"} · ${Number(pendingCharge.service_price ?? 0).toLocaleString("es-AR")}
             </p>
+            {getManualPendingNote(pendingCharge.notes) && (
+              <p className="mt-1 text-xs text-amber-100/90 truncate">
+                Nota del profesional: {getManualPendingNote(pendingCharge.notes)}
+              </p>
+            )}
           </div>
           <button
             onClick={() => onPendingDone?.()}
