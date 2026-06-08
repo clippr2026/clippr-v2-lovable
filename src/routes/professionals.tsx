@@ -758,7 +758,12 @@ function CobroModal({
                 {!multiPay ? (
                   <button type="button" onClick={() => {
                     setMultiPay(true);
-                    setSplits([{ method: splits[0]?.method ?? "cash", amount: splits[0]?.amount ?? "" }]);
+                    const currentMethod = splits[0]?.method ?? "cash";
+                    const secondMethod = currentMethod === "cash" ? "transfer" : "cash";
+                    setSplits([
+                      { method: currentMethod, amount: splits[0]?.amount ?? "" },
+                      { method: secondMethod, amount: "" }
+                    ]);
                   }}
                     className="text-[10px] font-semibold text-primary hover:text-primary/80 transition">
                     Pago múltiple
