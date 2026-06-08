@@ -132,7 +132,7 @@ function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
   const navigate = useNavigate();
-  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">("acciones");
+  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">("analisis");
   const [priorityOpen, setPriorityOpen] = React.useState(false);
   const [analysisStarted, setAnalysisStarted] = React.useState(() => {
     if (typeof window === "undefined") return false;
@@ -164,8 +164,8 @@ function AdvisorRoute() {
         {analysisStarted && !isAnalyzing && (
           <div className="flex items-center gap-2 shrink-0">
           {([
-            { key: "acciones", label: "🎯 Acciones recomendadas" },
             { key: "analisis", label: "📊 Análisis" },
+            { key: "acciones", label: "🎯 Acciones recomendadas" },
             { key: "simuladores", label: "💰 Simuladores" },
           ] as const).map((t) => (
             <button
@@ -421,14 +421,11 @@ function AdvisorContent({
 
       </section>
 
-
-      <HistorialMesAnterior />
-
       <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <Badge icon={Sparkles}>Informe mensual automático</Badge>
-            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Historial de análisis</h2>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">📅 Historial de análisis</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
             </p>
@@ -443,9 +440,12 @@ function AdvisorContent({
           {reports.map((report) => (
             <ReportCard key={report.month} report={report} />
           ))}
-
-          <ReportPlaceholder month="Mayo 2026" />
-          <ReportPlaceholder month="Abril 2026" />
+          {!reports.some(r => r.month === "Mayo 2026") && (
+            <ReportCard report={{ month: "Mayo 2026", health: 76, growth: 12, profit: 1420000, revenue: 3100000 }} />
+          )}
+          {!reports.some(r => r.month === "Abril 2026") && (
+            <ReportCard report={{ month: "Abril 2026", health: 71, growth: 8, profit: 1180000, revenue: 2780000 }} />
+          )}
         </div>
 
               </GlassCard>
@@ -1197,17 +1197,40 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
 }
 
 function ReportCard({ report }: { report: { month: string; health: number; growth: number; profit: number; revenue: number } }) {
+  const healthTone = getHealthTone(report.health);
+  const growthPositive = report.growth >= 0;
   return (
-    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
-      <p className="text-sm font-semibold text-white">{report.month}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Informe automático guardado.</p>
-      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-        <span className="text-muted-foreground">Crecimiento</span>
-        <span className="text-right font-semibold text-emerald-300">+{report.growth}%</span>
-        <span className="text-muted-foreground">Salud</span>
-        <span className="text-right font-semibold text-white">{report.health}/100</span>
-        <span className="text-muted-foreground">Utilidad</span>
-        <span className="text-right font-semibold text-white">{fmtAR(report.profit)}</span>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex flex-col gap-4 hover:border-white/20 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-white">{report.month}</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground uppercase tracking-wider">Informe guardado</p>
+        </div>
+        <span className={cn(
+          "text-xs font-bold px-2 py-0.5 rounded-full ring-1",
+          growthPositive ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300" : "bg-rose-400/10 ring-rose-400/20 text-rose-300"
+        )}>
+          {growthPositive ? "+" : ""}{report.growth}%
+        </span>
+      </div>
+
+      <div className="space-y-2 text-xs">
+        <div className="flex justify-between items-center">
+          <span className="text-muted-foreground">Utilidad</span>
+          <span className="font-semibold text-emerald-300">{fmtAR(report.profit)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-muted-foreground">Facturación</span>
+          <span className="font-semibold text-white">{fmtAR(report.revenue)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-muted-foreground">Salud</span>
+          <span className={cn("font-semibold", healthTone.text)}>{report.health}/100 · {healthTone.label}</span>
+        </div>
+      </div>
+
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${report.health}%` }} />
       </div>
     </div>
   );
