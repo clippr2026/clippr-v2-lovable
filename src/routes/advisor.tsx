@@ -1508,189 +1508,287 @@ function fmtNum(n: number) {
 }
 
 const nivelMeta = {
-  recomendado: { emoji: "🟢", label: "Recomendado", cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
-  evaluar:     { emoji: "🟡", label: "Evaluar con cuidado", cls: "border-amber-400/30 bg-amber-400/[0.07]", titleCls: "text-amber-300", dot: "bg-amber-400" },
-  no_recomendado: { emoji: "🔴", label: "No recomendado actualmente", cls: "border-rose-400/30 bg-rose-400/[0.07]", titleCls: "text-rose-300", dot: "bg-rose-400" },
+  recomendado:     { emoji: "✅", label: "Recomendado",            cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
+  progresivo:      { emoji: "🟡", label: "Aplicar progresivamente", cls: "border-amber-400/30 bg-amber-400/[0.07]",   titleCls: "text-amber-300",   dot: "bg-amber-400" },
+  evaluar:         { emoji: "🟡", label: "Evaluar con cuidado",    cls: "border-amber-400/30 bg-amber-400/[0.07]",   titleCls: "text-amber-300",   dot: "bg-amber-400" },
+  no_recomendado:  { emoji: "🔴", label: "No recomendado todavía", cls: "border-rose-400/30 bg-rose-400/[0.07]",     titleCls: "text-rose-300",    dot: "bg-rose-400" },
+  alto_riesgo:     { emoji: "⚠️", label: "Alto riesgo",            cls: "border-orange-400/30 bg-orange-400/[0.07]", titleCls: "text-orange-300",  dot: "bg-orange-400" },
 };
 
+// Servicios demo (en producción vendrían de price_catalog de Supabase)
+const SERVICIOS_DEMO = [
+  { id: "corte",       nombre: "Corte",            precio: 14500, mensual: 300 },
+  { id: "corte_barba", nombre: "Corte + Barba",    precio: 22000, mensual: 180 },
+  { id: "color",       nombre: "Color",             precio: 35000, mensual: 60  },
+  { id: "unas",        nombre: "Uñas",              precio: 18000, mensual: 120 },
+  { id: "pestanas",    nombre: "Pestañas",          precio: 28000, mensual: 45  },
+];
+
+const PRESETS_PCT  = [10, 15, 20];
+const PRESETS_FIJO = [500, 1000, 2000, 5000];
+
+function getRecomendacion(
+  aumentoNum: number,
+  precioActual: number,
+  ocupacion: number,
+  serviciosPerdibles: number,
+  cantidadMensual: number,
+): IARecomendacion & { nivel: keyof typeof nivelMeta } {
+  const pctAumento = precioActual > 0 ? (aumentoNum / precioActual) * 100 : 0;
+  const pctPerdible = cantidadMensual > 0 ? (serviciosPerdibles / cantidadMensual) * 100 : 0;
+
+  // Aumento muy agresivo (>30%)
+  if (pctAumento > 30) {
+    return {
+      nivel: "alto_riesgo",
+      resumen: `Este aumento representa un ${pctAumento.toFixed(0)}% sobre el precio actual, lo que es demasiado alto en relación a la demanda. Podrías perder más clientes de los que compensaría el nuevo precio. Considerá hacerlo en dos etapas.`,
+    };
+  }
+
+  // Ocupación alta + aumento moderado → recomendado
+  if (ocupacion >= 80 && pctAumento <= 15) {
+    return {
+      nivel: "recomendado",
+      resumen: `Tu ocupación es alta (${ocupacion}%) y el aumento es moderado (${pctAumento.toFixed(0)}%). Este cambio parece seguro: podés perder hasta ${serviciosPerdibles} servicios al mes y seguir facturando lo mismo. Podés aplicarlo directamente.`,
+    };
+  }
+
+  // Ocupación alta + aumento alto
+  if (ocupacion >= 80 && pctAumento > 15) {
+    return {
+      nivel: "progresivo",
+      resumen: `Tu ocupación es alta (${ocupacion}%) pero el aumento es considerable (${pctAumento.toFixed(0)}%). Conviene aplicarlo primero en clientes nuevos y servicios premium durante 2 semanas antes de generalizarlo.`,
+    };
+  }
+
+  // Ocupación media + aumento moderado
+  if (ocupacion >= 60 && pctAumento <= 15) {
+    return {
+      nivel: "progresivo",
+      resumen: `Tu ocupación es moderada (${ocupacion}%) y el aumento es razonable (${pctAumento.toFixed(0)}%). Puede funcionar bien, pero conviene comunicarlo con anticipación y medir la respuesta los primeros 15 días. Podés perder hasta ${serviciosPerdibles} turnos sin perder facturación.`,
+    };
+  }
+
+  // Ocupación media + aumento alto
+  if (ocupacion >= 60 && pctAumento > 15) {
+    return {
+      nivel: "evaluar",
+      resumen: `Tu ocupación es del ${ocupacion}% y el aumento es del ${pctAumento.toFixed(0)}%. El riesgo es medio-alto. Antes de aplicarlo en toda la agenda, probalo en servicios premium o con clientes nuevos y medí el impacto real.`,
+    };
+  }
+
+  // Ocupación baja
+  return {
+    nivel: "no_recomendado",
+    resumen: `Tu ocupación actual (${ocupacion}%) todavía tiene margen libre. Subir precios ahora podría frenar la captación de nuevos clientes justo cuando más los necesitás. Primero conviene completar la agenda y luego revisar los precios.`,
+  };
+}
+
 function SimuladorPrecios({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
-  const [aumento, setAumento] = React.useState("");
+  const [servicioId, setServicioId] = React.useState<string>("corte");
+  const [tipoAumento, setTipoAumento] = React.useState<"fijo" | "pct">("fijo");
+  const [aumentoFijo, setAumentoFijo] = React.useState("");
+  const [aumentoPct, setAumentoPct] = React.useState("");
   const [simulado, setSimulado] = React.useState(false);
-  const [loadingIA, setLoadingIA] = React.useState(false);
-  const [recomendacion, setRecomendacion] = React.useState<IARecomendacion | null>(null);
-  const aumentoNum = Math.max(0, Number(aumento.replace(/\D/g, "")) || 0);
 
-  const conservador = Math.round(servicios * 0.9);
-  const normal = servicios;
-  const optimista = Math.round(servicios * 1.1);
-  const impactoConservador = conservador * aumentoNum;
-  const impactoNormal = normal * aumentoNum;
-  const impactoOptimista = optimista * aumentoNum;
+  const servicio = SERVICIOS_DEMO.find(s => s.id === servicioId) ?? SERVICIOS_DEMO[0];
+  const precioActual = servicio.precio;
+  const cantidadMensual = servicio.mensual;
+  const facturacionServicio = precioActual * cantidadMensual;
 
-  const nuevoPrecioPromedio = ticket + aumentoNum;
-  const serviciosEquilibrio = nuevoPrecioPromedio > 0 ? Math.floor(facturacion / nuevoPrecioPromedio) : servicios;
-  const serviciosPerdibles = Math.max(0, servicios - serviciosEquilibrio);
-  const pctPerdible = servicios > 0 ? ((serviciosPerdibles / servicios) * 100).toFixed(1) : "0";
+  // Calcular aumento en pesos
+  const aumentoNum = tipoAumento === "fijo"
+    ? Math.max(0, Number(aumentoFijo) || 0)
+    : Math.round(precioActual * (Math.max(0, Number(aumentoPct) || 0) / 100));
 
-  async function calcular() {
+  const nuevoPrecio = precioActual + aumentoNum;
+  const ingresoExtra = aumentoNum * cantidadMensual;
+  const cantidadEquilibrio = nuevoPrecio > 0 ? Math.ceil(facturacionServicio / nuevoPrecio) : cantidadMensual;
+  const serviciosPerdibles = Math.max(0, cantidadMensual - cantidadEquilibrio);
+  const pctPerdible = cantidadMensual > 0 ? ((serviciosPerdibles / cantidadMensual) * 100).toFixed(1) : "0";
+  const riesgoLabel = Number(pctPerdible) < 10 ? "Bajo" : Number(pctPerdible) < 25 ? "Medio" : "Alto";
+  const riesgoColor = Number(pctPerdible) < 10 ? "text-emerald-300" : Number(pctPerdible) < 25 ? "text-amber-300" : "text-rose-300";
+
+  const recomendacion = simulado && aumentoNum > 0
+    ? getRecomendacion(aumentoNum, precioActual, ocupacion, serviciosPerdibles, cantidadMensual)
+    : null;
+
+  function calcular() {
     if (!aumentoNum) return;
     setSimulado(true);
-    setLoadingIA(true);
-    setRecomendacion(null);
+  }
 
-    try {
-      const prompt = `Sos el asesor financiero de un negocio de barbería/salón. Respondé SOLO con JSON válido, sin markdown.
-
-DATOS:
-- Servicios/mes: ${servicios}
-- Facturación: $${fmtNum(facturacion)}
-- Ticket promedio: $${fmtNum(ticket)}
-- Clientes: ${clientes}
-- Ocupación: ${ocupacion}%
-- Aumento propuesto: $${fmtNum(aumentoNum)}/servicio
-- Nuevo ticket estimado: $${fmtNum(nuevoPrecioPromedio)}
-- Punto equilibrio: pueden perder ${serviciosPerdibles} servicios (${pctPerdible}%) y mantener la facturación
-
-Reglas: ocupación>=80% → "recomendado", 60-79% → "evaluar", <60% → "no_recomendado"
-
-JSON: {"nivel":"recomendado","resumen":"2 oraciones concretas explicando por qué conviene o no, usando los datos reales"}`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 400, messages: [{ role: "user", content: prompt }] }),
-      });
-      const json = await res.json();
-      const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
-      setRecomendacion(JSON.parse(text.replace(/```json|```/g, "").trim()) as IARecomendacion);
-    } catch {
-      const nivel: IARecomendacion["nivel"] = ocupacion >= 80 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
-      setRecomendacion({
-        nivel,
-        resumen: nivel === "recomendado"
-          ? `Tu ocupación del ${ocupacion}% es alta y la demanda sostiene la agenda. Un aumento de $${fmtNum(aumentoNum)} por servicio es viable sin afectar significativamente la demanda.`
-          : nivel === "evaluar"
-          ? `Tu ocupación del ${ocupacion}% es moderada. El aumento puede funcionar pero conviene comunicarlo con anticipación y monitorear la respuesta.`
-          : `Tu ocupación del ${ocupacion}% muestra capacidad libre. Antes de subir precios conviene trabajar en completar la agenda actual.`,
-      });
-    } finally {
-      setLoadingIA(false);
-    }
+  function reset() {
+    setSimulado(false);
+    setAumentoFijo("");
+    setAumentoPct("");
   }
 
   return (
-    <GlassCard className="p-5 sm:p-6 space-y-6">
+    <GlassCard className="p-6 sm:p-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Badge icon={DollarSign}>Simulador de precios</Badge>
-          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">💰 Simulador de precios</h2>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Simulá un aumento y la IA analiza si conviene según los datos reales de tu negocio.
-          </p>
+      <div>
+        <Badge icon={DollarSign}>Simulador de precios</Badge>
+        <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">💰 Simulador de precios</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Elegí un servicio, elegí el aumento y la IA te dice si conviene, cuánto ganás y cuántos clientes podés perder sin facturar menos.
+        </p>
+      </div>
+
+      {/* Paso 1: Elegir servicio */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">1. Elegí el servicio a simular</p>
+        <div className="flex flex-wrap gap-2">
+          {SERVICIOS_DEMO.map((s) => (
+            <button key={s.id} type="button"
+              onClick={() => { setServicioId(s.id); reset(); }}
+              className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+                servicioId === s.id
+                  ? "border-primary/50 bg-primary/15 text-primary"
+                  : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+              {s.nombre}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-wrap gap-3">
+      </div>
+
+      {/* Paso 2: Datos actuales del servicio */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">2. Datos actuales — {servicio.nombre}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { label: "📅 Ocupación", value: `${ocupacion}%` },
-            { label: "💰 Facturación", value: `$${fmtNum(facturacion)}` },
-            { label: "🎟️ Ticket prom.", value: `$${fmtNum(ticket)}` },
+            { label: "Precio actual",      value: `$${fmtNum(precioActual)}` },
+            { label: "Servicios/mes",      value: fmtNum(cantidadMensual) },
+            { label: "Facturación/mes",    value: `$${fmtNum(facturacionServicio)}` },
+            { label: "Ocupación",          value: `${ocupacion}%` },
+            { label: "Ticket prom. (total)", value: `$${fmtNum(ticket)}` },
           ].map((d) => (
-            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[100px]">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{d.label}</div>
-              <div className="mt-1 text-sm font-semibold tabular-nums">{d.value}</div>
+            <div key={d.label} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground leading-tight">{d.label}</div>
+              <div className="mt-1.5 text-sm font-bold text-white tabular-nums">{d.value}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Input */}
+      {/* Paso 3: Elegir aumento */}
       <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">¿Cuánto querés aumentar el precio promedio?</p>
-        <div className="flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <button key={p} type="button" onClick={() => setAumento(String(p))}
-              className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
-                aumentoNum === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
-              +${fmtNum(p)}
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">3. Elegí el aumento</p>
+
+        {/* Toggle fijo / % */}
+        <div className="flex gap-2 mb-3">
+          {([["fijo", "Monto fijo ($)"], ["pct", "Porcentaje (%)"]] as const).map(([k, lbl]) => (
+            <button key={k} type="button" onClick={() => { setTipoAumento(k); reset(); }}
+              className={cn("rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
+                tipoAumento === k ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground")}>
+              {lbl}
             </button>
           ))}
-          <input type="text" inputMode="numeric" placeholder="Otro monto" value={aumento}
-            onChange={(e) => setAumento(e.target.value.replace(/\D/g, ""))}
-            className="w-36 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
-          <button type="button" onClick={calcular} disabled={!aumentoNum || loadingIA}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40">
-            {loadingIA ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            Calcular
-          </button>
         </div>
+
+        {tipoAumento === "fijo" ? (
+          <div className="flex flex-wrap gap-2 items-center">
+            {PRESETS_FIJO.map((p) => (
+              <button key={p} type="button" onClick={() => { setAumentoFijo(String(p)); setSimulado(false); }}
+                className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+                  Number(aumentoFijo) === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+                +${fmtNum(p)}
+              </button>
+            ))}
+            <input type="text" inputMode="numeric" placeholder="Otro monto $"
+              value={aumentoFijo} onChange={(e) => { setAumentoFijo(e.target.value.replace(/\D/g, "")); setSimulado(false); }}
+              className="w-36 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2 items-center">
+            {PRESETS_PCT.map((p) => (
+              <button key={p} type="button" onClick={() => { setAumentoPct(String(p)); setSimulado(false); }}
+                className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+                  Number(aumentoPct) === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+                +{p}%
+              </button>
+            ))}
+            <input type="text" inputMode="numeric" placeholder="Otro %"
+              value={aumentoPct} onChange={(e) => { setAumentoPct(e.target.value.replace(/\D/g, "")); setSimulado(false); }}
+              className="w-28 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+          </div>
+        )}
+
+        {/* Preview del nuevo precio + Calcular */}
+        {aumentoNum > 0 && (
+          <div className="flex items-center gap-4 pt-1">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">${fmtNum(precioActual)}</span>
+              <span className="text-muted-foreground">→</span>
+              <span className="font-bold text-emerald-300">${fmtNum(nuevoPrecio)}</span>
+              <span className="text-xs text-emerald-300/70">(+${fmtNum(aumentoNum)})</span>
+            </div>
+            <button type="button" onClick={calcular}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110">
+              <Sparkles className="h-3.5 w-3.5" />
+              Calcular
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Resultados */}
+      {/* Paso 4 + 5: Resultados + Recomendación */}
       {simulado && aumentoNum > 0 && (
-        <div className="space-y-4">
-          {/* Escenarios */}
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Resultado de la simulación</p>
-          <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">4. Resultado de la simulación</p>
+
+          {/* Métricas clave */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "Escenario Conservador", emoji: "🔴", sub: "−10% de demanda", serviciosN: conservador, impacto: impactoConservador, val: "text-rose-300", cls: "border-rose-400/20 bg-rose-400/[0.05]" },
-              { label: "Escenario Normal",       emoji: "🟡", sub: "demanda se mantiene", serviciosN: normal,      impacto: impactoNormal,      val: "text-amber-300", cls: "border-amber-400/20 bg-amber-400/[0.05]" },
-              { label: "Escenario Optimista",    emoji: "🟢", sub: "+10% de demanda", serviciosN: optimista,   impacto: impactoOptimista,   val: "text-emerald-300", cls: "border-emerald-400/20 bg-emerald-400/[0.05]" },
-            ].map((sc) => (
-              <div key={sc.label} className={cn("rounded-2xl border p-4", sc.cls)}>
-                <div className="flex items-center gap-2">
-                  <span>{sc.emoji}</span>
-                  <span className="text-xs font-semibold text-muted-foreground">{sc.label}</span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">{fmtNum(sc.serviciosN)} servicios × +${fmtNum(aumentoNum)}</p>
-                <p className={cn("mt-1.5 font-display text-2xl font-semibold tabular-nums", sc.val)}>+${fmtNum(sc.impacto)}</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">por mes · {sc.sub}</p>
-                <div className="mt-3 border-t border-white/[0.06] pt-2.5">
-                  <p className="text-[10px] text-muted-foreground">📅 Impacto anual estimado</p>
-                  <p className={cn("text-sm font-semibold tabular-nums", sc.val)}>+${fmtNum(sc.impacto * 12)}</p>
-                </div>
+              { label: "Precio actual",        value: `$${fmtNum(precioActual)}`,  color: "text-white" },
+              { label: "Nuevo precio",          value: `$${fmtNum(nuevoPrecio)}`,   color: "text-emerald-300" },
+              { label: "Diferencia por servicio", value: `+$${fmtNum(aumentoNum)}`, color: "text-emerald-300" },
+              { label: "Ingreso extra estimado",  value: `+$${fmtNum(ingresoExtra)}/mes`, color: "text-emerald-300" },
+            ].map((m) => (
+              <div key={m.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{m.label}</div>
+                <div className={cn("mt-2 font-display text-xl font-bold tabular-nums", m.color)}>{m.value}</div>
               </div>
             ))}
           </div>
 
-          {/* Punto de equilibrio */}
-          <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-4 flex items-start gap-3">
-            <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
-              <Minus className="h-4 w-4 text-primary" />
+          {/* Punto de equilibrio + Riesgo */}
+          <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-5 grid sm:grid-cols-2 gap-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary mb-2">Punto de equilibrio</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Podés perder hasta{" "}
+                <span className="font-bold text-white">{fmtNum(serviciosPerdibles)} servicios/mes ({pctPerdible}%)</span>{" "}
+                y seguir facturando los mismos{" "}
+                <span className="font-bold text-white">${fmtNum(facturacionServicio)}</span> actuales.
+              </p>
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Punto de equilibrio</p>
-              <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                Con este aumento podés perder hasta{" "}
-                <span className="font-semibold text-white">{fmtNum(serviciosPerdibles)} servicios por mes ({pctPerdible}%)</span>{" "}
-                y seguir manteniendo tu facturación actual de{" "}
-                <span className="font-semibold text-white">${fmtNum(facturacion)}</span>.
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Riesgo estimado</p>
+              <div className={cn("font-display text-3xl font-bold", riesgoColor)}>{riesgoLabel}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {riesgoLabel === "Bajo" ? "Podés perder poca demanda antes de perder facturación."
+                  : riesgoLabel === "Medio" ? "Hay margen, pero conviene monitorear las primeras semanas."
+                  : "El margen para perder demanda sin afectar facturación es pequeño."}
               </p>
             </div>
           </div>
 
-          {/* Recomendación IA */}
-          {loadingIA ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex items-center gap-3">
-              <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
-              <div>
-                <p className="text-sm font-semibold">Analizando tu negocio…</p>
-                <p className="text-xs text-muted-foreground mt-0.5">La IA evalúa ocupación, tendencia y demanda.</p>
-              </div>
-            </div>
-          ) : recomendacion ? (
+          {/* Recomendación IA dinámica */}
+          {recomendacion && (
             <div className={cn("rounded-2xl border p-5", nivelMeta[recomendacion.nivel].cls)}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 mb-3">
                 <span className="text-2xl">{nivelMeta[recomendacion.nivel].emoji}</span>
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
-                  <p className={cn("text-base font-semibold", nivelMeta[recomendacion.nivel].titleCls)}>
+                  <p className={cn("text-base font-bold", nivelMeta[recomendacion.nivel].titleCls)}>
                     {nivelMeta[recomendacion.nivel].label}
                   </p>
                 </div>
               </div>
-              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{recomendacion.resumen}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">{recomendacion.resumen}</p>
             </div>
-          ) : null}
+          )}
         </div>
       )}
     </GlassCard>
