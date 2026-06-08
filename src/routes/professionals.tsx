@@ -96,7 +96,7 @@ type HistorialEvento = {
   time: string;      // HH:MM — display
   user: string;      // nombre corto del usuario
   role: "profesional" | "recepcion" | "sistema";
-  action: "Envió a caja" | "Cobró" | "Cobro directo" | "Anuló";
+  action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó";
 };
 
 // ── Lectura: Supabase primero, localStorage como cache ────────────────────────
@@ -1093,44 +1093,11 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               t.status === "pending_payment";
             const noteText = getNoteDisplay(t);
 
-            // Origen: detectar modo basándose en evidencia disponible
-            const origenLabel = (() => {
-              if (t.status === "charged" && approvalMode === "auto") return "Auto";
-              if (isSentToCaja || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment") return "Manual";
-              if (t.status === "charged") return approvalMode === "manual" ? "Manual" : "Auto";
-              return approvalMode === "disabled" ? "—" : approvalMode === "manual" ? "Manual" : "Auto";
-            })();
-            const origenColor = origenLabel === "Manual"
-              ? "bg-sky-500/10 ring-sky-400/20 text-sky-300"
-              : origenLabel === "Auto"
-              ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-300"
-              : "bg-white/5 ring-white/10 text-muted-foreground";
+            // Historial: solo eventos guardados. Sin fallback ni recálculo.
+            const historialDisplay = readHistorialCobro(t.id);
 
-            // Historial del turno
-            const historial = readHistorialCobro(t.id);
-            // Fallback solo usa evidencia del propio turno, nunca el modo actual de cobro
-            const historialDisplay: HistorialEvento[] = historial.length > 0 ? historial : (() => {
-              const events: HistorialEvento[] = [];
-              const sentManually = isSentToCaja
-                || String(t.notes ?? "").includes("[PENDIENTE_CAJA]")
-                || t.status === "pending_payment";
-
-              if (sentManually) {
-                // Evidencia de envío manual está en el propio registro
-                events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Envió a caja" });
-                if (t.status === "charged") {
-                  // Caja lo cobró después — no sabemos la hora exacta
-                  events.push({ time: "—", user: "Caja", action: "Cobró" });
-                }
-              } else if (t.status === "charged") {
-                // No hay evidencia de envío manual → fue cobro directo (auto)
-                events.push({ time: formatTime(t.starts_at), user: "Prof.", action: "Cobro directo" });
-              }
-              return events;
-            })();
-
-            // Botón de acción (solo si el turno todavía no fue enviado/cobrado)
-            const showActionBtn = canShowAction(t.status);
+            // Botón de acción (solo si no hay eventos aún)
+            const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
 
             return (
               <div
@@ -1156,23 +1123,26 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                   )}
                 </div>
 
-                {/* Historial */}
+                {/* Historial — log inmutable de eventos reales */}
                 <div className="space-y-1.5">
                   {historialDisplay.length > 0 ? (
-                    historialDisplay.map((ev, ei) => (
-                      <div key={ei} className="flex items-baseline gap-1.5 leading-none">
-                        <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                        <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                        <span className="text-[10px] text-muted-foreground">→</span>
-                        <span className={cn(
-                          "text-[10px] font-medium whitespace-nowrap",
-                          ev.action === "Envió a caja" ? "text-sky-300" :
-                          ev.action === "Cobró" ? "text-emerald-300" :
-                          ev.action === "Cobro directo" ? "text-emerald-300" :
-                          "text-muted-foreground"
-                        )}>{ev.action}</span>
-                      </div>
-                    ))
+                    historialDisplay.map((ev, ei) => {
+                      const actionColor =
+                        ev.action === "Envió a caja" ? "text-sky-300" :
+                        ev.action === "Cobró"        ? "text-emerald-300" :
+                        ev.action === "Canceló"      ? "text-rose-300" :
+                        ev.action === "Anuló cobro"  ? "text-orange-300" :
+                        ev.action === "Reembolsó"    ? "text-violet-300" :
+                        "text-muted-foreground";
+                      return (
+                        <div key={ei} className="flex items-baseline gap-1.5 leading-none">
+                          <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                          <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                          <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                        </div>
+                      );
+                    })
                   ) : showActionBtn ? (
                     <button onClick={() => setCobroTurno(t)}
                       className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
