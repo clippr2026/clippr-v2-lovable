@@ -84,41 +84,99 @@ function saveManualPendingCharge(charge: ManualPendingCharge) {
   window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
 }
 
-// ─── HISTORIAL DE COBROS ──────────────────────────────────────────────────────
+// ─── HISTORIAL DE COBROS ─────────────────────────────────────────────────────
+// Eventos persistidos en appointments.cobro_events (JSONB array en Supabase).
+// localStorage actúa únicamente como caché para la sesión actual.
+// NUNCA se recalcula desde payment_status ni desde el modo de cobro actual.
 
-const HISTORIAL_KEY = "clippr_cobros_historial";
+const HISTORIAL_LS_KEY = "clippr_cobros_historial_v2";
 
 type HistorialEvento = {
-  time: string;   // HH:MM
-  user: string;   // nombre corto del usuario
-  action: string; // "Envió a caja" | "Cobró" | "Cobro directo"
+  ts: string;        // ISO timestamp completo — fuente de verdad
+  time: string;      // HH:MM — display
+  user: string;      // nombre corto del usuario
+  role: "profesional" | "recepcion" | "sistema";
+  action: "Envió a caja" | "Cobró" | "Cobro directo" | "Anuló";
 };
 
-function readHistorialCobro(appointmentId: string): HistorialEvento[] {
+// ── Lectura: Supabase primero, localStorage como cache ────────────────────────
+function readHistorialLS(appointmentId: string): HistorialEvento[] {
   if (typeof window === "undefined") return [];
   try {
-    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_KEY) || "{}") as Record<string, HistorialEvento[]>;
+    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_LS_KEY) || "{}") as Record<string, HistorialEvento[]>;
     return all[appointmentId] ?? [];
   } catch { return []; }
 }
 
-function appendHistorialCobro(appointmentId: string, evento: HistorialEvento) {
+function writeHistorialLS(appointmentId: string, events: HistorialEvento[]) {
   if (typeof window === "undefined") return;
   try {
-    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_KEY) || "{}") as Record<string, HistorialEvento[]>;
-    const prev = all[appointmentId] ?? [];
-    // Avoid duplicate events (same time + action)
-    if (!prev.some(e => e.time === evento.time && e.action === evento.action)) {
-      all[appointmentId] = [...prev, evento];
-      window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(all));
-    }
+    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_LS_KEY) || "{}") as Record<string, HistorialEvento[]>;
+    all[appointmentId] = events;
+    window.localStorage.setItem(HISTORIAL_LS_KEY, JSON.stringify(all));
   } catch { /* silently fail */ }
+}
+
+// Lee los eventos del turno. Cache local tiene prioridad en misma sesión.
+function readHistorialCobro(appointmentId: string): HistorialEvento[] {
+  return readHistorialLS(appointmentId);
+}
+
+// Agrega un evento — escribe a localStorage inmediatamente y persiste a Supabase.
+// NUNCA modifica eventos anteriores.
+async function appendHistorialCobro(
+  appointmentId: string,
+  evento: Omit<HistorialEvento, "ts">
+) {
+  const full: HistorialEvento = { ...evento, ts: new Date().toISOString() };
+
+  // 1. Leer estado local actual
+  const prev = readHistorialLS(appointmentId);
+
+  // Deduplicar: no agregar si ya existe el mismo (action + time iguales)
+  if (prev.some(e => e.time === full.time && e.action === full.action)) return;
+
+  const next = [...prev, full];
+
+  // 2. Escribir a localStorage de inmediato (UI reactiva sin esperar red)
+  writeHistorialLS(appointmentId, next);
+
+  // 3. Persistir a Supabase (cobro_events es columna JSONB en appointments)
+  try {
+    await supabase
+      .from("appointments")
+      .update({ cobro_events: next } as Record<string, unknown>)
+      .eq("id", appointmentId);
+  } catch {
+    // Columna puede no existir aún — el localStorage tiene los datos seguros
+  }
+}
+
+// Cuando se carga la vista, sincronizar Supabase → localStorage para cada turno
+// Esto cubre el caso de que otro dispositivo haya escrito eventos
+async function syncHistorialFromDB(appointmentIds: string[]) {
+  if (!appointmentIds.length) return;
+  try {
+    const { data } = await supabase
+      .from("appointments")
+      .select("id, cobro_events")
+      .in("id", appointmentIds);
+
+    for (const row of data ?? []) {
+      const dbEvents = row.cobro_events as HistorialEvento[] | null;
+      if (!dbEvents?.length) continue;
+      const local = readHistorialLS(row.id);
+      // Merge: usar el que tenga más eventos
+      if (dbEvents.length > local.length) {
+        writeHistorialLS(row.id, dbEvents);
+      }
+    }
+  } catch { /* red no disponible — local sigue siendo válido */ }
 }
 
 function shortName(email: string | null | undefined): string {
   if (!email) return "Sistema";
   const local = email.split("@")[0];
-  // Capitalize first word only: "daniel.garcia" → "Daniel"
   return local.split(/[._-]/)[0].charAt(0).toUpperCase() + local.split(/[._-]/)[0].slice(1);
 }
 
@@ -655,7 +713,7 @@ function CobroModal({
           notes: note || null,
         });
         await supabase.from("appointments").update({ status: "charged", notes: note || null }).eq("id", turno.id);
-        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Cobró" });
+        appendHistorialCobro(turno.id, { time: hhmm, user: actor, role: "profesional", action: "Cobró" });
         toast.success("✓ Cobro registrado");
       } else {
         const marker = "[PENDIENTE_CAJA]";
@@ -669,7 +727,7 @@ function CobroModal({
           service_name: items.map(i => i.name).join(" + "),
           service_price: total, starts_at: turno.starts_at, notes: nextNotes,
         });
-        appendHistorialCobro(turno.id, { time: hhmm, user: actor, action: "Envió a caja" });
+        appendHistorialCobro(turno.id, { time: hhmm, user: actor, role: "profesional", action: "Envió a caja" });
         toast.success("✓ Enviado a Caja");
       }
       onDone(); onClose();
@@ -901,6 +959,13 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   equipoEnabled: boolean;
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
+
+  // Sync historial from Supabase when turnos load (covers multi-device scenarios)
+  React.useEffect(() => {
+    if (turnos.length > 0) {
+      syncHistorialFromDB(turnos.map(t => t.id));
+    }
+  }, [turnos]);
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
