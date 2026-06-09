@@ -4131,7 +4131,7 @@ function SettingsPage() {
         subtitle="Tu negocio"
         action={
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings"))}
+            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: { section: active } }))}
             className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition"
           >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />
@@ -4270,11 +4270,10 @@ function ClientesSection() {
       });
   }, [businessId]);
 
-  const save = async () => {
+  const save = useCallback(async () => {
     if (!businessId) return;
     setSaving(true);
     try {
-      // Read existing schedule to avoid overwriting other keys
       const { data: existingRow } = await supabase
         .from("business_settings")
         .select("schedule")
@@ -4297,7 +4296,19 @@ function ClientesSection() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [businessId, cfg]);
+
+  // Wire up global save button
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; }, [save]);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "clientes") void saveRef.current();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, []);
 
   const setField = (key: string, val: boolean) =>
     setCfg(prev => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
