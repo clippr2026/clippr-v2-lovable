@@ -246,7 +246,7 @@ function CashRegisterPage() {
         onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }}
         data={data}
         userEmail={session.user.email ?? null}
-        onNuevoGasto={() => { setPendingToCharge(null); setTab("gastos"); }}
+        onNuevoGasto={() => { setTab("resumen"); setGastoFromHeader(true); }}
       />
       <div className="mt-6">
         {tab === "resumen" && (
@@ -269,7 +269,7 @@ function CashRegisterPage() {
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
-        {tab === "gastos" && <GastosTab businessId={data.businessId} createOnly onSaved={() => { data.refresh(); setTab("resumen"); }} onCancel={() => setTab("resumen")} />}
+        {tab === "gastos" && <GastosTab businessId={data.businessId} />}
         {tab === "profesionales" && (
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
@@ -656,6 +656,16 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
 
 // ─────────── Cierre de caja ──────────────────────────────────────────────────
 
+type CierreMetodoDetalle = {
+  ingresos: number;
+  gastos: number;
+  utilidad: number;
+};
+
+function paymentMethodLabel(method: string) {
+  return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
+}
+
 function CierreCajaBtn({
   paymentsToday,
   expensesToday,
@@ -676,42 +686,104 @@ function CierreCajaBtn({
   const todayPayments = paymentsToday.filter(
     (p) => new Date(p.created_at).toLocaleDateString("sv-SE") === today,
   );
+
+  const todayExpenses = expensesToday.filter((e: any) => {
+    if (e.date) return e.date === today;
+    if (e.created_at) return new Date(e.created_at).toLocaleDateString("sv-SE") === today;
+    return true;
+  });
+
   const totalCobrado = todayPayments.reduce(
     (s, p) => s + Number((p as any).total ?? (p as any).amount ?? 0), 0,
   );
-  const totalGastos = expensesToday.reduce(
+  const totalGastos = todayExpenses.reduce(
     (s, e) => s + Number((e as any).amount ?? 0), 0,
   );
   const utilidad = totalCobrado - totalGastos;
 
-  const byMethod: Record<string, number> = {};
-  for (const p of todayPayments) {
-    const m = ((p as any).method ?? (p as any).payment_method ?? "otro") as string;
-    byMethod[m] = (byMethod[m] ?? 0) + Number((p as any).total ?? (p as any).amount ?? 0);
-  }
+  const detalleMetodos = useMemo(() => {
+    const detail: Record<string, CierreMetodoDetalle> = {};
+    const ensure = (method: string | null | undefined) => {
+      const key = String(method || "efectivo").toLowerCase();
+      if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+      return detail[key];
+    };
+
+    for (const p of todayPayments) {
+      const row = ensure((p as any).method ?? (p as any).payment_method);
+      row.ingresos += Number((p as any).total ?? (p as any).amount ?? 0);
+    }
+
+    for (const e of todayExpenses) {
+      const row = ensure((e as any).payment_method ?? (e as any).method);
+      row.gastos += Number((e as any).amount ?? 0);
+    }
+
+    Object.values(detail).forEach((row) => {
+      row.utilidad = row.ingresos - row.gastos;
+    });
+
+    return detail;
+  }, [todayPayments, todayExpenses]);
+
+  const cobrosSnapshot = todayPayments.map((p: any) => ({
+    id: p.id,
+    hora: p.created_at
+      ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      : null,
+    cliente: p.client_name ?? p.cliente ?? null,
+    profesional: p.employee_name ?? p.professional_name ?? null,
+    servicio: p.service_name ?? p.service ?? null,
+    metodo: p.method ?? p.payment_method ?? null,
+    monto: Number(p.total ?? p.amount ?? 0),
+    usuario: p.charged_by ?? p.created_by ?? null,
+  }));
+
+  const gastosSnapshot = todayExpenses.map((e: any) => ({
+    id: e.id,
+    hora: e.created_at
+      ? new Date(e.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      : null,
+    nombre: e.name ?? e.concept ?? e.category ?? "Gasto",
+    tipo: e.type ?? e.category ?? null,
+    metodo: e.payment_method ?? e.method ?? null,
+    monto: Number(e.amount ?? 0),
+    nota: e.note ?? null,
+    usuario: e.user_name ?? e.created_by ?? null,
+  }));
 
   async function confirmar() {
     if (!businessId) return;
     setSaving(true);
     try {
       const now = new Date();
-      const { error } = await supabase.from("caja_cierres" as any).insert({
+      const payload = {
         business_id: businessId,
         fecha: today,
-        hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+        hora_cierre: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+        usuario_id: null,
+        usuario_nombre: userEmail,
         total_cobrado: totalCobrado,
         total_gastos: totalGastos,
         utilidad,
-        cobros_count: todayPayments.length,
-        detalle_metodos: byMethod,
+        cantidad_cobros: todayPayments.length,
+        detalle_metodos_pago: detalleMetodos,
+        cobros_snapshot: cobrosSnapshot,
+        gastos_snapshot: gastosSnapshot,
         observacion: obs.trim() || null,
-        cerrado_por: userEmail,
-        tipo: "manual",
-      });
+        tipo_cierre: "manual",
+        estado: "cerrada",
+      };
+
+      const { error } = await supabase
+        .from("caja_cierres" as any)
+        .upsert(payload, { onConflict: "business_id,fecha" });
+
       if (error) throw new Error(error.message);
       toast.success("Cierre registrado correctamente");
       setOpen(false);
       setObs("");
+      window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -731,7 +803,7 @@ function CierreCajaBtn({
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+          <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
                 <h3 className="text-lg font-semibold">Cierre de caja</h3>
@@ -746,7 +818,6 @@ function CierreCajaBtn({
             </div>
 
             <div className="p-5 space-y-4">
-              {/* KPIs */}
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: "Cobrado",  v: totalCobrado, cls: "text-emerald-300" },
@@ -762,26 +833,27 @@ function CierreCajaBtn({
                 ))}
               </div>
 
-              {/* Por método */}
               <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
-                  {todayPayments.length} cobro{todayPayments.length !== 1 ? "s" : ""} · Por método
+                <div className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">
+                  <div>Método</div>
+                  <div className="text-right">Ingresos</div>
+                  <div className="text-right">Gastos</div>
+                  <div className="text-right">Utilidad</div>
                 </div>
-                {Object.entries(byMethod).length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-muted-foreground">Sin cobros hoy.</div>
+                {Object.entries(detalleMetodos).length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-muted-foreground">Sin movimientos hoy.</div>
                 ) : (
-                  Object.entries(byMethod).map(([m, total]) => (
-                    <div key={m} className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 last:border-0">
-                      <span className="text-sm capitalize">{PAY_METHOD_LABEL[m as PayMethod] ?? m}</span>
-                      <span className="text-sm font-semibold tabular-nums text-emerald-300">
-                        ${total.toLocaleString("es-AR")}
-                      </span>
+                  Object.entries(detalleMetodos).map(([m, row]) => (
+                    <div key={m} className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 last:border-0 text-sm">
+                      <span className="capitalize">{paymentMethodLabel(m)}</span>
+                      <span className="text-right font-semibold tabular-nums text-emerald-300">${row.ingresos.toLocaleString("es-AR")}</span>
+                      <span className="text-right font-semibold tabular-nums text-rose-300">${row.gastos.toLocaleString("es-AR")}</span>
+                      <span className={`text-right font-semibold tabular-nums ${row.utilidad >= 0 ? "text-emerald-300" : "text-rose-300"}`}>${row.utilidad.toLocaleString("es-AR")}</span>
                     </div>
                   ))
                 )}
               </div>
 
-              {/* Observación */}
               <div>
                 <label className="text-xs text-muted-foreground">Observación opcional</label>
                 <textarea
@@ -816,7 +888,7 @@ function CierresTab({ businessId }: { businessId: string | null }) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
 
-  useEffect(() => {
+  const loadCierres = React.useCallback(() => {
     if (!businessId) return;
     setLoading(true);
     supabase
@@ -824,14 +896,52 @@ function CierresTab({ businessId }: { businessId: string | null }) {
       .select("*")
       .eq("business_id", businessId)
       .order("fecha", { ascending: false })
-      .order("hora", { ascending: false })
+      .order("hora_cierre", { ascending: false })
       .limit(90)
-      .then(({ data }) => { setCierres(data ?? []); setLoading(false); });
+      .then(({ data, error }) => {
+        if (error) toast.error(error.message);
+        setCierres(data ?? []);
+        setLoading(false);
+      });
   }, [businessId]);
+
+  useEffect(() => {
+    loadCierres();
+    const handler = () => loadCierres();
+    window.addEventListener("clippr:caja-cierre-guardado", handler);
+    return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
+  }, [loadCierres]);
+
+  async function reabrirCaja(cierre: any) {
+    if (!businessId || !cierre?.id) return;
+    const reason = window.prompt("Motivo de reapertura de caja (opcional)") ?? "";
+    const { error } = await supabase
+      .from("caja_cierres" as any)
+      .update({
+        estado: "reabierta",
+        reopened_at: new Date().toISOString(),
+        reopened_by: "Caja",
+        reopen_reason: reason.trim() || null,
+      })
+      .eq("id", cierre.id)
+      .eq("business_id", businessId);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Caja reabierta");
+    setSelected(null);
+    loadCierres();
+  }
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Historial de cierres</div>
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Cierres de caja</div>
+        <p className="mt-1 text-sm text-muted-foreground">Historial de cierres manuales y automáticos.</p>
+      </div>
 
       {loading ? (
         <div className="py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
@@ -841,21 +951,22 @@ function CierresTab({ businessId }: { businessId: string | null }) {
         </div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-[130px_70px_1fr_1fr_1fr_80px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+          <div className="grid grid-cols-[120px_70px_1fr_1fr_1fr_90px_90px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
             <div>Fecha</div>
             <div>Hora</div>
             <div className="text-right">Cobrado</div>
             <div className="text-right">Gastos</div>
             <div className="text-right">Utilidad</div>
             <div className="text-right">Tipo</div>
+            <div className="text-right">Estado</div>
           </div>
           {cierres.map((c) => (
             <button key={c.id} type="button" onClick={() => setSelected(c)}
-              className="w-full grid grid-cols-[130px_70px_1fr_1fr_1fr_80px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
+              className="w-full grid grid-cols-[120px_70px_1fr_1fr_1fr_90px_90px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
               <div className="text-muted-foreground text-xs">
                 {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "2-digit" })}
               </div>
-              <div className="text-muted-foreground tabular-nums text-xs">{c.hora}</div>
+              <div className="text-muted-foreground tabular-nums text-xs">{c.hora_cierre ?? "—"}</div>
               <div className="text-right text-emerald-300 font-semibold tabular-nums text-xs">
                 ${Number(c.total_cobrado ?? 0).toLocaleString("es-AR")}
               </div>
@@ -865,7 +976,8 @@ function CierresTab({ businessId }: { businessId: string | null }) {
               <div className={`text-right font-semibold tabular-nums text-xs ${Number(c.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                 ${Number(c.utilidad ?? 0).toLocaleString("es-AR")}
               </div>
-              <div className="text-right text-xs text-muted-foreground capitalize">{c.tipo ?? "manual"}</div>
+              <div className="text-right text-xs text-muted-foreground capitalize">{c.tipo_cierre ?? "manual"}</div>
+              <div className="text-right text-xs text-muted-foreground capitalize">{c.estado ?? "cerrada"}</div>
             </button>
           ))}
         </div>
@@ -873,48 +985,107 @@ function CierresTab({ businessId }: { businessId: string | null }) {
 
       {selected && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div className="w-full max-w-2xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden max-h-[88vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 sticky top-0 bg-[oklch(0.11_0.04_275)] z-10">
               <div>
                 <div className="font-semibold text-sm">Detalle del cierre</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {new Date(selected.fecha + "T12:00:00").toLocaleDateString("es-AR", {
                     weekday: "long", day: "numeric", month: "long", year: "numeric",
-                  })} · {selected.hora}
+                  })} · {selected.hora_cierre ?? "—"}
                 </div>
               </div>
               <button type="button" onClick={() => setSelected(null)}
                 className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">Cerrar</button>
             </div>
-            <div className="p-5 space-y-2.5 text-sm">
-              {[
-                { l: "Total cobrado", v: `$${Number(selected.total_cobrado ?? 0).toLocaleString("es-AR")}`, cls: "text-emerald-300" },
-                { l: "Total gastos",  v: `$${Number(selected.total_gastos  ?? 0).toLocaleString("es-AR")}`, cls: "text-rose-300" },
-                { l: "Utilidad",      v: `$${Number(selected.utilidad      ?? 0).toLocaleString("es-AR")}`, cls: Number(selected.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300" },
-                { l: "Cobros",        v: String(selected.cobros_count ?? "—"),                              cls: "text-foreground" },
-                { l: "Cerrado por",   v: selected.cerrado_por ?? "—",                                       cls: "text-muted-foreground" },
-              ].map((r) => (
-                <div key={r.l} className="flex justify-between">
-                  <span className="text-muted-foreground">{r.l}</span>
-                  <span className={`font-semibold ${r.cls}`}>{r.v}</span>
-                </div>
-              ))}
-              {selected.detalle_metodos && Object.keys(selected.detalle_metodos).length > 0 && (
-                <div className="pt-2 border-t border-white/5 space-y-2">
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Por método</div>
-                  {Object.entries(selected.detalle_metodos as Record<string, number>).map(([m, t]) => (
-                    <div key={m} className="flex justify-between">
-                      <span className="text-muted-foreground capitalize">{PAY_METHOD_LABEL[m as PayMethod] ?? m}</span>
-                      <span className="font-semibold tabular-nums text-emerald-300">${t.toLocaleString("es-AR")}</span>
+            <div className="p-5 space-y-5 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { l: "Cobrado", v: `$${Number(selected.total_cobrado ?? 0).toLocaleString("es-AR")}`, cls: "text-emerald-300" },
+                  { l: "Gastos", v: `$${Number(selected.total_gastos ?? 0).toLocaleString("es-AR")}`, cls: "text-rose-300" },
+                  { l: "Utilidad", v: `$${Number(selected.utilidad ?? 0).toLocaleString("es-AR")}`, cls: Number(selected.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300" },
+                  { l: "Cobros", v: String(selected.cantidad_cobros ?? "—"), cls: "text-foreground" },
+                ].map((r) => (
+                  <div key={r.l} className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">{r.l}</div>
+                    <div className={`mt-1 font-semibold tabular-nums ${r.cls}`}>{r.v}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                <div>Tipo: <span className="text-foreground capitalize">{selected.tipo_cierre ?? "manual"}</span></div>
+                <div>Estado: <span className="text-foreground capitalize">{selected.estado ?? "cerrada"}</span></div>
+                <div>Usuario: <span className="text-foreground">{selected.usuario_nombre ?? "—"}</span></div>
+                {selected.reopened_at && <div>Reabierta: <span className="text-foreground">{new Date(selected.reopened_at).toLocaleString("es-AR")}</span></div>}
+              </div>
+
+              {selected.detalle_metodos_pago && Object.keys(selected.detalle_metodos_pago).length > 0 && (
+                <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+                  <div className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">
+                    <div>Método</div>
+                    <div className="text-right">Ingresos</div>
+                    <div className="text-right">Gastos</div>
+                    <div className="text-right">Utilidad</div>
+                  </div>
+                  {Object.entries(selected.detalle_metodos_pago as Record<string, CierreMetodoDetalle>).map(([m, row]) => (
+                    <div key={m} className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 last:border-0">
+                      <span className="text-muted-foreground capitalize">{paymentMethodLabel(m)}</span>
+                      <span className="text-right font-semibold tabular-nums text-emerald-300">${Number(row.ingresos ?? 0).toLocaleString("es-AR")}</span>
+                      <span className="text-right font-semibold tabular-nums text-rose-300">${Number(row.gastos ?? 0).toLocaleString("es-AR")}</span>
+                      <span className={`text-right font-semibold tabular-nums ${Number(row.utilidad ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>${Number(row.utilidad ?? 0).toLocaleString("es-AR")}</span>
                     </div>
                   ))}
                 </div>
               )}
+
+              {Array.isArray(selected.cobros_snapshot) && selected.cobros_snapshot.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Cobros incluidos</div>
+                  <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden divide-y divide-white/5">
+                    {selected.cobros_snapshot.map((c: any, i: number) => (
+                      <div key={c.id ?? i} className="grid grid-cols-[55px_1fr_1fr_90px] gap-2 px-4 py-2.5 text-xs">
+                        <span className="text-muted-foreground">{c.hora ?? "—"}</span>
+                        <span>{c.cliente ?? "Sin cliente"}</span>
+                        <span className="text-muted-foreground truncate">{c.servicio ?? "Venta"}</span>
+                        <span className="text-right font-semibold tabular-nums">${Number(c.monto ?? 0).toLocaleString("es-AR")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(selected.gastos_snapshot) && selected.gastos_snapshot.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Gastos incluidos</div>
+                  <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden divide-y divide-white/5">
+                    {selected.gastos_snapshot.map((g: any, i: number) => (
+                      <div key={g.id ?? i} className="grid grid-cols-[55px_1fr_1fr_90px] gap-2 px-4 py-2.5 text-xs">
+                        <span className="text-muted-foreground">{g.hora ?? "—"}</span>
+                        <span>{g.nombre ?? "Gasto"}</span>
+                        <span className="text-muted-foreground truncate">{g.metodo ?? g.tipo ?? "—"}</span>
+                        <span className="text-right font-semibold tabular-nums text-rose-300">-${Number(g.monto ?? 0).toLocaleString("es-AR")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {selected.observacion && (
                 <div className="pt-2 border-t border-white/5">
                   <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60 mb-1">Observación</div>
                   <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selected.observacion}</p>
                 </div>
+              )}
+
+              {selected.estado !== "reabierta" && (
+                <button
+                  type="button"
+                  onClick={() => reabrirCaja(selected)}
+                  className="w-full rounded-xl bg-white/[0.04] hover:bg-white/[0.07] ring-1 ring-white/10 px-4 py-3 text-sm font-semibold transition"
+                >
+                  Reabrir caja
+                </button>
               )}
             </div>
           </div>
