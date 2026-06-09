@@ -90,7 +90,7 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
   const total = rows.reduce((s, g) => s + Number(g.amount ?? 0), 0);
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-3xl mx-auto w-full space-y-5">
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
         <div className="flex items-end justify-between flex-wrap gap-2">
           <div>

@@ -21,6 +21,7 @@ type Employee = {
   id: string;
   full_name: string;
   commission_pct: number | null;
+  commission_fixed: number | null;
   is_active?: boolean | null;
 };
 
@@ -105,7 +106,7 @@ export function ProfesionalesTab({
     const [empRes, payRes, poRes] = await Promise.allSettled([
       supabase
         .from("employees")
-        .select("id,full_name,commission_pct,is_active")
+        .select("id,full_name,commission_pct,commission_fixed,is_active")
         .eq("business_id", businessId)
         .order("full_name"),
       supabase
@@ -222,50 +223,62 @@ export function ProfesionalesTab({
         </div>
       ) : (
         filtered.map((emp) => {
-          const commPct = Number(emp.commission_pct ?? 0);
           const empPays = payments.filter((p) => p.employee_id === emp.id);
           const facturacion = empPays.reduce(
-            (s, p) => s + Number(p.total ?? p.amount ?? 0),
-            0
+            (s, p) => s + Number(p.total ?? p.amount ?? 0), 0
           );
-          const comision = Math.round((facturacion * commPct) / 100);
+          // Commission: fixed amount takes priority over percentage
+          const commFixed = Number(emp.commission_fixed ?? 0);
+          const commPct   = Number(emp.commission_pct ?? 0);
+          const comision = commFixed > 0
+            ? commFixed * empPays.length          // fixed per service
+            : Math.round((facturacion * commPct) / 100);
           const empPayouts = payouts.filter((p) => p.employee_id === emp.id);
           const pagado = empPayouts.reduce((s, p) => s + Number(p.amount ?? 0), 0);
           const pendiente = Math.max(0, comision - pagado);
+
+          const commLabel = commFixed > 0
+            ? `$${commFixed.toLocaleString("es-AR")} fijo/servicio`
+            : commPct > 0
+              ? `${commPct}% de ventas`
+              : "Sin comisión";
+
           return (
-            <div
-              key={emp.id}
-              className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5"
-            >
+            <div key={emp.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
               <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
                 <div>
                   <h3 className="text-base font-semibold text-foreground">{emp.full_name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {empPays.length} venta{empPays.length === 1 ? "" : "s"} en el período
+                    {empPays.length} venta{empPays.length === 1 ? "" : "s"} · Comisión: {commLabel}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDetailModal({ type: "produccion", emp })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs hover:bg-white/5 transition"
                   >
                     <BarChart3 className="size-3.5" /> Producción
                   </button>
+                  {pendiente > 0 && (
+                    <button
+                      onClick={() => setPayModal({ emp, pendiente })}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-300/15 border border-amber-300/30 text-amber-200 text-xs hover:bg-amber-300/25 transition"
+                    >
+                      Pagar comisión
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  ["Ventas", `${empPays.length}`, "text-foreground"],
-                  ["Producción", `$${facturacion.toLocaleString("es-AR")}`, "text-emerald-300"],
-                ].map(([label, val, color]) => (
-                  <div
-                    key={label}
-                    className="rounded-lg bg-white/[0.03] border border-white/5 p-3 text-center"
-                  >
-                    <div className="text-[10px] text-muted-foreground/80">{label}</div>
-                    <div className={cn("text-base font-bold tabular-nums mt-1", color)}>
-                      {val}
-                    </div>
+                  { label: "Producción",  val: `$${facturacion.toLocaleString("es-AR")}`, cls: "text-emerald-300" },
+                  { label: "Comisión",    val: `$${comision.toLocaleString("es-AR")}`,    cls: "text-amber-300"   },
+                  { label: "Pagado",      val: `$${pagado.toLocaleString("es-AR")}`,      cls: "text-sky-300"     },
+                  { label: "Pendiente",   val: `$${pendiente.toLocaleString("es-AR")}`,   cls: pendiente > 0 ? "text-rose-300" : "text-muted-foreground" },
+                ].map(({ label, val, cls }) => (
+                  <div key={label} className="rounded-lg bg-white/[0.03] border border-white/5 p-3 text-center">
+                    <div className="text-[10px] text-muted-foreground/80 uppercase tracking-[0.12em]">{label}</div>
+                    <div className={cn("text-base font-bold tabular-nums mt-1", cls)}>{val}</div>
                   </div>
                 ))}
               </div>
