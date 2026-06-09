@@ -372,7 +372,7 @@ function ProfessionalsPage() {
         {([
           { key: "turnos",             label: "Turnos",                Icon: ClipboardList, tint: "text-amber-300" },
           { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
-          { key: "historial-servicios",label: "Historial de servicios",Icon: Clock,         tint: "text-violet-300"},
+          { key: "historial-servicios",label: "Historial de ventas",   Icon: Clock,         tint: "text-violet-300"},
           { key: "historial-pagos",    label: "Historial de pagos",    Icon: DollarSign,    tint: "text-emerald-300"},
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
@@ -1765,12 +1765,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   return (
     <div className="space-y-4 animate-fade-up">
       <div className="max-w-5xl mx-auto space-y-3">
-        <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Servicios del período</div>
+        <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Historial de ventas</div>
 
-        <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
-          <span>Servicios: <strong className="text-foreground">{enriched.length}</strong></span>
-          <span className="text-white/20">•</span>
-          <span>Facturación: <strong className="text-emerald-300">${totalFacturado.toLocaleString("es-AR")}</strong></span>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          <span>Total de ventas: <strong className="text-foreground">{enriched.length}</strong></span>
           <span className="text-white/20">•</span>
           <span>Comisiones: <strong className="text-amber-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
         </div>
