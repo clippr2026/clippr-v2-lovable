@@ -27,6 +27,7 @@ import { Loader2, Search, X, CalendarDays, Repeat2,
 import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
+  checkOverlap,
   type Appointment,
   type ApptStatus,
   type Client,
@@ -383,6 +384,27 @@ export function AppointmentDialog({
       const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
         .filter(Boolean)
         .join("\n");
+
+      // ── Overlap validation ────────────────────────────────────────────────
+      if (employeeId) {
+        for (const date of dates) {
+          const conflict = await checkOverlap(
+            employeeId,
+            date.toISOString(),
+            Number(duration) || 30,
+            isEdit ? (appointment?.id ?? null) : null,
+          );
+          if (conflict) {
+            const conflictTime = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+            toast.error(
+              `Este profesional ya tiene un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`,
+            );
+            setBusy(false);
+            return;
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       for (const date of dates) {
         await saveAppointment({

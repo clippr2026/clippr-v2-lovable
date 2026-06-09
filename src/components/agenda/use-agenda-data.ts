@@ -366,3 +366,56 @@ export async function rescheduleAppointment(
     .eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Checks if a professional already has an appointment overlapping the given
+ * time slot. Returns the conflicting appointment if found, null otherwise.
+ *
+ * Overlap condition: existingStart < newEnd && existingEnd > newStart
+ * (i.e. any non-zero intersection).
+ *
+ * @param employeeId   - professional to check
+ * @param startsAt     - ISO string of the new appointment start
+ * @param durationMin  - duration in minutes
+ * @param excludeId    - appointment ID to exclude (used when editing)
+ */
+export async function checkOverlap(
+  employeeId: string,
+  startsAt: string,
+  durationMin: number,
+  excludeId?: string | null,
+): Promise<{ id: string; client_name: string | null; starts_at: string } | null> {
+  const newStart = new Date(startsAt);
+  const newEnd   = new Date(newStart.getTime() + durationMin * 60_000);
+
+  // Query appointments for this professional that could overlap.
+  // We fetch a ±2 hour window to keep the query tight, then filter precisely.
+  const windowStart = new Date(newStart.getTime() - 2 * 60 * 60_000).toISOString();
+  const windowEnd   = new Date(newEnd.getTime()   + 2 * 60 * 60_000).toISOString();
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id,client_name,starts_at,ends_at,duration_min,status")
+    .eq("employee_id", employeeId)
+    .neq("status", "cancelled")
+    .neq("status", "blocked")
+    .gte("starts_at", windowStart)
+    .lte("starts_at", windowEnd);
+
+  if (error || !data) return null;
+
+  for (const appt of data) {
+    if (excludeId && appt.id === excludeId) continue;
+    const existStart = new Date(appt.starts_at);
+    const existEnd   = appt.ends_at
+      ? new Date(appt.ends_at)
+      : new Date(existStart.getTime() + Number(appt.duration_min ?? 30) * 60_000);
+
+    // True overlap: they share any time (touching endpoints don't count)
+    if (existStart < newEnd && existEnd > newStart) {
+      return { id: appt.id, client_name: appt.client_name, starts_at: appt.starts_at };
+    }
+  }
+
+  return null;
+}
