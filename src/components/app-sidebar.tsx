@@ -301,7 +301,6 @@ export function AppSidebar() {
 
           {/* Right cluster */}
           <div className="ml-auto flex items-center gap-2">
-            <NotificationsButton />
             <UserMenu />
             <button
               onClick={() => setOpen(true)}
