@@ -4367,7 +4367,7 @@ function CfgNumInput({
   );
 }
 
-function Toggle({
+function CfgToggle({
   enabled, onToggle,
 }: { enabled: boolean; onToggle: () => void }) {
   return (
@@ -4541,7 +4541,7 @@ function ClientesSection() {
               <div className="text-sm font-medium text-foreground">VIP por visitas mensuales</div>
               <div className="text-xs text-muted-foreground">Cantidad mínima de visitas en el mes actual</div>
             </div>
-            <Toggle enabled={cfg.vipVisitasEnabled} onToggle={() => setCfg(p => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))} />
+            <CfgToggle enabled={cfg.vipVisitasEnabled} onToggle={() => setCfg(p => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))} />
           </div>
           {cfg.vipVisitasEnabled && (
             <CfgNumInput
@@ -4559,7 +4559,7 @@ function ClientesSection() {
               <div className="text-sm font-medium text-foreground">VIP por gasto mensual</div>
               <div className="text-xs text-muted-foreground">Gasto mínimo acumulado en el mes actual</div>
             </div>
-            <Toggle enabled={cfg.vipGastoEnabled} onToggle={() => setCfg(p => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))} />
+            <CfgToggle enabled={cfg.vipGastoEnabled} onToggle={() => setCfg(p => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))} />
           </div>
           {cfg.vipGastoEnabled && (
             <CfgNumInput
