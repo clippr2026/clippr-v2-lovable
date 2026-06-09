@@ -1654,29 +1654,39 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   // ── Cargar turnos del período (misma fuente que TurnosView) ─────────────
   const { data: turnos = [], isLoading: turnosLoading } = useProfTurnos(businessId, empId, from, to);
 
-  // ── Cargar payments del mismo período para enriquecer con método/total ──
+  // ── Cargar payments del mismo período para enriquecer con total ──────────
   const { data: sales = [], isLoading: salesLoading } = useProfSales(businessId, empId, from, to);
 
   const isLoading = turnosLoading || salesLoading;
 
-
-  // ── Datos enriquecidos: unir turnos con pagos ───────────────────────────
-  // Estrategia: para cada turno cobrado (status === "charged"), buscar el
-  // payment cuyo appointment_id coincida. Si no hay match, usar service_price.
-  // Para ventas directas sin turno, aparecen en sales pero no en turnos —
-  // esas se agregan al final.
+  // ── Datos enriquecidos ───────────────────────────────────────────────────
   const [enriched, setEnriched] = React.useState<{
     id: string;
     fecha: string;       // YYYY-MM-DD local
-    hora: string;        // HH:MM
     client_name: string | null;
     service_name: string | null;
-    method: string | null;
     total: number;
     commission: number;
     sourceType: "turno" | "venta-directa";
   }[]>([]);
   const [enrichLoading, setEnrichLoading] = React.useState(false);
+
+  // Sync historial from Supabase (same as TurnosView)
+  const [historialVersion, setHistorialVersion] = React.useState(0);
+  React.useEffect(() => {
+    if (turnos.length > 0) {
+      syncHistorialFromDB(turnos.map(t => t.id)).then(() => setHistorialVersion(v => v + 1));
+    }
+  }, [turnos]);
+  React.useEffect(() => {
+    const sync = () => setHistorialVersion(v => v + 1);
+    window.addEventListener("clippr:cobros-historial-updated", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("clippr:cobros-historial-updated", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!businessId || !empId || turnosLoading) return;
@@ -1684,7 +1694,6 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
 
     setEnrichLoading(true);
     (async () => {
-      // 1. Fetch payments con appointment_id para poder hacer el join
       const fromDate = new Date(from + "T00:00:00");
       fromDate.setDate(fromDate.getDate() - 1);
       const toDate = new Date(to + "T23:59:59");
@@ -1692,13 +1701,13 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
 
       const { data: payments } = await supabase
         .from("payments")
-        .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,created_at")
+        .select("id,appointment_id,client_name,service_name,total,amount,created_at")
         .eq("business_id", businessId)
         .eq("employee_id", empId)
         .gte("created_at", fromDate.toISOString())
         .lte("created_at", toDate.toISOString());
 
-      const payByAppt = new Map<string, typeof payments extends (infer T)[] | null | undefined ? NonNullable<T> : never>();
+      const payByAppt = new Map<string, { id: string; total: number | null; amount: number | null }>();
       for (const p of payments ?? []) {
         if (p.appointment_id) payByAppt.set(p.appointment_id, p);
       }
@@ -1706,48 +1715,42 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       const rows: typeof enriched = [];
       const usedPaymentIds = new Set<string>();
 
-      // 2. Turnos → enriquecer con payment si existe
       for (const t of turnos) {
         const pay = payByAppt.get(t.id);
         if (pay) usedPaymentIds.add(pay.id);
         const localDate = new Date(t.starts_at).toLocaleDateString("sv-SE");
-        if (localDate < from || localDate > to) continue; // filtro local por si acaso
+        if (localDate < from || localDate > to) continue;
         rows.push({
           id: t.id,
           fecha: localDate,
-          hora: new Date(t.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
           client_name: t.client_name,
           service_name: t.service_name,
-          method: pay ? (pay.method ?? pay.payment_method ?? null) : null,
           total: pay ? Number(pay.total ?? pay.amount ?? t.service_price ?? 0) : Number(t.service_price ?? 0),
-          commission: 0, // calculado abajo
+          commission: 0,
           sourceType: "turno",
         });
       }
 
-      // 3. Ventas directas sin turno (payments sin appointment_id o cuyo appt no está en turnos)
+      // Ventas directas sin turno
       for (const p of payments ?? []) {
         if (usedPaymentIds.has(p.id)) continue;
-        if (p.appointment_id && payByAppt.has(p.appointment_id)) continue; // ya incluido vía turno
+        if (p.appointment_id && payByAppt.has(p.appointment_id)) continue;
         const localDate = new Date(p.created_at).toLocaleDateString("sv-SE");
         if (localDate < from || localDate > to) continue;
         rows.push({
           id: p.id,
           fecha: localDate,
-          hora: new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
           client_name: p.client_name,
           service_name: p.service_name,
-          method: p.method ?? p.payment_method ?? null,
           total: Number(p.total ?? p.amount ?? 0),
           commission: 0,
           sourceType: "venta-directa",
         });
       }
 
-      // 4. Calcular comisión y ordenar
       const final = rows
         .map(r => ({ ...r, commission: Math.round(r.total * commissionPct / 100) }))
-        .sort((a, b) => (a.fecha + a.hora) < (b.fecha + b.hora) ? 1 : -1);
+        .sort((a, b) => a.fecha < b.fecha ? 1 : -1);
 
       setEnriched(final);
       setEnrichLoading(false);
@@ -1759,73 +1762,89 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   const totalFacturado = enriched.reduce((s, r) => s + r.total, 0);
   const totalComisiones = enriched.reduce((s, r) => s + r.commission, 0);
 
-  const methodLabel = (m: string | null) => {
-    if (!m) return "—";
-    const MAP: Record<string, string> = {
-      cash: "Efectivo", efectivo: "Efectivo",
-      transfer: "Transferencia", transferencia: "Transferencia",
-      card: "Tarjeta", tarjeta: "Tarjeta",
-      mercadopago: "Mercado Pago", mercado_pago: "Mercado Pago", mp: "Mercado Pago",
-      cuenta_dni: "Cuenta DNI", cuenta: "Cuenta DNI", qr: "QR",
-    };
-    return MAP[m] ?? MAP[m.toLowerCase()] ?? m;
-  };
-
   return (
-    <div className="glass rounded-2xl p-5 animate-fade-up">
-      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
-        <div>
-          <div className="font-medium">Historial de servicios</div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            <span>Servicios: <strong className="text-foreground">{enriched.length}</strong></span>
-            <span className="text-white/20">•</span>
-            <span>Facturación: <strong className="text-emerald-300">${totalFacturado.toLocaleString("es-AR")}</strong></span>
-            <span className="text-white/20">•</span>
-            <span>Comisiones: <strong className="text-amber-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-4 animate-fade-up">
+      <div className="max-w-5xl mx-auto space-y-3">
+        <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Servicios del período</div>
 
-      {loading ? (
-        <div className="mt-8 mb-4 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
-      ) : enriched.length === 0 ? (
-        <div className="mt-8 mb-4 text-center text-sm text-muted-foreground">Sin historial en este período</div>
-      ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl ring-1 ring-white/10">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-white/[0.035] text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
-                <th className="px-4 py-3 text-left whitespace-nowrap">Fecha</th>
-                <th className="px-4 py-3 text-left whitespace-nowrap">Hora</th>
-                <th className="px-4 py-3 text-left whitespace-nowrap">Cliente</th>
-                <th className="px-4 py-3 text-left whitespace-nowrap">Servicio / Catálogo</th>
-                <th className="px-4 py-3 text-left whitespace-nowrap">Método</th>
-                <th className="px-4 py-3 text-right whitespace-nowrap">Total</th>
-                <th className="px-4 py-3 text-right whitespace-nowrap">Comisión</th>
-              </tr>
-            </thead>
-            <tbody>
-              {enriched.map((row) => {
-                const [y, m, d] = row.fecha.split("-");
-                const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
-                  .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
-                  .replace(".", "");
-                return (
-                  <tr key={row.id} className="border-t border-white/5 hover:bg-white/[0.025] transition-colors">
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap capitalize">{fechaDisplay}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap tabular-nums">{row.hora}</td>
-                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{row.client_name ?? "Sin cliente"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{row.service_name ?? "—"}</td>
-                    <td className="px-4 py-3 text-xs text-emerald-300 whitespace-nowrap">{methodLabel(row.method)}</td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">${row.total.toLocaleString("es-AR")}</td>
-                    <td className="px-4 py-3 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">${row.commission.toLocaleString("es-AR")}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+          <span>Servicios: <strong className="text-foreground">{enriched.length}</strong></span>
+          <span className="text-white/20">•</span>
+          <span>Facturación: <strong className="text-emerald-300">${totalFacturado.toLocaleString("es-AR")}</strong></span>
+          <span className="text-white/20">•</span>
+          <span>Comisiones: <strong className="text-amber-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
         </div>
-      )}
+
+        {loading ? (
+          <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
+        ) : enriched.length === 0 ? (
+          <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin historial en este período</div>
+        ) : (
+          <div className="glass rounded-2xl overflow-hidden">
+            {/* Header — same structure as TurnosView */}
+            <div className="grid grid-cols-[12%_22%_26%_24%_8%_8%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+              <div>Fecha</div>
+              <div>Cliente</div>
+              <div>Servicio / Catálogo</div>
+              <div>Historial</div>
+              <div className="text-right">Total</div>
+              <div className="text-right">Comisión</div>
+            </div>
+
+            {enriched.map((row, i) => {
+              void historialVersion;
+              const [y, m, d] = row.fecha.split("-");
+              const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
+                .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
+                .replace(".", "");
+
+              const historialEvents = readHistorialCobro(row.id);
+
+              return (
+                <div
+                  key={row.id}
+                  className={cn(
+                    "grid grid-cols-[12%_22%_26%_24%_8%_8%] items-start px-5 py-4 text-sm",
+                    i < enriched.length - 1 && "border-b border-white/5"
+                  )}
+                >
+                  <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
+                  <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
+                  <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
+
+                  {/* Historial — same renderer as TurnosView */}
+                  <div className="space-y-1.5 pr-2">
+                    {historialEvents.length > 0 ? (
+                      historialEvents.map((ev, ei) => {
+                        const actionColor =
+                          ev.action === "Envió a caja" ? "text-sky-300" :
+                          ev.action === "Cobró"        ? "text-emerald-300" :
+                          ev.action === "Canceló"      ? "text-rose-300" :
+                          ev.action === "Anuló cobro"  ? "text-orange-300" :
+                          ev.action === "Reembolsó"    ? "text-violet-300" :
+                          "text-muted-foreground";
+                        return (
+                          <div key={ei} className="flex items-baseline gap-1.5 leading-none">
+                            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                            <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">—</span>
+                    )}
+                  </div>
+
+                  <div className="text-right font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.total.toLocaleString("es-AR")}</div>
+                  <div className="text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
