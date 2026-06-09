@@ -4248,69 +4248,7 @@ const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
   vipGastoMin: 100000,
 };
 
-function ClientesSection() {
-  const { businessId } = useAuth();
-  const [cfg, setCfg] = useState<ClientesConfig>(DEFAULT_CLIENTES_CONFIG);
-  const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!businessId) return;
-    supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
-        if (schedule._clientes) {
-          setCfg({ ...DEFAULT_CLIENTES_CONFIG, ...(schedule._clientes as Partial<ClientesConfig>) });
-        }
-        setLoaded(true);
-      });
-  }, [businessId]);
-
-  const save = useCallback(async () => {
-    if (!businessId) return;
-    setSaving(true);
-    try {
-      const { data: existingRow } = await supabase
-        .from("business_settings")
-        .select("schedule")
-        .eq("business_id", businessId)
-        .maybeSingle();
-      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-      const newSchedule = { ...existingSchedule, _clientes: cfg };
-
-      const result = await supabase
-        .from("business_settings")
-        .upsert(
-          { business_id: businessId, schedule: newSchedule },
-          { onConflict: "business_id" },
-        );
-
-      if (result.error) throw new Error(result.error.message);
-      toast.success("Configuración de clientes guardada");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }, [businessId, cfg]);
-
-  // Wire up global save button
-  const saveRef = useRef(save);
-  useEffect(() => { saveRef.current = save; }, [save]);
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "clientes") void saveRef.current();
-    };
-    window.addEventListener("clippr:save-settings", handler);
-    return () => window.removeEventListener("clippr:save-settings", handler);
-  }, []);
-
-// ── Helpers defined OUTSIDE the component to avoid re-mount on every render ──
+// ── Helpers outside component — prevents focus loss on re-render ─────────────
 
 function CfgCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -4329,8 +4267,6 @@ function CfgSectionTitle({ label, sub }: { label: string; sub?: string }) {
   );
 }
 
-// NumInput uses uncontrolled local string state so typing never loses focus.
-// The parent's onChange is only called onBlur (when the user leaves the field).
 function CfgNumInput({
   label, value, onChange, min = 1, step = 1, prefix,
 }: {
@@ -4338,16 +4274,12 @@ function CfgNumInput({
   min?: number; step?: number; prefix?: string;
 }) {
   const [local, setLocal] = React.useState(String(value));
-
-  // Keep local in sync when parent value changes externally (initial load)
   React.useEffect(() => { setLocal(String(value)); }, [value]);
-
   const commit = () => {
     const n = Math.max(min, Number(local) || min);
     setLocal(String(n));
     onChange(n);
   };
-
   return (
     <label className="flex items-center justify-between gap-4">
       <span className="text-sm text-foreground/80">{label}</span>
@@ -4367,9 +4299,7 @@ function CfgNumInput({
   );
 }
 
-function CfgToggle({
-  enabled, onToggle,
-}: { enabled: boolean; onToggle: () => void }) {
+function CfgToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
