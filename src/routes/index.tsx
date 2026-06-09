@@ -192,7 +192,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   return (
     <div className="space-y-5 animate-fade-up">
       {dateBar}
-      <DashboardCierresCaja businessId={businessId} />
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <Stat

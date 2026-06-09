@@ -191,7 +191,7 @@ export const Route = createFileRoute("/cash-register")({
   component: CashRegisterPage,
 });
 
-type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales" | "cierres";
+type Tab = "resumen" | "nueva" | "nuevo-gasto" | "precios" | "inventario" | "gastos" | "profesionales" | "cierres";
 
 function CashRegisterPage() {
   const { session, loading: authLoading, permissions } = useAuth();
@@ -219,10 +219,7 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
-  // Controls the inline gasto form inside ResumenTab opened from the header button
-  const [gastoFromHeader, setGastoFromHeader] = useState(false);
-
-  // When a pending charge is picked, switch to the "nueva" tab
+    // When a pending charge is picked, switch to the "nueva" tab
   function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
     setPendingToCharge(appt);
     setTab("nueva");
@@ -246,7 +243,7 @@ function CashRegisterPage() {
         onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }}
         data={data}
         userEmail={session.user.email ?? null}
-        onNuevoGasto={() => { setTab("resumen"); setGastoFromHeader(true); }}
+        onNuevoGasto={() => { setPendingToCharge(null); setTab("nuevo-gasto"); }}
       />
       <div className="mt-6">
         {tab === "resumen" && (
@@ -254,8 +251,14 @@ function CashRegisterPage() {
             data={data}
             equipoEnabled={permissions.equipo}
             onCobrarPendiente={handleCobrarPendiente}
-            openGastoForm={gastoFromHeader}
-            onGastoFormClose={() => setGastoFromHeader(false)}
+          />
+        )}
+        {tab === "nuevo-gasto" && (
+          <NuevoGastoTab
+            data={data}
+            userEmail={session.user.email ?? null}
+            onCancel={() => setTab("resumen")}
+            onSaved={() => { data.refresh(); setTab("resumen"); }}
           />
         )}
         {tab === "nueva" && (
@@ -407,63 +410,14 @@ function ResumenTab({
   data,
   equipoEnabled,
   onCobrarPendiente,
-  openGastoForm = false,
-  onGastoFormClose,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
-  openGastoForm?: boolean;
-  onGastoFormClose?: () => void;
 }) {
-  const [gastoOpen, setGastoOpen] = React.useState(false);
-  const [gastoForm, setGastoForm] = React.useState({ name: "", amount: "", type: "", method: "", note: "" });
-  const [gastoSaving, setGastoSaving] = React.useState(false);
-  const today = new Date().toISOString().slice(0, 10);
-  const GTYPES   = ["fijo", "variable", "ocasional", "marketing"];
-  const GMETHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
-
-  // Open from header button
-  React.useEffect(() => {
-    if (openGastoForm) { setGastoOpen(true); onGastoFormClose?.(); }
-  }, [openGastoForm]);
-
-  async function saveGasto() {
-    const name   = gastoForm.name.trim();
-    const amount = parseFloat(gastoForm.amount);
-    if (!name) return toast.error("El nombre del gasto es obligatorio.");
-    if (!amount || amount <= 0) return toast.error("El monto debe ser mayor a 0.");
-    setGastoSaving(true);
-    const { error } = await supabase.from("expenses").insert({
-      business_id: data.businessId,
-      name,
-      amount,
-      type: gastoForm.type || null,
-      payment_method: gastoForm.method || null,
-      date: today,
-      note: gastoForm.note.trim() || null,
-    });
-    setGastoSaving(false);
-    if (error) return toast.error("Error guardando gasto: " + error.message);
-    toast.success("✓ Gasto registrado");
-    setGastoForm({ name: "", amount: "", type: "", method: "", note: "" });
-    setGastoOpen(false);
-    data.refresh();
-  }
-
-  // Métodos más usados
-  const topMethods = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const p of data.paymentsToday) {
-      const m = String(p.method ?? p.payment_method ?? "cash");
-      counts[m] = (counts[m] ?? 0) + 1;
-    }
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
-  }, [data.paymentsToday]);
-
   const stats = [
     {
-      label: "Cobrado",
+      label: "Ingresos",
       value: data.revHoy,
       sub: "",
       icon: Wallet,
@@ -471,11 +425,19 @@ function ResumenTab({
       money: true,
     },
     {
-      label: "Pendiente",
+      label: "Pendientes",
       value: data.pendingAmount,
-      sub: "",
+      sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes",
       icon: Clock,
       tint: "from-violet-400/25 to-violet-500/0",
+      money: true,
+    },
+    {
+      label: "Gastos",
+      value: data.totalGastos,
+      sub: "",
+      icon: Trash2,
+      tint: "from-rose-400/20 to-rose-500/0",
       money: true,
     },
     {
@@ -486,23 +448,13 @@ function ResumenTab({
       tint: "from-sky-400/25 to-sky-500/0",
       money: false,
     },
-    {
-      label: "Gastos",
-      value: data.totalGastos,
-      sub: "",
-      icon: Trash2,
-      tint: "from-rose-400/20 to-rose-500/0",
-      money: true,
-      onClick: () => setGastoOpen((v) => !v),
-    },
   ];
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {stats.map((s) => (
-          <Card key={s.label} className={cn("p-4", (s as any).onClick && "cursor-pointer hover:ring-white/20 transition-all")}
-            onClick={(s as any).onClick}>
+          <Card key={s.label} className="p-4">
             <div
               className={cn(
                 "pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br",
@@ -531,61 +483,118 @@ function ResumenTab({
         ))}
       </div>
 
-      {/* Inline gasto form */}
-      {gastoOpen && (
-        <Card className="p-5 max-w-3xl mx-auto w-full">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">Nuevo gasto</h3>
-            <button type="button" onClick={() => setGastoOpen(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition">✕</button>
-          </div>
-          <div className="space-y-2.5">
-            <input
-              value={gastoForm.name}
-              onChange={(e) => setGastoForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Nombre del gasto *"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
-            />
-            <input
-              value={gastoForm.amount}
-              onChange={(e) => setGastoForm((f) => ({ ...f, amount: e.target.value }))}
-              placeholder="Monto *"
-              type="number"
-              min={0}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <select value={gastoForm.type} onChange={(e) => setGastoForm((f) => ({ ...f, type: e.target.value }))}
-                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50">
-                <option value="">Tipo</option>
-                {GTYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </select>
-              <select value={gastoForm.method} onChange={(e) => setGastoForm((f) => ({ ...f, method: e.target.value }))}
-                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50">
-                <option value="">Método de pago</option>
-                {GMETHODS.map((m) => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
-              </select>
-            </div>
-            <input
-              value={gastoForm.note}
-              onChange={(e) => setGastoForm((f) => ({ ...f, note: e.target.value }))}
-              placeholder="Nota (opcional)"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
-            />
-            <button
-              type="button"
-              onClick={saveGasto}
-              disabled={gastoSaving}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-sm disabled:opacity-50"
-            >
-              {gastoSaving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Registrar gasto
-            </button>
-          </div>
-        </Card>
-      )}
-
       <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
+    </div>
+  );
+}
+
+function NuevoGastoTab({
+  data,
+  userEmail,
+  onCancel,
+  onSaved,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  userEmail: string | null;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = React.useState({ name: "", amount: "", type: "", method: "", note: "" });
+  const [saving, setSaving] = React.useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+  const GTYPES = ["fijo", "variable", "ocasional", "marketing"];
+  const GMETHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
+
+  async function saveGasto() {
+    const name = form.name.trim();
+    const amount = parseFloat(form.amount);
+    if (!name) return toast.error("El nombre del gasto es obligatorio.");
+    if (!amount || amount <= 0) return toast.error("El monto debe ser mayor a 0.");
+    setSaving(true);
+    const { error } = await supabase.from("expenses").insert({
+      business_id: data.businessId,
+      name,
+      amount,
+      type: form.type || null,
+      payment_method: form.method || null,
+      date: today,
+      note: form.note.trim() || null,
+      user_name: userEmail ?? "Caja",
+      created_by: userEmail ?? "Caja",
+    });
+    setSaving(false);
+    if (error) return toast.error("Error guardando gasto: " + error.message);
+    toast.success("✓ Gasto registrado");
+    onSaved();
+  }
+
+  return (
+    <div className="animate-fade-up">
+      <Card className="mx-auto w-full max-w-3xl p-5 md:p-6">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Nuevo gasto</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Registrá un egreso de caja.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground transition hover:bg-white/[0.07] hover:text-foreground"
+          >
+            Cancelar
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="Nombre del gasto *"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-amber-300/50"
+          />
+          <input
+            value={form.amount}
+            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+            placeholder="Monto *"
+            type="number"
+            min={0}
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-amber-300/50"
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <select
+              value={form.type}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-amber-300/50"
+            >
+              <option value="">Tipo</option>
+              {GTYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+            </select>
+            <select
+              value={form.method}
+              onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-amber-300/50"
+            >
+              <option value="">Método de pago</option>
+              {GMETHODS.map((m) => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
+            </select>
+          </div>
+          <input
+            value={form.note}
+            onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+            placeholder="Nota (opcional)"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-amber-300/50"
+          />
+          <button
+            type="button"
+            onClick={saveGasto}
+            disabled={saving}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-amber-300 to-amber-400 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:brightness-105 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            Registrar gasto
+          </button>
+        </div>
+      </Card>
     </div>
   );
 }
