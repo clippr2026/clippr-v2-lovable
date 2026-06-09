@@ -1737,93 +1737,112 @@ function NuevaVentaTab({
       )}
 
       {step === 2 && (
-        <div className="space-y-4">
-          {/* Search existing client */}
-          <Card className="p-4 space-y-3">
-            <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Buscar cliente existente</p>
-            <ClientAutocomplete
-              value={client}
-              onChange={(v) => { setClient(v); setClientId(null); }}
-              onPick={(c) => {
-                setClientId(c.id);
-                setClient(c.name ?? "");
-                setPhone(c.phone ?? "");
-                setEmail(c.email ?? "");
-                setBirthDate(c.birth_date ?? "");
-                setNewClientOpen(false);
-              }}
-              clients={data.clients}
-            />
-            {clientId && (
-              <div className="flex items-center gap-2 rounded-lg bg-emerald-400/10 border border-emerald-400/20 px-3 py-2 text-sm text-emerald-300">
-                <Check className="size-3.5 shrink-0" />
-                <span className="truncate">{client}{phone ? ` · ${phone}` : ""}</span>
+        <div className="space-y-3">
+
+          {/* ── Cliente seleccionado ── */}
+          {clientId ? (
+            <Card className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="size-10 rounded-full bg-gradient-to-br from-emerald-400/30 to-emerald-600/10 ring-1 ring-emerald-400/30 grid place-items-center shrink-0">
+                    <Check className="size-5 text-emerald-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400/80 font-semibold mb-0.5">Cliente seleccionado</p>
+                    <p className="text-sm font-semibold text-foreground truncate">{client}</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                      {phone && <span className="text-xs text-muted-foreground">{phone}</span>}
+                      {email && <span className="text-xs text-muted-foreground truncate">{email}</span>}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setNewClientOpen(false); }}
+                  className="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/[0.08] transition-colors"
+                >
+                  Cambiar
+                </button>
               </div>
-            )}
-          </Card>
-
-          {/* New client toggle */}
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
-            <span className="h-px flex-1 bg-white/10" />
-            <button
-              type="button"
-              onClick={() => setNewClientOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-medium hover:bg-white/[0.07] transition-colors"
-            >
-              <Plus className="size-3" />
-              Nuevo cliente
-            </button>
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
-
-          {/* New client form — only shown when toggled */}
-          {newClientOpen && (
-            <Card className="p-4 space-y-3">
-              <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Datos del nuevo cliente</p>
-
-              {/* Nombre — always required */}
-              <input
-                value={client}
-                onChange={(e) => { setClient(e.target.value); setClientId(null); }}
-                placeholder="Nombre *"
-                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-              />
-
-              {/* Teléfono — always required */}
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Teléfono *"
-                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-              />
-
-              {/* Conditional fields */}
-              {isFieldEnabled("email") && (
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
-                  type="email"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-                />
-              )}
-              {isFieldEnabled("fecha_nacimiento") && (
-                <input
-                  value={birthDate}
-                  onChange={(e) => setBirthDate(e.target.value)}
-                  type="date"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-                />
-              )}
-              {isFieldEnabled("notas") && (
-                <input
-                  value={clientNotes}
-                  onChange={(e) => setClientNotes(e.target.value)}
-                  placeholder="Notas"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
-                />
-              )}
             </Card>
+          ) : (
+            <>
+              {/* ── Buscador ── */}
+              <Card className="p-4 space-y-3">
+                <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Buscar cliente existente</p>
+                <ClientAutocomplete
+                  value={client}
+                  onChange={(v) => { setClient(v); setClientId(null); }}
+                  onPick={(c) => {
+                    setClientId(c.id);
+                    setClient(c.name ?? "");
+                    setPhone(c.phone ?? "");
+                    setEmail(c.email ?? "");
+                    setBirthDate(c.birth_date ?? "");
+                    setNewClientOpen(false);
+                  }}
+                  clients={data.clients}
+                />
+              </Card>
+
+              {/* ── Nuevo cliente ── */}
+              {!newClientOpen ? (
+                <button
+                  type="button"
+                  onClick={() => { setNewClientOpen(true); setClient(""); setClientId(null); }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold bg-gradient-to-b from-amber-200 to-amber-400 text-black hover:brightness-105 transition-all shadow-[0_4px_20px_-6px_oklch(0.78_0.17_65/0.5)]"
+                >
+                  <Plus className="size-4" />
+                  Nuevo cliente
+                </button>
+              ) : (
+                <Card className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Datos del nuevo cliente</p>
+                    <button type="button" onClick={() => setNewClientOpen(false)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition">✕ Cancelar</button>
+                  </div>
+
+                  <input
+                    value={client}
+                    onChange={(e) => { setClient(e.target.value); setClientId(null); }}
+                    placeholder="Nombre *"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                  />
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Teléfono *"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                  />
+                  {isFieldEnabled("email") && (
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Email"
+                      type="email"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                    />
+                  )}
+                  {isFieldEnabled("fecha_nacimiento") && (
+                    <input
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      type="date"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                    />
+                  )}
+                  {isFieldEnabled("notas") && (
+                    <input
+                      value={clientNotes}
+                      onChange={(e) => setClientNotes(e.target.value)}
+                      placeholder="Notas"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                    />
+                  )}
+                </Card>
+              )}
+            </>
           )}
         </div>
       )}
