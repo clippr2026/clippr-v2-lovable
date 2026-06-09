@@ -26,7 +26,7 @@ export const Route = createFileRoute("/professionals")({
   component: ProfessionalsPage,
 });
 
-type TabKey = "turnos" | "stats" | "historial" | "pagos";
+type TabKey = "turnos" | "stats" | "historial-servicios" | "historial-pagos";
 type RangeKey = "hoy" | "semana" | "mes" | "custom";
 
 function toISODate(date: Date) {
@@ -199,10 +199,11 @@ function ProfessionalsPage() {
   const { data: professionals = [], isLoading } = useProfessionals(businessId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("turnos");
-  const initialRange = useMemo(() => getPresetRange("mes"), []);
-  const [range, setRange] = useState<RangeKey>("mes");
-  const [fromDate, setFromDate] = useState(initialRange.from);
-  const [toDate, setToDate] = useState(initialRange.to);
+  // Always start on "hoy" — never remember last session's range
+  const initialToday = useMemo(() => getPresetRange("hoy"), []);
+  const [range, setRange] = useState<RangeKey>("hoy");
+  const [fromDate, setFromDate] = useState(initialToday.from);
+  const [toDate, setToDate] = useState(initialToday.to);
 
   function applyRange(nextRange: Exclude<RangeKey, "custom">) {
     const next = getPresetRange(nextRange);
@@ -248,6 +249,19 @@ function ProfessionalsPage() {
       setActiveId(visibleProfessionals[0].id);
     }
   }, [activeId, isProfessionalAccess, ownProfessional?.id, visibleProfessionals]);
+
+  // Reset date filter to "hoy" whenever the active professional changes
+  const prevEmpIdRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    const currentEmpId = empId;
+    if (prevEmpIdRef.current !== null && prevEmpIdRef.current !== currentEmpId) {
+      const today = getPresetRange("hoy");
+      setRange("hoy");
+      setFromDate(today.from);
+      setToDate(today.to);
+    }
+    prevEmpIdRef.current = currentEmpId;
+  }, [empId]);
 
   useEffect(() => {
     if (!businessId) return;
@@ -356,10 +370,10 @@ function ProfessionalsPage() {
       {/* Tabs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {([
-          { key: "turnos", label: "Turnos", Icon: ClipboardList, tint: "text-amber-300" },
-          { key: "stats", label: "Rendimiento", Icon: BarChart3, tint: "text-sky-300" },
-          { key: "historial", label: "Historial", Icon: Clock, tint: "text-violet-300" },
-          { key: "pagos", label: "Pagos", Icon: DollarSign, tint: "text-emerald-300" },
+          { key: "turnos",             label: "Turnos",                Icon: ClipboardList, tint: "text-amber-300" },
+          { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
+          { key: "historial-servicios",label: "Historial de servicios",Icon: Clock,         tint: "text-violet-300"},
+          { key: "historial-pagos",    label: "Historial de pagos",    Icon: DollarSign,    tint: "text-emerald-300"},
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
           return (
@@ -406,8 +420,8 @@ function ProfessionalsPage() {
       {/* Content */}
       {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
-      {tab === "historial" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
-      {tab === "pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
+      {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
+      {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
       </div>
     </AppShell>
   );
@@ -1637,10 +1651,125 @@ function methodLabel(method?: string | null) {
 }
 
 function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
-  const { data: sales = [], isLoading } = useProfSales(businessId, empId, from, to);
+  // ── Cargar turnos del período (misma fuente que TurnosView) ─────────────
+  const { data: turnos = [], isLoading: turnosLoading } = useProfTurnos(businessId, empId, from, to);
 
-  const totalFacturado = sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
-  const totalComisiones = sales.reduce((sum, sale) => sum + Math.round((Number(sale.total ?? 0) * commissionPct) / 100), 0);
+  // ── Cargar payments del mismo período para enriquecer con método/total ──
+  const { data: sales = [], isLoading: salesLoading } = useProfSales(businessId, empId, from, to);
+
+  const isLoading = turnosLoading || salesLoading;
+
+
+  // ── Datos enriquecidos: unir turnos con pagos ───────────────────────────
+  // Estrategia: para cada turno cobrado (status === "charged"), buscar el
+  // payment cuyo appointment_id coincida. Si no hay match, usar service_price.
+  // Para ventas directas sin turno, aparecen en sales pero no en turnos —
+  // esas se agregan al final.
+  const [enriched, setEnriched] = React.useState<{
+    id: string;
+    fecha: string;       // YYYY-MM-DD local
+    hora: string;        // HH:MM
+    client_name: string | null;
+    service_name: string | null;
+    method: string | null;
+    total: number;
+    commission: number;
+    sourceType: "turno" | "venta-directa";
+  }[]>([]);
+  const [enrichLoading, setEnrichLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!businessId || !empId || turnosLoading) return;
+    if (turnos.length === 0 && sales.length === 0) { setEnriched([]); return; }
+
+    setEnrichLoading(true);
+    (async () => {
+      // 1. Fetch payments con appointment_id para poder hacer el join
+      const fromDate = new Date(from + "T00:00:00");
+      fromDate.setDate(fromDate.getDate() - 1);
+      const toDate = new Date(to + "T23:59:59");
+      toDate.setDate(toDate.getDate() + 1);
+
+      const { data: payments } = await supabase
+        .from("payments")
+        .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,created_at")
+        .eq("business_id", businessId)
+        .eq("employee_id", empId)
+        .gte("created_at", fromDate.toISOString())
+        .lte("created_at", toDate.toISOString());
+
+      const payByAppt = new Map<string, typeof payments extends (infer T)[] | null | undefined ? NonNullable<T> : never>();
+      for (const p of payments ?? []) {
+        if (p.appointment_id) payByAppt.set(p.appointment_id, p);
+      }
+
+      const rows: typeof enriched = [];
+      const usedPaymentIds = new Set<string>();
+
+      // 2. Turnos → enriquecer con payment si existe
+      for (const t of turnos) {
+        const pay = payByAppt.get(t.id);
+        if (pay) usedPaymentIds.add(pay.id);
+        const localDate = new Date(t.starts_at).toLocaleDateString("sv-SE");
+        if (localDate < from || localDate > to) continue; // filtro local por si acaso
+        rows.push({
+          id: t.id,
+          fecha: localDate,
+          hora: new Date(t.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+          client_name: t.client_name,
+          service_name: t.service_name,
+          method: pay ? (pay.method ?? pay.payment_method ?? null) : null,
+          total: pay ? Number(pay.total ?? pay.amount ?? t.service_price ?? 0) : Number(t.service_price ?? 0),
+          commission: 0, // calculado abajo
+          sourceType: "turno",
+        });
+      }
+
+      // 3. Ventas directas sin turno (payments sin appointment_id o cuyo appt no está en turnos)
+      for (const p of payments ?? []) {
+        if (usedPaymentIds.has(p.id)) continue;
+        if (p.appointment_id && payByAppt.has(p.appointment_id)) continue; // ya incluido vía turno
+        const localDate = new Date(p.created_at).toLocaleDateString("sv-SE");
+        if (localDate < from || localDate > to) continue;
+        rows.push({
+          id: p.id,
+          fecha: localDate,
+          hora: new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+          client_name: p.client_name,
+          service_name: p.service_name,
+          method: p.method ?? p.payment_method ?? null,
+          total: Number(p.total ?? p.amount ?? 0),
+          commission: 0,
+          sourceType: "venta-directa",
+        });
+      }
+
+      // 4. Calcular comisión y ordenar
+      const final = rows
+        .map(r => ({ ...r, commission: Math.round(r.total * commissionPct / 100) }))
+        .sort((a, b) => (a.fecha + a.hora) < (b.fecha + b.hora) ? 1 : -1);
+
+      setEnriched(final);
+      setEnrichLoading(false);
+    })();
+  }, [businessId, empId, from, to, turnos, turnosLoading, commissionPct]);
+
+  const loading = isLoading || enrichLoading;
+
+  const totalFacturado = enriched.reduce((s, r) => s + r.total, 0);
+  const totalComisiones = enriched.reduce((s, r) => s + r.commission, 0);
+
+  const methodLabel = (m: string | null) => {
+    if (!m) return "—";
+    const MAP: Record<string, string> = {
+      cash: "Efectivo", efectivo: "Efectivo",
+      transfer: "Transferencia", transferencia: "Transferencia",
+      card: "Tarjeta", tarjeta: "Tarjeta",
+      mercadopago: "Mercado Pago", mercado_pago: "Mercado Pago", mp: "Mercado Pago",
+      cuenta_dni: "Cuenta DNI", cuenta: "Cuenta DNI", qr: "QR",
+    };
+    return MAP[m] ?? MAP[m.toLowerCase()] ?? m;
+  };
 
   return (
     <div className="glass rounded-2xl p-5 animate-fade-up">
@@ -1648,44 +1777,48 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         <div>
           <div className="font-medium">Historial de servicios</div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            <span>Servicios: <strong className="text-foreground">{sales.length}</strong></span>
+            <span>Servicios: <strong className="text-foreground">{enriched.length}</strong></span>
             <span className="text-white/20">•</span>
             <span>Facturación: <strong className="text-emerald-300">${totalFacturado.toLocaleString("es-AR")}</strong></span>
             <span className="text-white/20">•</span>
             <span>Comisiones: <strong className="text-amber-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
           </div>
         </div>
+      </div>
 
-</div>
-
-      {isLoading ? (
+      {loading ? (
         <div className="mt-8 mb-4 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
-      ) : sales.length === 0 ? (
+      ) : enriched.length === 0 ? (
         <div className="mt-8 mb-4 text-center text-sm text-muted-foreground">Sin historial en este período</div>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-xl ring-1 ring-white/10">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-white/[0.035] text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
-                <th className="px-4 py-3 text-left whitespace-nowrap">Día / Hora</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Fecha</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Hora</th>
                 <th className="px-4 py-3 text-left whitespace-nowrap">Cliente</th>
-                <th className="px-4 py-3 text-left whitespace-nowrap">Servicio</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Servicio / Catálogo</th>
                 <th className="px-4 py-3 text-left whitespace-nowrap">Método</th>
                 <th className="px-4 py-3 text-right whitespace-nowrap">Total</th>
                 <th className="px-4 py-3 text-right whitespace-nowrap">Comisión</th>
               </tr>
             </thead>
             <tbody>
-              {sales.map((sale) => {
-                const commission = Math.round((Number(sale.total ?? 0) * commissionPct) / 100);
+              {enriched.map((row) => {
+                const [y, m, d] = row.fecha.split("-");
+                const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
+                  .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
+                  .replace(".", "");
                 return (
-                  <tr key={sale.id} className="border-t border-white/5 hover:bg-white/[0.025] transition-colors">
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatSaleDate(sale.created_at)}</td>
-                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{sale.client_name ?? "Sin cliente"}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{sale.service_name ?? "—"}</td>
-                    <td className="px-4 py-3 text-xs text-emerald-300 whitespace-nowrap">{methodLabel(sale.method)}</td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">${Number(sale.total ?? 0).toLocaleString("es-AR")}</td>
-                    <td className="px-4 py-3 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">${commission.toLocaleString("es-AR")}</td>
+                  <tr key={row.id} className="border-t border-white/5 hover:bg-white/[0.025] transition-colors">
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap capitalize">{fechaDisplay}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap tabular-nums">{row.hora}</td>
+                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{row.client_name ?? "Sin cliente"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{row.service_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs text-emerald-300 whitespace-nowrap">{methodLabel(row.method)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">${row.total.toLocaleString("es-AR")}</td>
+                    <td className="px-4 py-3 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">${row.commission.toLocaleString("es-AR")}</td>
                   </tr>
                 );
               })}
