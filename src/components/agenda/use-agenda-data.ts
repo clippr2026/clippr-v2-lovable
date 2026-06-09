@@ -82,6 +82,31 @@ export function getScheduleForDate(schedule: ScheduleMap | null, date: Date): Da
   return schedule[DAY_KEYS[date.getDay()]] ?? null;
 }
 
+/**
+ * Returns an error message if the proposed slot falls outside the business
+ * schedule, or null if OK.
+ */
+export function checkSchedule(
+  schedule: ScheduleMap | null,
+  startsAt: Date,
+  durationMin: number,
+): string | null {
+  if (!schedule) return null;
+  const dayKey = DAY_KEYS[startsAt.getDay()];
+  const day = schedule[dayKey];
+  if (!day || !day.enabled) {
+    return "El horario seleccionado está fuera del horario laboral configurado.";
+  }
+  const slotStart = startsAt.getHours() + startsAt.getMinutes() / 60;
+  const slotEnd   = slotStart + (durationMin || 30) / 60;
+  const open  = parseScheduleTime(day.start);
+  const close = parseScheduleTime(day.end);
+  if (slotStart < open || slotEnd > close) {
+    return "El horario seleccionado está fuera del horario laboral configurado.";
+  }
+  return null;
+}
+
 function normalizeSchedule(value: unknown): ScheduleMap | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, any>;

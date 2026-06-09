@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
   checkOverlap,
+  checkSchedule,
   type Appointment,
   type ApptStatus,
   type Client,
@@ -49,6 +50,7 @@ type Props = {
   createdByName?: string | null;
   createdByRole?: string | null;
   onSaved: () => void;
+  schedule?: import("./use-agenda-data").ScheduleMap | null;
 };
 
 type SenasConfig = {
@@ -153,6 +155,7 @@ export function AppointmentDialog({
   createdByName,
   createdByRole,
   onSaved,
+  schedule = null,
 }: Props) {
   const isEdit = !!appointment?.id;
   const [busy, setBusy] = React.useState(false);
@@ -392,6 +395,17 @@ export function AppointmentDialog({
       const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
         .filter(Boolean)
         .join("\n");
+
+      // ── Schedule validation ───────────────────────────────────────────────
+      for (const date of dates) {
+        const schedErr = checkSchedule(schedule, date, Number(duration) || 30);
+        if (schedErr) {
+          toast.error(schedErr);
+          setBusy(false);
+          return;
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       // ── Overlap validation ────────────────────────────────────────────────
       if (employeeId) {
