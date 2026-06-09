@@ -34,6 +34,7 @@ import {
   type Employee,
   type Service,
 } from "./use-agenda-data";
+import { useClientesConfig } from "@/hooks/use-clientes-config";
 
 type Props = {
   open: boolean;
@@ -157,12 +158,17 @@ export function AppointmentDialog({
   const [busy, setBusy] = React.useState(false);
   const [repeatOpen, setRepeatOpen] = React.useState(false);
 
+  // Client config — controls which fields appear in "nuevo cliente"
+  const { isFieldEnabled } = useClientesConfig(businessId ?? null);
+
   const [clientId, setClientId] = React.useState<string>("");
   const [clientName, setClientName] = React.useState("");
   const [clientPhone, setClientPhone] = React.useState("");
   const [clientEmail, setClientEmail] = React.useState("");
   const [clientBirth, setClientBirth] = React.useState("");
   const [clientNote, setClientNote] = React.useState("");
+  const [clientInstagram, setClientInstagram] = React.useState("");
+  const [clientDireccion, setClientDireccion] = React.useState("");
   const [newClientMode, setNewClientMode] = React.useState(false);
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
@@ -324,6 +330,8 @@ export function AppointmentDialog({
     setClientEmail("");
     setClientBirth("");
     setClientNote("");
+    setClientInstagram("");
+    setClientDireccion("");
     setClientSearch("");
     setShowClientList(false);
     setNewClientMode(false);
@@ -348,11 +356,20 @@ export function AppointmentDialog({
       throw new Error("Nombre y apellido son obligatorios para crear un cliente nuevo.");
     }
 
+    // Build notes with extra fields if provided
+    const extraNotes = [
+      clientNote.trim(),
+      clientInstagram.trim() ? `Instagram: ${clientInstagram.trim()}` : "",
+      clientDireccion.trim() ? `Dirección: ${clientDireccion.trim()}` : "",
+    ].filter(Boolean).join("\n") || null;
+
     const payload: Record<string, unknown> = {
       business_id: businessId,
       full_name: fullName,
       phone: clientPhone.trim() || null,
       email: clientEmail.trim() || null,
+      birth_date: clientBirth.trim() || null,
+      notes: extraNotes,
     };
 
     const { data: newClient, error } = await supabase
@@ -573,6 +590,7 @@ export function AppointmentDialog({
 
             {newClientMode && (
               <div className="grid gap-3 rounded-xl bg-black/10 p-3 border border-white/10">
+                {/* Nombre + Apellido — always shown */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="grid gap-1.5">
                     <Label>Nombre *</Label>
@@ -583,14 +601,44 @@ export function AppointmentDialog({
                     <Input value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} /></div>
-                  <div className="grid gap-1.5"><Label>Teléfono</Label><Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} /></div>
-                </div>
+
+                {/* Teléfono — always shown */}
                 <div className="grid gap-1.5">
-                  <Label>Nota</Label>
-                  <Input value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Opcional" />
+                  <Label>Teléfono *</Label>
+                  <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
                 </div>
+
+                {/* Conditional fields from Configuración → Clientes */}
+                {isFieldEnabled("email") && (
+                  <div className="grid gap-1.5">
+                    <Label>Email</Label>
+                    <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+                  </div>
+                )}
+                {isFieldEnabled("fecha_nacimiento") && (
+                  <div className="grid gap-1.5">
+                    <Label>Fecha de nacimiento</Label>
+                    <Input type="date" value={clientBirth} onChange={(e) => setClientBirth(e.target.value)} />
+                  </div>
+                )}
+                {isFieldEnabled("instagram") && (
+                  <div className="grid gap-1.5">
+                    <Label>Instagram</Label>
+                    <Input value={clientInstagram} placeholder="@usuario" onChange={(e) => setClientInstagram(e.target.value)} />
+                  </div>
+                )}
+                {isFieldEnabled("direccion") && (
+                  <div className="grid gap-1.5">
+                    <Label>Dirección</Label>
+                    <Input value={clientDireccion} onChange={(e) => setClientDireccion(e.target.value)} />
+                  </div>
+                )}
+                {isFieldEnabled("notas") && (
+                  <div className="grid gap-1.5">
+                    <Label>Nota</Label>
+                    <Input value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Opcional" />
+                  </div>
+                )}
               </div>
             )}
           </section>
