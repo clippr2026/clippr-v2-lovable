@@ -4260,12 +4260,13 @@ function ClientesSection() {
     if (!businessId) return;
     supabase
       .from("business_settings")
-      .select("clientes_config")
+      .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle()
       .then(({ data }) => {
-        if (data?.clientes_config) {
-          setCfg({ ...DEFAULT_CLIENTES_CONFIG, ...(data.clientes_config as Partial<ClientesConfig>) });
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        if (schedule._clientes) {
+          setCfg({ ...DEFAULT_CLIENTES_CONFIG, ...(schedule._clientes as Partial<ClientesConfig>) });
         }
         setLoaded(true);
       });
@@ -4275,9 +4276,19 @@ function ClientesSection() {
     if (!businessId) return;
     setSaving(true);
     try {
+      // Read existing schedule first to avoid overwriting other keys
+      const { data: existing } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      const schedule = (existing?.schedule ?? {}) as Record<string, unknown>;
       const { error } = await supabase
         .from("business_settings")
-        .upsert({ business_id: businessId, clientes_config: cfg as unknown as Record<string, unknown> }, { onConflict: "business_id" });
+        .upsert(
+          { business_id: businessId, schedule: { ...schedule, _clientes: cfg } },
+          { onConflict: "business_id" }
+        );
       if (error) throw new Error(error.message);
       toast.success("Configuración de clientes guardada");
     } catch (e) {
