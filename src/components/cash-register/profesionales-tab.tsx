@@ -43,6 +43,7 @@ type Payout = {
   method: string | null;
   note: string | null;
   created_by: string | null;
+  created_at?: string | null;
 };
 
 const RANGES = [
@@ -117,7 +118,7 @@ export function ProfesionalesTab({
         .lte("created_at", toISO),
       supabase
         .from("professional_payouts")
-        .select("id,employee_id,amount,date,method,note,created_by")
+        .select("id,employee_id,amount,date,method,note,created_by,created_at")
         .eq("business_id", businessId)
         .gte("date", from)
         .lte("date", to)
@@ -448,7 +449,7 @@ function DetailModal({
     if (type === "pagos") {
       supabase
         .from("professional_payouts")
-        .select("id,employee_id,amount,date,method,note,created_by")
+        .select("id,employee_id,amount,date,method,note,created_by,created_at")
         .eq("business_id", businessId)
         .eq("employee_id", emp.id)
         .order("date", { ascending: false })
@@ -489,26 +490,28 @@ function DetailModal({
           ) : data.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">Sin datos.</div>
           ) : type === "pagos" ? (
-            (data as Payout[]).map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between py-2 border-b border-white/5"
-              >
-                <div>
-                  <div className="text-sm text-foreground">
-                    {new Date(p.date + "T12:00:00").toLocaleDateString("es-AR")}
+            (data as Payout[]).map((p) => {
+              const dt = p.created_at ? new Date(p.created_at) : new Date(p.date + "T12:00:00");
+              const fecha = dt.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" }).replace(".", "");
+              const hora = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-2 border-b border-white/5"
+                >
+                  <div>
+                    <div className="text-sm text-foreground capitalize">{fecha}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {hora} · {p.created_by ?? "Caja"} pagó · {p.method ?? "Sin método"}
+                      {p.note ? ` · ${p.note}` : ""}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {p.created_by ? `${p.created_by} pagó` : "Caja pagó"}
-                    {p.method ? ` · ${p.method}` : ""}
-                    {p.note ? ` · ${p.note}` : ""}
+                  <div className="text-sm font-bold text-emerald-300 tabular-nums">
+                    ${Number(p.amount).toLocaleString("es-AR")}
                   </div>
                 </div>
-                <div className="text-sm font-bold text-emerald-300 tabular-nums">
-                  ${Number(p.amount).toLocaleString("es-AR")}
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             (data as Payment[]).map((p, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-white/5">
