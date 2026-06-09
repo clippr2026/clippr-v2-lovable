@@ -211,28 +211,45 @@ export function useProfTurnos(
   const query = useQuery({
     queryKey: ["prof-turnos", businessId, empId, validFrom, validTo],
     queryFn: async (): Promise<ProfTurno[]> => {
+      // Expand query range by 1 day on each side to avoid losing appointments
+      // near midnight due to UTC offset (e.g. AR is UTC-3, so a 22:00 local
+      // appointment is stored as T01:00:00Z the next day).
+      const fromDate = new Date(validFrom + "T00:00:00");
+      fromDate.setDate(fromDate.getDate() - 1);
+      const toDate = new Date(validTo + "T23:59:59");
+      toDate.setDate(toDate.getDate() + 1);
+
       const { data, error } = await supabase
         .from("appointments")
-        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes")
+        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,employee_id")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
-        .gte("starts_at", validFrom + "T00:00:00")
-        .lte("starts_at", validTo + "T23:59:59")
+        .gte("starts_at", fromDate.toISOString())
+        .lte("starts_at", toDate.toISOString())
+        .neq("status", "cancelled")
         .order("starts_at", { ascending: true });
       if (error) throw new Error(error.message);
-      return (data ?? []).map((row) => ({
-        id: row.id,
-        client_name: row.client_name,
-        service_name: row.service_name,
-        service_price: row.service_price,
-        starts_at: row.starts_at,
-        ends_at: row.ends_at,
-        status: row.status,
-        notes: row.notes,
-        charge_origin: null,
-        charged_by: null,
-        payment_method: null,
-      })) as ProfTurno[];
+
+      // Filter locally using local date string to avoid any UTC mismatch
+      return (data ?? [])
+        .filter((row) => {
+          // Convert the UTC ISO timestamp to local YYYY-MM-DD for comparison
+          const localDate = new Date(row.starts_at).toLocaleDateString("sv-SE"); // "sv-SE" gives YYYY-MM-DD
+          return localDate >= validFrom && localDate <= validTo;
+        })
+        .map((row) => ({
+          id: row.id,
+          client_name: row.client_name,
+          service_name: row.service_name,
+          service_price: row.service_price,
+          starts_at: row.starts_at,
+          ends_at: row.ends_at,
+          status: row.status,
+          notes: row.notes,
+          charge_origin: null,
+          charged_by: null,
+          payment_method: null,
+        })) as ProfTurno[];
     },
     enabled: !!businessId && !!empId,
     staleTime: 30_000,
