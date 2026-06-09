@@ -258,7 +258,7 @@ function CashRegisterPage() {
             data={data}
             userEmail={session.user.email ?? null}
             onCancel={() => setTab("resumen")}
-            onSaved={() => { data.refresh(); setTab("resumen"); }}
+            onSaved={() => { data.refresh(); setTab("gastos"); }}
           />
         )}
         {tab === "nueva" && (
@@ -766,12 +766,33 @@ function CierreCajaBtn({
     setSaving(true);
     try {
       const now = new Date();
+      const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      const cierreEvento = {
+        tipo: "cierre",
+        modo: "manual",
+        fecha_hora: now.toISOString(),
+        hora,
+        usuario: userEmail ?? "Caja",
+        observacion: obs.trim() || null,
+        total_cobrado: totalCobrado,
+        total_gastos: totalGastos,
+        utilidad,
+      };
+
+      const { data: existing } = await supabase
+        .from("caja_cierres" as any)
+        .select("id,eventos")
+        .eq("business_id", businessId)
+        .eq("fecha", today)
+        .maybeSingle();
+
+      const prevEventos = Array.isArray((existing as any)?.eventos) ? (existing as any).eventos : [];
       const payload = {
         business_id: businessId,
         fecha: today,
-        hora_cierre: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+        hora_cierre: hora,
         usuario_id: null,
-        usuario_nombre: userEmail,
+        usuario_nombre: userEmail ?? "Caja",
         total_cobrado: totalCobrado,
         total_gastos: totalGastos,
         utilidad,
@@ -782,12 +803,15 @@ function CierreCajaBtn({
         observacion: obs.trim() || null,
         tipo_cierre: "manual",
         estado: "cerrada",
+        eventos: [...prevEventos, cierreEvento],
+        updated_at: now.toISOString(),
       };
 
-      const { error } = await supabase
-        .from("caja_cierres" as any)
-        .upsert(payload, { onConflict: "business_id,fecha" });
+      const query = existing?.id
+        ? supabase.from("caja_cierres" as any).update(payload).eq("id", (existing as any).id).eq("business_id", businessId)
+        : supabase.from("caja_cierres" as any).insert(payload);
 
+      const { error } = await query;
       if (error) throw new Error(error.message);
       toast.success("Cierre registrado correctamente");
       setOpen(false);
@@ -921,16 +945,36 @@ function CierresTab({ businessId }: { businessId: string | null }) {
     return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
   }, [loadCierres]);
 
+  const cierreCount = (cierre: any) => {
+    const eventos = Array.isArray(cierre.eventos) ? cierre.eventos : [];
+    const cierres = eventos.filter((e: any) => e?.tipo === "cierre").length;
+    return Math.max(cierres, 1);
+  };
+
+  const cierreEventos = (cierre: any) => Array.isArray(cierre?.eventos) ? cierre.eventos : [];
+
   async function reabrirCaja(cierre: any) {
     if (!businessId || !cierre?.id) return;
     const reason = window.prompt("Motivo de reapertura de caja (opcional)") ?? "";
+    const now = new Date();
+    const prevEventos = Array.isArray(cierre.eventos) ? cierre.eventos : [];
+    const evento = {
+      tipo: "reapertura",
+      fecha_hora: now.toISOString(),
+      hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+      usuario: "Caja",
+      motivo: reason.trim() || null,
+    };
+
     const { error } = await supabase
       .from("caja_cierres" as any)
       .update({
         estado: "reabierta",
-        reopened_at: new Date().toISOString(),
+        reopened_at: now.toISOString(),
         reopened_by: "Caja",
         reopen_reason: reason.trim() || null,
+        eventos: [...prevEventos, evento],
+        updated_at: now.toISOString(),
       })
       .eq("id", cierre.id)
       .eq("business_id", businessId);
@@ -960,33 +1004,19 @@ function CierresTab({ businessId }: { businessId: string | null }) {
         </div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-[120px_70px_1fr_1fr_1fr_90px_90px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
+          <div className="grid grid-cols-[1fr_160px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
             <div>Fecha</div>
-            <div>Hora</div>
-            <div className="text-right">Cobrado</div>
-            <div className="text-right">Gastos</div>
-            <div className="text-right">Utilidad</div>
-            <div className="text-right">Tipo</div>
-            <div className="text-right">Estado</div>
+            <div className="text-right">Cierres</div>
           </div>
           {cierres.map((c) => (
             <button key={c.id} type="button" onClick={() => setSelected(c)}
-              className="w-full grid grid-cols-[120px_70px_1fr_1fr_1fr_90px_90px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
-              <div className="text-muted-foreground text-xs">
-                {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "2-digit" })}
+              className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
+              <div className="text-foreground text-sm font-medium">
+                {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" })}
               </div>
-              <div className="text-muted-foreground tabular-nums text-xs">{c.hora_cierre ?? "—"}</div>
-              <div className="text-right text-emerald-300 font-semibold tabular-nums text-xs">
-                ${Number(c.total_cobrado ?? 0).toLocaleString("es-AR")}
+              <div className="text-right text-xs text-muted-foreground">
+                {cierreCount(c)} cierre{cierreCount(c) === 1 ? "" : "s"}
               </div>
-              <div className="text-right text-rose-300 tabular-nums text-xs">
-                ${Number(c.total_gastos ?? 0).toLocaleString("es-AR")}
-              </div>
-              <div className={`text-right font-semibold tabular-nums text-xs ${Number(c.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                ${Number(c.utilidad ?? 0).toLocaleString("es-AR")}
-              </div>
-              <div className="text-right text-xs text-muted-foreground capitalize">{c.tipo_cierre ?? "manual"}</div>
-              <div className="text-right text-xs text-muted-foreground capitalize">{c.estado ?? "cerrada"}</div>
             </button>
           ))}
         </div>
@@ -1025,9 +1055,24 @@ function CierresTab({ businessId }: { businessId: string | null }) {
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <div>Tipo: <span className="text-foreground capitalize">{selected.tipo_cierre ?? "manual"}</span></div>
                 <div>Estado: <span className="text-foreground capitalize">{selected.estado ?? "cerrada"}</span></div>
-                <div>Usuario: <span className="text-foreground">{selected.usuario_nombre ?? "—"}</span></div>
-                {selected.reopened_at && <div>Reabierta: <span className="text-foreground">{new Date(selected.reopened_at).toLocaleString("es-AR")}</span></div>}
+                <div>Usuario último cierre: <span className="text-foreground">{selected.usuario_nombre ?? "—"}</span></div>
+                {selected.reopened_at && <div>Última reapertura: <span className="text-foreground">{new Date(selected.reopened_at).toLocaleString("es-AR")}</span></div>}
               </div>
+
+              {cierreEventos(selected).length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Movimientos del cierre</div>
+                  <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden divide-y divide-white/5">
+                    {cierreEventos(selected).map((ev: any, i: number) => (
+                      <div key={i} className="grid grid-cols-[90px_1fr_1fr] gap-3 px-4 py-2.5 text-xs">
+                        <span className="text-muted-foreground tabular-nums">{ev.hora ?? (ev.fecha_hora ? new Date(ev.fecha_hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "—")}</span>
+                        <span className="capitalize text-foreground">{ev.tipo === "reapertura" ? "Reabrió caja" : "Cerró caja"}</span>
+                        <span className="text-right text-muted-foreground">{ev.usuario ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {selected.detalle_metodos_pago && Object.keys(selected.detalle_metodos_pago).length > 0 && (
                 <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">

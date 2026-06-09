@@ -1583,15 +1583,20 @@ function PagosView({ businessId, empId, userEmail, from, to }: { businessId: str
         ) : payments.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">Sin pagos registrados aún.</div>
         ) : (
-          payments.map((p, i) => (
-            <div key={p.id} className={cn("flex items-center gap-4 px-5 py-3.5", i < payments.length - 1 && "border-b border-white/5")}>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">{new Date(p.date + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}</div>
-                <div className="text-xs text-muted-foreground">{p.method ?? "—"}{p.note ? " · " + p.note : ""}</div>
+          payments.map((p, i) => {
+            const dt = p.created_at ? new Date(p.created_at) : new Date(p.date + "T12:00:00");
+            const fecha = dt.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" }).replace(".", "");
+            const hora = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+            return (
+              <div key={p.id} className={cn("flex items-center gap-4 px-5 py-3.5", i < payments.length - 1 && "border-b border-white/5")}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium capitalize">{fecha}</div>
+                  <div className="text-xs text-muted-foreground">{hora} · {p.created_by ?? "Caja"} pagó · {p.method ?? "Sin método"}{p.note ? " · " + p.note : ""}</div>
+                </div>
+                <div className="text-base font-bold text-emerald-300 tabular-nums">${Number(p.amount).toLocaleString("es-AR")}</div>
               </div>
-              <div className="text-base font-bold text-emerald-300 tabular-nums">${Number(p.amount).toLocaleString("es-AR")}</div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
