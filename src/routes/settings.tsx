@@ -84,6 +84,7 @@ type SectionId =
   | "equipo"
   | "servicios"
   | "catalogo"
+  | "clientes"
   | "caja"
   | "senas"
   | "plan";
@@ -139,6 +140,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Store,
         tint: "text-[oklch(0.82_0.14_75)]",
         glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]",
+      },
+      {
+        id: "clientes",
+        label: "Clientes",
+        icon: Users,
+        tint: "text-[oklch(0.78_0.18_240)]",
+        glow: "from-[oklch(0.78_0.18_240/0.25)] to-[oklch(0.65_0.2_255/0.05)]",
       },
     ],
   },
@@ -4189,6 +4197,7 @@ function SettingsPage() {
             {active === "equipo" && <EquipoSection />}
             {active === "servicios" && <ServiciosSection />}
             {active === "catalogo" && <CatalogoSection />}
+            {active === "clientes" && <ClientesSection />}
             {active === "caja" && <CajaSection />}
             {active === "senas" && <SenasSection />}
 
@@ -4197,6 +4206,307 @@ function SettingsPage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+// ─────────── Clientes ───────────
+
+type ClientField = {
+  key: string;
+  label: string;
+  required: boolean;
+};
+
+const ALL_CLIENT_FIELDS: ClientField[] = [
+  { key: "nombre",           label: "Nombre",            required: true  },
+  { key: "telefono",         label: "Teléfono",          required: true  },
+  { key: "email",            label: "Email",             required: false },
+  { key: "fecha_nacimiento", label: "Fecha de nacimiento", required: false },
+  { key: "instagram",        label: "Instagram",         required: false },
+  { key: "direccion",        label: "Dirección",         required: false },
+  { key: "notas",            label: "Notas",             required: false },
+];
+
+type ClientesConfig = {
+  fields: Record<string, boolean>;
+  diasInactivo: number;
+  diasPerdido: number;
+  vipVisitasEnabled: boolean;
+  vipVisitasMin: number;
+  vipGastoEnabled: boolean;
+  vipGastoMin: number;
+};
+
+const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
+  fields: {
+    nombre: true, telefono: true, email: true,
+    fecha_nacimiento: true, instagram: false, direccion: false, notas: false,
+  },
+  diasInactivo: 30,
+  diasPerdido: 90,
+  vipVisitasEnabled: true,
+  vipVisitasMin: 4,
+  vipGastoEnabled: true,
+  vipGastoMin: 100000,
+};
+
+function ClientesSection() {
+  const { businessId } = useAuth();
+  const [cfg, setCfg] = useState<ClientesConfig>(DEFAULT_CLIENTES_CONFIG);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("clientes_config")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.clientes_config) {
+          setCfg({ ...DEFAULT_CLIENTES_CONFIG, ...(data.clientes_config as Partial<ClientesConfig>) });
+        }
+        setLoaded(true);
+      });
+  }, [businessId]);
+
+  const save = async () => {
+    if (!businessId) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("business_settings")
+        .upsert({ business_id: businessId, clientes_config: cfg as unknown as Record<string, unknown> }, { onConflict: "business_id" });
+      if (error) throw new Error(error.message);
+      toast.success("Configuración de clientes guardada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setField = (key: string, val: boolean) =>
+    setCfg(prev => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
+
+  const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 space-y-4", className)}>
+      {children}
+    </div>
+  );
+
+  const SectionTitle = ({ label, sub }: { label: string; sub?: string }) => (
+    <div>
+      <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+
+  const NumInput = ({
+    label, value, onChange, min, step, prefix,
+  }: {
+    label: string; value: number; onChange: (n: number) => void;
+    min?: number; step?: number; prefix?: string;
+  }) => (
+    <label className="flex items-center justify-between gap-4">
+      <span className="text-sm text-foreground/80">{label}</span>
+      <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+        {prefix && <span className="text-sm text-muted-foreground">{prefix}</span>}
+        <input
+          type="number"
+          min={min ?? 1}
+          step={step ?? 1}
+          value={value}
+          onChange={e => onChange(Math.max(min ?? 1, Number(e.target.value) || (min ?? 1)))}
+          className="w-24 bg-transparent text-sm text-right tabular-nums outline-none text-foreground"
+        />
+      </div>
+    </label>
+  );
+
+  if (!loaded) return (
+    <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
+  );
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-xl font-display font-semibold">Clientes</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Campos del formulario, segmentación automática y criterios VIP.
+        </p>
+      </div>
+
+      {/* ── Campos ── */}
+      <Card>
+        <SectionTitle
+          label="Campos visibles"
+          sub="Los campos activos aparecen al crear o editar clientes y al agendar turnos."
+        />
+        <div className="space-y-2.5 pt-1">
+          {ALL_CLIENT_FIELDS.map(f => {
+            const enabled = cfg.fields[f.key] ?? false;
+            return (
+              <div key={f.key} className="flex items-center justify-between gap-4 py-1">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    disabled={f.required}
+                    onClick={() => !f.required && setField(f.key, !enabled)}
+                    className={cn(
+                      "h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition-all",
+                      enabled
+                        ? "bg-primary/80 border-primary/60"
+                        : "bg-white/[0.03] border-white/15",
+                      f.required && "opacity-60 cursor-not-allowed",
+                    )}
+                  >
+                    {enabled && <Check className="h-3 w-3 text-black" strokeWidth={3} />}
+                  </button>
+                  <span className="text-sm text-foreground/90">{f.label}</span>
+                </div>
+                {f.required && (
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-white/10 rounded-full px-2 py-0.5">
+                    Obligatorio
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* ── Estado ── */}
+      <Card>
+        <SectionTitle
+          label="Estado de clientes"
+          sub="El sistema calcula automáticamente el estado según la fecha de la última visita."
+        />
+
+        {/* Diagram */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[
+            { label: "Activo",   color: "text-emerald-300", ring: "ring-emerald-400/25 bg-emerald-400/8",  range: `0 – ${cfg.diasInactivo - 1} días` },
+            { label: "Inactivo", color: "text-amber-300",   ring: "ring-amber-400/25 bg-amber-400/8",      range: `${cfg.diasInactivo} – ${cfg.diasPerdido - 1} días` },
+            { label: "Perdido",  color: "text-rose-300",    ring: "ring-rose-400/25 bg-rose-400/8",        range: `${cfg.diasPerdido}+ días` },
+          ].map(s => (
+            <div key={s.label} className={cn("rounded-xl ring-1 p-3", s.ring)}>
+              <div className={cn("text-xs font-semibold", s.color)}>{s.label}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">{s.range}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-3 pt-1">
+          <NumInput
+            label="Días para considerar cliente inactivo"
+            value={cfg.diasInactivo}
+            min={1}
+            onChange={n => setCfg(p => ({ ...p, diasInactivo: Math.min(n, cfg.diasPerdido - 1) }))}
+          />
+          <NumInput
+            label="Días para considerar cliente perdido"
+            value={cfg.diasPerdido}
+            min={cfg.diasInactivo + 1}
+            onChange={n => setCfg(p => ({ ...p, diasPerdido: Math.max(n, cfg.diasInactivo + 1) }))}
+          />
+        </div>
+      </Card>
+
+      {/* ── VIP ── */}
+      <Card>
+        <SectionTitle
+          label="Cliente VIP"
+          sub="Se calcula mes a mes. Si el cliente deja de cumplir las condiciones, pierde la etiqueta automáticamente."
+        />
+
+        {/* VIP por visitas */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-foreground">VIP por visitas mensuales</div>
+              <div className="text-xs text-muted-foreground">Cantidad mínima de visitas en el mes actual</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCfg(p => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))}
+              className={cn(
+                "relative h-6 w-11 rounded-full transition-all shrink-0",
+                cfg.vipVisitasEnabled ? "bg-primary/70" : "bg-white/10",
+              )}
+            >
+              <span className={cn(
+                "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                cfg.vipVisitasEnabled ? "translate-x-5" : "translate-x-0.5",
+              )} />
+            </button>
+          </div>
+          {cfg.vipVisitasEnabled && (
+            <NumInput
+              label="Visitas mínimas por mes"
+              value={cfg.vipVisitasMin}
+              min={1}
+              onChange={n => setCfg(p => ({ ...p, vipVisitasMin: n }))}
+            />
+          )}
+        </div>
+
+        <div className="h-px bg-white/5" />
+
+        {/* VIP por gasto */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-foreground">VIP por gasto mensual</div>
+              <div className="text-xs text-muted-foreground">Gasto mínimo acumulado en el mes actual</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCfg(p => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))}
+              className={cn(
+                "relative h-6 w-11 rounded-full transition-all shrink-0",
+                cfg.vipGastoEnabled ? "bg-primary/70" : "bg-white/10",
+              )}
+            >
+              <span className={cn(
+                "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                cfg.vipGastoEnabled ? "translate-x-5" : "translate-x-0.5",
+              )} />
+            </button>
+          </div>
+          {cfg.vipGastoEnabled && (
+            <NumInput
+              label="Gasto mínimo mensual"
+              value={cfg.vipGastoMin}
+              min={0}
+              step={1000}
+              prefix="$"
+              onChange={n => setCfg(p => ({ ...p, vipGastoMin: n }))}
+            />
+          )}
+        </div>
+
+        {/* Note */}
+        {(cfg.vipVisitasEnabled || cfg.vipGastoEnabled) && (
+          <p className="text-[11px] text-muted-foreground rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-3 py-2">
+            Un cliente se marca VIP si cumple <strong className="text-foreground">cualquiera</strong> de las condiciones activas durante el mes en curso.
+          </p>
+        )}
+      </Card>
+
+      {/* Save */}
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold bg-gradient-to-b from-amber-200 to-amber-400 text-black hover:brightness-105 disabled:opacity-50 transition-all"
+        >
+          {saving ? "Guardando…" : "Guardar configuración"}
+        </button>
+      </div>
+    </div>
   );
 }
 
