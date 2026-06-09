@@ -4310,43 +4310,140 @@ function ClientesSection() {
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, []);
 
-  const setField = (key: string, val: boolean) =>
-    setCfg(prev => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
+// ── Helpers defined OUTSIDE the component to avoid re-mount on every render ──
 
-  const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+function CfgCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
     <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 space-y-4", className)}>
       {children}
     </div>
   );
+}
 
-  const SectionTitle = ({ label, sub }: { label: string; sub?: string }) => (
+function CfgSectionTitle({ label, sub }: { label: string; sub?: string }) {
+  return (
     <div>
       <h3 className="text-sm font-semibold text-foreground">{label}</h3>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
+}
 
-  const NumInput = ({
-    label, value, onChange, min, step, prefix,
-  }: {
-    label: string; value: number; onChange: (n: number) => void;
-    min?: number; step?: number; prefix?: string;
-  }) => (
+// NumInput uses uncontrolled local string state so typing never loses focus.
+// The parent's onChange is only called onBlur (when the user leaves the field).
+function CfgNumInput({
+  label, value, onChange, min = 1, step = 1, prefix,
+}: {
+  label: string; value: number; onChange: (n: number) => void;
+  min?: number; step?: number; prefix?: string;
+}) {
+  const [local, setLocal] = React.useState(String(value));
+
+  // Keep local in sync when parent value changes externally (initial load)
+  React.useEffect(() => { setLocal(String(value)); }, [value]);
+
+  const commit = () => {
+    const n = Math.max(min, Number(local) || min);
+    setLocal(String(n));
+    onChange(n);
+  };
+
+  return (
     <label className="flex items-center justify-between gap-4">
       <span className="text-sm text-foreground/80">{label}</span>
       <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
         {prefix && <span className="text-sm text-muted-foreground">{prefix}</span>}
         <input
           type="number"
-          min={min ?? 1}
-          step={step ?? 1}
-          value={value}
-          onChange={e => onChange(Math.max(min ?? 1, Number(e.target.value) || (min ?? 1)))}
+          min={min}
+          step={step}
+          value={local}
+          onChange={e => setLocal(e.target.value)}
+          onBlur={commit}
           className="w-24 bg-transparent text-sm text-right tabular-nums outline-none text-foreground"
         />
       </div>
     </label>
   );
+}
+
+function Toggle({
+  enabled, onToggle,
+}: { enabled: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        "relative h-6 w-11 rounded-full transition-all shrink-0",
+        enabled ? "bg-primary/70" : "bg-white/10",
+      )}
+    >
+      <span className={cn(
+        "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+        enabled ? "translate-x-5" : "translate-x-0.5",
+      )} />
+    </button>
+  );
+}
+
+function ClientesSection() {
+  const { businessId } = useAuth();
+  const [cfg, setCfg] = useState<ClientesConfig>(DEFAULT_CLIENTES_CONFIG);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        if (schedule._clientes) {
+          setCfg({ ...DEFAULT_CLIENTES_CONFIG, ...(schedule._clientes as Partial<ClientesConfig>) });
+        }
+        setLoaded(true);
+      });
+  }, [businessId]);
+
+  const save = useCallback(async () => {
+    if (!businessId) return;
+    try {
+      const { data: existingRow } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const result = await supabase
+        .from("business_settings")
+        .upsert(
+          { business_id: businessId, schedule: { ...existingSchedule, _clientes: cfg } },
+          { onConflict: "business_id" },
+        );
+      if (result.error) throw new Error(result.error.message);
+      toast.success("Configuración de clientes guardada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }, [businessId, cfg]);
+
+  // Wire up global save button
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; }, [save]);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "clientes") void saveRef.current();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, []);
+
+  const setField = (key: string, val: boolean) =>
+    setCfg(prev => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
 
   if (!loaded) return (
     <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
@@ -4362,8 +4459,8 @@ function ClientesSection() {
       </div>
 
       {/* ── Campos ── */}
-      <Card>
-        <SectionTitle
+      <CfgCard>
+        <CfgSectionTitle
           label="Campos visibles"
           sub="Los campos activos aparecen al crear o editar clientes y al agendar turnos."
         />
@@ -4379,9 +4476,7 @@ function ClientesSection() {
                     onClick={() => !f.required && setField(f.key, !enabled)}
                     className={cn(
                       "h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition-all",
-                      enabled
-                        ? "bg-primary/80 border-primary/60"
-                        : "bg-white/[0.03] border-white/15",
+                      enabled ? "bg-primary/80 border-primary/60" : "bg-white/[0.03] border-white/15",
                       f.required && "opacity-60 cursor-not-allowed",
                     )}
                   >
@@ -4398,16 +4493,14 @@ function ClientesSection() {
             );
           })}
         </div>
-      </Card>
+      </CfgCard>
 
       {/* ── Estado ── */}
-      <Card>
-        <SectionTitle
+      <CfgCard>
+        <CfgSectionTitle
           label="Estado de clientes"
           sub="El sistema calcula automáticamente el estado según la fecha de la última visita."
         />
-
-        {/* Diagram */}
         <div className="grid grid-cols-3 gap-2 text-center">
           {[
             { label: "Activo",   color: "text-emerald-300", ring: "ring-emerald-400/25 bg-emerald-400/8",  range: `0 – ${cfg.diasInactivo - 1} días` },
@@ -4420,53 +4513,38 @@ function ClientesSection() {
             </div>
           ))}
         </div>
-
         <div className="space-y-3 pt-1">
-          <NumInput
+          <CfgNumInput
             label="Días para considerar cliente inactivo"
             value={cfg.diasInactivo}
             min={1}
-            onChange={n => setCfg(p => ({ ...p, diasInactivo: Math.min(n, cfg.diasPerdido - 1) }))}
+            onChange={n => setCfg(p => ({ ...p, diasInactivo: Math.min(n, p.diasPerdido - 1) }))}
           />
-          <NumInput
+          <CfgNumInput
             label="Días para considerar cliente perdido"
             value={cfg.diasPerdido}
-            min={cfg.diasInactivo + 1}
-            onChange={n => setCfg(p => ({ ...p, diasPerdido: Math.max(n, cfg.diasInactivo + 1) }))}
+            min={2}
+            onChange={n => setCfg(p => ({ ...p, diasPerdido: Math.max(n, p.diasInactivo + 1) }))}
           />
         </div>
-      </Card>
+      </CfgCard>
 
       {/* ── VIP ── */}
-      <Card>
-        <SectionTitle
+      <CfgCard>
+        <CfgSectionTitle
           label="Cliente VIP"
           sub="Se calcula mes a mes. Si el cliente deja de cumplir las condiciones, pierde la etiqueta automáticamente."
         />
-
-        {/* VIP por visitas */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-foreground">VIP por visitas mensuales</div>
               <div className="text-xs text-muted-foreground">Cantidad mínima de visitas en el mes actual</div>
             </div>
-            <button
-              type="button"
-              onClick={() => setCfg(p => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))}
-              className={cn(
-                "relative h-6 w-11 rounded-full transition-all shrink-0",
-                cfg.vipVisitasEnabled ? "bg-primary/70" : "bg-white/10",
-              )}
-            >
-              <span className={cn(
-                "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                cfg.vipVisitasEnabled ? "translate-x-5" : "translate-x-0.5",
-              )} />
-            </button>
+            <Toggle enabled={cfg.vipVisitasEnabled} onToggle={() => setCfg(p => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))} />
           </div>
           {cfg.vipVisitasEnabled && (
-            <NumInput
+            <CfgNumInput
               label="Visitas mínimas por mes"
               value={cfg.vipVisitasMin}
               min={1}
@@ -4474,32 +4552,17 @@ function ClientesSection() {
             />
           )}
         </div>
-
         <div className="h-px bg-white/5" />
-
-        {/* VIP por gasto */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-foreground">VIP por gasto mensual</div>
               <div className="text-xs text-muted-foreground">Gasto mínimo acumulado en el mes actual</div>
             </div>
-            <button
-              type="button"
-              onClick={() => setCfg(p => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))}
-              className={cn(
-                "relative h-6 w-11 rounded-full transition-all shrink-0",
-                cfg.vipGastoEnabled ? "bg-primary/70" : "bg-white/10",
-              )}
-            >
-              <span className={cn(
-                "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                cfg.vipGastoEnabled ? "translate-x-5" : "translate-x-0.5",
-              )} />
-            </button>
+            <Toggle enabled={cfg.vipGastoEnabled} onToggle={() => setCfg(p => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))} />
           </div>
           {cfg.vipGastoEnabled && (
-            <NumInput
+            <CfgNumInput
               label="Gasto mínimo mensual"
               value={cfg.vipGastoMin}
               min={0}
@@ -4509,26 +4572,12 @@ function ClientesSection() {
             />
           )}
         </div>
-
-        {/* Note */}
         {(cfg.vipVisitasEnabled || cfg.vipGastoEnabled) && (
           <p className="text-[11px] text-muted-foreground rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-3 py-2">
             Un cliente se marca VIP si cumple <strong className="text-foreground">cualquiera</strong> de las condiciones activas durante el mes en curso.
           </p>
         )}
-      </Card>
-
-      {/* Save */}
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold bg-gradient-to-b from-amber-200 to-amber-400 text-black hover:brightness-105 disabled:opacity-50 transition-all"
-        >
-          {saving ? "Guardando…" : "Guardar configuración"}
-        </button>
-      </div>
+      </CfgCard>
     </div>
   );
 }
