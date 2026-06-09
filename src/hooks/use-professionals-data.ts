@@ -12,6 +12,7 @@ export type Professional = {
   full_name: string;
   avatar_url?: string | null;
   commission_pct: number;
+  commission_fixed?: number | null;
   is_active: boolean;
 };
 
@@ -63,7 +64,7 @@ export function useProfessionals(businessId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,avatar_url,commission_pct,is_active")
+        .select("id,full_name,avatar_url,commission_pct,commission_fixed,is_active")
         .eq("business_id", businessId!)
         .order("full_name", { ascending: true });
       if (error) throw new Error(error.message);
@@ -111,13 +112,16 @@ export function useProfStats(
       // Need commission_pct for this employee
       const { data: emp } = await supabase
         .from("employees")
-        .select("commission_pct")
+        .select("commission_pct,commission_fixed")
         .eq("id", empId!)
         .maybeSingle();
 
       const commPct = Number(emp?.commission_pct ?? 0) / 100;
+      const commFixed = Number((emp as { commission_fixed?: number | null } | null)?.commission_fixed ?? 0);
       const facturacion = (pays ?? []).reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
-      const comision = Math.round(facturacion * commPct);
+      const comision = commFixed > 0
+        ? Math.round(commFixed * (pays ?? []).length)
+        : Math.round(facturacion * commPct);
       const pagado = (payouts ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
 
       return {
