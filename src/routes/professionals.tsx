@@ -1289,28 +1289,6 @@ function StatsView({
         </div>
       </div>
 
-      {/* Ingresos area chart */}
-      <div className="glass rounded-2xl p-5 relative overflow-hidden">
-        <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl pointer-events-none" />
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-sm text-muted-foreground">Ingresos</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-4xl font-display font-light tracking-tight">{stats ? stats.facturacion.toLocaleString("es-AR") : "0"}</span>
-              <span className="text-muted-foreground text-lg">$</span>
-            </div>
-            <div className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-300">
-              ↗ 0,0 % <span className="text-muted-foreground">últimos 30 días</span>
-            </div>
-          </div>
-        </div>
-        <LineChart
-          points={Array.from({ length: 30 }, () => 0)}
-          labels={["29 abr", "6 may", "13 may", "20 may", "27 may"]}
-          dense
-        />
-      </div>
-
       {/* Servicios Desglose */}
       <ServiciosDesglose sales={sales} businessId={businessId} />
     </div>
@@ -1478,10 +1456,10 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
           <span className="text-xs opacity-60">Los datos aparecerán cuando haya turnos registrados</span>
         </div>
       ) : (
-        <div className="flex flex-col sm:flex-row items-center gap-6">
-          {/* Donut */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          {/* Donut — smaller to sit tight next to the legend */}
           <div className="shrink-0 relative">
-            <svg width="180" height="180" viewBox="0 0 180 180">
+            <svg width="140" height="140" viewBox="0 0 180 180">
               {arcs.map((arc, i) => (
                 <circle key={i}
                   cx={CX} cy={CY} r={RADIUS}
@@ -1494,7 +1472,6 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
                   style={{ transform: "rotate(-90deg)", transformOrigin: `${CX}px ${CY}px`, transition: "stroke-dasharray 0.5s" }}
                 />
               ))}
-              {/* Center total */}
               <text x={CX} y={CY - 8} textAnchor="middle" fill="white" fontSize="11" opacity="0.5" fontFamily="sans-serif">Total</text>
               <text x={CX} y={CY + 10} textAnchor="middle" fill="white" fontSize="14" fontWeight="600" fontFamily="sans-serif">
                 {fmt(grandTotal)}
@@ -1502,13 +1479,13 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
             </svg>
           </div>
 
-          {/* Legend */}
-          <div className="flex-1 w-full space-y-2 min-w-0">
+          {/* Legend — natural width, no flex-1 stretch */}
+          <div className="space-y-2 min-w-0 w-full sm:w-auto sm:max-w-xs">
             {filtered.slice(0, 7).map((item, i) => (
               <div key={item.displayName} className="flex items-center gap-3 min-w-0">
                 <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                 <div className="flex-1 text-sm truncate min-w-0">{item.displayName}</div>
-                <div className="tabular-nums text-xs text-muted-foreground shrink-0">{fmt(item.total)}</div>
+                <div className="tabular-nums text-xs text-muted-foreground shrink-0 ml-3">{fmt(item.total)}</div>
                 <div className="tabular-nums text-xs font-semibold shrink-0 w-12 text-right">{fmtPct(item.total)}</div>
               </div>
             ))}
