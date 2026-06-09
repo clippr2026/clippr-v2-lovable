@@ -783,8 +783,8 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
         {/* Table header */}
         <div className="overflow-x-auto">
-          <div className="min-w-[1240px]">
-            <div className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_95px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+          <div className="min-w-[1120px]">
+            <div className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
               <div>Hora</div>
               <div>Cliente</div>
@@ -793,7 +793,6 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
               <div className="text-right">Monto</div>
               <div>Método</div>
               <div>Historial</div>
-              <div className="text-right">Acción</div>
             </div>
 
             {/* Rows */}
@@ -815,7 +814,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_95px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035] hover:bg-amber-400/[0.06] transition cursor-pointer"
+                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035] hover:bg-amber-400/[0.06] transition cursor-pointer"
                       onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -846,18 +845,6 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       </div>
                       <div className="text-muted-foreground">—</div>
                       <div><HistorialCell events={historialEvents} /></div>
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onCobrarPendiente(p);
-                          }}
-                          className="inline-flex items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-400/20 transition"
-                        >
-                          Cobrar
-                        </button>
-                      </div>
                     </div>
                   );
                 })}
@@ -883,7 +870,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_95px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -914,7 +901,6 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       </div>
                       <div className="text-muted-foreground truncate">{methodLabel}</div>
                       <div><HistorialCell events={historialEvents} /></div>
-                      <div />
                     </div>
                   );
                 })}
