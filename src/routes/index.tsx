@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useDashboardData,
   fmtAR,
@@ -191,6 +192,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   return (
     <div className="space-y-5 animate-fade-up">
       {dateBar}
+      <DashboardCierresCaja businessId={businessId} />
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <Stat
@@ -267,6 +269,260 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   );
 }
 
+
+type CajaCierre = {
+  id: string;
+  fecha: string;
+  hora_cierre?: string | null;
+  hora?: string | null;
+  usuario_nombre?: string | null;
+  cerrado_por?: string | null;
+  total_cobrado?: number | null;
+  total_gastos?: number | null;
+  utilidad?: number | null;
+  cantidad_cobros?: number | null;
+  cobros_count?: number | null;
+  detalle_metodos_pago?: Record<string, { ingresos?: number; gastos?: number; utilidad?: number }> | null;
+  detalle_metodos?: Record<string, number> | null;
+  observacion?: string | null;
+  tipo_cierre?: string | null;
+  tipo?: string | null;
+  estado?: string | null;
+  cobros_snapshot?: Array<Record<string, unknown>> | null;
+  gastos_snapshot?: Array<Record<string, unknown>> | null;
+  reopened_at?: string | null;
+  reopened_by?: string | null;
+  reopen_reason?: string | null;
+};
+
+function DashboardCierresCaja({ businessId }: { businessId: string | null }) {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [cierres, setCierres] = React.useState<CajaCierre[]>([]);
+  const [selected, setSelected] = React.useState<CajaCierre | null>(null);
+
+  const load = React.useCallback(async () => {
+    if (!businessId) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("caja_cierres" as any)
+      .select("*")
+      .eq("business_id", businessId)
+      .order("fecha", { ascending: false })
+      .limit(90);
+    if (!error) {
+      const rows = (data ?? []) as CajaCierre[];
+      setCierres(rows);
+      setSelected(rows[0] ?? null);
+    }
+    setLoading(false);
+  }, [businessId]);
+
+  React.useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  async function reabrirCaja(cierre: CajaCierre) {
+    if (!businessId) return;
+    const motivo = window.prompt("Motivo de reapertura (opcional):") ?? "";
+    const { error } = await supabase
+      .from("caja_cierres" as any)
+      .update({
+        estado: "reabierta",
+        reopened_at: new Date().toISOString(),
+        reopened_by: "Dueño",
+        reopen_reason: motivo.trim() || null,
+      })
+      .eq("id", cierre.id)
+      .eq("business_id", businessId);
+
+    if (error) {
+      console.error(error);
+      alert("No se pudo reabrir la caja: " + error.message);
+      return;
+    }
+    await load();
+  }
+
+  return (
+    <>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-white/[0.07]"
+        >
+          <Clock className="size-4 text-amber-200" />
+          Cierres de caja
+        </button>
+      </div>
+
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm p-4">
+          <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[oklch(0.11_0.04_275)] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold">Cierres de caja</h3>
+                <p className="text-xs text-muted-foreground">Resumen final, cobros y gastos incluidos en cada cierre.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg bg-white/5 px-3 py-2 text-sm transition hover:bg-white/10"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="grid flex-1 place-items-center text-sm text-muted-foreground">Cargando cierres…</div>
+            ) : cierres.length === 0 ? (
+              <div className="grid flex-1 place-items-center text-sm text-muted-foreground">Sin cierres registrados.</div>
+            ) : (
+              <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[320px_1fr]">
+                <div className="overflow-y-auto border-r border-white/10">
+                  {cierres.map((c) => {
+                    const active = selected?.id === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelected(c)}
+                        className={cn("w-full border-b border-white/5 px-4 py-3 text-left transition hover:bg-white/[0.04]", active && "bg-amber-300/10")}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold">
+                            {new Date(`${c.fecha}T12:00:00`).toLocaleDateString("es-AR")}
+                          </span>
+                          <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] uppercase text-muted-foreground">
+                            {c.tipo_cierre ?? c.tipo ?? "manual"}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Cobrado ${Number(c.total_cobrado ?? 0).toLocaleString("es-AR")} · Gastos ${Number(c.total_gastos ?? 0).toLocaleString("es-AR")}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selected && (
+                  <div className="min-h-0 overflow-y-auto p-5 space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { label: "Total cobrado", value: selected.total_cobrado, cls: "text-emerald-300" },
+                        { label: "Total gastos", value: selected.total_gastos, cls: "text-rose-300" },
+                        { label: "Utilidad", value: selected.utilidad, cls: Number(selected.utilidad ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300" },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">{item.label}</div>
+                          <div className={`mt-2 text-2xl font-semibold tabular-nums ${item.cls}`}>
+                            ${Number(item.value ?? 0).toLocaleString("es-AR")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+                      <div className="grid grid-cols-4 gap-3 border-b border-white/10 px-4 py-2.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
+                        <div>Método</div><div className="text-right">Ingresos</div><div className="text-right">Gastos</div><div className="text-right">Utilidad</div>
+                      </div>
+                      {Object.entries(selected.detalle_metodos_pago ?? {}).length > 0 ? (
+                        (Object.entries(selected.detalle_metodos_pago ?? {}) as Array<[string, { ingresos?: number; gastos?: number; utilidad?: number }]>).map(([method, row]) => (
+                          <div key={method} className="grid grid-cols-4 gap-3 border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
+                            <div className="capitalize text-muted-foreground">{method}</div>
+                            <div className="text-right text-emerald-300">${Number(row.ingresos ?? 0).toLocaleString("es-AR")}</div>
+                            <div className="text-right text-rose-300">${Number(row.gastos ?? 0).toLocaleString("es-AR")}</div>
+                            <div className="text-right font-semibold">${Number(row.utilidad ?? 0).toLocaleString("es-AR")}</div>
+                          </div>
+                        ))
+                      ) : (
+                        Object.entries(selected.detalle_metodos ?? {}).map(([method, total]) => (
+                          <div key={method} className="grid grid-cols-4 gap-3 border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
+                            <div className="capitalize text-muted-foreground">{method}</div>
+                            <div className="text-right text-emerald-300">${Number(total ?? 0).toLocaleString("es-AR")}</div>
+                            <div className="text-right text-rose-300">$0</div>
+                            <div className="text-right font-semibold">${Number(total ?? 0).toLocaleString("es-AR")}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                      <SnapshotList title="Historial de cobros" rows={selected.cobros_snapshot ?? []} amountKey="monto" empty="Sin cobros guardados en este cierre." />
+                      <SnapshotList title="Historial de gastos" rows={selected.gastos_snapshot ?? []} amountKey="monto" empty="Sin gastos guardados en este cierre." />
+                    </div>
+
+                    <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4 text-sm">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="grid flex-1 grid-cols-2 gap-3 text-xs text-muted-foreground">
+                          <div>Estado: <span className="text-foreground capitalize">{selected.estado ?? "cerrada"}</span></div>
+                          <div>Tipo: <span className="text-foreground capitalize">{selected.tipo_cierre ?? selected.tipo ?? "manual"}</span></div>
+                          <div>Usuario: <span className="text-foreground">{selected.usuario_nombre ?? selected.cerrado_por ?? "—"}</span></div>
+                          <div>Hora: <span className="text-foreground">{selected.hora_cierre ?? selected.hora ?? "—"}</span></div>
+                          {selected.reopened_at && (
+                            <div>Reapertura: <span className="text-foreground">{new Date(selected.reopened_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>
+                          )}
+                          {selected.reopened_by && <div>Reabrió: <span className="text-foreground">{selected.reopened_by}</span></div>}
+                        </div>
+                        {(selected.estado ?? "cerrada") !== "reabierta" && (
+                          <button
+                            type="button"
+                            onClick={() => reabrirCaja(selected)}
+                            className="shrink-0 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-300/20"
+                          >
+                            Reabrir caja
+                          </button>
+                        )}
+                      </div>
+                      {selected.observacion && <p className="mt-3 text-muted-foreground">{selected.observacion}</p>}
+                      {selected.reopen_reason && <p className="mt-2 text-muted-foreground">Motivo reapertura: {selected.reopen_reason}</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function SnapshotList({
+  title,
+  rows,
+  amountKey,
+  empty,
+}: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  amountKey: string;
+  empty: string;
+}) {
+  return (
+    <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+      <div className="border-b border-white/10 px-4 py-2.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
+        {title}
+      </div>
+      {rows.length === 0 ? (
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">{empty}</div>
+      ) : (
+        rows.map((row, idx) => (
+          <div key={idx} className="flex items-start justify-between gap-3 border-b border-white/5 px-4 py-2.5 text-xs last:border-0">
+            <div className="min-w-0">
+              <div className="truncate text-foreground">{String(row.cliente ?? row.nombre ?? row.concepto ?? row.servicio ?? "Registro")}</div>
+              <div className="truncate text-muted-foreground">{String(row.hora ?? "")} {String(row.metodo ?? row.tipo ?? "")}</div>
+            </div>
+            <div className="shrink-0 font-semibold tabular-nums">${Number(row[amountKey] ?? 0).toLocaleString("es-AR")}</div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+
 // ---------------------------------------------------------------------------
 // Stat card with mini sparkline
 // ---------------------------------------------------------------------------
@@ -320,7 +576,7 @@ function Stat({
 }: {
   label: string;
   value: string;
-  sub: string;
+  sub?: string;
   icon: React.ComponentType<{ className?: string }>;
   tone?: keyof typeof TONE;
   spark?: number[];

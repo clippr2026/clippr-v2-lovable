@@ -191,7 +191,7 @@ export const Route = createFileRoute("/cash-register")({
   component: CashRegisterPage,
 });
 
-type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales" | "cierres";
+type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales";
 
 function CashRegisterPage() {
   const { session, loading: authLoading, permissions } = useAuth();
@@ -221,6 +221,7 @@ function CashRegisterPage() {
 
   // Controls the inline gasto form inside ResumenTab opened from the header button
   const [gastoFromHeader, setGastoFromHeader] = useState(false);
+  const [activeSummaryView, setActiveSummaryView] = useState<"ingresos" | "pendientes" | "gastos" | "cobros">("ingresos");
 
   // When a pending charge is picked, switch to the "nueva" tab
   function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
@@ -246,7 +247,7 @@ function CashRegisterPage() {
         onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }}
         data={data}
         userEmail={session.user.email ?? null}
-        onNuevoGasto={() => { setTab("resumen"); setGastoFromHeader(true); }}
+        onNuevoGasto={() => { setTab("gastos"); setGastoFromHeader(true); }}
       />
       <div className="mt-6">
         {tab === "resumen" && (
@@ -254,27 +255,24 @@ function CashRegisterPage() {
             data={data}
             equipoEnabled={permissions.equipo}
             onCobrarPendiente={handleCobrarPendiente}
-            openGastoForm={gastoFromHeader}
-            onGastoFormClose={() => setGastoFromHeader(false)}
+            activeView={activeSummaryView}
+            onActiveViewChange={setActiveSummaryView}
           />
         )}
         {tab === "nueva" && (
           <NuevaVentaTab
             data={data}
             pendingCharge={pendingToCharge}
-            onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
+            onPendingDone={() => { setPendingToCharge(null); setActiveSummaryView("ingresos"); setTab("resumen"); }}
           />
         )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
-        {tab === "gastos" && <GastosTab businessId={data.businessId} />}
+        {tab === "gastos" && <GastosTab businessId={data.businessId} startOpen={gastoFromHeader} onOpenConsumed={() => setGastoFromHeader(false)} onSaved={() => { setActiveSummaryView("gastos"); setTab("resumen"); data.refresh(); }} />}
         {tab === "profesionales" && (
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
-        )}
-        {tab === "cierres" && (
-          <CierresTab businessId={data.businessId} />
         )}
       </div>
     </AppShell>
@@ -301,7 +299,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "precios",       label: "Precios"           },
   { id: "inventario",    label: "Inventario"        },
   { id: "profesionales", label: "Liquidaciones"     },
-  { id: "cierres",       label: "Cierres de caja"   },
 ];
 
 function Tabs({
@@ -372,9 +369,14 @@ function Tabs({
 }
 
 
-function Card({ className, children }: { className?: string; children: React.ReactNode }) {
+function Card({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { className?: string; children: React.ReactNode }) {
   return (
     <div
+      {...props}
       className={cn(
         "relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025]",
         "shadow-[0_1px_0_oklch(1_0_0/0.04)_inset,0_20px_50px_-20px_oklch(0_0_0/0.6)]",
@@ -407,50 +409,15 @@ function ResumenTab({
   data,
   equipoEnabled,
   onCobrarPendiente,
-  openGastoForm = false,
-  onGastoFormClose,
+  activeView,
+  onActiveViewChange,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
-  openGastoForm?: boolean;
-  onGastoFormClose?: () => void;
+  activeView: "ingresos" | "pendientes" | "gastos" | "cobros";
+  onActiveViewChange: (view: "ingresos" | "pendientes" | "gastos" | "cobros") => void;
 }) {
-  const [gastoOpen, setGastoOpen] = React.useState(false);
-  const [gastoForm, setGastoForm] = React.useState({ name: "", amount: "", type: "", method: "", note: "" });
-  const [gastoSaving, setGastoSaving] = React.useState(false);
-  const today = new Date().toISOString().slice(0, 10);
-  const GTYPES   = ["fijo", "variable", "ocasional", "marketing"];
-  const GMETHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
-
-  // Open from header button
-  React.useEffect(() => {
-    if (openGastoForm) { setGastoOpen(true); onGastoFormClose?.(); }
-  }, [openGastoForm]);
-
-  async function saveGasto() {
-    const name   = gastoForm.name.trim();
-    const amount = parseFloat(gastoForm.amount);
-    if (!name) return toast.error("El nombre del gasto es obligatorio.");
-    if (!amount || amount <= 0) return toast.error("El monto debe ser mayor a 0.");
-    setGastoSaving(true);
-    const { error } = await supabase.from("expenses").insert({
-      business_id: data.businessId,
-      name,
-      amount,
-      type: gastoForm.type || null,
-      payment_method: gastoForm.method || null,
-      date: today,
-      note: gastoForm.note.trim() || null,
-    });
-    setGastoSaving(false);
-    if (error) return toast.error("Error guardando gasto: " + error.message);
-    toast.success("✓ Gasto registrado");
-    setGastoForm({ name: "", amount: "", type: "", method: "", note: "" });
-    setGastoOpen(false);
-    data.refresh();
-  }
-
   // Métodos más usados
   const topMethods = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -463,7 +430,8 @@ function ResumenTab({
 
   const stats = [
     {
-      label: "Cobrado",
+      id: "ingresos" as const,
+      label: "Ingresos",
       value: data.revHoy,
       sub: "",
       icon: Wallet,
@@ -471,14 +439,25 @@ function ResumenTab({
       money: true,
     },
     {
-      label: "Pendiente",
+      id: "pendientes" as const,
+      label: "Pendientes",
       value: data.pendingAmount,
-      sub: "",
+      sub: `${data.pendingCount} pendiente${data.pendingCount === 1 ? "" : "s"}`,
       icon: Clock,
       tint: "from-violet-400/25 to-violet-500/0",
       money: true,
     },
     {
+      id: "gastos" as const,
+      label: "Gastos",
+      value: data.totalGastos,
+      sub: "",
+      icon: Trash2,
+      tint: "from-rose-400/20 to-rose-500/0",
+      money: true,
+    },
+    {
+      id: "cobros" as const,
       label: "Cobros",
       value: data.cobros,
       sub: "",
@@ -486,23 +465,14 @@ function ResumenTab({
       tint: "from-sky-400/25 to-sky-500/0",
       money: false,
     },
-    {
-      label: "Gastos",
-      value: data.totalGastos,
-      sub: "",
-      icon: Trash2,
-      tint: "from-rose-400/20 to-rose-500/0",
-      money: true,
-      onClick: () => setGastoOpen((v) => !v),
-    },
   ];
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {stats.map((s) => (
-          <Card key={s.label} className={cn("p-4", (s as any).onClick && "cursor-pointer hover:ring-white/20 transition-all")}
-            onClick={(s as any).onClick}>
+          <Card key={s.label} className={cn("p-4 cursor-pointer hover:ring-white/20 transition-all", activeView === s.id && "ring-2 ring-amber-300/45")}
+            onClick={() => onActiveViewChange(s.id)}>
             <div
               className={cn(
                 "pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br",
@@ -531,61 +501,7 @@ function ResumenTab({
         ))}
       </div>
 
-      {/* Inline gasto form */}
-      {gastoOpen && (
-        <Card className="p-5 max-w-3xl mx-auto w-full">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">Nuevo gasto</h3>
-            <button type="button" onClick={() => setGastoOpen(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition">✕</button>
-          </div>
-          <div className="space-y-2.5">
-            <input
-              value={gastoForm.name}
-              onChange={(e) => setGastoForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Nombre del gasto *"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
-            />
-            <input
-              value={gastoForm.amount}
-              onChange={(e) => setGastoForm((f) => ({ ...f, amount: e.target.value }))}
-              placeholder="Monto *"
-              type="number"
-              min={0}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <select value={gastoForm.type} onChange={(e) => setGastoForm((f) => ({ ...f, type: e.target.value }))}
-                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50">
-                <option value="">Tipo</option>
-                {GTYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </select>
-              <select value={gastoForm.method} onChange={(e) => setGastoForm((f) => ({ ...f, method: e.target.value }))}
-                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50">
-                <option value="">Método de pago</option>
-                {GMETHODS.map((m) => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
-              </select>
-            </div>
-            <input
-              value={gastoForm.note}
-              onChange={(e) => setGastoForm((f) => ({ ...f, note: e.target.value }))}
-              placeholder="Nota (opcional)"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
-            />
-            <button
-              type="button"
-              onClick={saveGasto}
-              disabled={gastoSaving}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-sm disabled:opacity-50"
-            >
-              {gastoSaving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Registrar gasto
-            </button>
-          </div>
-        </Card>
-      )}
-
-      <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
+      <History data={data} equipoEnabled={equipoEnabled} activeView={activeView} onCobrarPendiente={onCobrarPendiente} />
     </div>
   );
 }
@@ -656,6 +572,24 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
 
 // ─────────── Cierre de caja ──────────────────────────────────────────────────
 
+
+function normalizePaymentMethod(method?: string | null) {
+  const m = String(method ?? "otro").toLowerCase();
+  if (m === "cash" || m === "efectivo") return "efectivo";
+  if (m === "transfer" || m === "transferencia") return "transferencia";
+  if (m === "card" || m === "tarjeta" || m === "débito" || m === "debito" || m === "crédito" || m === "credito") return "tarjeta";
+  if (m === "mp" || m === "mercado pago") return "mercado pago";
+  return m;
+}
+
+function methodDisplayName(method: string) {
+  if (method === "efectivo") return "Efectivo";
+  if (method === "transferencia") return "Transferencia";
+  if (method === "tarjeta") return "Débito / Crédito";
+  if (method === "mercado pago") return "Mercado Pago";
+  return PAY_METHOD_LABEL[method as PayMethod] ?? method;
+}
+
 function CierreCajaBtn({
   paymentsToday,
   expensesToday,
@@ -684,30 +618,82 @@ function CierreCajaBtn({
   );
   const utilidad = totalCobrado - totalGastos;
 
-  const byMethod: Record<string, number> = {};
-  for (const p of todayPayments) {
-    const m = ((p as any).method ?? (p as any).payment_method ?? "otro") as string;
-    byMethod[m] = (byMethod[m] ?? 0) + Number((p as any).total ?? (p as any).amount ?? 0);
-  }
+  const byMethod = React.useMemo(() => {
+    const methods: Record<string, { ingresos: number; gastos: number; utilidad: number }> = {};
+
+    const ensure = (method: string) => {
+      const key = normalizePaymentMethod(method);
+      if (!methods[key]) methods[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+      return methods[key];
+    };
+
+    for (const p of todayPayments) {
+      const m = normalizePaymentMethod((p as any).method ?? (p as any).payment_method);
+      ensure(m).ingresos += Number((p as any).total ?? (p as any).amount ?? 0);
+    }
+
+    for (const e of expensesToday) {
+      const m = normalizePaymentMethod((e as any).payment_method);
+      ensure(m).gastos += Number((e as any).amount ?? 0);
+    }
+
+    for (const method of Object.keys(methods)) {
+      methods[method].utilidad = methods[method].ingresos - methods[method].gastos;
+    }
+
+    return methods;
+  }, [todayPayments, expensesToday]);
+
+  const cobrosSnapshot = todayPayments.map((p) => ({
+    id: (p as any).id,
+    hora: new Date((p as any).created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+    cliente: (p as any).client_name ?? null,
+    profesional: null,
+    servicio: (p as any).service_name ?? null,
+    metodo: normalizePaymentMethod((p as any).method ?? (p as any).payment_method),
+    monto: Number((p as any).total ?? (p as any).amount ?? 0),
+    usuario: (p as any).charged_by ?? null,
+  }));
+
+  const gastosSnapshot = expensesToday.map((e) => ({
+    id: (e as any).id,
+    hora: (e as any).created_at
+      ? new Date((e as any).created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      : null,
+    nombre: (e as any).name ?? (e as any).category ?? "Gasto",
+    tipo: (e as any).type ?? (e as any).category ?? null,
+    metodo: normalizePaymentMethod((e as any).payment_method),
+    monto: Number((e as any).amount ?? 0),
+    nota: (e as any).note ?? null,
+  }));
 
   async function confirmar() {
     if (!businessId) return;
     setSaving(true);
     try {
       const now = new Date();
-      const { error } = await supabase.from("caja_cierres" as any).insert({
+      const payload = {
         business_id: businessId,
         fecha: today,
-        hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+        hora_cierre: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+        usuario_id: null,
+        usuario_nombre: userEmail,
         total_cobrado: totalCobrado,
         total_gastos: totalGastos,
         utilidad,
-        cobros_count: todayPayments.length,
-        detalle_metodos: byMethod,
+        cantidad_cobros: todayPayments.length,
+        detalle_metodos_pago: byMethod,
+        cobros_snapshot: cobrosSnapshot,
+        gastos_snapshot: gastosSnapshot,
         observacion: obs.trim() || null,
-        cerrado_por: userEmail,
-        tipo: "manual",
-      });
+        tipo_cierre: "manual",
+        estado: "cerrada",
+      };
+
+      const { error } = await supabase
+        .from("caja_cierres" as any)
+        .upsert(payload, { onConflict: "business_id,fecha" });
+
       if (error) throw new Error(error.message);
       toast.success("Cierre registrado correctamente");
       setOpen(false);
@@ -718,6 +704,105 @@ function CierreCajaBtn({
       setSaving(false);
     }
   }
+
+  React.useEffect(() => {
+    if (!businessId) return;
+
+    const runAutoClose = async () => {
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const fecha = yesterday.toLocaleDateString("sv-SE");
+
+      try {
+        const { data: existing } = await supabase
+          .from("caja_cierres" as any)
+          .select("id")
+          .eq("business_id", businessId)
+          .eq("fecha", fecha)
+          .maybeSingle();
+
+        if (existing?.id) return;
+
+        const from = `${fecha}T00:00:00`;
+        const to = `${fecha}T23:59:59`;
+
+        const [{ data: pagos }, { data: gastos }] = await Promise.all([
+          supabase
+            .from("payments")
+            .select("id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by")
+            .eq("business_id", businessId)
+            .gte("created_at", from)
+            .lte("created_at", to),
+          supabase
+            .from("expenses")
+            .select("id,name,amount,type,category,payment_method,date,note,created_at")
+            .eq("business_id", businessId)
+            .eq("date", fecha),
+        ]);
+
+        const payments = pagos ?? [];
+        const expenses = gastos ?? [];
+        if (payments.length === 0 && expenses.length === 0) return;
+
+        const detail: Record<string, { ingresos: number; gastos: number; utilidad: number }> = {};
+        const ensure = (method: string) => {
+          const key = normalizePaymentMethod(method);
+          if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+          return detail[key];
+        };
+
+        for (const p of payments as any[]) {
+          ensure(p.method ?? p.payment_method).ingresos += Number(p.total ?? p.amount ?? 0);
+        }
+        for (const e of expenses as any[]) {
+          ensure(e.payment_method).gastos += Number(e.amount ?? 0);
+        }
+        for (const key of Object.keys(detail)) detail[key].utilidad = detail[key].ingresos - detail[key].gastos;
+
+        const total_cobrado = (payments as any[]).reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+        const total_gastos = (expenses as any[]).reduce((s, e) => s + Number(e.amount ?? 0), 0);
+
+        await supabase.from("caja_cierres" as any).insert({
+          business_id: businessId,
+          fecha,
+          hora_cierre: "00:00",
+          usuario_id: null,
+          usuario_nombre: "Sistema",
+          total_cobrado,
+          total_gastos,
+          utilidad: total_cobrado - total_gastos,
+          cantidad_cobros: payments.length,
+          detalle_metodos_pago: detail,
+          cobros_snapshot: (payments as any[]).map((p) => ({
+            id: p.id,
+            hora: new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+            cliente: p.client_name ?? null,
+            servicio: p.service_name ?? null,
+            metodo: normalizePaymentMethod(p.method ?? p.payment_method),
+            monto: Number(p.total ?? p.amount ?? 0),
+            usuario: p.charged_by ?? null,
+          })),
+          gastos_snapshot: (expenses as any[]).map((e) => ({
+            id: e.id,
+            hora: e.created_at ? new Date(e.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : null,
+            nombre: e.name ?? e.category ?? "Gasto",
+            tipo: e.type ?? e.category ?? null,
+            metodo: normalizePaymentMethod(e.payment_method),
+            monto: Number(e.amount ?? 0),
+            nota: e.note ?? null,
+          })),
+          observacion: "Cierre automático al cambiar el día.",
+          tipo_cierre: "automatico",
+          estado: "cerrada",
+        });
+      } catch (e) {
+        console.warn("[caja] auto close failed", e);
+      }
+    };
+
+    runAutoClose();
+  }, [businessId]);
 
   return (
     <>
@@ -764,17 +849,26 @@ function CierreCajaBtn({
 
               {/* Por método */}
               <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
-                  {todayPayments.length} cobro{todayPayments.length !== 1 ? "s" : ""} · Por método
+                <div className="grid grid-cols-4 gap-2 px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+                  <div>Método</div>
+                  <div className="text-right">Ingresos</div>
+                  <div className="text-right">Gastos</div>
+                  <div className="text-right">Utilidad</div>
                 </div>
                 {Object.entries(byMethod).length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-muted-foreground">Sin cobros hoy.</div>
+                  <div className="px-4 py-3 text-sm text-muted-foreground">Sin movimientos hoy.</div>
                 ) : (
-                  Object.entries(byMethod).map(([m, total]) => (
-                    <div key={m} className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 last:border-0">
-                      <span className="text-sm capitalize">{PAY_METHOD_LABEL[m as PayMethod] ?? m}</span>
-                      <span className="text-sm font-semibold tabular-nums text-emerald-300">
-                        ${total.toLocaleString("es-AR")}
+                  (Object.entries(byMethod) as Array<[string, { ingresos: number; gastos: number; utilidad: number }]>).map(([m, detail]) => (
+                    <div key={m} className="grid grid-cols-4 gap-2 px-4 py-2.5 border-b border-white/5 last:border-0 text-sm">
+                      <span className="capitalize">{methodDisplayName(m)}</span>
+                      <span className="font-semibold tabular-nums text-emerald-300 text-right">
+                        ${detail.ingresos.toLocaleString("es-AR")}
+                      </span>
+                      <span className="font-semibold tabular-nums text-rose-300 text-right">
+                        ${detail.gastos.toLocaleString("es-AR")}
+                      </span>
+                      <span className={cn("font-semibold tabular-nums text-right", detail.utilidad >= 0 ? "text-emerald-300" : "text-rose-300")}>
+                        ${detail.utilidad.toLocaleString("es-AR")}
                       </span>
                     </div>
                   ))
@@ -902,7 +996,7 @@ function CierresTab({ businessId }: { businessId: string | null }) {
               {selected.detalle_metodos && Object.keys(selected.detalle_metodos).length > 0 && (
                 <div className="pt-2 border-t border-white/5 space-y-2">
                   <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Por método</div>
-                  {Object.entries(selected.detalle_metodos as Record<string, number>).map(([m, t]) => (
+                  {(Object.entries(selected.detalle_metodos as Record<string, number>) as Array<[string, number]>).map(([m, t]) => (
                     <div key={m} className="flex justify-between">
                       <span className="text-muted-foreground capitalize">{PAY_METHOD_LABEL[m as PayMethod] ?? m}</span>
                       <span className="font-semibold tabular-nums text-emerald-300">${t.toLocaleString("es-AR")}</span>
@@ -1112,7 +1206,17 @@ function DetailModal({ payment, employees, onClose }: {
   );
 }
 
-function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void }) {
+function History({
+  data,
+  equipoEnabled,
+  activeView,
+  onCobrarPendiente,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  equipoEnabled: boolean;
+  activeView: "ingresos" | "pendientes" | "gastos" | "cobros";
+  onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
+}) {
   const rows = data.paymentsToday;
   const pendingRows = data.pendingCharges;
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
@@ -1122,7 +1226,8 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
   const [showAll, setShowAll] = React.useState(false);
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
-  const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
+  const visibleExpenses = showAll ? data.expensesToday : data.expensesToday.slice(0, 10);
+  const hasAnyRows = activeView === "gastos" ? visibleExpenses.length > 0 : activeView === "pendientes" ? pendingRows.length > 0 : activeView === "cobros" || activeView === "ingresos" ? visibleRows.length > 0 : pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {
     const groups = data.paymentsToday.reduce((acc, payment) => {
@@ -1133,7 +1238,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
       acc[method].rows.push(payment);
       return acc;
     }, {} as Record<string, { method: string; total: number; count: number; rows: typeof data.paymentsToday }>);
-    return Object.values(groups).sort((a, b) => b.total - a.total);
+    return (Object.values(groups) as Array<{ method: string; total: number; count: number; rows: typeof data.paymentsToday }>).sort((a, b) => b.total - a.total);
   }, [data.paymentsToday]);
 
   const totalFacturado = closeout.reduce((sum, g) => sum + g.total, 0);
@@ -1145,10 +1250,9 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-sm font-semibold text-foreground">Cobros</h3>
-            <span className="text-[11px] text-muted-foreground">
-{data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
-            </span>
+            <h3 className="text-sm font-semibold text-foreground">
+              {activeView === "ingresos" ? "Ingresos" : activeView === "pendientes" ? "Pendientes" : activeView === "gastos" ? "Gastos" : "Cobros"}
+            </h3>
             {data.approvalModeEnabled && equipoEnabled && (
               <div className="flex gap-1 ml-1">
                 {([
@@ -1171,12 +1275,12 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
           <div className="min-w-[1080px]">
             <div className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
-              <div>Cliente</div>
-              <div>Profesional</div>
-              <div>Servicio / catálogo</div>
+              <div>{activeView === "gastos" ? "Concepto" : "Cliente"}</div>
+              <div>{activeView === "gastos" ? "Usuario" : "Profesional"}</div>
+              <div>{activeView === "gastos" ? "Tipo" : "Servicio / catálogo"}</div>
               <div className="text-right">Monto</div>
               <div>Método</div>
-              <div>Historial</div>
+              <div>{activeView === "gastos" ? "Nota" : "Historial"}</div>
               <div>Acción</div>
             </div>
 
@@ -1186,10 +1290,37 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                 <Loader2 className="size-4 animate-spin" /> Cargando…
               </div>
             ) : !hasAnyRows ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin cobros</div>
+              <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                {activeView === "gastos" ? "Sin gastos registrados." : activeView === "pendientes" ? "Sin pendientes." : "Sin ingresos"}
+              </div>
+            ) : activeView === "gastos" ? (
+              <>
+                {visibleExpenses.map((g) => {
+                  const expense = g as any;
+                  const fecha = expense.date
+                    ? new Date(`${expense.date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
+                    : "—";
+                  return (
+                    <div key={`expense-${expense.id}`}
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition"
+                    >
+                      <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
+                      <div className="text-foreground truncate">{expense.name ?? expense.category ?? "Gasto"}</div>
+                      <div className="text-muted-foreground truncate">—</div>
+                      <div className="text-muted-foreground truncate">{expense.type ?? expense.category ?? "—"}</div>
+                      <div className="text-rose-300 tabular-nums font-medium text-right">
+                        -${Number(expense.amount ?? 0).toLocaleString("es-AR")}
+                      </div>
+                      <div className="text-muted-foreground truncate">{expense.payment_method ?? "—"}</div>
+                      <div className="text-muted-foreground truncate">{expense.note ?? "—"}</div>
+                      <div />
+                    </div>
+                  );
+                })}
+              </>
             ) : (
               <>
-                {pendingRows.map((p) => {
+                {(activeView === "pendientes" ? pendingRows : activeView === "ingresos" || activeView === "cobros" ? [] : pendingRows).map((p) => {
                   const dt = new Date(p.starts_at);
                   const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
                   const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
@@ -1247,7 +1378,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                   );
                 })}
 
-                {visibleRows.map((p) => {
+                {(activeView === "pendientes" ? [] : visibleRows).map((p) => {
                   const dt = new Date(p.created_at);
                   const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
                   const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -1313,7 +1444,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
             <button onClick={() => setShowAll(v => !v)}
               className="text-xs text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1.5">
               <ArrowRight className={cn("size-3.5 transition", showAll && "rotate-90")} />
-              {showAll ? "Mostrar menos" : `Ver ${rows.length - 10} cobros más`}
+              {showAll ? "Mostrar menos" : `Ver más`}
             </button>
           )}
           <button onClick={() => window.dispatchEvent(new CustomEvent("clippr:open-closeout"))}
@@ -1659,13 +1790,11 @@ function NuevaVentaTab({
     if (cartItems.length === 0) { toast.error("Agregá al menos un servicio."); setStep(3); return; }
 
     if (paymentMode === "simple") {
-      if (method === "cash") {
-        if (!received.trim() || Number(received) <= 0) {
-          toast.error("Ingresá el monto abonado."); return;
-        }
-        if (Number(received) < total) {
-          toast.error(`El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${total.toLocaleString("es-AR")}).`); return;
-        }
+      if (!received.trim() || Number(received) <= 0) {
+        toast.error("Ingresá el monto abonado."); return;
+      }
+      if (Number(received) < total) {
+        toast.error(`El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${total.toLocaleString("es-AR")}).`); return;
       }
     }
 
@@ -1757,6 +1886,7 @@ function NuevaVentaTab({
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
         setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
         setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
+        onPendingDone?.();
       }
 
       await data.refresh();
@@ -2159,7 +2289,6 @@ function ClientAutocomplete({
       );
       if (exact.length === 1) {
         onPick(exact[0]);
-        onChange("");
       }
     }, 600);
     return () => clearTimeout(timer);
@@ -2199,7 +2328,7 @@ function ClientAutocomplete({
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => { onPick(c); onChange(""); }}
+                  onClick={() => onPick(c)}
                   className="w-full text-left px-4 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0 transition-colors"
                 >
                   <span className="min-w-0">
