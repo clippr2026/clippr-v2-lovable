@@ -41,6 +41,7 @@ import {
   Unlock,
   CalendarDays
 } from "lucide-react";
+import { useClientesConfig } from "@/hooks/use-clientes-config";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -1102,6 +1103,10 @@ function NuevaVentaTab({
   const [received, setReceived] = React.useState("");
   const [splits, setSplits] = React.useState<MultiSplit[]>([{ method: "cash", amount: "" }]);
   const [submitting, setSubmitting] = React.useState(false);
+  const [newClientOpen, setNewClientOpen] = React.useState(false);
+  const [clientNotes, setClientNotes] = React.useState("");
+
+  const { isFieldEnabled } = useClientesConfig(data.businessId ?? null);
 
   // When pendingCharge arrives and services are loaded, inject the service into the cart
   const pendingInjectedRef = React.useRef(false);
@@ -1232,7 +1237,10 @@ function NuevaVentaTab({
 
   function goNext() {
     if (step === 1 && !employeeId) { toast.error("Seleccioná un profesional."); return; }
-    if (step === 2 && !client.trim()) { toast.error("Completá o seleccioná un cliente."); return; }
+    if (step === 2) {
+      if (!client.trim()) { toast.error("Completá los datos obligatorios del cliente."); return; }
+      if (!phone.trim()) { toast.error("Completá los datos obligatorios del cliente."); return; }
+    }
     if (step === 3 && cartItems.length === 0) { toast.error("Agregá al menos un servicio o producto."); return; }
     setStep((s) => (s < 4 ? ((s + 1) as 1 | 2 | 3 | 4) : s));
   }
@@ -1243,7 +1251,14 @@ function NuevaVentaTab({
     try {
       const { data: created, error } = await supabase
         .from("clients")
-        .insert({ business_id: data.businessId, full_name: client.trim(), phone: phone.trim() || null, email: email.trim() || null, birth_date: birthDate || null })
+        .insert({
+          business_id: data.businessId,
+          full_name: client.trim(),
+          phone: phone.trim() || null,
+          email: email.trim() || null,
+          birth_date: birthDate || null,
+          notes: clientNotes.trim() || null,
+        })
         .select("id")
         .maybeSingle();
       if (error) throw error;
@@ -1258,6 +1273,17 @@ function NuevaVentaTab({
     if (!data.businessId) { toast.error("No se pudo identificar el negocio."); return; }
     if (!employeeId) { toast.error("Seleccioná un profesional."); setStep(1); return; }
     if (cartItems.length === 0) { toast.error("Agregá al menos un servicio."); setStep(3); return; }
+
+    if (paymentMode === "simple") {
+      if (method === "cash") {
+        if (!received.trim() || Number(received) <= 0) {
+          toast.error("Ingresá el monto abonado."); return;
+        }
+        if (Number(received) < total) {
+          toast.error(`El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${total.toLocaleString("es-AR")}).`); return;
+        }
+      }
+    }
 
     if (paymentMode === "multiple") {
       if (splits.filter((s) => Number(s.amount) > 0).length < 1) {
@@ -1420,9 +1446,7 @@ function NuevaVentaTab({
                 </span>
                 <span className="flex-1">
                   <span className="block text-sm font-semibold text-foreground">{e.name}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {e.commission_pct != null ? `${e.commission_pct}% comisión` : "Profesional"}
-                  </span>
+                  <span className="block text-xs text-muted-foreground">Profesional</span>
                 </span>
                 {active ? <Check className="size-4 text-amber-200" /> : <ArrowRight className="size-4 text-muted-foreground" />}
               </button>
@@ -1432,25 +1456,95 @@ function NuevaVentaTab({
       )}
 
       {step === 2 && (
-        <Card className="p-5 space-y-4">
-          <ClientAutocomplete value={client}
-            onChange={(v) => { setClient(v); setClientId(null); }}
-            onPick={(c) => { setClientId(c.id); setClient(c.name ?? ""); setPhone(c.phone ?? ""); setEmail(c.email ?? ""); setBirthDate(c.birth_date ?? ""); }}
-            clients={data.clients} />
+        <div className="space-y-4">
+          {/* Search existing client */}
+          <Card className="p-4 space-y-3">
+            <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Buscar cliente existente</p>
+            <ClientAutocomplete
+              value={client}
+              onChange={(v) => { setClient(v); setClientId(null); }}
+              onPick={(c) => {
+                setClientId(c.id);
+                setClient(c.name ?? "");
+                setPhone(c.phone ?? "");
+                setEmail(c.email ?? "");
+                setBirthDate(c.birth_date ?? "");
+                setNewClientOpen(false);
+              }}
+              clients={data.clients}
+            />
+            {clientId && (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-400/10 border border-emerald-400/20 px-3 py-2 text-sm text-emerald-300">
+                <Check className="size-3.5 shrink-0" />
+                <span className="truncate">{client}{phone ? ` · ${phone}` : ""}</span>
+              </div>
+            )}
+          </Card>
+
+          {/* New client toggle */}
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
-            <span className="h-px flex-1 bg-white/10" /> o completá los datos para crear uno nuevo <span className="h-px flex-1 bg-white/10" />
+            <span className="h-px flex-1 bg-white/10" />
+            <button
+              type="button"
+              onClick={() => setNewClientOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-medium hover:bg-white/[0.07] transition-colors"
+            >
+              <Plus className="size-3" />
+              Nuevo cliente
+            </button>
+            <span className="h-px flex-1 bg-white/10" />
           </div>
-          <div className="space-y-3">
-            <input value={client} onChange={(e) => { setClient(e.target.value); setClientId(null); }} placeholder="Nombre *"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-            <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)} type="date"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-          </div>
-        </Card>
+
+          {/* New client form — only shown when toggled */}
+          {newClientOpen && (
+            <Card className="p-4 space-y-3">
+              <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Datos del nuevo cliente</p>
+
+              {/* Nombre — always required */}
+              <input
+                value={client}
+                onChange={(e) => { setClient(e.target.value); setClientId(null); }}
+                placeholder="Nombre *"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+              />
+
+              {/* Teléfono — always required */}
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Teléfono *"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+              />
+
+              {/* Conditional fields */}
+              {isFieldEnabled("email") && (
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  type="email"
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                />
+              )}
+              {isFieldEnabled("fecha_nacimiento") && (
+                <input
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  type="date"
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                />
+              )}
+              {isFieldEnabled("notas") && (
+                <input
+                  value={clientNotes}
+                  onChange={(e) => setClientNotes(e.target.value)}
+                  placeholder="Notas"
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40"
+                />
+              )}
+            </Card>
+          )}
+        </div>
       )}
 
       {step === 3 && (
@@ -1532,12 +1626,6 @@ function NuevaVentaTab({
               <span className="text-lg font-semibold text-foreground">Total</span>
               <Money value={total} />
             </div>
-            {selectedEmployee && selectedEmployee.commission_pct != null && (
-              <div className="text-xs text-muted-foreground flex gap-4">
-                <span>Profesional ({selectedEmployee.commission_pct}%): ${Math.round(total * selectedEmployee.commission_pct / 100).toLocaleString("es-AR")}</span>
-                <span>Local: ${Math.round(total * (1 - selectedEmployee.commission_pct / 100)).toLocaleString("es-AR")}</span>
-              </div>
-            )}
           </div>
           <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
             <button onClick={() => setPaymentMode("simple")}

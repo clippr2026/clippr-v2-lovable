@@ -339,7 +339,7 @@ function AdvisorContent({
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 max-w-5xl mx-auto w-full">
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={DEMO.payments}
@@ -675,7 +675,7 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
       </div>
 
       {/* Título */}
-      <div className="text-center max-w-lg mb-8">
+      <div className="text-center max-w-3xl mb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">Asesor Clippr</p>
         <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight mb-4">
           Descubrí qué está frenando el crecimiento de tu negocio
@@ -686,7 +686,7 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
       </div>
 
       {/* Indicadores */}
-      <div className="flex flex-wrap justify-center gap-2 mb-10 max-w-xl">
+      <div className="flex flex-wrap justify-center gap-2 mb-10 max-w-3xl">
         {indicators.map((ind) => (
           <div
             key={ind.label}
@@ -729,7 +729,7 @@ function AnalysisLoader({ step }: { step: number }) {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-3xl">
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-10">
           <div className="relative mb-6">

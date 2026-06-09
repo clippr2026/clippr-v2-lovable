@@ -251,12 +251,12 @@ function ClientsPage() {
       <div className="space-y-6 animate-fade-up">
         {/* Stats */}
         <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-          <StatCard featured label="VIP"      value={String(counts.vip)}      caption="" link="Ver todos"   onLinkClick={() => showGroup("VIP",      (c) => c.status === "vip")}      icon={<Crown        className="h-7 w-7 text-violet-300"         />} glow="bg-violet-500/25" />
-          <StatCard        label="Nuevos"     value={String(counts.nuevos)}   caption="" link="Ver todos"   onLinkClick={() => showGroup("Nuevos",    (c) => c.status === "nuevo")}    icon={<Sparkles     className="h-7 w-7 text-violet-300"         />} glow="bg-violet-400/20" />
-          <StatCard        label="Frec. prom" value={avgDays ? String(avgDays) : "—"} caption="" icon={<CalendarDays className="h-7 w-7 text-cyan-300" />} glow="bg-cyan-400/20" />
-          <StatCard        label="Activos"    value={String(counts.activos)}  caption="" link="Ver todos"   onLinkClick={() => showGroup("Activos",   (c) => c.status === "activo")}   icon={<CheckCircle2 className="h-7 w-7 text-emerald-300"      />} glow="bg-emerald-400/20" />
-          <StatCard        label="Inactivos"  value={String(counts.inactivos)} caption="" link="Ver todos"  onLinkClick={() => showGroup("Inactivos", (c) => c.status === "inactivo")} icon={<PauseCircle  className="h-7 w-7 text-muted-foreground" />} glow="bg-white/10" />
-          <StatCard        label="Perdidos"   value={String(counts.perdidos)} caption="" link="Reconquistar" onLinkClick={() => showGroup("Perdidos",  (c) => c.status === "perdido")}  icon={<AlertTriangle className="h-7 w-7 text-rose-300"        />} glow="bg-rose-400/20" />
+          <StatCard featured label="VIP"        value={String(counts.vip)}       caption="" link="Ver todos"    onLinkClick={() => showGroup("VIP",      (c) => c.status === "vip")}      icon={<Crown         className="h-7 w-7 text-violet-300"         />} glow="bg-violet-500/25" />
+          <StatCard        label="Nuevos"       value={String(counts.nuevos)}    caption="" link="Ver todos"    onLinkClick={() => showGroup("Nuevos",    (c) => c.status === "nuevo")}    icon={<Sparkles      className="h-7 w-7 text-violet-300"         />} glow="bg-violet-400/20" />
+          <StatCard        label="Activos"      value={String(counts.activos)}   caption="" link="Ver todos"    onLinkClick={() => showGroup("Activos",   (c) => c.status === "activo")}   icon={<CheckCircle2  className="h-7 w-7 text-emerald-300"      />} glow="bg-emerald-400/20" />
+          <StatCard        label="Inactivos"    value={String(counts.inactivos)} caption="" link="Ver todos"    onLinkClick={() => showGroup("Inactivos", (c) => c.status === "inactivo")} icon={<PauseCircle   className="h-7 w-7 text-muted-foreground" />} glow="bg-white/10" />
+          <StatCard        label="Perdidos"     value={String(counts.perdidos)}  caption="" link="Reconquistar" onLinkClick={() => showGroup("Perdidos",  (c) => c.status === "perdido")}  icon={<AlertTriangle className="h-7 w-7 text-rose-300"        />} glow="bg-rose-400/20" />
+          <StatCard        label="Frecuencia"   value={avgDays ? `${avgDays}d` : "—"} caption="" icon={<CalendarDays className="h-7 w-7 text-cyan-300" />} glow="bg-cyan-400/20" />
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[400px_1fr]">
@@ -294,7 +294,6 @@ function ClientsPage() {
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate">{c.visits} visitas · {c.lastVisit ?? "sin visitas"}</div>
                     <div className="flex items-center justify-between mt-1.5">
-                      <Rating value={c.rating} />
                       {statusBadge(c.status)}
                     </div>
                   </div>
@@ -353,7 +352,6 @@ function ClientsPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
                         {statusBadge(current.status)}
-                        <Rating value={current.rating} />
                       </div>
                     </div>
                   </div>
