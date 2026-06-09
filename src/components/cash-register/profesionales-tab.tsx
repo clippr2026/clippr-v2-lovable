@@ -249,7 +249,7 @@ export function ProfesionalesTab({
                 <div>
                   <h3 className="text-base font-semibold text-foreground">{emp.full_name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {empPays.length} venta{empPays.length === 1 ? "" : "s"} · Comisión: {commLabel}
+                    {empPays.length} venta{empPays.length === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -258,6 +258,12 @@ export function ProfesionalesTab({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs hover:bg-white/5 transition"
                   >
                     <BarChart3 className="size-3.5" /> Producción
+                  </button>
+                  <button
+                    onClick={() => setDetailModal({ type: "pagos", emp })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs hover:bg-white/5 transition"
+                  >
+                    Historial de pagos
                   </button>
                   {pendiente > 0 && (
                     <button
@@ -269,9 +275,8 @@ export function ProfesionalesTab({
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
-                  { label: "Producción",  val: `$${facturacion.toLocaleString("es-AR")}`, cls: "text-emerald-300" },
                   { label: "Comisión",    val: `$${comision.toLocaleString("es-AR")}`,    cls: "text-amber-300"   },
                   { label: "Pagado",      val: `$${pagado.toLocaleString("es-AR")}`,      cls: "text-sky-300"     },
                   { label: "Pendiente",   val: `$${pendiente.toLocaleString("es-AR")}`,   cls: pendiente > 0 ? "text-rose-300" : "text-muted-foreground" },
@@ -494,9 +499,9 @@ function DetailModal({
                     {new Date(p.date + "T12:00:00").toLocaleDateString("es-AR")}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {p.method ?? "—"}
+                    {p.created_by ? `${p.created_by} pagó` : "Caja pagó"}
+                    {p.method ? ` · ${p.method}` : ""}
                     {p.note ? ` · ${p.note}` : ""}
-                    {p.created_by ? ` · ${p.created_by}` : ""}
                   </div>
                 </div>
                 <div className="text-sm font-bold text-emerald-300 tabular-nums">
