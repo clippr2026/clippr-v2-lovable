@@ -4218,13 +4218,11 @@ type ClientField = {
 };
 
 const ALL_CLIENT_FIELDS: ClientField[] = [
-  { key: "nombre",           label: "Nombre",            required: true  },
-  { key: "telefono",         label: "Teléfono",          required: true  },
-  { key: "email",            label: "Email",             required: false },
+  { key: "nombre",           label: "Nombre",              required: true  },
+  { key: "telefono",         label: "Teléfono",            required: true  },
+  { key: "email",            label: "Email",               required: false },
   { key: "fecha_nacimiento", label: "Fecha de nacimiento", required: false },
-  { key: "instagram",        label: "Instagram",         required: false },
-  { key: "direccion",        label: "Dirección",         required: false },
-  { key: "notas",            label: "Notas",             required: false },
+  { key: "notas",            label: "Notas",               required: false },
 ];
 
 type ClientesConfig = {
@@ -4240,7 +4238,7 @@ type ClientesConfig = {
 const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
   fields: {
     nombre: true, telefono: true, email: true,
-    fecha_nacimiento: true, instagram: false, direccion: false, notas: false,
+    fecha_nacimiento: true, notas: false,
   },
   diasInactivo: 30,
   diasPerdido: 90,
@@ -4276,20 +4274,23 @@ function ClientesSection() {
     if (!businessId) return;
     setSaving(true);
     try {
-      // Read existing schedule first to avoid overwriting other keys
-      const { data: existing } = await supabase
+      // Read existing schedule to avoid overwriting other keys
+      const { data: existingRow } = await supabase
         .from("business_settings")
         .select("schedule")
         .eq("business_id", businessId)
         .maybeSingle();
-      const schedule = (existing?.schedule ?? {}) as Record<string, unknown>;
-      const { error } = await supabase
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const newSchedule = { ...existingSchedule, _clientes: cfg };
+
+      const result = await supabase
         .from("business_settings")
         .upsert(
-          { business_id: businessId, schedule: { ...schedule, _clientes: cfg } },
-          { onConflict: "business_id" }
+          { business_id: businessId, schedule: newSchedule },
+          { onConflict: "business_id" },
         );
-      if (error) throw new Error(error.message);
+
+      if (result.error) throw new Error(result.error.message);
       toast.success("Configuración de clientes guardada");
     } catch (e) {
       toast.error((e as Error).message);
