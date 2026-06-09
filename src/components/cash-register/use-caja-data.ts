@@ -13,6 +13,7 @@ type LocalManualPendingCharge = {
   service_price: number | null;
   starts_at: string;
   notes?: string | null;
+  status?: string | null;
 };
 
 function readLocalManualPendingCharges(businessId: string): LocalManualPendingCharge[] {
@@ -77,13 +78,19 @@ export type PendingCharge = {
   employee_id: string | null;
   starts_at: string;
   notes?: string | null;
+  status?: string | null;
 };
 
 export type Expense = {
   id: string;
+  name?: string | null;
   amount: number | null;
+  type?: string | null;
   category: string | null;
   payment_method: string | null;
+  date?: string | null;
+  note?: string | null;
+  created_at?: string | null;
 };
 
 export type ApprovalMode = "auto" | "manual";
@@ -144,9 +151,10 @@ export function useCajaData() {
         .order("created_at", { ascending: false }),
       supabase
         .from("expenses")
-        .select("id,amount,category,payment_method")
+        .select("id,name,amount,type,category,payment_method,date,note,created_at")
         .eq("business_id", businessId)
-        .eq("date", dateStr),
+        .eq("date", dateStr)
+        .order("created_at", { ascending: false }),
       supabase
         .from("cash_sessions")
         .select("id")

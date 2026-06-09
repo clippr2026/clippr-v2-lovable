@@ -23,7 +23,17 @@ type Expense = {
 const TYPES = ["fijo", "variable", "ocasional", "marketing"];
 const METHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
 
-export function GastosTab({ businessId }: { businessId: string | null }) {
+export function GastosTab({
+  businessId,
+  startOpen = false,
+  onOpenConsumed,
+  onSaved,
+}: {
+  businessId: string | null;
+  startOpen?: boolean;
+  onOpenConsumed?: () => void;
+  onSaved?: () => void;
+}) {
   const today = new Date().toISOString().slice(0, 10);
   const [rows, setRows] = React.useState<Expense[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -36,6 +46,13 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
   });
   const [saving, setSaving] = React.useState(false);
   const [showForm, setShowForm] = React.useState(false);
+
+  React.useEffect(() => {
+    if (startOpen) {
+      setShowForm(true);
+      onOpenConsumed?.();
+    }
+  }, [startOpen, onOpenConsumed]);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
@@ -77,7 +94,8 @@ export function GastosTab({ businessId }: { businessId: string | null }) {
     toast.success("✓ Gasto registrado");
     setForm({ name: "", amount: "", type: "", method: "", note: "" });
     setShowForm(false);
-    load();
+    await load();
+    onSaved?.();
   }
 
   async function remove(id: string) {
