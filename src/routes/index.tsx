@@ -268,6 +268,41 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   );
 }
 
+const TONE = {
+  primary: {
+    ring: "ring-primary/20",
+    bg: "bg-primary/10",
+    icon: "text-primary",
+    fillFrom: "oklch(0.66 0.22 265 / 0.3)",
+    fillTo: "oklch(0.66 0.22 265 / 0)",
+    stroke: "oklch(0.66 0.22 265)",
+  },
+  danger: {
+    ring: "ring-rose-400/20",
+    bg: "bg-rose-400/10",
+    icon: "text-rose-400",
+    fillFrom: "rgb(251 113 133 / 0.3)",
+    fillTo: "rgb(251 113 133 / 0)",
+    stroke: "rgb(251 113 133)",
+  },
+  success: {
+    ring: "ring-emerald-400/20",
+    bg: "bg-emerald-400/10",
+    icon: "text-emerald-400",
+    fillFrom: "rgb(52 211 153 / 0.3)",
+    fillTo: "rgb(52 211 153 / 0)",
+    stroke: "rgb(52 211 153)",
+  },
+  neutral: {
+    ring: "ring-white/10",
+    bg: "bg-white/5",
+    icon: "text-muted-foreground",
+    fillFrom: "rgb(255 255 255 / 0.15)",
+    fillTo: "rgb(255 255 255 / 0)",
+    stroke: "rgb(255 255 255 / 0.4)",
+  },
+} as const;
+
 function Stat({
   label,
   value,
