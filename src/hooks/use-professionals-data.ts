@@ -31,6 +31,7 @@ export type ProfPayment = {
   method: string | null;
   note: string | null;
   created_by: string | null;
+  created_at?: string | null;
 };
 
 export type ProfSale = {
@@ -149,7 +150,7 @@ export function useProfPayments(
     queryFn: async (): Promise<ProfPayment[]> => {
       let query = supabase
         .from("professional_payouts")
-        .select("id,amount,date,method,note,created_by")
+        .select("id,amount,date,method,note,created_by,created_at")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!);
 
