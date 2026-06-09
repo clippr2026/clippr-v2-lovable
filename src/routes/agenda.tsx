@@ -25,6 +25,7 @@ import {
   cancelAppointment,
   setAppointmentStatus,
   checkOverlap,
+  checkSchedule,
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
@@ -718,6 +719,7 @@ function AgendaPage() {
           createdByName={profile?.full_name}
           createdByRole={profile?.role}
           onSaved={data.refresh}
+          schedule={data.schedule}
         />
       )}
     </AppShell>
@@ -833,6 +835,10 @@ function DayView({
     const newEnd = new Date(newStart.getTime() + dur * 60000);
     const targetEmpId = empId === "__none__" ? null : empId;
     try {
+      // Schedule validation before moving
+      const schedErr = checkSchedule(data.schedule, newStart, dur);
+      if (schedErr) { toast.error(schedErr); return; }
+
       // Overlap check before moving
       if (targetEmpId) {
         const conflict = await checkOverlap(

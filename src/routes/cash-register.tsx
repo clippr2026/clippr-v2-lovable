@@ -191,7 +191,7 @@ export const Route = createFileRoute("/cash-register")({
   component: CashRegisterPage,
 });
 
-type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales";
+type Tab = "resumen" | "nueva" | "precios" | "inventario" | "gastos" | "profesionales" | "cierres";
 
 function CashRegisterPage() {
   const { session, loading: authLoading, permissions } = useAuth();
@@ -238,7 +238,12 @@ function CashRegisterPage() {
   return (
     <AppShell>
       <Header data={data} />
-      <Tabs tab={tab} onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }} />
+      <Tabs
+        tab={tab}
+        onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }}
+        data={data}
+        userEmail={session.user.email ?? null}
+      />
       <div className="mt-6">
         {tab === "resumen" && (
           <ResumenTab
@@ -262,6 +267,9 @@ function CashRegisterPage() {
         {tab === "profesionales" && (
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
+        {tab === "cierres" && (
+          <CierresTab businessId={data.businessId} />
+        )}
       </div>
     </AppShell>
   );
@@ -283,13 +291,24 @@ function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
 }
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "resumen", label: "Resumen" },
-  { id: "precios", label: "Precios" },
-  { id: "inventario", label: "Inventario" },
-  { id: "profesionales", label: "Liquidaciones" },
+  { id: "resumen",       label: "Resumen"          },
+  { id: "precios",       label: "Precios"           },
+  { id: "inventario",    label: "Inventario"        },
+  { id: "profesionales", label: "Liquidaciones"     },
+  { id: "cierres",       label: "Cierres de caja"   },
 ];
 
-function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+function Tabs({
+  tab,
+  onChange,
+  data,
+  userEmail,
+}: {
+  tab: Tab;
+  onChange: (t: Tab) => void;
+  data: ReturnType<typeof useCajaData>;
+  userEmail: string | null;
+}) {
   const nuevaActive = tab === "nueva";
   return (
     <div className="mt-6 flex items-end justify-between gap-3 border-b border-white/5">
@@ -332,7 +351,12 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           >
             <span className="text-base leading-none">＋</span> Nueva venta
           </button>
-          <CierreCajaBtn />
+          <CierreCajaBtn
+            paymentsToday={data.paymentsToday}
+            expensesToday={data.expensesToday}
+            businessId={data.businessId}
+            userEmail={userEmail}
+          />
         </div>
       )}
     </div>
@@ -527,16 +551,273 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
   );
 }
 
-function CierreCajaBtn() {
-  // Trigger closeout via a custom event — History component listens
+// ─────────── Cierre de caja ──────────────────────────────────────────────────
+
+function CierreCajaBtn({
+  paymentsToday,
+  expensesToday,
+  businessId,
+  userEmail,
+}: {
+  paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
+  expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
+  businessId: string | null;
+  userEmail: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [obs, setObs] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const today = new Date().toLocaleDateString("sv-SE");
+
+  const todayPayments = paymentsToday.filter(
+    (p) => new Date(p.created_at).toLocaleDateString("sv-SE") === today,
+  );
+  const totalCobrado = todayPayments.reduce(
+    (s, p) => s + Number((p as any).total ?? (p as any).amount ?? 0), 0,
+  );
+  const totalGastos = expensesToday.reduce(
+    (s, e) => s + Number((e as any).amount ?? 0), 0,
+  );
+  const utilidad = totalCobrado - totalGastos;
+
+  const byMethod: Record<string, number> = {};
+  for (const p of todayPayments) {
+    const m = ((p as any).method ?? (p as any).payment_method ?? "otro") as string;
+    byMethod[m] = (byMethod[m] ?? 0) + Number((p as any).total ?? (p as any).amount ?? 0);
+  }
+
+  async function confirmar() {
+    if (!businessId) return;
+    setSaving(true);
+    try {
+      const now = new Date();
+      const { error } = await supabase.from("caja_cierres" as any).insert({
+        business_id: businessId,
+        fecha: today,
+        hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+        total_cobrado: totalCobrado,
+        total_gastos: totalGastos,
+        utilidad,
+        cobros_count: todayPayments.length,
+        detalle_metodos: byMethod,
+        observacion: obs.trim() || null,
+        cerrado_por: userEmail,
+        tipo: "manual",
+      });
+      if (error) throw new Error(error.message);
+      toast.success("Cierre registrado correctamente");
+      setOpen(false);
+      setObs("");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={() => window.dispatchEvent(new CustomEvent("clippr:open-closeout"))}
-      className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
-    >
-      Cierre de caja
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
+      >
+        Cierre de caja
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold">Cierre de caja</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+                </p>
+              </div>
+              <button type="button" onClick={() => setOpen(false)}
+                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">
+                Cancelar
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* KPIs */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Cobrado",  v: totalCobrado, cls: "text-emerald-300" },
+                  { label: "Gastos",   v: totalGastos,  cls: "text-rose-300"   },
+                  { label: "Utilidad", v: utilidad,     cls: utilidad >= 0 ? "text-emerald-300" : "text-rose-300" },
+                ].map((k) => (
+                  <div key={k.label} className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3 text-center">
+                    <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">{k.label}</div>
+                    <div className={`mt-1 text-xl font-semibold tabular-nums ${k.cls}`}>
+                      ${k.v.toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Por método */}
+              <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+                  {todayPayments.length} cobro{todayPayments.length !== 1 ? "s" : ""} · Por método
+                </div>
+                {Object.entries(byMethod).length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-muted-foreground">Sin cobros hoy.</div>
+                ) : (
+                  Object.entries(byMethod).map(([m, total]) => (
+                    <div key={m} className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 last:border-0">
+                      <span className="text-sm capitalize">{PAY_METHOD_LABEL[m as PayMethod] ?? m}</span>
+                      <span className="text-sm font-semibold tabular-nums text-emerald-300">
+                        ${total.toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Observación */}
+              <div>
+                <label className="text-xs text-muted-foreground">Observación opcional</label>
+                <textarea
+                  value={obs}
+                  onChange={(e) => setObs(e.target.value)}
+                  rows={2}
+                  placeholder="Novedades del día, diferencias, etc."
+                  className="mt-1 w-full rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-amber-300/40 resize-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={confirmar}
+                disabled={saving}
+                className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-amber-200 to-amber-400 text-black hover:brightness-105 disabled:opacity-50 transition-all"
+              >
+                {saving ? "Guardando…" : "Confirmar cierre"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─────────── Cierres de caja — historial tab ─────────────────────────────────
+
+function CierresTab({ businessId }: { businessId: string | null }) {
+  const [cierres, setCierres] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!businessId) return;
+    setLoading(true);
+    supabase
+      .from("caja_cierres" as any)
+      .select("*")
+      .eq("business_id", businessId)
+      .order("fecha", { ascending: false })
+      .order("hora", { ascending: false })
+      .limit(90)
+      .then(({ data }) => { setCierres(data ?? []); setLoading(false); });
+  }, [businessId]);
+
+  return (
+    <div className="space-y-4 animate-fade-up">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Historial de cierres</div>
+
+      {loading ? (
+        <div className="py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
+      ) : cierres.length === 0 ? (
+        <div className="glass rounded-2xl py-12 text-center text-sm text-muted-foreground">
+          Sin cierres registrados todavía.
+        </div>
+      ) : (
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-[130px_70px_1fr_1fr_1fr_80px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+            <div>Fecha</div>
+            <div>Hora</div>
+            <div className="text-right">Cobrado</div>
+            <div className="text-right">Gastos</div>
+            <div className="text-right">Utilidad</div>
+            <div className="text-right">Tipo</div>
+          </div>
+          {cierres.map((c) => (
+            <button key={c.id} type="button" onClick={() => setSelected(c)}
+              className="w-full grid grid-cols-[130px_70px_1fr_1fr_1fr_80px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
+              <div className="text-muted-foreground text-xs">
+                {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "2-digit" })}
+              </div>
+              <div className="text-muted-foreground tabular-nums text-xs">{c.hora}</div>
+              <div className="text-right text-emerald-300 font-semibold tabular-nums text-xs">
+                ${Number(c.total_cobrado ?? 0).toLocaleString("es-AR")}
+              </div>
+              <div className="text-right text-rose-300 tabular-nums text-xs">
+                ${Number(c.total_gastos ?? 0).toLocaleString("es-AR")}
+              </div>
+              <div className={`text-right font-semibold tabular-nums text-xs ${Number(c.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                ${Number(c.utilidad ?? 0).toLocaleString("es-AR")}
+              </div>
+              <div className="text-right text-xs text-muted-foreground capitalize">{c.tipo ?? "manual"}</div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selected && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <div>
+                <div className="font-semibold text-sm">Detalle del cierre</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {new Date(selected.fecha + "T12:00:00").toLocaleDateString("es-AR", {
+                    weekday: "long", day: "numeric", month: "long", year: "numeric",
+                  })} · {selected.hora}
+                </div>
+              </div>
+              <button type="button" onClick={() => setSelected(null)}
+                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">Cerrar</button>
+            </div>
+            <div className="p-5 space-y-2.5 text-sm">
+              {[
+                { l: "Total cobrado", v: `$${Number(selected.total_cobrado ?? 0).toLocaleString("es-AR")}`, cls: "text-emerald-300" },
+                { l: "Total gastos",  v: `$${Number(selected.total_gastos  ?? 0).toLocaleString("es-AR")}`, cls: "text-rose-300" },
+                { l: "Utilidad",      v: `$${Number(selected.utilidad      ?? 0).toLocaleString("es-AR")}`, cls: Number(selected.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300" },
+                { l: "Cobros",        v: String(selected.cobros_count ?? "—"),                              cls: "text-foreground" },
+                { l: "Cerrado por",   v: selected.cerrado_por ?? "—",                                       cls: "text-muted-foreground" },
+              ].map((r) => (
+                <div key={r.l} className="flex justify-between">
+                  <span className="text-muted-foreground">{r.l}</span>
+                  <span className={`font-semibold ${r.cls}`}>{r.v}</span>
+                </div>
+              ))}
+              {selected.detalle_metodos && Object.keys(selected.detalle_metodos).length > 0 && (
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Por método</div>
+                  {Object.entries(selected.detalle_metodos as Record<string, number>).map(([m, t]) => (
+                    <div key={m} className="flex justify-between">
+                      <span className="text-muted-foreground capitalize">{PAY_METHOD_LABEL[m as PayMethod] ?? m}</span>
+                      <span className="font-semibold tabular-nums text-emerald-300">${t.toLocaleString("es-AR")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selected.observacion && (
+                <div className="pt-2 border-t border-white/5">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60 mb-1">Observación</div>
+                  <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selected.observacion}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1389,7 +1670,7 @@ function NuevaVentaTab({
   ] as const;
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-3xl mx-auto w-full space-y-5">
       {pendingCharge && (
         <Card className="px-5 py-3 flex items-center gap-3 border-amber-300/30 bg-amber-300/[0.06]">
           <Clock className="size-4 text-amber-300 shrink-0" />
@@ -1745,52 +2026,61 @@ function ClientAutocomplete({
   onPick: (c: { id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }) => void;
   clients: Array<{ id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }>;
 }) {
-  const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();
-  const matches = q
+  const hasQuery = q.length >= 1;
+  const matches = hasQuery
     ? clients
         .filter((c) => `${c.name ?? ""} ${c.phone ?? ""} ${c.email ?? ""}`.toLowerCase().includes(q))
         .slice(0, 8)
-    : clients.slice(0, 8);
+    : [];
 
   return (
-    <label className="block relative">
+    <div className="space-y-2">
+      {/* Search input */}
       <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-amber-300/40">
-        <Search className="size-4 text-muted-foreground" />
+        <Search className="size-4 shrink-0 text-muted-foreground" />
         <input
           value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Buscar cliente existente..."
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Buscar por nombre, teléfono o email..."
           className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
         />
+        {value && (
+          <button type="button" onClick={() => onChange("")}
+            className="text-muted-foreground hover:text-foreground transition shrink-0 text-xs">✕</button>
+        )}
       </div>
-      {open && matches.length > 0 && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-white/10 bg-[oklch(0.13_0.025_282)]/95 backdrop-blur-xl shadow-2xl max-h-64 overflow-auto">
-          {matches.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onPick(c);
-                setOpen(false);
-              }}
-              className="w-full text-left px-3 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0"
-            >
-              <span className="min-w-0">
-                <span className="block text-sm text-foreground truncate">{c.name}</span>
-                {c.email && <span className="block text-xs text-muted-foreground truncate">{c.email}</span>}
-              </span>
-              {c.phone && <span className="text-xs text-muted-foreground tabular-nums truncate">{c.phone}</span>}
-            </button>
-          ))}
+
+      {/* Inline results — only shown after typing */}
+      {hasQuery && (
+        <div className="rounded-xl border border-white/10 bg-[oklch(0.12_0.025_282)] overflow-hidden">
+          {matches.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+              No encontramos clientes con ese dato.
+            </div>
+          ) : (
+            <>
+              <div className="px-4 py-2 border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+                {matches.length} resultado{matches.length !== 1 ? "s" : ""}
+              </div>
+              {matches.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => { onPick(c); onChange(""); }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0 transition-colors"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground truncate">{c.name}</span>
+                    {c.email && <span className="block text-xs text-muted-foreground truncate">{c.email}</span>}
+                  </span>
+                  {c.phone && <span className="text-xs text-muted-foreground tabular-nums shrink-0">{c.phone}</span>}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
-    </label>
+    </div>
   );
 }
