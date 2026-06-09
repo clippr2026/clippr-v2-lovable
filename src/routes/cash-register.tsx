@@ -783,16 +783,16 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
         {/* Table header */}
         <div className="overflow-x-auto">
-          <div className="min-w-[1120px]">
-            <div className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+          <div className="min-w-[1080px]">
+            <div className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
               <div>Fecha</div>
-              <div>Hora</div>
               <div>Cliente</div>
               <div>Profesional</div>
               <div>Servicio / catálogo</div>
               <div className="text-right">Monto</div>
               <div>Método</div>
               <div>Historial</div>
+              <div>Acción</div>
             </div>
 
             {/* Rows */}
@@ -807,18 +807,20 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                 {pendingRows.map((p) => {
                   const dt = new Date(p.starts_at);
                   const fecha = dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-                  const hora  = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
                   const empName = data.employees.find(e => e.id === p.employee_id)?.name ?? "—";
                   const pendingNote = getManualPendingNote(p.notes);
                   const historialEvents = getHistorialCobro(p.id);
+                  // Mostrar "Cobrar" si: existe "Envió a caja" y NO existe "Cobró"
+                  const envioACaja = historialEvents.some(e => e.action === "Envió a caja");
+                  const yaCobro = historialEvents.some(e => e.action === "Cobró");
+                  const showCobrarBtn = envioACaja && !yaCobro;
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035] hover:bg-amber-400/[0.06] transition cursor-pointer"
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035] hover:bg-amber-400/[0.06] transition cursor-pointer"
                       onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
-                      <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
                       <div className="text-muted-foreground truncate">
@@ -845,6 +847,17 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       </div>
                       <div className="text-muted-foreground">—</div>
                       <div><HistorialCell events={historialEvents} /></div>
+                      <div onClick={e => e.stopPropagation()}>
+                        {showCobrarBtn && (
+                          <button
+                            type="button"
+                            onClick={() => onCobrarPendiente(p)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold bg-amber-300/15 text-amber-200 ring-1 ring-amber-300/30 hover:bg-amber-300/25 transition whitespace-nowrap"
+                          >
+                            Cobrar
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -870,11 +883,10 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[80px_95px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
-                      <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
                       <div className="text-foreground truncate">{p.client_name ?? "—"}</div>
                       <div className="text-muted-foreground truncate">{empName}</div>
                       <div className="text-muted-foreground truncate">
@@ -901,6 +913,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                       </div>
                       <div className="text-muted-foreground truncate">{methodLabel}</div>
                       <div><HistorialCell events={historialEvents} /></div>
+                      <div />
                     </div>
                   );
                 })}
