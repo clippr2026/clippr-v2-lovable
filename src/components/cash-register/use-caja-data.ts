@@ -26,7 +26,6 @@ function readLocalManualPendingCharges(businessId: string): LocalManualPendingCh
   }
 }
 
-
 export type Service = {
   id: string;
   name: string;
@@ -35,7 +34,7 @@ export type Service = {
   category?: string | null;
   is_active?: boolean;
   stock?: number | null;
-  is_catalog?: boolean; // true = producto del catálogo
+  is_catalog?: boolean;
 };
 
 export type Employee = {
@@ -106,6 +105,36 @@ export type PaymentMethodsConfig = {
   cuentaDni: boolean;
 };
 
+/** Estado posible de la jornada de caja */
+export type CajaStatus =
+  | "open"         // sesión abierta → operar normalmente
+  | "closed_today" // cerrada manualmente el mismo día, antes de las 00:00 → mostrar "Reabrir caja"
+  | "closed"       // cerrada y ya pasó la medianoche → mostrar "Abrir caja"
+  | "no_session";  // nunca se abrió hoy → mostrar "Abrir caja"
+
+function computeCajaStatus(params: {
+  sessionId: string | null;
+  sessionStatus: string | null;   // "open" | "closed"
+  closedAt: string | null;        // ISO string when closed
+}): CajaStatus {
+  const { sessionId, sessionStatus, closedAt } = params;
+
+  if (!sessionId || sessionStatus !== "closed") {
+    if (!sessionId) return "no_session";
+    return "open";
+  }
+
+  // Session is closed — was it closed today?
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const closedDate = closedAt ? closedAt.slice(0, 10) : null;
+
+  if (closedDate === todayStr) {
+    return "closed_today"; // same calendar day → can reopen
+  }
+  return "closed"; // different day
+}
+
 export function useCajaData() {
   const { businessId, profile } = useAuth();
   const [loading, setLoading] = React.useState(true);
@@ -120,6 +149,7 @@ export function useCajaData() {
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
   const [cashSessionId, setCashSessionId] = React.useState<string | null>(null);
+  const [cajaStatus, setCajaStatus] = React.useState<CajaStatus>("no_session");
   const [pendingCount, setPendingCount] = React.useState(0);
   const [pendingAmount, setPendingAmount] = React.useState(0);
   const [pendingCharges, setPendingCharges] = React.useState<PendingCharge[]>([]);
@@ -159,11 +189,11 @@ export function useCajaData() {
         .eq("business_id", businessId)
         .eq("date", dateStr)
         .order("created_at", { ascending: false }),
+      // Fetch the most recent session (open OR closed today) to evaluate status
       supabase
         .from("cash_sessions")
-        .select("id")
+        .select("id,status,closed_at,opened_at")
         .eq("business_id", businessId)
-        .eq("status", "open")
         .order("opened_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -185,7 +215,7 @@ export function useCajaData() {
         .order("starts_at", { ascending: true }),
     ]);
 
-    // Services — separate services (has duration_min) from catalog products
+    // Services
     const svcRaw = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
     setServices(
       (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null }>)
@@ -197,11 +227,11 @@ export function useCajaData() {
           category: r.category,
           is_active: r.active !== false,
           stock: r.stock,
-          is_catalog: r.duration_min == null, // no duration = catalog product
+          is_catalog: r.duration_min == null,
         })),
     );
 
-    // Employees with commission
+    // Employees
     setEmployees(
       empRes.status === "fulfilled" && !empRes.value.error
         ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; commission_pct: number | null }>)
@@ -217,11 +247,28 @@ export function useCajaData() {
         : []
     );
 
+    // Session status
+    const sessData = sessRes.status === "fulfilled" && !sessRes.value.error ? sessRes.value.data : null;
+    const sessionId = sessData?.id ?? null;
+    const sessionStatus = sessData?.status ?? null;
+    const closedAt = (sessData as Record<string, unknown> | null)?.closed_at as string | null ?? null;
+
+    // Check if there's an open session — if session exists but is closed, sessionId is still used for reopen
+    const isSessionOpen = sessionStatus === "open";
+    setCashSessionId(isSessionOpen ? sessionId : null);
+
+    const status = computeCajaStatus({ sessionId, sessionStatus, closedAt });
+    setCajaStatus(status);
+
+    // Payments
+    setPaymentsToday(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
+    setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
+
+    // Pending charges
     const pendingFromDb =
       pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
-        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[]).filter((appointment) =>
-            appointment.status === "pending_payment" ||
-            String(appointment.notes ?? "").includes("[PENDIENTE_CAJA]")
+        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[]).filter((a) =>
+            a.status === "pending_payment" || String(a.notes ?? "").includes("[PENDIENTE_CAJA]")
           )
         : [];
 
@@ -238,15 +285,13 @@ export function useCajaData() {
 
     const pendingMap = new Map<string, PendingCharge>();
     [...pendingFromLocal, ...pendingFromDb].forEach((item) => pendingMap.set(item.id, item));
-    const pendingFromProfessionals = Array.from(pendingMap.values());
+    const allPending = Array.from(pendingMap.values());
 
-    setPendingCharges(pendingFromProfessionals);
+    setPendingCharges(allPending);
+    setPendingCount(allPending.length);
+    setPendingAmount(allPending.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
 
-    setPaymentsToday(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
-    setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
-    setCashSessionId(sessRes.status === "fulfilled" && !sessRes.value.error ? (sessRes.value.data?.id ?? null) : null);
-
-    // Approval mode + payment methods from schedule._caja
+    // Settings
     if (bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data) {
       const row = bsRes.value.data;
       const mode = row.approval_mode;
@@ -266,10 +311,6 @@ export function useCajaData() {
       }
     }
 
-    // Pending charges sent from professional panel to Caja
-    setPendingCount(pendingFromProfessionals.length);
-    setPendingAmount(pendingFromProfessionals.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
-
     setLoading(false);
   }, [businessId]);
 
@@ -285,12 +326,62 @@ export function useCajaData() {
     };
   }, [load]);
 
-  // Listen for caja settings updates (from Configuración → Caja)
   React.useEffect(() => {
     const refresh = () => load();
     window.addEventListener("clippr:caja-settings-updated", refresh);
     return () => window.removeEventListener("clippr:caja-settings-updated", refresh);
   }, [load]);
+
+  // Auto-close at midnight if session is still open
+  React.useEffect(() => {
+    if (!businessId) return;
+
+    const scheduleAutoClose = () => {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setDate(midnight.getDate() + 1);
+      midnight.setHours(0, 0, 10, 0); // 00:00:10 next day
+      const msUntilMidnight = midnight.getTime() - now.getTime();
+
+      const timer = setTimeout(async () => {
+        // Re-fetch to get latest open session
+        const { data: openSess } = await supabase
+          .from("cash_sessions")
+          .select("id,status,business_id")
+          .eq("business_id", businessId)
+          .eq("status", "open")
+          .limit(1)
+          .maybeSingle();
+
+        if (openSess?.id) {
+          await supabase.from("cash_sessions").update({
+            status: "closed",
+            closed_at: new Date().toISOString(),
+            close_type: "cierre_automatico",
+          }).eq("id", openSess.id);
+
+          // Log event
+          try {
+            await supabase.from("cash_session_events").insert({
+              business_id: businessId,
+              session_id: openSess.id,
+              action_type: "cierre_automatico",
+              user_id: null,
+              observation: "Cierre automático al finalizar la jornada",
+              occurred_at: new Date().toISOString(),
+            });
+          } catch { /* ignore */ }
+        }
+
+        load();
+      }, msUntilMidnight);
+
+      return timer;
+    };
+
+    const timer = scheduleAutoClose();
+    return () => clearTimeout(timer);
+  }, [businessId, load]);
 
   const setApprovalMode = React.useCallback(async (m: ApprovalMode) => {
     setApprovalModeState(m);
@@ -304,11 +395,7 @@ export function useCajaData() {
 
       const { error } = await supabase.from("business_settings")
         .upsert(
-          {
-            business_id: businessId,
-            approval_mode: m,
-            schedule: existingRow?.schedule ?? {},
-          },
+          { business_id: businessId, approval_mode: m, schedule: existingRow?.schedule ?? {} },
           { onConflict: "business_id" },
         );
 
@@ -330,6 +417,7 @@ export function useCajaData() {
     paymentMethods,
     services, employees, clients,
     paymentsToday, expensesToday, cashSessionId,
+    cajaStatus,
     revHoy, cobros, ticket, totalGastos,
     pendingCount, pendingAmount, pendingCharges,
     refresh: load,

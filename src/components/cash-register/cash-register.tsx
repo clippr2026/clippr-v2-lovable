@@ -15,6 +15,7 @@ import {
 import {
   openCashSession,
   closeCashSession,
+  reopenCashSession,
 } from "@/components/cash-register/session-actions";
 import { PreciosTab } from "@/components/cash-register/precios-tab";
 import { InventarioTab } from "@/components/cash-register/inventario-tab";
@@ -39,7 +40,9 @@ import {
   Check,
   Loader2,
   Unlock,
-  CalendarDays
+  CalendarDays,
+  LockKeyhole,
+  RefreshCw,
 } from "lucide-react";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
@@ -175,15 +178,12 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
-  // Determine initial tab based on search params
   const [tab, setTab] = useState<Tab>(
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
-
-  // Pending charge to process through the sale flow
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
+  const [sessionAction, setSessionAction] = useState<"opening" | "closing" | "reopening" | null>(null);
 
-  // Toast on arrival from deposit/cobro flow
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
       toast.info(`Cobrar seña de $${parseInt(search.depositAmount).toLocaleString("es-AR")} para ${search.clientName ?? "cliente"}`);
@@ -196,10 +196,48 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
-  // When a pending charge is picked, switch to the "nueva" tab
   function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
     setPendingToCharge(appt);
     setTab("nueva");
+  }
+
+  async function handleOpenCaja() {
+    if (!data.businessId || !data.profileId) return;
+    setSessionAction("opening");
+    try {
+      await openCashSession({ businessId: data.businessId, openedBy: data.profileId });
+      toast.success("Caja abierta");
+      await data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message || "Error al abrir la caja");
+    } finally {
+      setSessionAction(null);
+    }
+  }
+
+  async function handleReopenCaja() {
+    // Find the closed session ID — we need to fetch it since cashSessionId is null when closed
+    if (!data.businessId || !data.profileId) return;
+    setSessionAction("reopening");
+    try {
+      const { data: sess } = await (await import("@/integrations/supabase/client")).supabase
+        .from("cash_sessions")
+        .select("id")
+        .eq("business_id", data.businessId)
+        .eq("status", "closed")
+        .order("opened_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!sess?.id) throw new Error("No se encontró la sesión cerrada");
+      await reopenCashSession({ sessionId: sess.id, reopenedBy: data.profileId });
+      toast.success("Caja reabierta");
+      await data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message || "Error al reabrir la caja");
+    } finally {
+      setSessionAction(null);
+    }
   }
 
   if (authLoading || !session) {
@@ -207,6 +245,93 @@ function CashRegisterPage() {
       <AppShell>
         <div className="flex items-center justify-center py-32 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin mr-2" /> Cargando…
+        </div>
+      </AppShell>
+    );
+  }
+
+  // ── CAJA CERRADA: mostrar pantalla bloqueada ──────────────────────────────
+  const isClosed = data.cajaStatus === "closed_today" || data.cajaStatus === "closed";
+  const canReopen = data.cajaStatus === "closed_today"; // mismo día antes de las 00:00
+
+  if (!data.loading && isClosed) {
+    return (
+      <AppShell>
+        <Header data={data} />
+        <div className="mt-10 flex flex-col items-center justify-center gap-6 py-20">
+          <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+            <div className="h-16 w-16 rounded-2xl bg-white/[0.04] border border-white/10 grid place-items-center">
+              <LockKeyhole className="size-7 text-muted-foreground" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Caja cerrada</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                La caja de hoy ya fue cerrada.
+                {canReopen && " Podés reabrirla hasta las 00:00."}
+              </p>
+            </div>
+            {canReopen ? (
+              <button
+                onClick={handleReopenCaja}
+                disabled={sessionAction !== null}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.11] transition-all text-foreground disabled:opacity-50"
+              >
+                {sessionAction === "reopening" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+                Reabrir caja
+              </button>
+            ) : (
+              <button
+                onClick={handleOpenCaja}
+                disabled={sessionAction !== null}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                {sessionAction === "opening" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Unlock className="size-4" />
+                )}
+                Abrir caja
+              </button>
+            )}
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  // ── CAJA SIN SESIÓN: mostrar botón "Abrir caja" ───────────────────────────
+  if (!data.loading && data.cajaStatus === "no_session") {
+    return (
+      <AppShell>
+        <Header data={data} />
+        <div className="mt-10 flex flex-col items-center justify-center gap-6 py-20">
+          <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+            <div className="h-16 w-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 grid place-items-center">
+              <CalendarDays className="size-7 text-amber-300" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Nueva jornada</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                La caja de hoy aún no fue abierta.
+              </p>
+            </div>
+            <button
+              onClick={handleOpenCaja}
+              disabled={sessionAction !== null}
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 transition-all disabled:opacity-50"
+            >
+              {sessionAction === "opening" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Unlock className="size-4" />
+              )}
+              Abrir caja
+            </button>
+          </div>
         </div>
       </AppShell>
     );
@@ -505,14 +630,13 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
 }
 
 function CierreCajaBtn() {
-  // Trigger closeout via a custom event — History component listens
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent("clippr:open-closeout"))}
       className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
     >
-      Cierre de caja
+      <LockKeyhole className="size-3.5" /> Cierre de caja
     </button>
   );
 }
@@ -709,6 +833,8 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
   const rows = data.paymentsToday;
   const pendingRows = data.pendingCharges;
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
+  const [closingConfirmed, setClosingConfirmed] = React.useState(false);
+  const [closing, setClosing] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
   const [detailPayment, setDetailPayment] = React.useState<typeof rows[number] | null>(null);
   const [pendingNoteModal, setPendingNoteModal] = React.useState<{ title: string; note: string } | null>(null);
@@ -716,6 +842,13 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
   const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
+
+  // Listen for open-closeout event from Header buttons
+  React.useEffect(() => {
+    const handler = () => setCloseoutOpen(true);
+    window.addEventListener("clippr:open-closeout", handler);
+    return () => window.removeEventListener("clippr:open-closeout", handler);
+  }, []);
 
   const closeout = React.useMemo(() => {
     const groups = data.paymentsToday.reduce((acc, payment) => {
@@ -731,6 +864,27 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
   const totalFacturado = closeout.reduce((sum, g) => sum + g.total, 0);
   const selectedGroup = closeout.find(g => g.method === selectedMethod) ?? closeout[0] ?? null;
+
+  async function handleConfirmarCierre() {
+    if (!data.cashSessionId || !data.profileId) return;
+    setClosing(true);
+    try {
+      await closeCashSession({
+        sessionId: data.cashSessionId,
+        closedBy: data.profileId,
+        total: totalFacturado,
+        actionType: "cierre_manual",
+      });
+      setCloseoutOpen(false);
+      setClosingConfirmed(false);
+      toast.success("Caja cerrada correctamente");
+      await data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message || "Error al cerrar la caja");
+    } finally {
+      setClosing(false);
+    }
+  }
 
   return (
     <>
@@ -968,7 +1122,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                 <h3 className="text-lg font-semibold">Cierre de caja</h3>
                 <p className="text-xs text-muted-foreground mt-1">Detalle de cobros del día por método de pago.</p>
               </div>
-              <button type="button" onClick={() => setCloseoutOpen(false)}
+              <button type="button" onClick={() => { setCloseoutOpen(false); setClosingConfirmed(false); }}
                 className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">Cerrar</button>
             </div>
             <div className="p-5 space-y-5 max-h-[78vh] overflow-y-auto">
@@ -1044,6 +1198,45 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Confirm close section */}
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/[0.07] px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Confirmar cierre de caja</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Una vez cerrada, no se podrán registrar ventas ni gastos hasta reabrirla.
+                  </p>
+                </div>
+                {!closingConfirmed ? (
+                  <button
+                    type="button"
+                    onClick={() => setClosingConfirmed(true)}
+                    className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-rose-500/10 text-rose-300 border border-rose-400/20 hover:bg-rose-500/20 transition-all shrink-0"
+                  >
+                    <LockKeyhole className="size-4" /> Cerrar caja
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground">¿Estás seguro?</span>
+                    <button
+                      type="button"
+                      onClick={() => setClosingConfirmed(false)}
+                      className="rounded-xl px-4 py-2.5 text-sm font-medium border border-white/10 text-muted-foreground hover:text-foreground transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmarCierre}
+                      disabled={closing}
+                      className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 transition-all disabled:opacity-50"
+                    >
+                      {closing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                      Confirmar cierre
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
