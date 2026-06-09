@@ -91,6 +91,10 @@ export type Expense = {
   date?: string | null;
   note?: string | null;
   created_at?: string | null;
+  user_id?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  created_by?: string | null;
 };
 
 export type ApprovalMode = "auto" | "manual";
@@ -151,7 +155,7 @@ export function useCajaData() {
         .order("created_at", { ascending: false }),
       supabase
         .from("expenses")
-        .select("id,name,amount,type,category,payment_method,date,note,created_at")
+        .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
         .eq("business_id", businessId)
         .eq("date", dateStr)
         .order("created_at", { ascending: false }),

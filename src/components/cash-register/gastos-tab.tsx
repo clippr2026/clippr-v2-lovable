@@ -2,6 +2,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Loader2, X, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Portado de cjLoadGastos / cjGuardarGasto / cjDeleteGasto (app.js ~9579-9707).
@@ -18,6 +19,10 @@ type Expense = {
   payment_method: string | null;
   date: string;
   note: string | null;
+  user_id?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  created_by?: string | null;
 };
 
 const TYPES = ["fijo", "variable", "ocasional", "marketing"];
@@ -34,6 +39,7 @@ export function GastosTab({
   onOpenConsumed?: () => void;
   onSaved?: () => void;
 }) {
+  const { user, profile } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const [rows, setRows] = React.useState<Expense[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -59,7 +65,7 @@ export function GastosTab({
     setLoading(true);
     const { data, error } = await supabase
       .from("expenses")
-      .select("id,name,amount,type,payment_method,date,note")
+      .select("id,name,amount,type,payment_method,date,note,user_id,user_name,user_email,created_by")
       .eq("business_id", businessId)
       .eq("date", today)
       .order("created_at", { ascending: false });
@@ -88,6 +94,10 @@ export function GastosTab({
       payment_method: form.method || null,
       date: today,
       note: form.note.trim() || null,
+      user_id: user?.id ?? null,
+      user_name: profile?.full_name ?? user?.email?.split("@")[0] ?? null,
+      user_email: user?.email ?? null,
+      created_by: profile?.full_name ?? user?.email ?? null,
     });
     setSaving(false);
     if (error) return toast.error("Error guardando gasto: " + error.message);
@@ -219,6 +229,7 @@ export function GastosTab({
                 <div className="text-[11px] text-muted-foreground">
                   {g.type ?? ""}
                   {g.payment_method ? ` · ${g.payment_method}` : ""}
+                  {g.user_name || g.user_email || g.created_by ? ` · ${g.user_name || g.user_email || g.created_by}` : ""}
                 </div>
                 {g.note && <div className="text-[11px] text-muted-foreground/70">{g.note}</div>}
               </div>
