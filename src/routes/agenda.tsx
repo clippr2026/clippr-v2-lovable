@@ -24,6 +24,7 @@ import {
   useAgendaData,
   cancelAppointment,
   setAppointmentStatus,
+  checkOverlap,
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
@@ -830,11 +831,28 @@ function DayView({
     newStart.setHours(hour, 0, 0, 0);
     const dur = Number(appt.duration_min ?? 30);
     const newEnd = new Date(newStart.getTime() + dur * 60000);
+    const targetEmpId = empId === "__none__" ? null : empId;
     try {
+      // Overlap check before moving
+      if (targetEmpId) {
+        const conflict = await checkOverlap(
+          targetEmpId,
+          newStart.toISOString(),
+          dur,
+          apptId, // exclude self
+        );
+        if (conflict) {
+          const conflictTime = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+          toast.error(
+            `Este profesional ya tiene un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`,
+          );
+          return;
+        }
+      }
       const { error } = await supabase.from("appointments").update({
         starts_at: newStart.toISOString(),
         ends_at: newEnd.toISOString(),
-        employee_id: empId === "__none__" ? null : empId,
+        employee_id: targetEmpId,
       }).eq("id", apptId);
       if (error) throw new Error(error.message);
       data.refresh();
