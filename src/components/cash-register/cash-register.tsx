@@ -182,7 +182,7 @@ function CashRegisterPage() {
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
-  const [sessionAction, setSessionAction] = useState<"opening" | "closing" | "reopening" | null>(null);
+  const [sessionAction, setSessionAction] = useState<"opening" | "reopening" | null>(null);
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -196,7 +196,17 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
+  // If caja gets closed while on an operational tab, redirect to resumen (read-only)
+  useEffect(() => {
+    const blocked: Tab[] = ["nueva", "gastos"];
+    if ((data.cajaStatus === "closed_today" || data.cajaStatus === "closed") && blocked.includes(tab)) {
+      setTab("resumen");
+      setPendingToCharge(null);
+    }
+  }, [data.cajaStatus, tab]);
+
   function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
+    if (data.cajaStatus !== "open") return;
     setPendingToCharge(appt);
     setTab("nueva");
   }
@@ -216,11 +226,11 @@ function CashRegisterPage() {
   }
 
   async function handleReopenCaja() {
-    // Find the closed session ID — we need to fetch it since cashSessionId is null when closed
     if (!data.businessId || !data.profileId) return;
     setSessionAction("reopening");
     try {
-      const { data: sess } = await (await import("@/integrations/supabase/client")).supabase
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: sess } = await supabase
         .from("cash_sessions")
         .select("id")
         .eq("business_id", data.businessId)
@@ -240,6 +250,7 @@ function CashRegisterPage() {
     }
   }
 
+  // ── AUTH GUARD ────────────────────────────────────────────────────────────
   if (authLoading || !session) {
     return (
       <AppShell>
@@ -250,97 +261,57 @@ function CashRegisterPage() {
     );
   }
 
-  // ── CAJA CERRADA: mostrar pantalla bloqueada ──────────────────────────────
-  const isClosed = data.cajaStatus === "closed_today" || data.cajaStatus === "closed";
-  const canReopen = data.cajaStatus === "closed_today"; // mismo día antes de las 00:00
-
-  if (!data.loading && isClosed) {
+  // ── LOADING ───────────────────────────────────────────────────────────────
+  if (data.loading) {
     return (
       <AppShell>
-        <Header data={data} />
-        <div className="mt-10 flex flex-col items-center justify-center gap-6 py-20">
-          <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-            <div className="h-16 w-16 rounded-2xl bg-white/[0.04] border border-white/10 grid place-items-center">
-              <LockKeyhole className="size-7 text-muted-foreground" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Caja cerrada</h2>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                La caja de hoy ya fue cerrada.
-                {canReopen && " Podés reabrirla hasta las 00:00."}
-              </p>
-            </div>
-            {canReopen ? (
-              <button
-                onClick={handleReopenCaja}
-                disabled={sessionAction !== null}
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.11] transition-all text-foreground disabled:opacity-50"
-              >
-                {sessionAction === "reopening" ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                Reabrir caja
-              </button>
-            ) : (
-              <button
-                onClick={handleOpenCaja}
-                disabled={sessionAction !== null}
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 transition-all disabled:opacity-50"
-              >
-                {sessionAction === "opening" ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Unlock className="size-4" />
-                )}
-                Abrir caja
-              </button>
-            )}
-          </div>
+        <CajaHeader />
+        <div className="flex items-center justify-center py-32 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin mr-2" /> Cargando caja…
         </div>
       </AppShell>
     );
   }
 
-  // ── CAJA SIN SESIÓN: mostrar botón "Abrir caja" ───────────────────────────
-  if (!data.loading && data.cajaStatus === "no_session") {
+  // ── CAJA CERRADA (mismo día) → solo lectura + Reabrir ────────────────────
+  if (data.cajaStatus === "closed_today") {
     return (
       <AppShell>
-        <Header data={data} />
-        <div className="mt-10 flex flex-col items-center justify-center gap-6 py-20">
-          <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-            <div className="h-16 w-16 rounded-2xl bg-amber-400/10 border border-amber-400/20 grid place-items-center">
-              <CalendarDays className="size-7 text-amber-300" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Nueva jornada</h2>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                La caja de hoy aún no fue abierta.
-              </p>
-            </div>
-            <button
-              onClick={handleOpenCaja}
-              disabled={sessionAction !== null}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 transition-all disabled:opacity-50"
-            >
-              {sessionAction === "opening" ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Unlock className="size-4" />
-              )}
-              Abrir caja
-            </button>
-          </div>
-        </div>
+        <CajaHeader />
+        <CajaClosedScreen
+          mode="closed_today"
+          onReopen={handleReopenCaja}
+          sessionAction={sessionAction}
+          data={data}
+        />
       </AppShell>
     );
   }
 
+  // ── CAJA CERRADA (día siguiente) → Abrir nueva jornada ───────────────────
+  if (data.cajaStatus === "closed" || data.cajaStatus === "no_session") {
+    return (
+      <AppShell>
+        <CajaHeader />
+        <CajaClosedScreen
+          mode="new_day"
+          onOpen={handleOpenCaja}
+          sessionAction={sessionAction}
+          data={data}
+        />
+      </AppShell>
+    );
+  }
+
+  // ── CAJA ABIERTA ─────────────────────────────────────────────────────────
   return (
     <AppShell>
-      <Header data={data} />
-      <Tabs tab={tab} onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }} />
+      <CajaHeader />
+      <CajaTabs
+        tab={tab}
+        onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }}
+        cajaOpen
+      />
       <div className="mt-6">
         {tab === "resumen" && (
           <ResumenTab
@@ -369,7 +340,101 @@ function CashRegisterPage() {
   );
 }
 
-function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
+// ── Pantalla de caja cerrada (solo lectura) ───────────────────────────────────
+function CajaClosedScreen({
+  mode,
+  onReopen,
+  onOpen,
+  sessionAction,
+  data,
+}: {
+  mode: "closed_today" | "new_day";
+  onReopen?: () => void;
+  onOpen?: () => void;
+  sessionAction: "opening" | "reopening" | null;
+  data: ReturnType<typeof useCajaData>;
+}) {
+  const isClosedToday = mode === "closed_today";
+
+  // Summary stats (read-only)
+  const totalCobrado = data.paymentsToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const cobros = data.paymentsToday.length;
+  const gastos = data.expensesToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+
+  return (
+    <div className="mt-6 space-y-5">
+      {/* Estado banner */}
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl px-6 py-5 flex items-center gap-5">
+        <div className={cn(
+          "h-14 w-14 rounded-2xl grid place-items-center shrink-0",
+          isClosedToday
+            ? "bg-rose-500/10 border border-rose-400/20"
+            : "bg-amber-400/10 border border-amber-400/20"
+        )}>
+          {isClosedToday
+            ? <LockKeyhole className="size-6 text-rose-300" />
+            : <CalendarDays className="size-6 text-amber-300" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold text-foreground">
+            {isClosedToday ? "Caja cerrada" : "Nueva jornada"}
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {isClosedToday
+              ? "La caja de hoy ya fue cerrada. Podés reabrirla hasta las 00:00."
+              : "La caja no está abierta. Abrila para comenzar a operar."
+            }
+          </p>
+        </div>
+        <div className="shrink-0">
+          {isClosedToday ? (
+            <button
+              onClick={onReopen}
+              disabled={sessionAction !== null}
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground disabled:opacity-50"
+            >
+              {sessionAction === "reopening"
+                ? <Loader2 className="size-4 animate-spin" />
+                : <RefreshCw className="size-4" />}
+              Reabrir caja
+            </button>
+          ) : (
+            <button
+              onClick={onOpen}
+              disabled={sessionAction !== null}
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 transition-all disabled:opacity-50"
+            >
+              {sessionAction === "opening"
+                ? <Loader2 className="size-4 animate-spin" />
+                : <Unlock className="size-4" />}
+              Abrir caja
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Resumen de solo lectura (solo si hay datos del día) */}
+      {isClosedToday && cobros > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: "Total cobrado", value: `$${totalCobrado.toLocaleString("es-AR")}`, tint: "from-amber-400/20 to-amber-500/0" },
+            { label: "Cobros", value: cobros.toString(), tint: "from-sky-400/25 to-sky-500/0" },
+            { label: "Gastos", value: `$${gastos.toLocaleString("es-AR")}`, tint: "from-rose-400/25 to-rose-500/0" },
+          ].map((s) => (
+            <div key={s.label} className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl p-4">
+              <div className={cn("pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-50 bg-gradient-to-br", s.tint)} />
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="mt-1.5 font-display text-2xl font-semibold tabular-nums text-foreground">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CajaHeader() {
   return (
     <div className="flex items-end justify-between gap-4 flex-wrap">
       <div>
@@ -384,19 +449,18 @@ function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
   );
 }
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS_DEF: { id: Tab; label: string }[] = [
   { id: "resumen", label: "Resumen" },
   { id: "precios", label: "Precios" },
   { id: "inventario", label: "Inventario" },
   { id: "profesionales", label: "Liquidaciones" },
 ];
 
-function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  const nuevaActive = tab === "nueva";
+function CajaTabs({ tab, onChange, cajaOpen }: { tab: Tab; onChange: (t: Tab) => void; cajaOpen: boolean }) {
   return (
     <div className="mt-6 flex items-end justify-between gap-3 border-b border-white/5">
       <div className="flex gap-1 overflow-x-auto -mb-px flex-1 min-w-0">
-        {TABS.map((t) => {
+        {TABS_DEF.map((t) => {
           const active = t.id === tab;
           return (
             <button
@@ -415,7 +479,8 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           );
         })}
       </div>
-      {tab === "resumen" && (
+      {/* Action buttons — only visible on resumen AND only when caja is open */}
+      {tab === "resumen" && cajaOpen && (
         <div className="shrink-0 mb-2 flex items-center gap-2">
           <button
             onClick={() => onChange("gastos")}
@@ -425,12 +490,7 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           </button>
           <button
             onClick={() => onChange("nueva")}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
-              nuevaActive
-                ? "bg-gradient-to-r from-amber-200 to-amber-400 text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.7)] ring-1 ring-amber-300/60"
-                : "bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
-            )}
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
           >
             <span className="text-base leading-none">＋</span> Nueva venta
           </button>
