@@ -167,8 +167,6 @@ export function AppointmentDialog({
   const [clientEmail, setClientEmail] = React.useState("");
   const [clientBirth, setClientBirth] = React.useState("");
   const [clientNote, setClientNote] = React.useState("");
-  const [clientInstagram, setClientInstagram] = React.useState("");
-  const [clientDireccion, setClientDireccion] = React.useState("");
   const [newClientMode, setNewClientMode] = React.useState(false);
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
@@ -330,8 +328,6 @@ export function AppointmentDialog({
     setClientEmail("");
     setClientBirth("");
     setClientNote("");
-    setClientInstagram("");
-    setClientDireccion("");
     setClientSearch("");
     setShowClientList(false);
     setNewClientMode(false);
@@ -356,12 +352,7 @@ export function AppointmentDialog({
       throw new Error("Nombre y apellido son obligatorios para crear un cliente nuevo.");
     }
 
-    // Build notes with extra fields if provided
-    const extraNotes = [
-      clientNote.trim(),
-      clientInstagram.trim() ? `Instagram: ${clientInstagram.trim()}` : "",
-      clientDireccion.trim() ? `Dirección: ${clientDireccion.trim()}` : "",
-    ].filter(Boolean).join("\n") || null;
+    const extraNotes = clientNote.trim() || null;
 
     const payload: Record<string, unknown> = {
       business_id: businessId,
@@ -619,18 +610,6 @@ export function AppointmentDialog({
                   <div className="grid gap-1.5">
                     <Label>Fecha de nacimiento</Label>
                     <Input type="date" value={clientBirth} onChange={(e) => setClientBirth(e.target.value)} />
-                  </div>
-                )}
-                {isFieldEnabled("instagram") && (
-                  <div className="grid gap-1.5">
-                    <Label>Instagram</Label>
-                    <Input value={clientInstagram} placeholder="@usuario" onChange={(e) => setClientInstagram(e.target.value)} />
-                  </div>
-                )}
-                {isFieldEnabled("direccion") && (
-                  <div className="grid gap-1.5">
-                    <Label>Dirección</Label>
-                    <Input value={clientDireccion} onChange={(e) => setClientDireccion(e.target.value)} />
                   </div>
                 )}
                 {isFieldEnabled("notas") && (
