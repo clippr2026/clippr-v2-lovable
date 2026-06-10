@@ -304,6 +304,35 @@ function CashRegisterPage() {
   }
 
   // ── CAJA ABIERTA ─────────────────────────────────────────────────────────
+  const [closeoutOpen, setCloseoutOpen] = React.useState(false);
+
+  // Open closeout modal via custom event (fired by CierreCajaBtn)
+  React.useEffect(() => {
+    const handler = () => setCloseoutOpen(true);
+    window.addEventListener("clippr:open-closeout", handler);
+    return () => window.removeEventListener("clippr:open-closeout", handler);
+  }, []);
+
+  async function handleConfirmarCierre(totalFacturado: number, observation: string) {
+    if (!data.cashSessionId || !data.profileId) return;
+    try {
+      await closeCashSession({
+        sessionId: data.cashSessionId,
+        closedBy: data.profileId,
+        total: totalFacturado,
+        actionType: "cierre_manual",
+        observation: observation || undefined,
+      });
+      // Close modal first, THEN refresh — so CashRegisterPage immediately
+      // re-evaluates cajaStatus and renders the blocked screen
+      setCloseoutOpen(false);
+      toast.success("Caja cerrada correctamente");
+      await data.refresh();
+    } catch (e) {
+      throw e; // let modal handle the error display
+    }
+  }
+
   return (
     <AppShell>
       <CajaHeader />
@@ -336,11 +365,161 @@ function CashRegisterPage() {
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
       </div>
+
+      {/* Closeout modal lives at page level so confirming it immediately
+          causes CashRegisterPage to re-render into the blocked gate */}
+      {closeoutOpen && (
+        <CloseoutModal
+          data={data}
+          onClose={() => setCloseoutOpen(false)}
+          onConfirm={handleConfirmarCierre}
+        />
+      )}
     </AppShell>
   );
 }
 
-// ── Pantalla de caja cerrada (solo lectura) ───────────────────────────────────
+// ── Modal de cierre — vive al nivel de CashRegisterPage ───────────────────────
+function CloseoutModal({
+  data,
+  onClose,
+  onConfirm,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  onClose: () => void;
+  onConfirm: (totalFacturado: number, observation: string) => Promise<void>;
+}) {
+  const [observation, setObservation] = React.useState("");
+  const [closing, setClosing] = React.useState(false);
+  const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
+
+  const totalCobrado = data.paymentsToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const totalGastos = data.expensesToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const utilidad = totalCobrado - totalGastos;
+
+  // Group payments by method
+  const byMethod = React.useMemo(() => {
+    const groups: Record<string, { method: string; ingresos: number; gastos: number; count: number }> = {};
+    for (const p of data.paymentsToday) {
+      const m = String(p.method ?? p.payment_method ?? "cash");
+      if (!groups[m]) groups[m] = { method: m, ingresos: 0, gastos: 0, count: 0 };
+      groups[m].ingresos += Number(p.total ?? p.amount ?? 0);
+      groups[m].count += 1;
+    }
+    for (const e of data.expensesToday) {
+      const m = String(e.payment_method ?? "cash");
+      if (!groups[m]) groups[m] = { method: m, ingresos: 0, gastos: 0, count: 0 };
+      groups[m].gastos += Number(e.amount ?? 0);
+    }
+    return Object.values(groups);
+  }, [data.paymentsToday, data.expensesToday]);
+
+  const now = new Date();
+  const fechaLabel = now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+
+  async function handleConfirm() {
+    setClosing(true);
+    try {
+      await onConfirm(totalCobrado, observation);
+    } catch (e) {
+      toast.error((e as Error).message || "Error al cerrar la caja");
+      setClosing(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.10_0.03_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-5 pb-4">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Cierre de caja</h3>
+            <p className="text-xs text-muted-foreground mt-0.5 capitalize">{fechaLabel}</p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={closing}
+            className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition disabled:opacity-40"
+          >
+            Cancelar
+          </button>
+        </div>
+
+        <div className="px-6 pb-6 space-y-4">
+          {/* Totales */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "COBRADO", value: totalCobrado, color: "text-emerald-300" },
+              { label: "GASTOS",  value: totalGastos,  color: "text-rose-300"    },
+              { label: "UTILIDAD",value: utilidad,     color: utilidad >= 0 ? "text-emerald-300" : "text-rose-300" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl bg-white/[0.04] ring-1 ring-white/[0.06] px-4 py-3 text-center">
+                <p className="text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase mb-1">{s.label}</p>
+                <p className={cn("text-xl font-semibold tabular-nums font-display", s.color)}>
+                  ${s.value.toLocaleString("es-AR")}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabla por método */}
+          {byMethod.length > 0 && (
+            <div className="rounded-xl overflow-hidden ring-1 ring-white/[0.06]">
+              <div className="grid grid-cols-4 px-4 py-2 text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase border-b border-white/5">
+                <span>Método</span>
+                <span className="text-right">Ingresos</span>
+                <span className="text-right">Gastos</span>
+                <span className="text-right">Utilidad</span>
+              </div>
+              {byMethod.map((row) => {
+                const method = row.method as PayMethod;
+                const util = row.ingresos - row.gastos;
+                return (
+                  <div key={row.method} className="grid grid-cols-4 px-4 py-2.5 text-sm border-b border-white/5 last:border-0">
+                    <span className="text-foreground">{PAY_METHOD_LABEL[method] ?? row.method}</span>
+                    <span className="text-right text-emerald-300 tabular-nums">
+                      {row.ingresos > 0 ? `$${row.ingresos.toLocaleString("es-AR")}` : "$0"}
+                    </span>
+                    <span className="text-right text-rose-300 tabular-nums">
+                      {row.gastos > 0 ? `$${row.gastos.toLocaleString("es-AR")}` : "$0"}
+                    </span>
+                    <span className={cn("text-right tabular-nums", util >= 0 ? "text-emerald-300" : "text-rose-300")}>
+                      {util >= 0 ? `$${util.toLocaleString("es-AR")}` : `$-${Math.abs(util).toLocaleString("es-AR")}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Observación */}
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1.5">Observación opcional</label>
+            <textarea
+              value={observation}
+              onChange={(e) => setObservation(e.target.value)}
+              placeholder="Novedades del día, diferencias, etc."
+              rows={2}
+              className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-amber-300/30 resize-none"
+            />
+          </div>
+
+          {/* Confirm button */}
+          <button
+            onClick={handleConfirm}
+            disabled={closing}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold bg-gradient-to-r from-amber-300 to-amber-500 text-black hover:brightness-110 disabled:opacity-50 transition-all"
+          >
+            {closing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            {closing ? "Cerrando…" : "Confirmar cierre"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function CajaClosedScreen({
   mode,
   onReopen,
@@ -892,9 +1071,6 @@ function DetailModal({ payment, employees, onClose }: {
 function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void }) {
   const rows = data.paymentsToday;
   const pendingRows = data.pendingCharges;
-  const [closeoutOpen, setCloseoutOpen] = React.useState(false);
-  const [closingConfirmed, setClosingConfirmed] = React.useState(false);
-  const [closing, setClosing] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(null);
   const [detailPayment, setDetailPayment] = React.useState<typeof rows[number] | null>(null);
   const [pendingNoteModal, setPendingNoteModal] = React.useState<{ title: string; note: string } | null>(null);
@@ -902,49 +1078,6 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
 
   const visibleRows = showAll ? rows : rows.slice(0, 10);
   const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
-
-  // Listen for open-closeout event from Header buttons
-  React.useEffect(() => {
-    const handler = () => setCloseoutOpen(true);
-    window.addEventListener("clippr:open-closeout", handler);
-    return () => window.removeEventListener("clippr:open-closeout", handler);
-  }, []);
-
-  const closeout = React.useMemo(() => {
-    const groups = data.paymentsToday.reduce((acc, payment) => {
-      const method = String(payment.method ?? payment.payment_method ?? "cash");
-      if (!acc[method]) acc[method] = { method, total: 0, count: 0, rows: [] as typeof data.paymentsToday };
-      acc[method].total += Number(payment.total ?? payment.amount ?? 0);
-      acc[method].count += 1;
-      acc[method].rows.push(payment);
-      return acc;
-    }, {} as Record<string, { method: string; total: number; count: number; rows: typeof data.paymentsToday }>);
-    return Object.values(groups).sort((a, b) => b.total - a.total);
-  }, [data.paymentsToday]);
-
-  const totalFacturado = closeout.reduce((sum, g) => sum + g.total, 0);
-  const selectedGroup = closeout.find(g => g.method === selectedMethod) ?? closeout[0] ?? null;
-
-  async function handleConfirmarCierre() {
-    if (!data.cashSessionId || !data.profileId) return;
-    setClosing(true);
-    try {
-      await closeCashSession({
-        sessionId: data.cashSessionId,
-        closedBy: data.profileId,
-        total: totalFacturado,
-        actionType: "cierre_manual",
-      });
-      setCloseoutOpen(false);
-      setClosingConfirmed(false);
-      toast.success("Caja cerrada correctamente");
-      await data.refresh();
-    } catch (e) {
-      toast.error((e as Error).message || "Error al cerrar la caja");
-    } finally {
-      setClosing(false);
-    }
-  }
 
   return (
     <>
@@ -1173,139 +1306,10 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
         </div>
       )}
 
-      {/* Closeout modal */}
-      {closeoutOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-5xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div>
-                <h3 className="text-lg font-semibold">Cierre de caja</h3>
-                <p className="text-xs text-muted-foreground mt-1">Detalle de cobros del día por método de pago.</p>
-              </div>
-              <button type="button" onClick={() => { setCloseoutOpen(false); setClosingConfirmed(false); }}
-                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">Cerrar</button>
-            </div>
-            <div className="p-5 space-y-5 max-h-[78vh] overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-[0.85fr_1.15fr] gap-4">
-                <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/5">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Total facturado</div>
-                    <div className="mt-1 text-3xl font-semibold tabular-nums">${totalFacturado.toLocaleString("es-AR")}</div>
-                  </div>
-                  {closeout.length === 0 ? (
-                    <div className="p-6 text-sm text-muted-foreground text-center">No hay cobros registrados hoy.</div>
-                  ) : (
-                    <div className="divide-y divide-white/5">
-                      {closeout.map((group) => {
-                        const method = group.method as PayMethod;
-                        const active = selectedGroup?.method === group.method;
-                        return (
-                          <button key={group.method} type="button" onClick={() => setSelectedMethod(group.method)}
-                            className={cn("w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition",
-                              active ? "bg-white/[0.07]" : "hover:bg-white/[0.045]")}>
-                            <div>
-                              <div className="text-sm font-semibold">{PAY_METHOD_LABEL[method] ?? group.method}</div>
-                              <div className="text-xs text-muted-foreground">{group.count} cobro{group.count === 1 ? "" : "s"}</div>
-                            </div>
-                            <div className="text-sm font-semibold tabular-nums text-emerald-300">${group.total.toLocaleString("es-AR")}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">
-                        {selectedGroup ? PAY_METHOD_LABEL[selectedGroup.method as PayMethod] ?? selectedGroup.method : "Detalle"}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {selectedGroup
-                          ? `${selectedGroup.count} cobro${selectedGroup.count === 1 ? "" : "s"} · $${selectedGroup.total.toLocaleString("es-AR")}`
-                          : "Seleccioná un método de pago."}
-                      </div>
-                    </div>
-                  </div>
-                  {!selectedGroup ? (
-                    <div className="p-6 text-sm text-muted-foreground text-center">Seleccioná un método para ver el detalle.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-white/10">
-                            {["Hora", "Cliente", "Servicio", "Monto"].map(h => (
-                              <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedGroup.rows.map(payment => {
-                            const hour = new Date(payment.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-                            return (
-                              <tr key={payment.id} className="border-b border-white/5 last:border-0">
-                                <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{hour}</td>
-                                <td className="px-4 py-3 text-foreground whitespace-nowrap">{payment.client_name ?? "—"}</td>
-                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{payment.service_name ?? "—"}</td>
-                                <td className="px-4 py-3 text-emerald-300 font-semibold tabular-nums whitespace-nowrap">
-                                  ${Number(payment.total ?? payment.amount ?? 0).toLocaleString("es-AR")}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Confirm close section */}
-              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/[0.07] px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Confirmar cierre de caja</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Una vez cerrada, no se podrán registrar ventas ni gastos hasta reabrirla.
-                  </p>
-                </div>
-                {!closingConfirmed ? (
-                  <button
-                    type="button"
-                    onClick={() => setClosingConfirmed(true)}
-                    className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-rose-500/10 text-rose-300 border border-rose-400/20 hover:bg-rose-500/20 transition-all shrink-0"
-                  >
-                    <LockKeyhole className="size-4" /> Cerrar caja
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-muted-foreground">¿Estás seguro?</span>
-                    <button
-                      type="button"
-                      onClick={() => setClosingConfirmed(false)}
-                      className="rounded-xl px-4 py-2.5 text-sm font-medium border border-white/10 text-muted-foreground hover:text-foreground transition"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleConfirmarCierre}
-                      disabled={closing}
-                      className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 transition-all disabled:opacity-50"
-                    >
-                      {closing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                      Confirmar cierre
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Closeout modal removed — now rendered by CashRegisterPage */}
     </>
   );
 }
-
 // ───────────────────────────── NUEVA VENTA
 type MultiSplit = { method: string; amount: string };
 
