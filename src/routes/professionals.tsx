@@ -980,9 +980,10 @@ function endOfDay(d: Date)   { const x = new Date(d); x.setHours(23,59,59,999); 
 function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) => void }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const today = startOfDay(new Date());
+  // Pool: 180 days centered on cursor month — regenerates on month change
   const days = React.useMemo(() =>
-    Array.from({ length: 61 }, (_, i) => new Date(today.getTime() + (i - 30) * DAY_MS)),
-  []); // eslint-disable-line react-hooks/exhaustive-deps
+    Array.from({ length: 181 }, (_, i) => new Date(startOfDay(cursor).getTime() + (i - 90) * DAY_MS)),
+  [cursor.getFullYear(), cursor.getMonth()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     const container = scrollRef.current;
@@ -994,6 +995,7 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
     container.scrollTo({ left: Math.max(0, idx * itemWidth - container.clientWidth / 2 + itemWidth / 2), behavior: "smooth" });
   }, [cursor, days]);
 
+  // Month label always tracks selected cursor
   const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   const cursorStr = cursor.toISOString().slice(0, 10);
   const todayStr = today.toISOString().slice(0, 10);
@@ -1227,8 +1229,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         </div>
       )}
 
-      {/* Status cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Status pills — compact single row */}
+      <div className="flex items-center gap-2 flex-wrap mb-1">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1236,18 +1238,17 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "rounded-2xl px-4 py-4 ring-1 text-left transition-all",
-              card.bg, card.ring,
+              "inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all",
               card.onClick ? "hover:brightness-110 cursor-pointer" : "cursor-default"
             )}
+            style={{
+              background: card.bg.replace("0.10", "0.14"),
+              boxShadow: `0 0 0 1px ${card.ring.replace("0.20", "0.35")}`,
+              color: card.color,
+            }}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className={cn("size-2 rounded-full shrink-0", card.dot)} />
-              <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">{card.label}</span>
-            </div>
-            <div className={cn("text-3xl font-semibold font-display tabular-nums", card.color)}>
-              {card.count}
-            </div>
+            <span className="font-semibold tabular-nums text-sm">{card.count}</span>
+            <span className="opacity-80">{card.label}</span>
           </button>
         ))}
       </div>

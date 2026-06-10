@@ -491,33 +491,26 @@ function AgendaPage() {
       {/* Modern day-strip navigation */}
       <DayStripNav cursor={cursor} onSelect={setCursor} />
 
-      {/* Quick stats */}
-      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-4 gap-4 animate-fade-up">
+      {/* Status pills — compact single row */}
+      <div className="flex items-center gap-2 flex-wrap mb-4 animate-fade-up">
         {([
-          ["pending",   "Pendientes",  "oklch(0.72 0.2 245)"],
-          ["confirmed", "Confirmados", "oklch(0.72 0.26 305)"],
-          ["charged",   "Finalizados", "oklch(0.76 0.2 155)"],
-          ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)"],
-        ] as [string,string,string][]).map(([k, label, color]) => (
-          <div key={k} className="group">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-            <div className="font-display text-2xl sm:text-3xl font-semibold mt-1" style={{ color }}>
-              {(counts as Record<string,number>)[k] ?? 0}
-            </div>
-            <button
-              onClick={() => setFilterModal(k)}
-              className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              Ver todos →
-            </button>
-          </div>
+          ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
+          ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
+          ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
+          ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
+        ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
+          <button
+            key={k}
+            onClick={() => setFilterModal(k)}
+            className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110"
+            style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
+          >
+            <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
+            <span className="opacity-80">{label}</span>
+          </button>
         ))}
-        {data.loading && (
-          <div className="col-span-full text-xs text-muted-foreground inline-flex items-center gap-1">
-            <Loader2 className="size-3 animate-spin" /> Cargando…
-          </div>
-        )}
-      </section>
+        {data.loading && <span className="text-xs text-muted-foreground">Cargando…</span>}
+      </div>
 
       {/* Filter modal */}
       {filterModal && (() => {
@@ -672,44 +665,42 @@ function DayStripNav({
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const today = startOfDay(new Date());
 
-  // Build a window of 60 days centered on today (30 before, 30 after)
+  // Pool: 180 days centered on cursor (90 before/after) — regenerates when cursor moves month
   const days = React.useMemo(() => {
-    return Array.from({ length: 61 }, (_, i) => {
-      const d = new Date(today.getTime() + (i - 30) * DAY_MS);
-      return d;
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const base = startOfDay(cursor);
+    return Array.from({ length: 181 }, (_, i) => new Date(base.getTime() + (i - 90) * DAY_MS));
+  }, [cursor.getFullYear(), cursor.getMonth()]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll selected day into view on mount and cursor change
+  // Scroll selected day into center
   React.useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
     const cursorStr = cursor.toISOString().slice(0, 10);
     const idx = days.findIndex(d => d.toISOString().slice(0, 10) === cursorStr);
     if (idx === -1) return;
-    const itemWidth = 56; // px per day item
-    const scrollTarget = idx * itemWidth - container.clientWidth / 2 + itemWidth / 2;
-    container.scrollTo({ left: Math.max(0, scrollTarget), behavior: "smooth" });
+    const itemWidth = 56;
+    container.scrollTo({ left: Math.max(0, idx * itemWidth - container.clientWidth / 2 + itemWidth / 2), behavior: "smooth" });
   }, [cursor, days]);
 
+  // Month label always tracks the selected cursor date
   const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   const cursorStr = cursor.toISOString().slice(0, 10);
   const todayStr = today.toISOString().slice(0, 10);
 
   return (
-    <div className="glass rounded-2xl mb-5 overflow-hidden animate-fade-up">
+    <div className="glass rounded-2xl mb-4 overflow-hidden animate-fade-up">
       {/* Month label + today button */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onSelect(new Date(cursor.getFullYear(), cursor.getMonth() - 1, cursor.getDate()))}
+            onClick={() => onSelect(startOfDay(new Date(cursor.getFullYear(), cursor.getMonth() - 1, cursor.getDate())))}
             className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
           <span className="text-sm font-semibold capitalize">{monthLabel}</span>
           <button
-            onClick={() => onSelect(new Date(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate()))}
+            onClick={() => onSelect(startOfDay(new Date(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate())))}
             className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
           >
             <ChevronRight className="h-3.5 w-3.5" />
@@ -743,7 +734,7 @@ function DayStripNav({
               className={cn(
                 "flex flex-col items-center gap-1 rounded-2xl py-2 transition-all shrink-0 w-[52px]",
                 isSelected
-                  ? "text-black"
+                  ? "text-white"
                   : isToday
                     ? "text-primary ring-1 ring-primary/30 bg-primary/10"
                     : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
@@ -754,7 +745,7 @@ function DayStripNav({
               } : undefined}
             >
               <span className="text-[10px] uppercase tracking-wider font-medium">{dow}</span>
-              <span className={cn("text-base font-semibold leading-none tabular-nums", isSelected && "text-white")}>
+              <span className="text-base font-semibold leading-none tabular-nums">
                 {d.getDate()}
               </span>
             </button>
