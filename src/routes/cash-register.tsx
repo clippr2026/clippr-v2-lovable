@@ -165,9 +165,13 @@ function removeLocalManualPendingCharge(id: string) {
 }
 
 function getManualPendingNote(notes?: string | null) {
-  const value = String(notes ?? "")
+  let value = String(notes ?? "")
     .replace("[PENDIENTE_CAJA]", "")
     .trim();
+
+  if (value.includes("|")) {
+    value = value.split("|")[0].trim();
+  }
 
   const lower = value.toLowerCase();
   const genericServices = ["corte", "barba", "corte + barba", "corte de pelo"];
