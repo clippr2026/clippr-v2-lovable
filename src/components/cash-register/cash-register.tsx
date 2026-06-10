@@ -178,13 +178,30 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
+
+  // Local override: set to true the instant the user confirms close,
+  // so the UI blocks immediately without waiting for data.refresh()
+  const [forcedClosed, setForcedClosed] = useState(false);
+  const [closeoutOpen, setCloseoutOpen] = useState(false);
   const [tab, setTab] = useState<Tab>(
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
   const [sessionAction, setSessionAction] = useState<"opening" | "reopening" | null>(null);
 
-  React.useEffect(() => {
+  // Reset forcedClosed if caja gets reopened (cajaStatus goes back to "open")
+  useEffect(() => {
+    if (data.cajaStatus === "open") setForcedClosed(false);
+  }, [data.cajaStatus]);
+
+  // Open closeout modal via custom event (fired by CierreCajaBtn)
+  useEffect(() => {
+    const handler = () => setCloseoutOpen(true);
+    window.addEventListener("clippr:open-closeout", handler);
+    return () => window.removeEventListener("clippr:open-closeout", handler);
+  }, []);
+
+  useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
       toast.info(`Cobrar seña de $${parseInt(search.depositAmount).toLocaleString("es-AR")} para ${search.clientName ?? "cliente"}`);
     } else if (search.appointmentId && search.depositPaid && parseInt(search.depositPaid) > 0) {
@@ -196,17 +213,7 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
-  // If caja gets closed while on an operational tab, redirect to resumen (read-only)
-  useEffect(() => {
-    const blocked: Tab[] = ["nueva", "gastos"];
-    if ((data.cajaStatus === "closed_today" || data.cajaStatus === "closed") && blocked.includes(tab)) {
-      setTab("resumen");
-      setPendingToCharge(null);
-    }
-  }, [data.cajaStatus, tab]);
-
   function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
-    if (data.cajaStatus !== "open") return;
     setPendingToCharge(appt);
     setTab("nueva");
   }
@@ -238,15 +245,38 @@ function CashRegisterPage() {
         .order("opened_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-
       if (!sess?.id) throw new Error("No se encontró la sesión cerrada");
       await reopenCashSession({ sessionId: sess.id, reopenedBy: data.profileId });
+      setForcedClosed(false);
       toast.success("Caja reabierta");
       await data.refresh();
     } catch (e) {
       toast.error((e as Error).message || "Error al reabrir la caja");
     } finally {
       setSessionAction(null);
+    }
+  }
+
+  async function handleConfirmarCierre(totalFacturado: number, observation: string) {
+    if (!data.cashSessionId || !data.profileId) return;
+    try {
+      await closeCashSession({
+        sessionId: data.cashSessionId,
+        closedBy: data.profileId,
+        total: totalFacturado,
+        actionType: "cierre_manual",
+        observation: observation || undefined,
+      });
+      // Force UI to blocked state IMMEDIATELY — don't wait for data.refresh()
+      setCloseoutOpen(false);
+      setForcedClosed(true);
+      setPendingToCharge(null);
+      setTab("resumen");
+      toast.success("Caja cerrada correctamente");
+      // Refresh in background to sync cajaStatus from server
+      data.refresh();
+    } catch (e) {
+      throw e;
     }
   }
 
@@ -261,7 +291,6 @@ function CashRegisterPage() {
     );
   }
 
-  // ── LOADING ───────────────────────────────────────────────────────────────
   if (data.loading) {
     return (
       <AppShell>
@@ -273,13 +302,18 @@ function CashRegisterPage() {
     );
   }
 
-  // ── CAJA CERRADA (mismo día) → solo lectura + Reabrir ────────────────────
-  if (data.cajaStatus === "closed_today") {
+  // ── GATE: caja cerrada ────────────────────────────────────────────────────
+  // forcedClosed = confirmed close this session (instant)
+  // cajaStatus from hook = persistent closed state (after refresh / on page load)
+  const isClosed = forcedClosed || data.cajaStatus === "closed_today" || data.cajaStatus === "closed";
+  const canReopen = forcedClosed || data.cajaStatus === "closed_today";
+
+  if (isClosed) {
     return (
       <AppShell>
         <CajaHeader />
         <CajaClosedScreen
-          mode="closed_today"
+          canReopen={canReopen}
           onReopen={handleReopenCaja}
           sessionAction={sessionAction}
           data={data}
@@ -288,13 +322,13 @@ function CashRegisterPage() {
     );
   }
 
-  // ── CAJA CERRADA (día siguiente) → Abrir nueva jornada ───────────────────
-  if (data.cajaStatus === "closed" || data.cajaStatus === "no_session") {
+  // ── GATE: sin sesión → abrir nueva jornada ────────────────────────────────
+  if (data.cajaStatus === "no_session") {
     return (
       <AppShell>
         <CajaHeader />
         <CajaClosedScreen
-          mode="new_day"
+          canReopen={false}
           onOpen={handleOpenCaja}
           sessionAction={sessionAction}
           data={data}
@@ -303,36 +337,7 @@ function CashRegisterPage() {
     );
   }
 
-  // ── CAJA ABIERTA ─────────────────────────────────────────────────────────
-  const [closeoutOpen, setCloseoutOpen] = React.useState(false);
-
-  // Open closeout modal via custom event (fired by CierreCajaBtn)
-  React.useEffect(() => {
-    const handler = () => setCloseoutOpen(true);
-    window.addEventListener("clippr:open-closeout", handler);
-    return () => window.removeEventListener("clippr:open-closeout", handler);
-  }, []);
-
-  async function handleConfirmarCierre(totalFacturado: number, observation: string) {
-    if (!data.cashSessionId || !data.profileId) return;
-    try {
-      await closeCashSession({
-        sessionId: data.cashSessionId,
-        closedBy: data.profileId,
-        total: totalFacturado,
-        actionType: "cierre_manual",
-        observation: observation || undefined,
-      });
-      // Close modal first, THEN refresh — so CashRegisterPage immediately
-      // re-evaluates cajaStatus and renders the blocked screen
-      setCloseoutOpen(false);
-      toast.success("Caja cerrada correctamente");
-      await data.refresh();
-    } catch (e) {
-      throw e; // let modal handle the error display
-    }
-  }
-
+  // ── CAJA ABIERTA ──────────────────────────────────────────────────────────
   return (
     <AppShell>
       <CajaHeader />
@@ -343,11 +348,7 @@ function CashRegisterPage() {
       />
       <div className="mt-6">
         {tab === "resumen" && (
-          <ResumenTab
-            data={data}
-            equipoEnabled={permissions.equipo}
-            onCobrarPendiente={handleCobrarPendiente}
-          />
+          <ResumenTab data={data} equipoEnabled={permissions.equipo} onCobrarPendiente={handleCobrarPendiente} />
         )}
         {tab === "nueva" && (
           <NuevaVentaTab
@@ -365,9 +366,6 @@ function CashRegisterPage() {
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
       </div>
-
-      {/* Closeout modal lives at page level so confirming it immediately
-          causes CashRegisterPage to re-render into the blocked gate */}
       {closeoutOpen && (
         <CloseoutModal
           data={data}
@@ -521,19 +519,19 @@ function CloseoutModal({
 
 
 function CajaClosedScreen({
-  mode,
+  canReopen,
   onReopen,
   onOpen,
   sessionAction,
   data,
 }: {
-  mode: "closed_today" | "new_day";
+  canReopen: boolean;
   onReopen?: () => void;
   onOpen?: () => void;
   sessionAction: "opening" | "reopening" | null;
   data: ReturnType<typeof useCajaData>;
 }) {
-  const isClosedToday = mode === "closed_today";
+  const isClosedToday = canReopen;
 
   // Summary stats (read-only)
   const totalCobrado = data.paymentsToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
