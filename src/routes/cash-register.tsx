@@ -427,9 +427,10 @@ function Tabs({
 }
 
 
-function Card({ className, children }: { className?: string; children: React.ReactNode }) {
+function Card({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement> & { className?: string; children: React.ReactNode }) {
   return (
     <div
+      {...props}
       className={cn(
         "relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025]",
         "shadow-[0_1px_0_oklch(1_0_0/0.04)_inset,0_20px_50px_-20px_oklch(0_0_0/0.6)]",
@@ -564,27 +565,44 @@ function ResumenTab({
       {activePanel === "gastos" && (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
-            <div className="text-sm font-semibold">Gastos del día</div>
+            <div className="text-sm font-semibold">Gastos</div>
             <div className="text-xs text-muted-foreground">{data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}</div>
           </div>
+          <div className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3 border-b border-white/5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            <div>Fecha</div>
+            <div>Categoría</div>
+            <div>Descripción</div>
+            <div className="text-right">Monto</div>
+            <div>Usuario responsable</div>
+          </div>
           {data.expensesToday.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">Sin gastos registrados hoy.</p>
+            <p className="text-sm text-muted-foreground text-center py-10">Sin gastos registrados.</p>
           ) : (
             <div className="divide-y divide-white/5">
-              {data.expensesToday.map((e: any) => (
-                <div key={e.id} className="px-5 py-3.5 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{e.name ?? e.concept ?? "Gasto"}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
-                      {e.category && <span>{e.category}</span>}
-                      {e.payment_method && <span>· {e.payment_method}</span>}
-                      {(e.user_name ?? e.created_by) && <span>· {e.user_name ?? e.created_by}</span>}
+              {data.expensesToday.map((e: any) => {
+                const date = e.date
+                  ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
+                  : e.created_at
+                    ? new Date(e.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
+                    : "—";
+                const category = e.category ?? e.type ?? "—";
+                const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                const user = e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
+                return (
+                  <div key={e.id} className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm">
+                    <div className="text-muted-foreground">{date}</div>
+                    <div className="text-muted-foreground capitalize">{category}</div>
+                    <div className="min-w-0">
+                      <div className="truncate text-foreground/90">{description}</div>
+                      {e.note && e.note !== description && (
+                        <div className="mt-0.5 truncate text-xs text-muted-foreground/70">{e.note}</div>
+                      )}
                     </div>
-                    {e.note && <div className="text-xs text-muted-foreground/70 mt-0.5 italic">{e.note}</div>}
+                    <div className="text-right font-semibold tabular-nums text-rose-300">-${Number(e.amount ?? 0).toLocaleString("es-AR")}</div>
+                    <div className="truncate text-muted-foreground">{user}</div>
                   </div>
-                  <div className="text-sm font-semibold tabular-nums text-rose-300 shrink-0">-${Number(e.amount ?? 0).toLocaleString("es-AR")}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
