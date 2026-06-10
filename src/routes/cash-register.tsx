@@ -520,31 +520,7 @@ function ResumenTab({
       </div>
 
       {activePanel === "ingresos" && (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
-            <div className="text-sm font-semibold">Ingresos del día</div>
-            <div className="text-xs text-muted-foreground">{data.paymentsToday.length} cobro{data.paymentsToday.length !== 1 ? "s" : ""} · ${data.revHoy.toLocaleString("es-AR")}</div>
-          </div>
-          {data.paymentsToday.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">Sin cobros registrados hoy.</p>
-          ) : (
-            <div className="divide-y divide-white/5">
-              {data.paymentsToday.map((p: any) => (
-                <div key={p.id} className="px-5 py-3.5 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{p.client_name ?? "Sin cliente"}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
-                      {p.service_name && <span>{p.service_name}</span>}
-                      {(p.method ?? p.payment_method) && <span>· {p.method ?? p.payment_method}</span>}
-                      <span>· {new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</span>
-                    </div>
-                  </div>
-                  <div className="text-sm font-semibold tabular-nums text-emerald-300 shrink-0">${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
       )}
 
       {activePanel === "pendientes" && (
@@ -599,9 +575,10 @@ function ResumenTab({
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">{e.name ?? e.concept ?? "Gasto"}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
-                      {e.category && <span>{e.category}</span>}
+                      <span>{new Date((e.date ?? e.created_at ?? new Date().toISOString()) + (String(e.date ?? "").includes("T") ? "" : "T12:00:00")).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</span>
+                      {(e.category ?? e.type) && <span>· {e.category ?? e.type}</span>}
                       {e.payment_method && <span>· {e.payment_method}</span>}
-                      {(e.user_name ?? e.created_by) && <span>· {e.user_name ?? e.created_by}</span>}
+                      {(e.user_name ?? e.created_by ?? e.user_email) && <span>· {e.user_name ?? e.created_by ?? e.user_email}</span>}
                     </div>
                     {e.note && <div className="text-xs text-muted-foreground/70 mt-0.5 italic">{e.note}</div>}
                   </div>
