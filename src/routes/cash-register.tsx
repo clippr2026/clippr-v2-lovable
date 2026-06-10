@@ -460,67 +460,140 @@ function ResumenTab({
   equipoEnabled: boolean;
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
 }) {
-  const [gastosOpen, setGastosOpen] = React.useState(false);
+  type ActivePanel = "ingresos" | "pendientes" | "gastos" | "cobros";
+  const [activePanel, setActivePanel] = React.useState<ActivePanel>("cobros");
 
-  // Auto-open gastos modal after a new gasto is saved
   React.useEffect(() => {
-    const handler = () => { data.refresh(); setGastosOpen(true); };
+    const handler = () => { data.refresh(); setActivePanel("gastos"); };
     window.addEventListener("clippr:gasto-guardado", handler);
     return () => window.removeEventListener("clippr:gasto-guardado", handler);
   }, [data]);
 
-  const stats = [
-    { label: "Ingresos",   value: data.revHoy,        sub: "",  icon: Wallet,      tint: "from-amber-400/20 to-amber-500/0",  money: true,  onClick: undefined },
-    { label: "Pendientes", value: data.pendingAmount,  sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, tint: "from-violet-400/25 to-violet-500/0", money: true, onClick: undefined },
-    { label: "Gastos",     value: data.totalGastos,    sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true, onClick: () => setGastosOpen(true) },
-    { label: "Cobros",     value: data.cobros,         sub: "",  icon: ClipboardList, tint: "from-sky-400/25 to-sky-500/0", money: false, onClick: undefined },
+  const stats: { id: ActivePanel; label: string; value: number; sub?: string; icon: any; tint: string; money: boolean }[] = [
+    { id: "ingresos",   label: "Ingresos",   value: data.revHoy,       sub: "",  icon: Wallet,       tint: "from-amber-400/20 to-amber-500/0",   money: true  },
+    { id: "pendientes", label: "Pendientes", value: data.pendingAmount, sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, tint: "from-violet-400/25 to-violet-500/0", money: true },
+    { id: "gastos",     label: "Gastos",     value: data.totalGastos,  sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true },
+    { id: "cobros",     label: "Cobros",     value: data.cobros,       sub: "",  icon: ClipboardList, tint: "from-sky-400/25 to-sky-500/0",       money: false },
   ];
+
+  const ACTIVE_RING: Record<ActivePanel, string> = {
+    ingresos:   "ring-amber-400/40 bg-amber-400/[0.06]",
+    pendientes: "ring-violet-400/40 bg-violet-400/[0.06]",
+    gastos:     "ring-rose-400/40 bg-rose-400/[0.06]",
+    cobros:     "ring-sky-400/40 bg-sky-400/[0.06]",
+  };
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        {stats.map((s) => (
-          <Card
-            key={s.label}
-            className={cn("p-4", s.onClick && "cursor-pointer hover:bg-white/[0.04] transition-all")}
-            onClick={s.onClick}
-          >
-            <div className={cn("pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br", s.tint)} />
-            <div className="flex items-start justify-between relative gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">{s.label}</p>
-                <div className="mt-2">
-                  {s.money ? <Money value={Number(s.value)} /> : (
-                    <span className="font-display tabular-nums tracking-tight text-2xl font-semibold text-foreground">{Number(s.value).toLocaleString("es-AR")}</span>
-                  )}
+        {stats.map((s) => {
+          const isActive = activePanel === s.id;
+          return (
+            <Card
+              key={s.id}
+              onClick={() => setActivePanel(s.id)}
+              className={cn("p-4 cursor-pointer transition-all ring-1", isActive ? ACTIVE_RING[s.id] : "ring-white/[0.06] hover:bg-white/[0.04]")}
+            >
+              <div className={cn("pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br", s.tint)} />
+              <div className="flex items-start justify-between relative gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{s.label}</p>
+                  <div className="mt-2">
+                    {s.money ? <Money value={Number(s.value)} /> : (
+                      <span className="font-display tabular-nums tracking-tight text-2xl font-semibold text-foreground">{Number(s.value).toLocaleString("es-AR")}</span>
+                    )}
+                  </div>
+                  {s.sub && <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>}
                 </div>
-                {s.sub && <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>}
+                <div className={cn("rounded-xl border p-2 transition-all", isActive ? "bg-white/[0.08] border-white/15" : "bg-white/[0.04] border-white/5")}>
+                  <s.icon className="size-3.5 text-foreground/80" />
+                </div>
               </div>
-              <div className="rounded-xl bg-white/[0.04] border border-white/5 p-2">
-                <s.icon className="size-3.5 text-foreground/80" />
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
-      <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
+      {activePanel === "cobros" && (
+        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
+      )}
 
-      {/* Gastos modal */}
-      {gastosOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setGastosOpen(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
-              <div>
-                <div className="font-semibold text-sm">Gastos del día</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}</div>
-              </div>
-              <button type="button" onClick={() => setGastosOpen(false)} className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">Cerrar</button>
+      {activePanel === "ingresos" && (
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
+            <div className="text-sm font-semibold">Ingresos del día</div>
+            <div className="text-xs text-muted-foreground">{data.paymentsToday.length} cobro{data.paymentsToday.length !== 1 ? "s" : ""} · ${data.revHoy.toLocaleString("es-AR")}</div>
+          </div>
+          {data.paymentsToday.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-10">Sin cobros registrados hoy.</p>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {data.paymentsToday.map((p: any) => (
+                <div key={p.id} className="px-5 py-3.5 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">{p.client_name ?? "Sin cliente"}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
+                      {p.service_name && <span>{p.service_name}</span>}
+                      {(p.method ?? p.payment_method) && <span>· {p.method ?? p.payment_method}</span>}
+                      <span>· {new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums text-emerald-300 shrink-0">${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}</div>
+                </div>
+              ))}
             </div>
-            <div className="overflow-y-auto flex-1 divide-y divide-white/5">
-              {data.expensesToday.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-10">Sin gastos registrados hoy.</p>
-              ) : data.expensesToday.map((e: any) => (
+          )}
+        </div>
+      )}
+
+      {activePanel === "pendientes" && (
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
+            <div className="text-sm font-semibold">Pendientes de cobro</div>
+            <div className="text-xs text-muted-foreground">{data.pendingCharges.length} pendiente{data.pendingCharges.length !== 1 ? "s" : ""} · ${data.pendingAmount.toLocaleString("es-AR")}</div>
+          </div>
+          {data.pendingCharges.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-10">Sin pendientes.</p>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {data.pendingCharges.map((a: any) => (
+                <div key={a.id} className="px-5 py-3.5 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">{a.client_name ?? "Sin cliente"}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {a.service_name ?? "—"}
+                      {a.starts_at && <span> · {new Date(a.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-sm font-semibold tabular-nums text-violet-300">${Number(a.service_price ?? 0).toLocaleString("es-AR")}</div>
+                    {equipoEnabled && (
+                      <button
+                        onClick={() => onCobrarPendiente(a)}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/25 hover:bg-amber-400/25 transition"
+                      >
+                        Cobrar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activePanel === "gastos" && (
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
+            <div className="text-sm font-semibold">Gastos del día</div>
+            <div className="text-xs text-muted-foreground">{data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}</div>
+          </div>
+          {data.expensesToday.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-10">Sin gastos registrados hoy.</p>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {data.expensesToday.map((e: any) => (
                 <div key={e.id} className="px-5 py-3.5 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">{e.name ?? e.concept ?? "Gasto"}</div>
@@ -535,13 +608,12 @@ function ResumenTab({
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
   );
 }
-
 function NuevoGastoTab({
   data,
   userEmail,
@@ -1933,8 +2005,7 @@ function NuevaVentaTab({
   function goNext() {
     if (step === 1 && !employeeId) { toast.error("Seleccioná un profesional."); return; }
     if (step === 2) {
-      if (!clientId && !client.trim()) { toast.error("Seleccioná un cliente para continuar."); return; }
-      if (!clientId && !phone.trim()) { toast.error("Completá el teléfono del cliente."); return; }
+      if (!clientId) { toast.error("Seleccioná un cliente para continuar."); return; }
     }
     if (step === 3 && cartItems.length === 0) { toast.error("Agregá al menos un servicio o producto."); return; }
     setStep((s) => (s < 4 ? ((s + 1) as 1 | 2 | 3 | 4) : s));
@@ -2218,36 +2289,59 @@ function NuevaVentaTab({
           )}
 
           {/* Formulario nuevo cliente */}
-          {!clientId && newClientOpen && (
-            <Card className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Nuevo cliente</p>
-                <button type="button" onClick={() => setNewClientOpen(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground transition">✕ Cancelar</button>
-              </div>
-              <input value={client} onChange={(e) => { setClient(e.target.value); setClientId(null); }}
-                placeholder="Nombre *"
-                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-              <input value={phone} onChange={(e) => setPhone(e.target.value)}
-                placeholder="Teléfono *"
-                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-              {isFieldEnabled("email") && (
-                <input value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email" type="email"
+          {!clientId && newClientOpen && (() => {
+            async function handleGuardarCliente() {
+              if (!client.trim()) { toast.error("Ingresá el nombre del cliente."); return; }
+              if (!phone.trim()) { toast.error("Ingresá el teléfono del cliente."); return; }
+              const saved = await saveClientIfNeeded();
+              if (saved) {
+                setClientId(saved);
+                setNewClientOpen(false);
+                toast.success("Cliente guardado");
+              } else {
+                // No businessId or already existed — use name as display, generate temp id
+                setClientId(`new_${Date.now()}`);
+                setNewClientOpen(false);
+              }
+            }
+            return (
+              <Card className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Nuevo cliente</p>
+                  <button type="button" onClick={() => setNewClientOpen(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground transition">✕ Cancelar</button>
+                </div>
+                <input value={client} onChange={(e) => { setClient(e.target.value); setClientId(null); }}
+                  placeholder="Nombre *"
                   className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-              )}
-              {isFieldEnabled("fecha_nacimiento") && (
-                <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
-                  type="date"
+                <input value={phone} onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Teléfono *"
                   className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-              )}
-              {isFieldEnabled("notas") && (
-                <input value={clientNotes} onChange={(e) => setClientNotes(e.target.value)}
-                  placeholder="Notas"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
-              )}
-            </Card>
-          )}
+                {isFieldEnabled("email") && (
+                  <input value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email" type="email"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                )}
+                {isFieldEnabled("fecha_nacimiento") && (
+                  <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+                    type="date"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                )}
+                {isFieldEnabled("notas") && (
+                  <input value={clientNotes} onChange={(e) => setClientNotes(e.target.value)}
+                    placeholder="Notas"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                )}
+                <button
+                  type="button"
+                  onClick={handleGuardarCliente}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold transition bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110"
+                >
+                  Confirmar cliente
+                </button>
+              </Card>
+            );
+          })()}
 
         </div>
       )}
