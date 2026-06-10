@@ -296,7 +296,7 @@ function CashRegisterPage() {
             data={data}
             userEmail={session.user.email ?? null}
             onCancel={() => setTab("resumen")}
-            onSaved={() => { data.refresh(); setTab("gastos"); }}
+            onSaved={() => { data.refresh(); setTab("resumen"); }}
           />
         )}
         {tab === "nueva" && (
@@ -315,7 +315,11 @@ function CashRegisterPage() {
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
         {tab === "cierres" && (
-          <CierresTab businessId={data.businessId} />
+          <CierresTab
+            businessId={data.businessId}
+            cajaCerrada={cajaCerrada}
+            onCajaReopened={() => { setCajaCerrada(false); data.refresh(); }}
+          />
         )}
       </div>
     </AppShell>
@@ -456,62 +460,38 @@ function ResumenTab({
   equipoEnabled: boolean;
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
 }) {
+  const [gastosOpen, setGastosOpen] = React.useState(false);
+
+  // Auto-open gastos modal after a new gasto is saved
+  React.useEffect(() => {
+    const handler = () => { data.refresh(); setGastosOpen(true); };
+    window.addEventListener("clippr:gasto-guardado", handler);
+    return () => window.removeEventListener("clippr:gasto-guardado", handler);
+  }, [data]);
+
   const stats = [
-    {
-      label: "Ingresos",
-      value: data.revHoy,
-      sub: "",
-      icon: Wallet,
-      tint: "from-amber-400/20 to-amber-500/0",
-      money: true,
-    },
-    {
-      label: "Pendientes",
-      value: data.pendingAmount,
-      sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes",
-      icon: Clock,
-      tint: "from-violet-400/25 to-violet-500/0",
-      money: true,
-    },
-    {
-      label: "Gastos",
-      value: data.totalGastos,
-      sub: "",
-      icon: Trash2,
-      tint: "from-rose-400/20 to-rose-500/0",
-      money: true,
-    },
-    {
-      label: "Cobros",
-      value: data.cobros,
-      sub: "",
-      icon: ClipboardList,
-      tint: "from-sky-400/25 to-sky-500/0",
-      money: false,
-    },
+    { label: "Ingresos",   value: data.revHoy,        sub: "",  icon: Wallet,      tint: "from-amber-400/20 to-amber-500/0",  money: true,  onClick: undefined },
+    { label: "Pendientes", value: data.pendingAmount,  sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, tint: "from-violet-400/25 to-violet-500/0", money: true, onClick: undefined },
+    { label: "Gastos",     value: data.totalGastos,    sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true, onClick: () => setGastosOpen(true) },
+    { label: "Cobros",     value: data.cobros,         sub: "",  icon: ClipboardList, tint: "from-sky-400/25 to-sky-500/0", money: false, onClick: undefined },
   ];
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {stats.map((s) => (
-          <Card key={s.label} className="p-4">
-            <div
-              className={cn(
-                "pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br",
-                s.tint
-              )}
-            />
+          <Card
+            key={s.label}
+            className={cn("p-4", s.onClick && "cursor-pointer hover:bg-white/[0.04] transition-all")}
+            onClick={s.onClick}
+          >
+            <div className={cn("pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br", s.tint)} />
             <div className="flex items-start justify-between relative gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">{s.label}</p>
                 <div className="mt-2">
-                  {s.money ? (
-                    <Money value={Number(s.value)} />
-                  ) : (
-                    <span className="font-display tabular-nums tracking-tight text-2xl font-semibold text-foreground">
-                      {Number(s.value).toLocaleString("es-AR")}
-                    </span>
+                  {s.money ? <Money value={Number(s.value)} /> : (
+                    <span className="font-display tabular-nums tracking-tight text-2xl font-semibold text-foreground">{Number(s.value).toLocaleString("es-AR")}</span>
                   )}
                 </div>
                 {s.sub && <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>}
@@ -525,6 +505,39 @@ function ResumenTab({
       </div>
 
       <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
+
+      {/* Gastos modal */}
+      {gastosOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setGastosOpen(false)}>
+          <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
+              <div>
+                <div className="font-semibold text-sm">Gastos del día</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}</div>
+              </div>
+              <button type="button" onClick={() => setGastosOpen(false)} className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">Cerrar</button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-white/5">
+              {data.expensesToday.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-10">Sin gastos registrados hoy.</p>
+              ) : data.expensesToday.map((e: any) => (
+                <div key={e.id} className="px-5 py-3.5 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">{e.name ?? e.concept ?? "Gasto"}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
+                      {e.category && <span>{e.category}</span>}
+                      {e.payment_method && <span>· {e.payment_method}</span>}
+                      {(e.user_name ?? e.created_by) && <span>· {e.user_name ?? e.created_by}</span>}
+                    </div>
+                    {e.note && <div className="text-xs text-muted-foreground/70 mt-0.5 italic">{e.note}</div>}
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums text-rose-300 shrink-0">-${Number(e.amount ?? 0).toLocaleString("es-AR")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -566,6 +579,7 @@ function NuevoGastoTab({
     setSaving(false);
     if (error) return toast.error("Error guardando gasto: " + error.message);
     toast.success("✓ Gasto registrado");
+    window.dispatchEvent(new CustomEvent("clippr:gasto-guardado"));
     onSaved();
   }
 
@@ -960,7 +974,11 @@ function CierreCajaBtn({
 
 // ─────────── Cierres de caja — historial tab ─────────────────────────────────
 
-function CierresTab({ businessId }: { businessId: string | null }) {
+function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
+  businessId: string | null;
+  cajaCerrada: boolean;
+  onCajaReopened: () => void;
+}) {
   const [cierres, setCierres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
@@ -989,23 +1007,26 @@ function CierresTab({ businessId }: { businessId: string | null }) {
     return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
   }, [loadCierres]);
 
-  const cierreCount = (cierre: any) => {
-    const eventos = Array.isArray(cierre.eventos) ? cierre.eventos : [];
-    const cierres = eventos.filter((e: any) => e?.tipo === "cierre").length;
-    return Math.max(cierres, 1);
-  };
-
   const cierreEventos = (cierre: any) => Array.isArray(cierre?.eventos) ? cierre.eventos : [];
+
+  // Observation: get from the most recent "cierre" event (not from root field)
+  function getCierreObservacion(cierre: any): string | null {
+    const eventos = cierreEventos(cierre);
+    // Find last cierre event that has an observacion
+    const lastCierre = [...eventos].reverse().find((e: any) => e?.tipo === "cierre" && e?.observacion);
+    return lastCierre?.observacion ?? cierre?.observacion ?? null;
+  }
 
   async function reabrirCaja(cierre: any) {
     if (!businessId || !cierre?.id) return;
     const reason = window.prompt("Motivo de reapertura de caja (opcional)") ?? "";
     const now = new Date();
-    const prevEventos = Array.isArray(cierre.eventos) ? cierre.eventos : [];
+    const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    const prevEventos = cierreEventos(cierre);
     const evento = {
       tipo: "reapertura",
       fecha_hora: now.toISOString(),
-      hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+      hora,
       usuario: "Caja",
       motivo: reason.trim() || null,
     };
@@ -1017,20 +1038,17 @@ function CierresTab({ businessId }: { businessId: string | null }) {
         reopened_at: now.toISOString(),
         reopened_by: "Caja",
         reopen_reason: reason.trim() || null,
-        eventos: [...prevEventos, evento],
+        eventos: [...prevEventos, evento], // always append reopen event
         updated_at: now.toISOString(),
       })
       .eq("id", cierre.id)
       .eq("business_id", businessId);
 
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
+    if (error) { toast.error(error.message); return; }
     toast.success("Caja reabierta");
     setSelected(null);
     loadCierres();
+    onCajaReopened(); // notify parent to unblock the UI
   }
 
   return (
@@ -1050,19 +1068,32 @@ function CierresTab({ businessId }: { businessId: string | null }) {
         <div className="glass rounded-2xl overflow-hidden">
           <div className="grid grid-cols-[1fr_160px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
             <div>Fecha</div>
-            <div className="text-right">Cierres</div>
+            <div className="text-right">Estado</div>
           </div>
-          {cierres.map((c) => (
-            <button key={c.id} type="button" onClick={() => setSelected(c)}
-              className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
-              <div className="text-foreground text-sm font-medium">
-                {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" })}
-              </div>
-              <div className="text-right text-xs text-muted-foreground">
-                {cierreCount(c)} cierre{cierreCount(c) === 1 ? "" : "s"}
-              </div>
-            </button>
-          ))}
+          {cierres.map((c) => {
+            const eventos = cierreEventos(c);
+            const nCierres = eventos.filter((e: any) => e?.tipo === "cierre").length || 1;
+            return (
+              <button key={c.id} type="button" onClick={() => setSelected(c)}
+                className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
+                <div>
+                  <div className="text-foreground text-sm font-medium">
+                    {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" })}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{nCierres} cierre{nCierres === 1 ? "" : "s"}</div>
+                </div>
+                <div className="text-right">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full ring-1",
+                    c.estado === "reabierta"
+                      ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-300"
+                      : "bg-rose-500/10 ring-rose-400/20 text-rose-300"
+                  )}>
+                    {c.estado === "reabierta" ? "Reabierta" : "Cerrada"}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -1082,12 +1113,13 @@ function CierresTab({ businessId }: { businessId: string | null }) {
                 className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm">Cerrar</button>
             </div>
             <div className="p-5 space-y-5 text-sm">
+              {/* KPIs */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { l: "Cobrado", v: `$${Number(selected.total_cobrado ?? 0).toLocaleString("es-AR")}`, cls: "text-emerald-300" },
-                  { l: "Gastos", v: `$${Number(selected.total_gastos ?? 0).toLocaleString("es-AR")}`, cls: "text-rose-300" },
-                  { l: "Utilidad", v: `$${Number(selected.utilidad ?? 0).toLocaleString("es-AR")}`, cls: Number(selected.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300" },
-                  { l: "Cobros", v: String(selected.cantidad_cobros ?? "—"), cls: "text-foreground" },
+                  { l: "Cobrado",  v: `$${Number(selected.total_cobrado ?? 0).toLocaleString("es-AR")}`, cls: "text-emerald-300" },
+                  { l: "Gastos",   v: `$${Number(selected.total_gastos ?? 0).toLocaleString("es-AR")}`,  cls: "text-rose-300" },
+                  { l: "Utilidad", v: `$${Number(selected.utilidad ?? 0).toLocaleString("es-AR")}`,      cls: Number(selected.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300" },
+                  { l: "Cobros",   v: String(selected.cantidad_cobros ?? "—"),                            cls: "text-foreground" },
                 ].map((r) => (
                   <div key={r.l} className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
                     <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">{r.l}</div>
@@ -1096,35 +1128,51 @@ function CierresTab({ businessId }: { businessId: string | null }) {
                 ))}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <div>Tipo: <span className="text-foreground capitalize">{selected.tipo_cierre ?? "manual"}</span></div>
-                <div>Estado: <span className="text-foreground capitalize">{selected.estado ?? "cerrada"}</span></div>
-                <div>Usuario último cierre: <span className="text-foreground">{selected.usuario_nombre ?? "—"}</span></div>
-                {selected.reopened_at && <div>Última reapertura: <span className="text-foreground">{new Date(selected.reopened_at).toLocaleString("es-AR")}</span></div>}
-              </div>
+              {/* Observation for THIS specific cierre — from last cierre event */}
+              {getCierreObservacion(selected) && (
+                <div className="rounded-xl bg-amber-500/[0.06] ring-1 ring-amber-400/15 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-amber-300/60 mb-1">Observación del cierre</div>
+                  <p className="text-sm text-foreground/80 whitespace-pre-wrap">{getCierreObservacion(selected)}</p>
+                </div>
+              )}
 
+              {/* Full event history — always shown */}
               {cierreEventos(selected).length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Movimientos del cierre</div>
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">Historial de movimientos</div>
                   <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden divide-y divide-white/5">
-                    {cierreEventos(selected).map((ev: any, i: number) => (
-                      <div key={i} className="grid grid-cols-[90px_1fr_1fr] gap-3 px-4 py-2.5 text-xs">
-                        <span className="text-muted-foreground tabular-nums">{ev.hora ?? (ev.fecha_hora ? new Date(ev.fecha_hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "—")}</span>
-                        <span className="capitalize text-foreground">{ev.tipo === "reapertura" ? "Reabrió caja" : "Cerró caja"}</span>
-                        <span className="text-right text-muted-foreground">{ev.usuario ?? "—"}</span>
-                      </div>
-                    ))}
+                    {cierreEventos(selected).map((ev: any, i: number) => {
+                      const hora = ev.hora ?? (ev.fecha_hora ? new Date(ev.fecha_hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "—");
+                      const fecha = ev.fecha_hora ? new Date(ev.fecha_hora).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }) : "";
+                      const isReopen = ev.tipo === "reapertura";
+                      return (
+                        <div key={i} className="px-4 py-3 text-xs space-y-0.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className={cn("size-1.5 rounded-full shrink-0", isReopen ? "bg-emerald-400" : "bg-rose-400")} />
+                              <span className={cn("font-semibold", isReopen ? "text-emerald-300" : "text-rose-300")}>
+                                {isReopen ? "Reabrió caja" : "Cerró caja"}
+                              </span>
+                            </div>
+                            <span className="text-muted-foreground tabular-nums">{fecha} {hora}</span>
+                          </div>
+                          <div className="pl-3.5 text-muted-foreground">
+                            Usuario: <span className="text-foreground">{ev.usuario ?? "—"}</span>
+                            {ev.motivo && <span> · Motivo: <span className="text-foreground">{ev.motivo}</span></span>}
+                            {ev.observacion && <span> · Obs: <span className="text-foreground">{ev.observacion}</span></span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
+              {/* Detalle por método */}
               {selected.detalle_metodos_pago && Object.keys(selected.detalle_metodos_pago).length > 0 && (
                 <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
                   <div className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">
-                    <div>Método</div>
-                    <div className="text-right">Ingresos</div>
-                    <div className="text-right">Gastos</div>
-                    <div className="text-right">Utilidad</div>
+                    <div>Método</div><div className="text-right">Ingresos</div><div className="text-right">Gastos</div><div className="text-right">Utilidad</div>
                   </div>
                   {Object.entries(selected.detalle_metodos_pago as Record<string, CierreMetodoDetalle>).map(([m, row]) => (
                     <div key={m} className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 last:border-0">
@@ -1169,14 +1217,8 @@ function CierresTab({ businessId }: { businessId: string | null }) {
                 </div>
               )}
 
-              {selected.observacion && (
-                <div className="pt-2 border-t border-white/5">
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60 mb-1">Observación</div>
-                  <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selected.observacion}</p>
-                </div>
-              )}
-
-              {selected.estado !== "reabierta" && (
+              {/* Reabrir — only show when caja is actually closed (not already reopened) */}
+              {cajaCerrada && selected.estado !== "reabierta" && (
                 <button
                   type="button"
                   onClick={() => reabrirCaja(selected)}
@@ -1891,8 +1933,8 @@ function NuevaVentaTab({
   function goNext() {
     if (step === 1 && !employeeId) { toast.error("Seleccioná un profesional."); return; }
     if (step === 2) {
-      if (!client.trim()) { toast.error("Completá los datos obligatorios del cliente."); return; }
-      if (!phone.trim()) { toast.error("Completá los datos obligatorios del cliente."); return; }
+      if (!clientId && !client.trim()) { toast.error("Seleccioná un cliente para continuar."); return; }
+      if (!clientId && !phone.trim()) { toast.error("Completá el teléfono del cliente."); return; }
     }
     if (step === 3 && cartItems.length === 0) { toast.error("Agregá al menos un servicio o producto."); return; }
     setStep((s) => (s < 4 ? ((s + 1) as 1 | 2 | 3 | 4) : s));

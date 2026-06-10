@@ -1394,12 +1394,24 @@ function AppointmentDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl p-0 overflow-hidden" aria-describedby={undefined}>
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-white/10 bg-white/[0.025]">
+        {/* Header themed by status */}
+        <DialogHeader
+          className="px-6 pt-5 pb-4 border-b"
+          style={{
+            borderColor: `${meta.border}40`,
+            background: `linear-gradient(to bottom, ${meta.bg}, transparent)`,
+            boxShadow: `0 0 40px -12px ${meta.dot}40`,
+          }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cliente</div>
+              <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: meta.dot, opacity: 0.7 }}>Cliente</div>
               <DialogTitle className="mt-1 text-2xl font-display truncate">{appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}</DialogTitle>
-              <div className="mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1" style={{ color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}`, background: meta.bg }}>
+              <div
+                className="mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1"
+                style={{ color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}, 0 0 8px -2px ${meta.dot}60`, background: meta.bg }}
+              >
+                <span className="size-1.5 rounded-full mr-1.5 inline-block" style={{ background: meta.dot }} />
                 {meta.label}
               </div>
             </div>
@@ -1415,7 +1427,14 @@ function AppointmentDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4 p-6">
-          <div className="rounded-2xl p-4 ring-1 ring-white/10" style={{ background: meta.bg }}>
+          {/* Service card themed by status */}
+          <div
+            className="rounded-2xl p-4 ring-1"
+            style={{
+              background: `${meta.bg}`,
+              boxShadow: `inset 0 0 0 1px ${meta.border}60, 0 0 24px -8px ${meta.dot}30`,
+            }}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-lg font-semibold">{appointment.service_name || "Servicio"}</div>
@@ -1483,7 +1502,15 @@ function AppointmentDetailDialog({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
+              <Button
+                onClick={() => onCobrar(appointment)}
+                disabled={appointment.status === "charged"}
+                style={appointment.status !== "charged" ? {
+                  background: `linear-gradient(135deg, ${meta.bg}, ${meta.bg})`,
+                  boxShadow: `inset 0 0 0 1px ${meta.border}80, 0 4px 16px -6px ${meta.dot}60`,
+                  color: meta.dot,
+                } : undefined}
+              >
                 <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
               </Button>
               {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
@@ -1501,8 +1528,8 @@ function AppointmentDetailDialog({
           )}
 
           {appointment.status !== "blocked" && (
-          <div className="rounded-2xl bg-white/[0.025] ring-1 ring-white/10 p-3">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
+          <div className="rounded-2xl p-3" style={{ background: `${meta.bg}80`, boxShadow: `inset 0 0 0 1px ${meta.border}30` }}>
+            <div className="text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: meta.dot, opacity: 0.7 }}>Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
               {([
                 ["pending", "Pendiente"],
