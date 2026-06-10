@@ -142,6 +142,85 @@ const WEEKDAYS: { value: RepeatWeekday; label: string }[] = [
   { value: 0, label: "Domingo" },
 ];
 
+// Inline date picker — no native calendar ───────────────────────────────────
+function AppointmentDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [viewMonth, setViewMonth] = React.useState(() => {
+    if (value) { const d = new Date(value + "T12:00:00"); return { m: d.getMonth(), y: d.getFullYear() }; }
+    return { m: new Date().getMonth(), y: new Date().getFullYear() };
+  });
+  const ref = React.useRef<HTMLDivElement>(null);
+  const today = new Date().toISOString().slice(0, 10);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, [open]);
+
+  const daysInMonth = new Date(viewMonth.y, viewMonth.m + 1, 0).getDate();
+  const firstDow = (new Date(viewMonth.y, viewMonth.m, 1).getDay() + 6) % 7;
+  const cells: (string | null)[] = Array(firstDow).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${viewMonth.y}-${String(viewMonth.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    cells.push(iso);
+  }
+  const monthLabel = new Date(viewMonth.y, viewMonth.m, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  const DOW = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"];
+
+  const displayValue = value
+    ? new Date(value + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+    : "Seleccioná una fecha";
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent transition text-left">
+        <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className={value ? "text-foreground capitalize" : "text-muted-foreground"}>{displayValue}</span>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 w-72 rounded-2xl bg-[oklch(0.10_0.03_275)] ring-1 ring-white/10 shadow-2xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <button type="button" onClick={() => setViewMonth(v => v.m === 0 ? { m: 11, y: v.y - 1 } : { m: v.m - 1, y: v.y })}
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition">
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <span className="text-xs font-semibold capitalize">{monthLabel}</span>
+            <button type="button" onClick={() => setViewMonth(v => v.m === 11 ? { m: 0, y: v.y + 1 } : { m: v.m + 1, y: v.y })}
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition">
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-px mb-1">
+            {DOW.map(d => <div key={d} className="text-center text-[10px] text-muted-foreground/50 py-1">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-px">
+            {cells.map((iso, i) => {
+              if (!iso) return <div key={i} />;
+              const sel = iso === value;
+              const isT = iso === today;
+              return (
+                <button key={iso} type="button" onClick={() => { onChange(iso); setOpen(false); }}
+                  className={cn("h-8 w-full rounded-lg text-xs font-medium transition-all",
+                    sel && "text-white",
+                    !sel && isT && "ring-1 ring-primary text-primary",
+                    !sel && !isT && "text-foreground hover:bg-white/[0.08]"
+                  )}
+                  style={sel ? { background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))" } : undefined}
+                >
+                  {new Date(iso + "T12:00:00").getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppointmentDialog({
   open,
   onOpenChange,
@@ -478,49 +557,39 @@ export function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="space-y-3">
-          <div className="flex items-start justify-between gap-3 pr-6">
-            <div>
-              <DialogTitle>{isEdit ? "Editar reserva" : "Nueva reserva"}</DialogTitle>
-              <DialogDescription>
-                Cargá fecha, cliente, profesional y servicio para crear un turno real en Agenda.
-              </DialogDescription>
-            </div>
+      <DialogContent className="sm:max-w-lg max-h-[88vh] overflow-y-auto">
+        <DialogHeader className="space-y-1 pb-1">
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <DialogTitle>{isEdit ? "Editar reserva" : "Nueva reserva"}</DialogTitle>
           </div>
         </DialogHeader>
 
-        <div className="grid gap-5 py-2">
-          <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <div className="grid gap-3 py-1">
+          {/* Fecha y hora — compact */}
+          <section className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2.5">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold flex items-center gap-2"><CalendarDays className="h-4 w-4 text-primary" /> Fecha y hora</h3>
-                <p className="text-xs text-muted-foreground capitalize mt-1">{formatReadableDate(dateValue)}</p>
-              </div>
+              <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider"><CalendarDays className="h-3.5 w-3.5 text-primary" /> Fecha y hora</h3>
               {!isEdit && (
-                <Button type="button" variant="outline" size="sm" onClick={() => setRepeatOpen(true)}>
-                  <Repeat2 className="h-4 w-4 mr-1" /> Repetir
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => setRepeatOpen(true)}>
+                  <Repeat2 className="h-3.5 w-3.5 mr-1" /> Repetir
                 </Button>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="grid gap-1.5 sm:col-span-1">
-                <Label>Fecha</Label>
-                <Input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-1">
+                <AppointmentDatePicker value={dateValue} onChange={setDateValue} />
               </div>
-              <div className="grid gap-1.5">
-                <Label>Hora</Label>
+              <div>
                 <Select value={hourValue} onValueChange={setHourValue}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {hourOptions.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-1.5">
-                <Label>Minutos</Label>
+              <div>
                 <Select value={minuteValue} onValueChange={setMinuteValue}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {minuteOptions.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
@@ -528,48 +597,52 @@ export function AppointmentDialog({
               </div>
             </div>
             {repeat.enabled && !isEdit && (
-              <Badge variant="secondary" className="w-fit">
-                Repite {repeat.weekdays.length} día(s)
-              </Badge>
+              <Badge variant="secondary" className="w-fit text-xs">Repite {repeat.weekdays.length} día(s)</Badge>
             )}
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
+          {/* Cliente */}
+          <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold">Cliente</h3>
-              <Button type="button" variant="outline" size="sm" onClick={() => { setNewClientMode(true); setClientId(""); setClientSearch(""); setClientName(""); }}>
-                <UserPlus className="h-4 w-4 mr-1" /> Nuevo cliente
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
+              <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => { setNewClientMode(true); setClientId(""); setClientSearch(""); setClientName(""); }}>
+                <UserPlus className="h-3.5 w-3.5 mr-1" /> Nuevo
               </Button>
             </div>
 
             {!newClientMode && (
               <div className="grid gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                  <Input
-                    className="pl-8 pr-8"
-                    placeholder="Buscar por nombre, apellido, teléfono o email"
-                    value={clientSearch}
-                    onChange={(e) => { setClientSearch(e.target.value); setShowClientList(true); setClientId(""); setClientName(""); }}
-                    onFocus={() => setShowClientList(true)}
-                  />
-                  {clientSearch && (
-                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => { setClientSearch(""); setClientName(""); setClientId(""); setShowClientList(false); }}>
+                {clientId ? (
+                  <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 ring-1" style={{ background: "oklch(0.38 0.2 150 / 0.15)", boxShadow: "inset 0 0 0 1px oklch(0.76 0.2 150 / 0.3)" }}>
+                    <span className="text-sm font-semibold flex-1 text-foreground">{clientName}</span>
+                    {clientPhone && <span className="text-xs text-muted-foreground">{clientPhone}</span>}
+                    <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => { setClientId(""); setClientName(""); setClientPhone(""); setClientSearch(""); }}>
                       <X className="h-3.5 w-3.5" />
                     </button>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                      className="pl-8 pr-8 h-9"
+                      placeholder="Buscar cliente…"
+                      value={clientSearch}
+                      onChange={(e) => { setClientSearch(e.target.value); setShowClientList(true); setClientId(""); setClientName(""); }}
+                      onFocus={() => setShowClientList(true)}
+                    />
+                    {clientSearch && (
+                      <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => { setClientSearch(""); setClientName(""); setClientId(""); setShowClientList(false); }}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
 
-                {showClientList && filteredClients.length > 0 && (
-                  <div className="rounded-xl border border-white/10 bg-popover shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                {showClientList && filteredClients.length > 0 && !clientId && (
+                  <div className="rounded-xl border border-white/10 bg-popover shadow-xl overflow-hidden max-h-40 overflow-y-auto">
                     {filteredClients.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="w-full text-left px-3 py-2.5 hover:bg-white/[0.05] transition flex items-center gap-2 border-b border-white/5 last:border-0"
-                        onClick={() => pickClient(c)}
-                      >
-                        <div className="h-7 w-7 rounded-full bg-primary/20 ring-1 ring-primary/30 grid place-items-center text-xs font-semibold text-primary shrink-0">
+                      <button key={c.id} type="button" className="w-full text-left px-3 py-2 hover:bg-white/[0.05] transition flex items-center gap-2 border-b border-white/5 last:border-0" onClick={() => pickClient(c)}>
+                        <div className="h-6 w-6 rounded-full bg-primary/20 ring-1 ring-primary/30 grid place-items-center text-[10px] font-semibold text-primary shrink-0">
                           {(c.full_name ?? c.name ?? "?")[0]?.toUpperCase()}
                         </div>
                         <div className="min-w-0">
@@ -580,145 +653,73 @@ export function AppointmentDialog({
                     ))}
                   </div>
                 )}
-
-                {clientId && (
-                  <div className="flex items-center gap-2 rounded-lg bg-primary/10 ring-1 ring-primary/20 px-3 py-2">
-                    <span className="text-sm font-medium flex-1">{clientName}</span>
-                    {clientPhone && <span className="text-xs text-muted-foreground">{clientPhone}</span>}
-                    <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => { setClientId(""); setClientName(""); setClientPhone(""); setClientSearch(""); }}>
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
             {newClientMode && (
-              <div className="grid gap-3 rounded-xl bg-black/10 p-3 border border-white/10">
-                {/* Nombre + Apellido — always shown */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="grid gap-1.5">
-                    <Label>Nombre *</Label>
-                    <Input value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label>Apellido *</Label>
-                    <Input value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} />
-                  </div>
+              <div className="grid gap-2 rounded-lg bg-black/10 p-2.5 border border-white/10">
+                <div className="grid grid-cols-2 gap-2">
+                  <Input className="h-8 text-sm" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre *" />
+                  <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido *" />
                 </div>
-
-                {/* Teléfono — always shown */}
-                <div className="grid gap-1.5">
-                  <Label>Teléfono *</Label>
-                  <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
-                </div>
-
-                {/* Conditional fields from Configuración → Clientes */}
-                {isFieldEnabled("email") && (
-                  <div className="grid gap-1.5">
-                    <Label>Email</Label>
-                    <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
-                  </div>
-                )}
-                {isFieldEnabled("fecha_nacimiento") && (
-                  <div className="grid gap-1.5">
-                    <Label>Fecha de nacimiento</Label>
-                    <Input type="date" value={clientBirth} onChange={(e) => setClientBirth(e.target.value)} />
-                  </div>
-                )}
-                {isFieldEnabled("notas") && (
-                  <div className="grid gap-1.5">
-                    <Label>Nota</Label>
-                    <Input value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Opcional" />
-                  </div>
-                )}
+                <Input className="h-8 text-sm" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Teléfono *" />
+                {isFieldEnabled("email") && <Input className="h-8 text-sm" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email" />}
+                {isFieldEnabled("notas") && <Input className="h-8 text-sm" value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Nota" />}
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground text-left transition" onClick={() => setNewClientMode(false)}>✕ Cancelar</button>
               </div>
             )}
           </section>
 
-          <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.035] p-4 space-y-4">
-            <h3 className="text-sm font-semibold flex items-center gap-2"><Scissors className="h-4 w-4 text-emerald-300" /> Profesional y servicio</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label>Profesional</Label>
-                <Select value={employeeId} onValueChange={setEmployeeId}>
-                  <SelectTrigger><SelectValue placeholder="Elegí profesional" /></SelectTrigger>
-                  <SelectContent>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Servicio</Label>
-                <Select value={serviceId} onValueChange={pickService}>
-                  <SelectTrigger><SelectValue placeholder="Elegí servicio" /></SelectTrigger>
-                  <SelectContent>
-                    {services.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name} — ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Profesional y servicio */}
+          <section className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.03] p-3 space-y-3">
+            <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider"><Scissors className="h-3.5 w-3.5 text-emerald-300" /> Profesional y servicio</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Select value={employeeId} onValueChange={setEmployeeId}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Profesional" /></SelectTrigger>
+                <SelectContent>
+                  {employees.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={serviceId} onValueChange={pickService}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Servicio" /></SelectTrigger>
+                <SelectContent>
+                  {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             {requiresDeposit && (
-              <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm">
-                🟡 Este servicio requiere seña. Seña pendiente: ${Math.round(depositAmount).toLocaleString("es-AR")}
+              <div className="rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs">
+                🟡 Requiere seña: ${Math.round(depositAmount).toLocaleString("es-AR")}
               </div>
             )}
             {isEdit && (
-              <div className="grid gap-1.5">
-                <Label>Estado del turno</Label>
-                <Select value={status} onValueChange={(value) => setStatus(value as ApptStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pendiente</SelectItem>
-                    <SelectItem value="confirmed">Confirmado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={status} onValueChange={(v) => setStatus(v as ApptStatus)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="confirmed">Confirmado</SelectItem>
+                </SelectContent>
+              </Select>
             )}
           </section>
 
-          <details className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-            <summary className="cursor-pointer text-sm font-semibold">Información adicional</summary>
-            <div className="grid gap-3 mt-4">
-              <div className="grid gap-1.5">
-                <Label>Nota del turno</Label>
-                <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ej: Prefiere degradado bajo" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Observaciones internas</Label>
-                <Textarea rows={3} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} placeholder="Solo para el equipo" />
-              </div>
-            </div>
-          </details>
-        </div>
-
-        <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-primary/80">Resumen de la reserva</div>
-              <div className="mt-1 text-lg font-semibold">{serviceName || "Servicio sin seleccionar"}</div>
-              <div className="mt-1 text-sm text-muted-foreground capitalize">
-                {formatReadableDate(dateValue)} · {hourValue}:{minuteValue}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-display font-semibold">${Number(price || 0).toLocaleString("es-AR")}</div>
-              {requiresDeposit && (
-                <div className="mt-1 text-xs text-amber-300">Seña: ${depositAmount.toLocaleString("es-AR")}</div>
-              )}
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
-            <div>Cliente: <span className="text-foreground">{previewClientName || "Sin cliente"}</span></div>
-            <div>Profesional: <span className="text-foreground">{employees.find((e) => e.id === employeeId)?.full_name ?? employees.find((e) => e.id === employeeId)?.name ?? "Sin asignar"}</span></div>
+          {/* Nota — simple, no details */}
+          <div>
+            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Nota (opcional)" className="text-sm resize-none" />
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        {/* Compact summary — only when enough data */}
+        {(serviceName || previewClientName) && (
+          <div className="rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2.5 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+            {serviceName && <span>Servicio: <span className="text-foreground font-medium">{serviceName}{price ? ` — $${Number(price).toLocaleString("es-AR")}` : ""}</span></span>}
+            {previewClientName && <span>Cliente: <span className="text-foreground font-medium">{previewClientName}</span></span>}
+            {employees.find(e => e.id === employeeId) && <span>Prof.: <span className="text-foreground font-medium">{employees.find(e => e.id === employeeId)?.full_name ?? ""}</span></span>}
+            {dateValue && <span>Fecha: <span className="text-foreground font-medium">{dateValue} {hourValue}:{minuteValue}</span></span>}
+          </div>
+        )}
+
+        <DialogFooter className="gap-2 sm:gap-2 pt-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
           <Button onClick={() => submit(false)} disabled={busy}>
             {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
