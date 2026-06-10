@@ -1,6 +1,7 @@
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { loadCajaSession } from "@/components/cash-register/session-actions";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
@@ -189,14 +190,8 @@ export function useCajaData() {
         .eq("business_id", businessId)
         .eq("date", dateStr)
         .order("created_at", { ascending: false }),
-      // Fetch the most recent session (open OR closed today) to evaluate status
-      supabase
-        .from("cash_sessions")
-        .select("id,status,closed_at,opened_at")
-        .eq("business_id", businessId)
-        .order("opened_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      // Session loaded via loadCajaSession (handles both cash_sessions table and fallback)
+      Promise.resolve({ data: null, error: null }),
       supabase
         .from("business_settings")
         .select("approval_mode,schedule")
@@ -247,17 +242,20 @@ export function useCajaData() {
         : []
     );
 
-    // Session status
-    const sessData = sessRes.status === "fulfilled" && !sessRes.value.error ? sessRes.value.data : null;
-    const sessionId = sessData?.id ?? null;
-    const sessionStatus = sessData?.status ?? null;
-    const closedAt = (sessData as Record<string, unknown> | null)?.closed_at as string | null ?? null;
+    // Session status — use loadCajaSession which checks both cash_sessions table and business_settings fallback
+    const sessionData = await loadCajaSession(businessId);
+    const sessionId = sessionData.sessionId;
+    const sessionStatus = sessionData.status;
+    const closedAt = sessionData.closedAt;
 
-    // Check if there's an open session — if session exists but is closed, sessionId is still used for reopen
-    const isSessionOpen = sessionStatus === "open";
-    setCashSessionId(isSessionOpen ? sessionId : null);
+    // Always expose sessionId so we can close even if caja was loaded as "open"
+    setCashSessionId(sessionId);
 
-    const status = computeCajaStatus({ sessionId, sessionStatus, closedAt });
+    const status = computeCajaStatus({
+      sessionId,
+      sessionStatus: sessionStatus === "no_session" ? null : sessionStatus,
+      closedAt,
+    });
     setCajaStatus(status);
 
     // Payments

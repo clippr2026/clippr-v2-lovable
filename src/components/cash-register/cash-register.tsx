@@ -245,8 +245,8 @@ function CashRegisterPage() {
         .order("opened_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (!sess?.id) throw new Error("No se encontró la sesión cerrada");
-      await reopenCashSession({ sessionId: sess.id, reopenedBy: data.profileId });
+      const sessionId = sess?.id ?? data.cashSessionId ?? `local_${Date.now()}`;
+      await reopenCashSession({ sessionId, businessId: data.businessId, reopenedBy: data.profileId });
       setForcedClosed(false);
       toast.success("Caja reabierta");
       await data.refresh();
@@ -258,23 +258,25 @@ function CashRegisterPage() {
   }
 
   async function handleConfirmarCierre(totalFacturado: number, observation: string) {
-    if (!data.cashSessionId || !data.profileId) return;
+    if (!data.businessId || !data.profileId) return;
+    // cashSessionId may be null if session was loaded without the table — use a local fallback ID
+    const sessionId = data.cashSessionId ?? `local_${Date.now()}`;
     try {
       await closeCashSession({
-        sessionId: data.cashSessionId,
+        sessionId,
+        businessId: data.businessId,
         closedBy: data.profileId,
         total: totalFacturado,
         actionType: "cierre_manual",
         observation: observation || undefined,
       });
-      // Force UI to blocked state IMMEDIATELY — don't wait for data.refresh()
+      // Flip UI immediately — forcedClosed is already true at call site
       setCloseoutOpen(false);
       setForcedClosed(true);
       setPendingToCharge(null);
       setTab("resumen");
       toast.success("Caja cerrada correctamente");
-      // Refresh in background to sync cajaStatus from server
-      data.refresh();
+      data.refresh(); // sync in background
     } catch (e) {
       throw e;
     }
