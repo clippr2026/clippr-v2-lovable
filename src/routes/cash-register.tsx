@@ -165,9 +165,16 @@ function removeLocalManualPendingCharge(id: string) {
 }
 
 function getManualPendingNote(notes?: string | null) {
-  return String(notes ?? "")
+  const value = String(notes ?? "")
     .replace("[PENDIENTE_CAJA]", "")
     .trim();
+
+  const lower = value.toLowerCase();
+  const genericServices = ["corte", "barba", "corte + barba", "corte de pelo"];
+
+  if (!value || genericServices.includes(lower)) return "";
+
+  return value;
 }
 
 export const Route = createFileRoute("/cash-register")({
