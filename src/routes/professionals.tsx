@@ -9,6 +9,8 @@ import {
   Clock,
   DollarSign,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -370,7 +372,7 @@ function ProfessionalsPage() {
       {/* Tabs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {([
-          { key: "turnos",             label: "Turnos",                Icon: ClipboardList, tint: "text-amber-300" },
+          { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-amber-300" },
           { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
           { key: "historial-servicios",label: "Historial de ventas",   Icon: Clock,         tint: "text-violet-300"},
           { key: "historial-pagos",    label: "Historial de pagos",    Icon: DollarSign,    tint: "text-emerald-300"},
@@ -402,23 +404,26 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      <UniversalDateFilter
-        range={range}
-        fromDate={fromDate}
-        toDate={toDate}
-        onPreset={applyRange}
-        onFromChange={(value) => {
-          setRange("custom");
-          setFromDate(value);
-        }}
-        onToChange={(value) => {
-          setRange("custom");
-          setToDate(value);
-        }}
-      />
+      {/* Date filter — hidden on Mi Agenda (it has its own day-strip nav) */}
+      {tab !== "turnos" && (
+        <UniversalDateFilter
+          range={range}
+          fromDate={fromDate}
+          toDate={toDate}
+          onPreset={applyRange}
+          onFromChange={(value) => {
+            setRange("custom");
+            setFromDate(value);
+          }}
+          onToChange={(value) => {
+            setRange("custom");
+            setToDate(value);
+          }}
+        />
+      )}
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} from={fromDate} to={toDate} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -966,16 +971,90 @@ function CobroModal({
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, from, to, canOperate, equipoEnabled }: {
+// ── Shared helpers (mirrors agenda.tsx) ──────────────────────────────────────
+const DAY_MS = 86_400_000;
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function endOfDay(d: Date)   { const x = new Date(d); x.setHours(23,59,59,999); return x; }
+
+// ── DayStripNav — same component as in agenda.tsx ────────────────────────────
+function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) => void }) {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const today = startOfDay(new Date());
+  const days = React.useMemo(() =>
+    Array.from({ length: 61 }, (_, i) => new Date(today.getTime() + (i - 30) * DAY_MS)),
+  []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  React.useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const cursorStr = cursor.toISOString().slice(0, 10);
+    const idx = days.findIndex(d => d.toISOString().slice(0, 10) === cursorStr);
+    if (idx === -1) return;
+    const itemWidth = 56;
+    container.scrollTo({ left: Math.max(0, idx * itemWidth - container.clientWidth / 2 + itemWidth / 2), behavior: "smooth" });
+  }, [cursor, days]);
+
+  const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  const cursorStr = cursor.toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
+
+  return (
+    <div className="glass rounded-2xl mb-5 overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <div className="flex items-center gap-2">
+          <button onClick={() => onSelect(new Date(cursor.getFullYear(), cursor.getMonth() - 1, cursor.getDate()))}
+            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition">
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-sm font-semibold capitalize">{monthLabel}</span>
+          <button onClick={() => onSelect(new Date(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate()))}
+            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition">
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {cursorStr !== todayStr && (
+          <button onClick={() => onSelect(startOfDay(new Date()))}
+            className="text-xs font-medium text-amber-300 hover:text-amber-200 transition">Hoy</button>
+        )}
+      </div>
+      <div ref={scrollRef} className="flex gap-1 overflow-x-auto px-3 pb-3 scroll-smooth"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+        {days.map((d) => {
+          const dStr = d.toISOString().slice(0, 10);
+          const isSelected = dStr === cursorStr;
+          const isToday = dStr === todayStr;
+          const dow = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "").slice(0, 3);
+          return (
+            <button key={dStr} onClick={() => onSelect(startOfDay(d))}
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-2xl py-2 transition-all shrink-0 w-[52px]",
+                isSelected ? "text-white" : isToday ? "text-amber-300 ring-1 ring-amber-400/30 bg-amber-500/10" : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
+              )}
+              style={isSelected ? { background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))" } : undefined}
+            >
+              <span className="text-[10px] uppercase tracking-wider font-medium">{dow}</span>
+              <span className="text-base font-semibold leading-none tabular-nums">{d.getDate()}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
   approvalModeEnabled: boolean;
   profile: { id: string; email?: string } | null;
-  from: string;
-  to: string;
   canOperate: boolean;
   equipoEnabled: boolean;
 }) {
+  // Own cursor — not driven by parent's date filter
+  const [cursor, setCursor] = useState<Date>(() => startOfDay(new Date()));
+  const from = cursor.toISOString().slice(0, 10);
+  const to = endOfDay(cursor).toISOString().slice(0, 10);
+
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [historialVersion, setHistorialVersion] = React.useState(0);
 
@@ -1131,6 +1210,9 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
   return (
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
+
+      {/* Day strip navigation */}
+      <DayStripNav cursor={cursor} onSelect={setCursor} />
 
       {/* Mode banner */}
       {approvalModeEnabled && canOperate && (

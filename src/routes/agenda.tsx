@@ -458,22 +458,15 @@ function AgendaPage() {
     cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
   };
 
+  // Always day view — navigation via the strip
   const move = (delta: number) => {
-    const step = view === "day" ? 1 : view === "week" ? 7 : 30;
-    setCursor((c) => new Date(c.getTime() + delta * step * DAY_MS));
+    setCursor((c) => new Date(c.getTime() + delta * DAY_MS));
   };
-
-  const headerLabel =
-    view === "day"
-      ? fmtDate(cursor)
-      : view === "month"
-        ? cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" })
-        : `${range.start.toLocaleDateString("es-AR")} – ${range.end.toLocaleDateString("es-AR")}`;
 
   return (
     <AppShell>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 animate-fade-up">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 animate-fade-up">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Agenda</h1>
           <div className="mt-1.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -490,61 +483,21 @@ function AgendaPage() {
             </span>
           </div>
         </div>
-
-        {/* All nav controls grouped together */}
-        <div className="flex items-center gap-1.5 glass rounded-2xl px-2 py-1.5">
-          {/* Hoy — leftmost */}
-          <button
-            onClick={() => setCursor(startOfDay(new Date()))}
-            className="px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition"
-          >
-            Hoy
-          </button>
-          <div className="h-4 w-px bg-white/10 mx-1" />
-          {/* Date label */}
-          <div className="inline-flex items-center gap-1.5 px-2 text-sm">
-            <CalendarIcon className="h-3.5 w-3.5 text-primary" />
-            <span className="capitalize text-sm font-medium">{headerLabel}</span>
-          </div>
-          <div className="h-4 w-px bg-white/10 mx-1" />
-          {/* View selector */}
-          {(["day", "week", "month"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={cn(
-                "px-3 py-1.5 rounded-xl text-xs font-medium transition",
-                view === v
-                  ? "text-white shadow-[0_4px_16px_-6px_oklch(0.65_0.28_290/0.7)]"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
-              )}
-              style={view === v ? { background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))" } : undefined}
-            >
-              {v === "day" ? "Día" : v === "week" ? "Semana" : "Mes"}
-            </button>
-          ))}
-          <div className="h-4 w-px bg-white/10 mx-1" />
-          {/* Prev / Next */}
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => move(-1)}>
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => move(1)}>
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-
         <Button onClick={() => openNew(null, cursor)}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo turno
         </Button>
       </div>
 
+      {/* Modern day-strip navigation */}
+      <DayStripNav cursor={cursor} onSelect={setCursor} />
+
       {/* Quick stats */}
-      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-up">
+      <section className="glass rounded-2xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-4 gap-4 animate-fade-up">
         {([
-          ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
-          ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
-          ["charged",   "Finalizados",     "oklch(0.76 0.2 155)"],
-          ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
+          ["pending",   "Pendientes",  "oklch(0.72 0.2 245)"],
+          ["confirmed", "Confirmados", "oklch(0.72 0.26 305)"],
+          ["charged",   "Finalizados", "oklch(0.76 0.2 155)"],
+          ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)"],
         ] as [string,string,string][]).map(([k, label, color]) => (
           <div key={k} className="group">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
@@ -610,36 +563,16 @@ function AgendaPage() {
         );
       })()}
 
-      {/* Calendar */}
-      {view === "day" ? (
-        <DayView
-          date={cursor}
-          data={data}
-          schedule={getScheduleForDate(data.schedule, cursor)}
-          onSlotClick={openSlotMenu}
-          onApptClick={openDetail}
-          onChangeStatus={onChangeStatus}
-          onCobrar={goToCobro}
-        />
-      ) : view === "week" ? (
-        <WeekView
-          start={startOfWeek(cursor)}
-          appointments={data.appointments}
-          schedule={data.schedule}
-          onApptClick={openDetail}
-          onSlotClick={(date) => openNew(null, date)}
-        />
-      ) : (
-        <MonthView
-          cursor={cursor}
-          appointments={data.appointments}
-          onApptClick={openDetail}
-          onPickDay={(d) => {
-            setCursor(d);
-            setView("day");
-          }}
-        />
-      )}
+      {/* Always day view */}
+      <DayView
+        date={cursor}
+        data={data}
+        schedule={getScheduleForDate(data.schedule, cursor)}
+        onSlotClick={openSlotMenu}
+        onApptClick={openDetail}
+        onChangeStatus={onChangeStatus}
+        onCobrar={goToCobro}
+      />
 
       {slotMenu ? (
         <>
@@ -723,6 +656,112 @@ function AgendaPage() {
         />
       )}
     </AppShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DayStripNav — modern horizontal day navigation (shared by Agenda & Mi Agenda)
+// ---------------------------------------------------------------------------
+function DayStripNav({
+  cursor,
+  onSelect,
+}: {
+  cursor: Date;
+  onSelect: (d: Date) => void;
+}) {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const today = startOfDay(new Date());
+
+  // Build a window of 60 days centered on today (30 before, 30 after)
+  const days = React.useMemo(() => {
+    return Array.from({ length: 61 }, (_, i) => {
+      const d = new Date(today.getTime() + (i - 30) * DAY_MS);
+      return d;
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll selected day into view on mount and cursor change
+  React.useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const cursorStr = cursor.toISOString().slice(0, 10);
+    const idx = days.findIndex(d => d.toISOString().slice(0, 10) === cursorStr);
+    if (idx === -1) return;
+    const itemWidth = 56; // px per day item
+    const scrollTarget = idx * itemWidth - container.clientWidth / 2 + itemWidth / 2;
+    container.scrollTo({ left: Math.max(0, scrollTarget), behavior: "smooth" });
+  }, [cursor, days]);
+
+  const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  const cursorStr = cursor.toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
+
+  return (
+    <div className="glass rounded-2xl mb-5 overflow-hidden animate-fade-up">
+      {/* Month label + today button */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onSelect(new Date(cursor.getFullYear(), cursor.getMonth() - 1, cursor.getDate()))}
+            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-sm font-semibold capitalize">{monthLabel}</span>
+          <button
+            onClick={() => onSelect(new Date(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate()))}
+            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {cursorStr !== todayStr && (
+          <button
+            onClick={() => onSelect(startOfDay(new Date()))}
+            className="text-xs font-medium text-primary hover:text-primary/80 transition"
+          >
+            Hoy
+          </button>
+        )}
+      </div>
+
+      {/* Scrollable day strip */}
+      <div
+        ref={scrollRef}
+        className="flex gap-1 overflow-x-auto px-3 pb-3 scroll-smooth"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {days.map((d) => {
+          const dStr = d.toISOString().slice(0, 10);
+          const isSelected = dStr === cursorStr;
+          const isToday = dStr === todayStr;
+          const dow = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "").slice(0, 3);
+          return (
+            <button
+              key={dStr}
+              onClick={() => onSelect(startOfDay(d))}
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-2xl py-2 transition-all shrink-0 w-[52px]",
+                isSelected
+                  ? "text-black"
+                  : isToday
+                    ? "text-primary ring-1 ring-primary/30 bg-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
+              )}
+              style={isSelected ? {
+                background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
+                color: "white",
+              } : undefined}
+            >
+              <span className="text-[10px] uppercase tracking-wider font-medium">{dow}</span>
+              <span className={cn("text-base font-semibold leading-none tabular-nums", isSelected && "text-white")}>
+                {d.getDate()}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
