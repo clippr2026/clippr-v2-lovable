@@ -1192,7 +1192,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
       dot: "bg-violet-400",
     },
     {
-      label: "Finalizados",
+      label: "Cobrados",
       count: counts.finalizados,
       color: "text-emerald-300",
       bg: "bg-emerald-500/10",
@@ -1229,8 +1229,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         </div>
       )}
 
-      {/* Status pills — compact single row */}
-      <div className="flex items-center gap-2 flex-wrap mb-1">
+      {/* Status chips — same visual language as Agenda */}
+      <div className="flex items-center gap-3 flex-wrap mb-2">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1238,17 +1238,15 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all",
-              card.onClick ? "hover:brightness-110 cursor-pointer" : "cursor-default"
+              "inline-flex items-center gap-3 rounded-full px-7 py-3 text-xl font-semibold tracking-tight ring-1 transition-all shadow-[0_0_28px_-18px_currentColor]",
+              card.bg,
+              card.ring,
+              card.color,
+              card.onClick ? "hover:brightness-125 hover:scale-[1.01] cursor-pointer" : "cursor-default"
             )}
-            style={{
-              background: card.bg.replace("0.10", "0.14"),
-              boxShadow: `0 0 0 1px ${card.ring.replace("0.20", "0.35")}`,
-              color: card.color,
-            }}
           >
-            <span className="font-semibold tabular-nums text-sm">{card.count}</span>
-            <span className="opacity-80">{card.label}</span>
+            <span className="tabular-nums text-2xl font-bold leading-none">{card.count}</span>
+            <span className="leading-none">{card.label}</span>
           </button>
         ))}
       </div>
