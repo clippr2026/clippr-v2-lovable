@@ -1210,6 +1210,30 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     },
   ];
 
+  const DAY_START_HOUR = 11;
+  const DAY_END_HOUR = 20;
+  const HOUR_HEIGHT = 92;
+  const timelineHours = React.useMemo(
+    () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i),
+    []
+  );
+  const agendaTurnos = React.useMemo(
+    () => [...activeTurnos].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()),
+    [activeTurnos]
+  );
+  const minutesFromDayStart = (value: string) => {
+    const d = new Date(value);
+    return Math.max(0, (d.getHours() - DAY_START_HOUR) * 60 + d.getMinutes());
+  };
+  const getBlockTop = (value: string) => (minutesFromDayStart(value) / 60) * HOUR_HEIGHT;
+  const getBlockHeight = (t: import("@/hooks/use-professionals-data").ProfTurno) => {
+    const start = new Date(t.starts_at).getTime();
+    const end = t.ends_at ? new Date(t.ends_at).getTime() : start + 30 * 60_000;
+    const durationMin = Math.max(30, Math.round((end - start) / 60_000));
+    return Math.max(64, (durationMin / 60) * HOUR_HEIGHT - 8);
+  };
+  const timelineHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + 36;
+
   return (
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
 
@@ -1229,8 +1253,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         </div>
       )}
 
-      {/* Status chips — same visual language as Agenda */}
-      <div className="flex items-center gap-3 flex-wrap mb-2">
+      {/* Status pills — compact left aligned */}
+      <div className="flex items-center gap-2 flex-wrap mb-0 justify-start">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1238,15 +1262,17 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "inline-flex items-center gap-3 rounded-full px-7 py-3 text-xl font-semibold tracking-tight ring-1 transition-all shadow-[0_0_28px_-18px_currentColor]",
-              card.bg,
-              card.ring,
-              card.color,
-              card.onClick ? "hover:brightness-125 hover:scale-[1.01] cursor-pointer" : "cursor-default"
+              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-semibold transition-all",
+              card.onClick ? "hover:brightness-110 cursor-pointer" : "cursor-default"
             )}
+            style={{
+              background: card.bg.replace("0.10", "0.12"),
+              boxShadow: `0 0 0 1px ${card.ring.replace("0.20", "0.32")}`,
+              color: card.color,
+            }}
           >
-            <span className="tabular-nums text-2xl font-bold leading-none">{card.count}</span>
-            <span className="leading-none">{card.label}</span>
+            <span className="font-bold tabular-nums text-xs">{card.count}</span>
+            <span className="opacity-85">{card.label}</span>
           </button>
         ))}
       </div>
@@ -1256,97 +1282,110 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
       {isLoading ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
-      ) : activeTurnos.length === 0 ? (
+      ) : agendaTurnos.length === 0 ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="space-y-2.5">
-          {activeTurnos.map((t) => {
-            void historialVersion;
-            const style = getBlockStyle(t);
-            const noteText = getNoteDisplay(t);
-            const historialDisplay = readHistorialCobro(t.id);
-            const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
-            const { isSentToCaja } = getTurnoMeta(t);
-
-            return (
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018]">
+          <div className="absolute left-[72px] top-0 bottom-0 w-px bg-white/[0.07]" />
+          <div className="relative" style={{ height: timelineHeight }}>
+            {timelineHours.map((hour) => (
               <div
-                key={t.id}
-                className={cn(
-                  "rounded-2xl border-l-[3px] ring-1 px-5 py-4 transition-all",
-                  style.border, style.bg, style.ring
-                )}
+                key={hour}
+                className="absolute left-0 right-0 border-t border-white/[0.055]"
+                style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
               >
-                <div className="flex items-start gap-4 flex-wrap">
-                  {/* Time block */}
-                  <div className="shrink-0 min-w-[90px]">
-                    <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
-                      {formatTime(t.starts_at)}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.starts_at)}</div>
-                  </div>
-
-                  {/* Main info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
-                      <span className={cn(
-                        "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1",
-                        style.bg, style.ring, style.labelColor
-                      )}>
-                        {style.label}
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-0.5 truncate">{t.service_name ?? "—"}</div>
-                    {noteText && (
-                      <button
-                        type="button"
-                        onClick={() => setNotaTurno(t)}
-                        className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
-                      >
-                        📄 Ver nota
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Historial / action */}
-                  <div className="shrink-0 min-w-[140px] space-y-1.5">
-                    {historialDisplay.length > 0 ? (
-                      historialDisplay.map((ev, ei) => {
-                        const actionColor =
-                          ev.action === "Envió a caja" ? "text-sky-300" :
-                          ev.action === "Cobró"        ? "text-emerald-300" :
-                          ev.action === "Canceló"      ? "text-rose-300" :
-                          ev.action === "Anuló cobro"  ? "text-orange-300" :
-                          ev.action === "Reembolsó"    ? "text-violet-300" :
-                          "text-muted-foreground";
-                        return (
-                          <div key={ei} className="flex items-baseline gap-1.5 leading-none">
-                            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                            <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                          </div>
-                        );
-                      })
-                    ) : showActionBtn ? (
-                      <button
-                        onClick={() => setCobroTurno(t)}
-                        className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
-                          approvalMode === "auto"
-                            ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                            : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25"
-                        )}
-                      >
-                        {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">—</span>
-                    )}
-                  </div>
+                <div className="absolute left-5 -top-3 text-sm text-muted-foreground tabular-nums">
+                  {String(hour).padStart(2, "0")}:00
                 </div>
               </div>
-            );
-          })}
+            ))}
+
+            {agendaTurnos.map((t) => {
+              void historialVersion;
+              const style = getBlockStyle(t);
+              const noteText = getNoteDisplay(t);
+              const historialDisplay = readHistorialCobro(t.id);
+              const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
+              const { isSentToCaja } = getTurnoMeta(t);
+
+              return (
+                <div
+                  key={t.id}
+                  className={cn(
+                    "absolute left-[88px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden",
+                    style.border, style.bg, style.ring
+                  )}
+                  style={{ top: getBlockTop(t.starts_at) + 6, minHeight: getBlockHeight(t) }}
+                >
+                  <div className="flex items-start gap-4 h-full">
+                    <div className="shrink-0 min-w-[74px]">
+                      <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
+                        {formatTime(t.starts_at)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.starts_at)}</div>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                        <span className={cn(
+                          "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1",
+                          style.bg, style.ring, style.labelColor
+                        )}>
+                          {style.label}
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5 truncate">{t.service_name ?? "—"}</div>
+                      {noteText && (
+                        <button
+                          type="button"
+                          onClick={() => setNotaTurno(t)}
+                          className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
+                        >
+                          📄 Ver nota
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="shrink-0 min-w-[140px] space-y-1.5">
+                      {historialDisplay.length > 0 ? (
+                        historialDisplay.map((ev, ei) => {
+                          const actionColor =
+                            ev.action === "Envió a caja" ? "text-sky-300" :
+                            ev.action === "Cobró"        ? "text-emerald-300" :
+                            ev.action === "Canceló"      ? "text-rose-300" :
+                            ev.action === "Anuló cobro"  ? "text-orange-300" :
+                            ev.action === "Reembolsó"    ? "text-violet-300" :
+                            "text-muted-foreground";
+                          return (
+                            <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
+                              <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                              <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                              <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                              <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                            </div>
+                          );
+                        })
+                      ) : showActionBtn ? (
+                        <button
+                          onClick={() => setCobroTurno(t)}
+                          className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
+                            approvalMode === "auto"
+                              ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                              : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25"
+                          )}
+                        >
+                          {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
