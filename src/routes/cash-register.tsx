@@ -479,7 +479,7 @@ function ResumenTab({
   const stats: { id: ActivePanel; label: string; value: number; sub?: string; icon: any; tint: string; money: boolean }[] = [
     { id: "ingresos",   label: "Ingresos",   value: data.revHoy,       sub: "",  icon: Wallet,       tint: "from-amber-400/20 to-amber-500/0",   money: true  },
     { id: "pendientes", label: "Pendientes", value: data.pendingAmount, sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, tint: "from-violet-400/25 to-violet-500/0", money: true },
-    { id: "gastos",     label: "Gastos",     value: data.totalGastos,  sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true },
+    { id: "gastos",     label: "Gastos",     value: data.totalGastos,  sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "0 gastos", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true },
   ];
 
   const ACTIVE_RING: Record<ActivePanel, string> = {
@@ -519,8 +519,9 @@ function ResumenTab({
         })}
       </div>
 
+
       {activePanel === "ingresos" && (
-        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
+        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} title="Ingresos" />
       )}
 
       {activePanel === "pendientes" && (
@@ -575,10 +576,9 @@ function ResumenTab({
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">{e.name ?? e.concept ?? "Gasto"}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
-                      <span>{new Date((e.date ?? e.created_at ?? new Date().toISOString()) + (String(e.date ?? "").includes("T") ? "" : "T12:00:00")).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</span>
-                      {(e.category ?? e.type) && <span>· {e.category ?? e.type}</span>}
+                      {e.category && <span>{e.category}</span>}
                       {e.payment_method && <span>· {e.payment_method}</span>}
-                      {(e.user_name ?? e.created_by ?? e.user_email) && <span>· {e.user_name ?? e.created_by ?? e.user_email}</span>}
+                      {(e.user_name ?? e.created_by) && <span>· {e.user_name ?? e.created_by}</span>}
                     </div>
                     {e.note && <div className="text-xs text-muted-foreground/70 mt-0.5 italic">{e.note}</div>}
                   </div>
@@ -1473,7 +1473,7 @@ function DetailModal({ payment, employees, onClose }: {
   );
 }
 
-function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void }) {
+function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void; title?: string }) {
   const rows = data.paymentsToday;
   const pendingRows = data.pendingCharges;
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
@@ -1506,7 +1506,7 @@ function History({ data, equipoEnabled, onCobrarPendiente }: { data: ReturnType<
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-sm font-semibold text-foreground">Cobros</h3>
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
             <span className="text-[11px] text-muted-foreground">
 {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
             </span>
