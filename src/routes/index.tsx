@@ -6,6 +6,7 @@ import { Topbar } from "@/components/topbar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { supabase } from "@/integrations/supabase/client";
+import { DateRangePicker } from "@/components/date-range-picker";
 import {
   useDashboardData,
   fmtAR,
@@ -117,48 +118,14 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="uppercase tracking-wider">Rango</span>
       </div>
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          Desde
-          <input
-            type="date"
-            value={fromStr}
-            max={toStr}
-            onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
-            onChange={(e) => {
-              const v = e.target.value;
-              const y = parseInt(v?.split("-")[0] ?? "0");
-              if (v && y >= 2000 && y <= 2099) setFromStr(v);
-              else if (!v) setFromStr(todayStr);
-            }}
-            className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50 cursor-pointer"
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          Hasta
-          <input
-            type="date"
-            value={toStr}
-            min={fromStr}
-            onClick={(e) => { try { (e.target as HTMLInputElement).showPicker?.(); } catch {} }}
-            onChange={(e) => {
-              const v = e.target.value;
-              const y = parseInt(v?.split("-")[0] ?? "0");
-              if (v && y >= 2000 && y <= 2099) setToStr(v);
-              else if (!v) setToStr(todayStr);
-            }}
-            className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50 cursor-pointer"
-          />
-        </label>
-      </div>
-      <div className="flex items-center gap-1 ml-auto">
-        <button
-          onClick={() => setQuickRange(1)}
-          className="text-xs px-2.5 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-foreground/80"
-        >
-          Hoy
-        </button>
-      </div>
+      <DateRangePicker
+        from={fromStr}
+        to={toStr}
+        onChange={({ from, to }) => {
+          setFromStr(from);
+          setToStr(to);
+        }}
+      />
     </div>
   );
 
