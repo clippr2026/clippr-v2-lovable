@@ -1,20 +1,13 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Loader2, BarChart3, X, CalendarDays } from "lucide-react";
+import { Loader2, BarChart3, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { DateRangePicker } from "@/components/date-range-picker";
 
 /**
  * Portado de cjLoadProfesionales / cjPagarProf / cjConfirmarPagoProf /
  * cjVerPagosProf / cjVerProduccion (app.js ~9755-10130).
- * Tablas: employees (commission_pct), payments (total/amount, employee_id),
- *         professional_payouts (amount, date, method, note, created_by).
- *
- * KPIs por profesional (en rango from..to):
- *   facturacion = Σ payments.total||amount
- *   comision    = round(facturacion * commission_pct / 100)
- *   pagado      = Σ professional_payouts.amount
- *   pendiente   = max(0, comision - pagado)
  */
 
 type Employee = {
@@ -46,35 +39,6 @@ type Payout = {
   created_at?: string | null;
 };
 
-const RANGES = [
-  { id: "hoy", label: "Hoy" },
-  { id: "semana", label: "Esta semana" },
-  { id: "mes", label: "Este mes" },
-  { id: "mes_ant", label: "Mes anterior" },
-] as const;
-
-function computeRange(preset: (typeof RANGES)[number]["id"]) {
-  const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  if (preset === "hoy") return { from: iso(now), to: iso(now) };
-  if (preset === "semana") {
-    const day = now.getDay() || 7;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - (day - 1));
-    return { from: iso(monday), to: iso(now) };
-  }
-  if (preset === "mes") {
-    return {
-      from: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
-      to: iso(now),
-    };
-  }
-  // mes_ant
-  const firstPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastPrev = new Date(now.getFullYear(), now.getMonth(), 0);
-  return { from: iso(firstPrev), to: iso(lastPrev) };
-}
-
 export function ProfesionalesTab({
   businessId,
   userEmail,
@@ -90,128 +54,44 @@ export function ProfesionalesTab({
   const [payments, setPayments] = React.useState<Payment[]>([]);
   const [payouts, setPayouts] = React.useState<Payout[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [payModal, setPayModal] = React.useState<{
-    emp: Employee;
-    pendiente: number;
-  } | null>(null);
-  const [detailModal, setDetailModal] = React.useState<{
-    type: "pagos" | "produccion";
-    emp: Employee;
-  } | null>(null);
+  const [payModal, setPayModal] = React.useState<{ emp: Employee; pendiente: number } | null>(null);
+  const [detailModal, setDetailModal] = React.useState<{ type: "pagos" | "produccion"; emp: Employee } | null>(null);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
-    const fromISO = from + "T00:00:00";
-    const toISO = to + "T23:59:59";
     const [empRes, payRes, poRes] = await Promise.allSettled([
-      supabase
-        .from("employees")
-        .select("id,full_name,commission_pct,commission_fixed,is_active")
-        .eq("business_id", businessId)
-        .order("full_name"),
-      supabase
-        .from("payments")
-        .select("employee_id,total,amount,payment_method,service_name,client_name,created_at")
-        .eq("business_id", businessId)
-        .gte("created_at", fromISO)
-        .lte("created_at", toISO),
-      supabase
-        .from("professional_payouts")
-        .select("id,employee_id,amount,date,method,note,created_by,created_at")
-        .eq("business_id", businessId)
-        .gte("date", from)
-        .lte("date", to)
-        .order("date", { ascending: false }),
+      supabase.from("employees").select("id,full_name,commission_pct,commission_fixed,is_active").eq("business_id", businessId).order("full_name"),
+      supabase.from("payments").select("employee_id,total,amount,payment_method,service_name,client_name,created_at").eq("business_id", businessId).gte("created_at", from + "T00:00:00").lte("created_at", to + "T23:59:59"),
+      supabase.from("professional_payouts").select("id,employee_id,amount,date,method,note,created_by,created_at").eq("business_id", businessId).gte("date", from).lte("date", to).order("date", { ascending: false }),
     ]);
-
-    setEmployees(
-      empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Employee[]).filter((e) => e.is_active !== false)
-        : []
-    );
-    setPayments(
-      payRes.status === "fulfilled" && !payRes.value.error
-        ? ((payRes.value.data ?? []) as Payment[])
-        : []
-    );
-    setPayouts(
-      poRes.status === "fulfilled" && !poRes.value.error
-        ? ((poRes.value.data ?? []) as Payout[])
-        : []
-    );
+    setEmployees(empRes.status === "fulfilled" && !empRes.value.error ? ((empRes.value.data ?? []) as Employee[]).filter((e) => e.is_active !== false) : []);
+    setPayments(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
+    setPayouts(poRes.status === "fulfilled" && !poRes.value.error ? ((poRes.value.data ?? []) as Payout[]) : []);
     setLoading(false);
   }, [businessId, from, to]);
 
-  React.useEffect(() => {
-    load();
-  }, [load]);
+  React.useEffect(() => { load(); }, [load]);
 
   const filtered = empId === "all" ? employees : employees.filter((e) => e.id === empId);
 
   return (
     <div className="space-y-5">
-      {/* Filtros */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <select
-            value={empId}
-            onChange={(e) => setEmpId(e.target.value)}
-            className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
-          >
-            <option value="all">Todos los profesionales</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.full_name}
-              </option>
-            ))}
-          </select>
-          <label className="group relative min-w-[170px] flex-1 sm:flex-none">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Desde
-            </span>
-            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-amber-200">
-              <CalendarDays className="size-4" />
-            </span>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              onClick={(e) => e.currentTarget.showPicker?.()}
-              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
-            />
-          </label>
-          <label className="group relative min-w-[170px] flex-1 sm:flex-none">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Hasta
-            </span>
-            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-amber-200">
-              <CalendarDays className="size-4" />
-            </span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              onClick={(e) => e.currentTarget.showPicker?.()}
-              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
-            />
-          </label>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => {
-                const range = computeRange(r.id);
-                setFrom(range.from);
-                setTo(range.to);
-              }}
-              className="px-3 py-1 rounded-md border border-white/10 text-xs text-muted-foreground hover:text-foreground hover:border-white/20"
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+      {/* Filtros — solo profesional + rango de fechas */}
+      <div className="flex flex-wrap items-end gap-3">
+        <select
+          value={empId}
+          onChange={(e) => setEmpId(e.target.value)}
+          className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50 h-[38px]"
+        >
+          <option value="all">Todos los profesionales</option>
+          {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+        </select>
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={(r) => { setFrom(r.from); setTo(r.to); }}
+        />
       </div>
 
       {loading ? (
