@@ -1232,7 +1232,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     const durationMin = Math.max(30, Math.round((end - start) / 60_000));
     return Math.max(64, (durationMin / 60) * HOUR_HEIGHT - 8);
   };
-  const timelineHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + 36;
+  const TIMELINE_TOP_OFFSET = 28;
+  const timelineHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
@@ -1262,17 +1263,15 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-semibold transition-all",
+              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-semibold transition-all ring-1",
+              card.bg,
+              card.ring,
+              card.color,
               card.onClick ? "hover:brightness-110 cursor-pointer" : "cursor-default"
             )}
-            style={{
-              background: card.bg.replace("0.10", "0.12"),
-              boxShadow: `0 0 0 1px ${card.ring.replace("0.20", "0.32")}`,
-              color: card.color,
-            }}
           >
             <span className="font-bold tabular-nums text-xs">{card.count}</span>
-            <span className="opacity-85">{card.label}</span>
+            <span className="opacity-90">{card.label}</span>
           </button>
         ))}
       </div>
@@ -1292,9 +1291,9 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
               <div
                 key={hour}
                 className="absolute left-0 right-0 border-t border-white/[0.055]"
-                style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
+                style={{ top: TIMELINE_TOP_OFFSET + (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
               >
-                <div className="absolute left-5 -top-3 text-sm text-muted-foreground tabular-nums">
+                <div className="absolute left-5 -top-2.5 text-sm text-muted-foreground tabular-nums">
                   {String(hour).padStart(2, "0")}:00
                 </div>
               </div>
@@ -1315,7 +1314,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                     "absolute left-[88px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden",
                     style.border, style.bg, style.ring
                   )}
-                  style={{ top: getBlockTop(t.starts_at) + 6, minHeight: getBlockHeight(t) }}
+                  style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, minHeight: getBlockHeight(t) }}
                 >
                   <div className="flex items-start gap-4 h-full">
                     <div className="shrink-0 min-w-[74px]">
