@@ -1407,13 +1407,6 @@ function AppointmentDetailDialog({
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: meta.dot, opacity: 0.7 }}>Cliente</div>
               <DialogTitle className="mt-1 text-2xl font-display truncate">{appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}</DialogTitle>
-              <div
-                className="mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1"
-                style={{ color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}, 0 0 8px -2px ${meta.dot}60`, background: meta.bg }}
-              >
-                <span className="size-1.5 rounded-full mr-1.5 inline-block" style={{ background: meta.dot }} />
-                {meta.label}
-              </div>
             </div>
             <div className="flex gap-2 pr-6">
               <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onFicha(appointment)}>
@@ -1505,11 +1498,10 @@ function AppointmentDetailDialog({
               <Button
                 onClick={() => onCobrar(appointment)}
                 disabled={appointment.status === "charged"}
-                style={appointment.status !== "charged" ? {
-                  background: `linear-gradient(135deg, ${meta.bg}, ${meta.bg})`,
-                  boxShadow: `inset 0 0 0 1px ${meta.border}80, 0 4px 16px -6px ${meta.dot}60`,
-                  color: meta.dot,
-                } : undefined}
+                className={appointment.status === "charged" ? "" : "bg-emerald-600 hover:bg-emerald-500 text-white border-0"}
+                style={appointment.status === "charged" ? undefined : {
+                  boxShadow: "0 4px 16px -6px oklch(0.76 0.2 150 / 0.6)",
+                }}
               >
                 <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
               </Button>
