@@ -977,20 +977,17 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   equipoEnabled: boolean;
 }) {
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
-
-  // Version counter — increments after each DB sync to trigger re-render
   const [historialVersion, setHistorialVersion] = React.useState(0);
 
-  // Sync historial from Supabase when turnos load (covers multi-device scenarios)
   React.useEffect(() => {
     if (turnos.length > 0) {
-      syncHistorialFromDB(turnos.map(t => t.id)).then(() => {
-        setHistorialVersion(v => v + 1);
-      });
+      syncHistorialFromDB(turnos.map(t => t.id)).then(() => setHistorialVersion(v => v + 1));
     }
   }, [turnos]);
+
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  const [canceladosOpen, setCanceladosOpen] = useState(false);
   const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
     if (!businessId) return new Set();
     return new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id));
@@ -998,12 +995,8 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
   useEffect(() => {
     if (!businessId) return;
-    const syncPending = () => {
-      setSentToCajaIds(new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id)));
-    };
-    const syncHistorial = () => {
-      setHistorialVersion((v) => v + 1);
-    };
+    const syncPending = () => setSentToCajaIds(new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id)));
+    const syncHistorial = () => setHistorialVersion((v) => v + 1);
     syncPending();
     window.addEventListener("clippr:manual-pending-updated", syncPending);
     window.addEventListener("clippr:cobros-historial-updated", syncHistorial);
@@ -1017,73 +1010,130 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     };
   }, [businessId]);
 
-
-  const formatMoney = (value: number | null | undefined) =>
-    value == null ? "—" : `$${Number(value).toLocaleString("es-AR")}`;
-
+  const formatTime = (value: string) =>
+    new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
   const formatDate = (value: string) => {
     const d = new Date(value);
     const day = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
-    const cap = day.charAt(0).toUpperCase() + day.slice(1);
-    const dmy = d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-    return `${cap} ${dmy}`;
+    return `${day.charAt(0).toUpperCase() + day.slice(1)} ${d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}`;
   };
-
-  const formatTime = (value: string) =>
-    new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-
-  const statusLabel: Record<string, string> = {
-    pending: "Pendiente",
-    pending_payment: "Pendiente",
-    confirmed: "Confirmado",
-    completed: "Completado",
-    charged: "Cobrado",
-    blocked: "Bloqueado",
-    cancelled: "Cancelado",
-    approved: "Aprobado",
-  };
-
-  // Estado badge color: amarillo = pendiente, verde = cobrado
-  function getStatusBadge(status: string, isPending: boolean) {
-    const isPendingState = isPending || status === "pending" || status === "pending_payment";
-    const isCharged = status === "charged";
-    const isCancelled = status === "cancelled" || status === "blocked";
-    return cn(
-      "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1",
-      isPendingState && "bg-amber-500/10 ring-amber-400/25 text-amber-300",
-      isCharged && "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300",
-      isCancelled && "bg-white/5 ring-white/10 text-muted-foreground",
-      !isPendingState && !isCharged && !isCancelled && "bg-sky-500/10 ring-sky-400/25 text-sky-300",
-    );
-  }
-
-  function getStatusText(status: string, isPending: boolean) {
-    if (isPending || status === "pending_payment") return "Pendiente";
-    return statusLabel[status] ?? status;
-  }
-
 
   function getNoteDisplay(t: import("@/hooks/use-professionals-data").ProfTurno) {
     if (!t.notes) return null;
     const clean = t.notes.replace("[PENDIENTE_CAJA]", "").trim();
-    if (!clean) return null;
-    return clean;
+    return clean || null;
+  }
+
+  function getTurnoMeta(t: import("@/hooks/use-professionals-data").ProfTurno) {
+    const isSentToCaja = sentToCajaIds.has(t.id);
+    const isPending = isSentToCaja || String(t.notes ?? "").includes("[PENDIENTE_CAJA]") || t.status === "pending_payment";
+    const isCancelled = t.status === "cancelled" || t.status === "blocked";
+    const isCharged = t.status === "charged";
+    const isConfirmed = t.status === "confirmed" || t.status === "approved";
+    return { isSentToCaja, isPending, isCancelled, isCharged, isConfirmed };
+  }
+
+  // Status card data
+  const counts = React.useMemo(() => {
+    let pendientes = 0, confirmados = 0, finalizados = 0, cancelados = 0;
+    for (const t of turnos) {
+      const { isPending, isCancelled, isCharged, isConfirmed } = getTurnoMeta(t);
+      if (isCancelled) cancelados++;
+      else if (isCharged) finalizados++;
+      else if (isConfirmed) confirmados++;
+      else if (isPending || t.status === "pending" || t.status === "pending_payment") pendientes++;
+      else pendientes++;
+    }
+    return { pendientes, confirmados, finalizados, cancelados };
+  }, [turnos, sentToCajaIds]);
+
+  // Active turnos (not cancelled) for agenda view
+  const activeTurnos = React.useMemo(() =>
+    turnos.filter(t => t.status !== "cancelled" && t.status !== "blocked"),
+    [turnos]
+  );
+  const cancelledTurnos = React.useMemo(() =>
+    turnos.filter(t => t.status === "cancelled" || t.status === "blocked"),
+    [turnos]
+  );
+
+  // Style per status
+  function getBlockStyle(t: import("@/hooks/use-professionals-data").ProfTurno) {
+    const { isPending, isCharged, isConfirmed } = getTurnoMeta(t);
+    if (isCharged) return {
+      border: "border-l-emerald-400",
+      bg: "bg-emerald-500/[0.08]",
+      ring: "ring-emerald-400/15",
+      dot: "bg-emerald-400",
+      label: "Cobrado",
+      labelColor: "text-emerald-300",
+    };
+    if (isConfirmed) return {
+      border: "border-l-violet-400",
+      bg: "bg-violet-500/[0.08]",
+      ring: "ring-violet-400/15",
+      dot: "bg-violet-400",
+      label: "Confirmado",
+      labelColor: "text-violet-300",
+    };
+    // pending / pending_payment / default
+    return {
+      border: "border-l-sky-400",
+      bg: "bg-sky-500/[0.08]",
+      ring: "ring-sky-400/15",
+      dot: "bg-sky-400",
+      label: isPending ? "Pendiente" : "Pendiente",
+      labelColor: "text-sky-300",
+    };
   }
 
   const canShowAction = (status: string) => {
-    if (!canOperate) return false;
-    if (!approvalModeEnabled) return false;
-    if (approvalMode === "disabled") return false;
-    if (["charged", "cancelled", "blocked", "pending_payment"].includes(status)) return false;
-    return true;
+    if (!canOperate || !approvalModeEnabled || approvalMode === "disabled") return false;
+    return !["charged", "cancelled", "blocked", "pending_payment"].includes(status);
   };
 
+  // Status cards config
+  const statusCards = [
+    {
+      label: "Pendientes",
+      count: counts.pendientes,
+      color: "text-sky-300",
+      bg: "bg-sky-500/10",
+      ring: "ring-sky-400/20",
+      dot: "bg-sky-400",
+    },
+    {
+      label: "Confirmados",
+      count: counts.confirmados,
+      color: "text-violet-300",
+      bg: "bg-violet-500/10",
+      ring: "ring-violet-400/20",
+      dot: "bg-violet-400",
+    },
+    {
+      label: "Finalizados",
+      count: counts.finalizados,
+      color: "text-emerald-300",
+      bg: "bg-emerald-500/10",
+      ring: "ring-emerald-400/20",
+      dot: "bg-emerald-400",
+    },
+    {
+      label: "Cancelados",
+      count: counts.cancelados,
+      color: "text-rose-300",
+      bg: "bg-rose-500/10",
+      ring: "ring-rose-400/20",
+      dot: "bg-rose-400",
+      onClick: counts.cancelados > 0 ? () => setCanceladosOpen(true) : undefined,
+    },
+  ];
+
   return (
-    <div className="space-y-4 animate-fade-up">
-      {/* Bloque centrado: banner + título + tabla comparten el mismo eje */}
-      <div className="max-w-5xl mx-auto space-y-3">
-      {/* Mode explanation banner */}
-      {approvalModeEnabled && canOperate ? (
+    <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
+
+      {/* Mode banner */}
+      {approvalModeEnabled && canOperate && (
         <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
           approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
           approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
@@ -1093,107 +1143,133 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           {approvalMode === "manual" && "👁 Cobro manual — el profesional ve Enviar; al enviarlo queda Pendiente hasta que Caja lo cobre."}
           {approvalMode === "disabled" && "🚫 Cobro desactivado — el profesional solo consulta turnos; Caja realiza todos los cobros."}
         </div>
-      ) : (
-        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-white/[0.035] ring-white/10 text-muted-foreground inline-flex items-center gap-2">
-          <span className="size-1.5 rounded-full bg-white/30 shrink-0" /> Consulta
-        </div>
       )}
 
-      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Turnos del período</div>
+      {/* Status cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {statusCards.map((card) => (
+          <button
+            key={card.label}
+            type="button"
+            onClick={card.onClick}
+            disabled={!card.onClick}
+            className={cn(
+              "rounded-2xl px-4 py-4 ring-1 text-left transition-all",
+              card.bg, card.ring,
+              card.onClick ? "hover:brightness-110 cursor-pointer" : "cursor-default"
+            )}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className={cn("size-2 rounded-full shrink-0", card.dot)} />
+              <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">{card.label}</span>
+            </div>
+            <div className={cn("text-3xl font-semibold font-display tabular-nums", card.color)}>
+              {card.count}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Agenda visual */}
+      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del período</div>
 
       {isLoading ? (
-        <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
-      ) : turnos.length === 0 ? (
-        <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
+        <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
+      ) : activeTurnos.length === 0 ? (
+        <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="glass rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-[12%_10%_20%_28%_30%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-            <div>Fecha</div>
-            <div>Hora</div>
-            <div>Cliente</div>
-            <div>Servicio / Catálogo</div>
-            <div>Historial</div>
-          </div>
-
-          {turnos.map((t, i) => {
-            void historialVersion; // triggers re-render when sync completes
-            const isSentToCaja = sentToCajaIds.has(t.id);
-            const isPending =
-              isSentToCaja ||
-              String(t.notes ?? "").includes("[PENDIENTE_CAJA]") ||
-              t.status === "pending_payment";
+        <div className="space-y-2.5">
+          {activeTurnos.map((t) => {
+            void historialVersion;
+            const style = getBlockStyle(t);
             const noteText = getNoteDisplay(t);
-
-            // Historial: solo eventos guardados. Sin fallback ni recálculo.
-            // historialVersion ensures re-read after syncHistorialFromDB completes
-            const historialDisplay = readHistorialCobro(t.id); // eslint-disable-line react-hooks/exhaustive-deps
-
-            // Botón de acción (solo si no hay eventos aún)
+            const historialDisplay = readHistorialCobro(t.id);
             const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
+            const { isSentToCaja } = getTurnoMeta(t);
 
             return (
               <div
                 key={t.id}
                 className={cn(
-                  "grid grid-cols-[12%_10%_20%_28%_30%] items-start px-5 py-4 text-sm",
-                  i < turnos.length - 1 && "border-b border-white/5"
+                  "rounded-2xl border-l-[3px] ring-1 px-5 py-4 transition-all",
+                  style.border, style.bg, style.ring
                 )}
               >
-                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5">{formatDate(t.starts_at)}</div>
-                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5">{formatTime(t.starts_at)}</div>
-                <div className="font-medium truncate pr-2 pt-0.5">{t.client_name ?? "Sin cliente"}</div>
-                <div className="min-w-0 pr-2">
-                  <div className="font-medium truncate pt-0.5">{t.service_name ?? "—"}</div>
-                  {noteText && (
-                    <button
-                      type="button"
-                      onClick={() => setNotaTurno(t)}
-                      className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
-                    >
-                      📄 Ver nota
-                    </button>
-                  )}
-                </div>
+                <div className="flex items-start gap-4 flex-wrap">
+                  {/* Time block */}
+                  <div className="shrink-0 min-w-[90px]">
+                    <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
+                      {formatTime(t.starts_at)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.starts_at)}</div>
+                  </div>
 
-                {/* Historial — log inmutable de eventos reales */}
-                <div className="space-y-1.5">
-                  {historialDisplay.length > 0 ? (
-                    historialDisplay.map((ev, ei) => {
-                      const actionColor =
-                        ev.action === "Envió a caja" ? "text-sky-300" :
-                        ev.action === "Cobró"        ? "text-emerald-300" :
-                        ev.action === "Canceló"      ? "text-rose-300" :
-                        ev.action === "Anuló cobro"  ? "text-orange-300" :
-                        ev.action === "Reembolsó"    ? "text-violet-300" :
-                        "text-muted-foreground";
-                      return (
-                        <div key={ei} className="flex items-baseline gap-1.5 leading-none">
-                          <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                          <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                          <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                        </div>
-                      );
-                    })
-                  ) : showActionBtn ? (
-                    <button onClick={() => setCobroTurno(t)}
-                      className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
-                        approvalMode === "auto"
-                          ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                          : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25")}>
-                      {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-muted-foreground">—</span>
-                  )}
+                  {/* Main info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                      <span className={cn(
+                        "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1",
+                        style.bg, style.ring, style.labelColor
+                      )}>
+                        {style.label}
+                      </span>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-0.5 truncate">{t.service_name ?? "—"}</div>
+                    {noteText && (
+                      <button
+                        type="button"
+                        onClick={() => setNotaTurno(t)}
+                        className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
+                      >
+                        📄 Ver nota
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Historial / action */}
+                  <div className="shrink-0 min-w-[140px] space-y-1.5">
+                    {historialDisplay.length > 0 ? (
+                      historialDisplay.map((ev, ei) => {
+                        const actionColor =
+                          ev.action === "Envió a caja" ? "text-sky-300" :
+                          ev.action === "Cobró"        ? "text-emerald-300" :
+                          ev.action === "Canceló"      ? "text-rose-300" :
+                          ev.action === "Anuló cobro"  ? "text-orange-300" :
+                          ev.action === "Reembolsó"    ? "text-violet-300" :
+                          "text-muted-foreground";
+                        return (
+                          <div key={ei} className="flex items-baseline gap-1.5 leading-none">
+                            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                            <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                          </div>
+                        );
+                      })
+                    ) : showActionBtn ? (
+                      <button
+                        onClick={() => setCobroTurno(t)}
+                        className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
+                          approvalMode === "auto"
+                            ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                            : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25"
+                        )}
+                      >
+                        {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">—</span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
       )}
-      </div>{/* /max-w-4xl */}
 
+      {/* Modals */}
       {canOperate && cobroTurno && businessId && empId && (
         <CobroModal
           turno={cobroTurno}
@@ -1218,9 +1294,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                 <div className="mt-1 font-semibold text-base">{notaTurno.service_name ?? "—"}</div>
               </div>
               <button type="button" onClick={() => setNotaTurno(null)}
-                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition shrink-0">
-                ✕
-              </button>
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition shrink-0">✕</button>
             </div>
             <div className="text-xs text-muted-foreground space-y-0.5">
               <div>{formatDate(notaTurno.starts_at)} · {formatTime(notaTurno.starts_at)}</div>
@@ -1232,9 +1306,55 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
           </div>
         </div>
       )}
+
+      {/* Cancelados modal */}
+      {canceladosOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setCanceladosOpen(false)}>
+          <div className="glass-strong rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 shrink-0">
+              <div>
+                <div className="font-semibold text-base">Turnos cancelados</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{cancelledTurnos.length} turno{cancelledTurnos.length !== 1 ? "s" : ""} cancelado{cancelledTurnos.length !== 1 ? "s" : ""}</div>
+              </div>
+              <button type="button" onClick={() => setCanceladosOpen(false)}
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+              {cancelledTurnos.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Sin turnos cancelados en este período.</p>
+              ) : cancelledTurnos.map((t) => {
+                const historial = readHistorialCobro(t.id);
+                const cancelEvent = historial.find(e => e.action === "Canceló");
+                return (
+                  <div key={t.id} className="rounded-2xl bg-rose-500/[0.06] ring-1 ring-rose-400/15 border-l-[3px] border-l-rose-400 px-4 py-4">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 bg-rose-500/10 ring-rose-400/20 text-rose-300">Cancelado</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
+                        <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
+                      </div>
+                      {cancelEvent && (
+                        <div className="text-right space-y-0.5 shrink-0">
+                          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Cancelado por</div>
+                          <div className="text-xs font-semibold text-rose-300">{cancelEvent.user}</div>
+                          <div className="text-[10px] text-muted-foreground">{cancelEvent.time}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function StatsView({
   businessId, empId, from, to,
