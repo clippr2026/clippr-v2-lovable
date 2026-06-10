@@ -198,15 +198,14 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
-  // Determine initial tab based on search params
   const [tab, setTab] = useState<Tab>(
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
-
-  // Pending charge to process through the sale flow
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
 
-  // Toast on arrival from deposit/cobro flow
+  // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
+  const [cajaCerrada, setCajaCerrada] = useState(false);
+
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
       toast.info(`Cobrar seña de $${parseInt(search.depositAmount).toLocaleString("es-AR")} para ${search.clientName ?? "cliente"}`);
@@ -219,7 +218,6 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
-    // When a pending charge is picked, switch to the "nueva" tab
   function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
     setPendingToCharge(appt);
     setTab("nueva");
@@ -235,6 +233,45 @@ function CashRegisterPage() {
     );
   }
 
+  // ── GATE: caja cerrada ────────────────────────────────────────────────────
+  if (cajaCerrada) {
+    return (
+      <AppShell>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">Caja</h1>
+            <p className="mt-2 text-sm md:text-base text-muted-foreground">Cobros, gastos y liquidaciones</p>
+          </div>
+        </div>
+        <div className="mt-8 space-y-4">
+          {/* Estado banner */}
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl px-6 py-6 flex items-center gap-5">
+            <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-400/20 grid place-items-center shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-300"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div className="flex-1">
+              <h2 className="text-base font-semibold text-foreground">Caja cerrada</h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">La caja de hoy ya fue cerrada. Podés reabrirla hasta las 00:00.</p>
+            </div>
+            <button
+              onClick={() => { setCajaCerrada(false); data.refresh(); }}
+              className="shrink-0 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground"
+            >
+              Reabrir caja
+            </button>
+          </div>
+          {/* Resumen de solo lectura */}
+          <button
+            onClick={() => setTab("cierres")}
+            className="text-sm text-muted-foreground hover:text-foreground transition underline underline-offset-2"
+            style={{ display: "none" }}
+          />
+        </div>
+      </AppShell>
+    );
+  }
+
+  // ── CAJA ABIERTA ──────────────────────────────────────────────────────────
   return (
     <AppShell>
       <Header data={data} />
@@ -244,6 +281,7 @@ function CashRegisterPage() {
         data={data}
         userEmail={session.user.email ?? null}
         onNuevoGasto={() => { setPendingToCharge(null); setTab("nuevo-gasto"); }}
+        onCajaCerrada={() => { setCajaCerrada(true); setPendingToCharge(null); setTab("resumen"); }}
       />
       <div className="mt-6">
         {tab === "resumen" && (
@@ -313,12 +351,14 @@ function Tabs({
   data,
   userEmail,
   onNuevoGasto,
+  onCajaCerrada,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
   data: ReturnType<typeof useCajaData>;
   userEmail: string | null;
   onNuevoGasto: () => void;
+  onCajaCerrada: () => void;
 }) {
   const nuevaActive = tab === "nueva";
   return (
@@ -367,6 +407,7 @@ function Tabs({
             expensesToday={data.expensesToday}
             businessId={data.businessId}
             userEmail={userEmail}
+            onCajaCerrada={onCajaCerrada}
           />
         </div>
       )}
@@ -680,11 +721,13 @@ function CierreCajaBtn({
   expensesToday,
   businessId,
   userEmail,
+  onCajaCerrada,
 }: {
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
   businessId: string | null;
   userEmail: string | null;
+  onCajaCerrada: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
@@ -816,6 +859,7 @@ function CierreCajaBtn({
       toast.success("Cierre registrado correctamente");
       setOpen(false);
       setObs("");
+      onCajaCerrada(); // ← bloquea la pantalla inmediatamente
       window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     } catch (e) {
       toast.error((e as Error).message);
