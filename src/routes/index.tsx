@@ -10,7 +10,6 @@ import {
   useDashboardData,
   fmtAR,
   type DashboardData,
-  type RecentPayment,
   type RecentCancellation,
 } from "@/components/dashboard/use-dashboard-data";
 import {
@@ -20,9 +19,7 @@ import {
   Users,
   Receipt,
   Activity,
-  Clock,
   XCircle,
-  CheckCircle2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -260,10 +257,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
         <ServicesDonut data={data} />
       </section>
 
-      {/* Activity */}
-      <section>
-        <ActivityPanel items={data.recentPayments} />
-      </section>
     </div>
   );
 }
@@ -596,7 +589,7 @@ function ServicesDonut({ data }: { data: DashboardData }) {
 }
 
 // ---------------------------------------------------------------------------
-// Activity + cancellations
+// Cancellations
 // ---------------------------------------------------------------------------
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -605,44 +598,6 @@ function timeAgo(iso: string) {
   const h = Math.round(m / 60);
   if (h < 24) return `Hace ${h} h`;
   return `Hace ${Math.round(h / 24)} d`;
-}
-
-function ActivityPanel({ items }: { items: RecentPayment[] }) {
-  return (
-    <div className="glass rounded-2xl p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="h-8 w-8 rounded-lg grid place-items-center bg-primary/15 ring-1 ring-primary/30">
-          <Clock className="h-4 w-4 text-primary" />
-        </div>
-        <h3 className="font-display text-base font-semibold">Actividades</h3>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sin actividad reciente.</p>
-      ) : (
-        <ul className="space-y-3">
-          {items.map((p) => (
-            <li key={p.id} className="flex items-center gap-3">
-              <div className="h-7 w-7 rounded-full grid place-items-center bg-success/15 ring-1 ring-success/30 shrink-0">
-                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium truncate">
-                  Pago recibido <span className="text-muted-foreground font-normal">·</span>{" "}
-                  <span className="text-foreground/80">{fmtAR(p.total)}</span>
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {(p.client_name || "Cliente") + (p.service_name ? ` · ${p.service_name}` : "")}
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground shrink-0 tabular-nums">
-                {timeAgo(p.created_at)}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
