@@ -165,13 +165,9 @@ function removeLocalManualPendingCharge(id: string) {
 }
 
 function getManualPendingNote(notes?: string | null) {
-  let value = String(notes ?? "")
+  const value = String(notes ?? "")
     .replace("[PENDIENTE_CAJA]", "")
     .trim();
-
-  if (value.includes("|")) {
-    value = value.split("|")[0].trim();
-  }
 
   const lower = value.toLowerCase();
   const genericServices = ["corte", "barba", "corte + barba", "corte de pelo"];
@@ -471,8 +467,8 @@ function ResumenTab({
   equipoEnabled: boolean;
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
 }) {
-  type ActivePanel = "ingresos" | "pendientes" | "gastos" | "cobros";
-  const [activePanel, setActivePanel] = React.useState<ActivePanel>("cobros");
+  type ActivePanel = "ingresos" | "pendientes" | "gastos";
+  const [activePanel, setActivePanel] = React.useState<ActivePanel>("ingresos");
 
   React.useEffect(() => {
     const handler = () => { data.refresh(); setActivePanel("gastos"); };
@@ -484,19 +480,17 @@ function ResumenTab({
     { id: "ingresos",   label: "Ingresos",   value: data.revHoy,       sub: "",  icon: Wallet,       tint: "from-amber-400/20 to-amber-500/0",   money: true  },
     { id: "pendientes", label: "Pendientes", value: data.pendingAmount, sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, tint: "from-violet-400/25 to-violet-500/0", money: true },
     { id: "gastos",     label: "Gastos",     value: data.totalGastos,  sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true },
-    { id: "cobros",     label: "Cobros",     value: data.cobros,       sub: "",  icon: ClipboardList, tint: "from-sky-400/25 to-sky-500/0",       money: false },
   ];
 
   const ACTIVE_RING: Record<ActivePanel, string> = {
     ingresos:   "ring-amber-400/40 bg-amber-400/[0.06]",
     pendientes: "ring-violet-400/40 bg-violet-400/[0.06]",
     gastos:     "ring-rose-400/40 bg-rose-400/[0.06]",
-    cobros:     "ring-sky-400/40 bg-sky-400/[0.06]",
   };
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
           return (
@@ -524,10 +518,6 @@ function ResumenTab({
           );
         })}
       </div>
-
-      {activePanel === "cobros" && (
-        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} />
-      )}
 
       {activePanel === "ingresos" && (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
