@@ -339,7 +339,7 @@ function AdvisorContent({
   }
 
   return (
-    <div className="space-y-10 max-w-5xl mx-auto w-full">
+    <div className="space-y-6 max-w-5xl mx-auto w-full">
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={DEMO.payments}
@@ -365,21 +365,21 @@ function AdvisorContent({
       {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
       <div>
         {/* Separador de sección */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-3">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
           <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Salud del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="p-7 sm:p-10 border border-white/[0.07]">
-        <h2 className="font-display text-3xl font-bold tracking-tight mb-1">❤️ ¿Cómo está tu negocio hoy?</h2>
-        <p className="text-sm text-muted-foreground mb-8">Análisis de los indicadores del período actual.</p>
+      <GlassCard className="p-5 sm:p-7 border border-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(124,58,237,0.55)]">
+        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">❤️ ¿Cómo está tu negocio hoy?</h2>
+        <p className="text-sm text-muted-foreground mb-5">Análisis de los indicadores del período actual.</p>
 
-        <div className="grid md:grid-cols-2 gap-6 items-center">
+        <div className="grid md:grid-cols-2 gap-5 items-center">
           {/* Left: circular gauge + bar */}
-          <div className="flex flex-col items-center gap-6">
+          <div className="flex flex-col items-center gap-4">
             <div className="relative flex items-center justify-center">
               {/* SVG ring */}
-              <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
+              <svg width="170" height="170" viewBox="0 0 200 200" className="-rotate-90">
                 {/* Track */}
                 <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="14" />
                 {/* Progress */}
@@ -400,7 +400,7 @@ function AdvisorContent({
               </svg>
               {/* Center text */}
               <div className="absolute flex flex-col items-center">
-                <span className={cn("font-display text-6xl font-bold leading-none", healthTone.text)}>{animatedHealth}</span>
+                <span className={cn("font-display text-5xl font-bold leading-none", healthTone.text)}>{animatedHealth}</span>
                 <span className="text-sm text-muted-foreground mt-1">/100</span>
               </div>
             </div>
@@ -417,9 +417,9 @@ function AdvisorContent({
           </div>
 
           {/* Right: impact panel */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 h-full">
+          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-5 h-full">
             <div className="text-base font-semibold mb-5">¿Qué impacta en tu puntaje?</div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {[
                 { tone: "good" as const, label: "Utilidad",             value: "+30%" },
                 { tone: "good" as const, label: "Captación de clientes", value: "+16%" },
@@ -449,25 +449,25 @@ function AdvisorContent({
 
       {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
       <div>
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-3">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
           <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Evolución del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="p-7 sm:p-10 space-y-8 border border-white/[0.07]">
-        <h2 className="font-display text-3xl font-bold tracking-tight">📈 Evolución del negocio</h2>
+      <GlassCard className="p-5 sm:p-7 space-y-5 border border-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(124,58,237,0.55)]">
+        <h2 className="font-display text-2xl font-bold tracking-tight">📈 Evolución del negocio</h2>
 
         {/* Bloque superior: +18% */}
-        <div className="relative flex items-center gap-5 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-5">
+        <div className="relative flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-5 py-3.5">
           {/* Icono izquierda */}
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-emerald-400/10 ring-1 ring-emerald-400/20">
-            <TrendingUp className="h-8 w-8 text-emerald-400" />
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-emerald-400/10 ring-1 ring-emerald-400/20">
+            <TrendingUp className="h-6 w-6 text-emerald-400" />
           </div>
           {/* Textos */}
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Evolución del negocio</div>
             <div className="flex items-baseline gap-3 mt-1 flex-wrap">
-              <span className="font-display text-6xl font-bold text-emerald-300 leading-none">+18%</span>
+              <span className="font-display text-5xl font-bold text-emerald-300 leading-none">+18%</span>
               <span className="text-base text-muted-foreground">vs mes anterior</span>
             </div>
           </div>
@@ -483,57 +483,57 @@ function AdvisorContent({
         {/* Etiqueta IMPULSADOS POR */}
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">Impulsados por</div>
-          <div className="text-muted-foreground text-lg leading-none">↓</div>
+          <div className="text-muted-foreground text-base leading-none">↓</div>
         </div>
 
         {/* 3 tarjetas: Clientes / Ticket / Ocupación */}
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-3 gap-3">
           {/* Clientes nuevos */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex flex-col gap-4">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-400/10 ring-1 ring-violet-400/20">
-              <Users className="h-7 w-7 text-violet-400" />
+          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20">
+              <Users className="h-5 w-5 text-violet-400" />
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Clientes nuevos</div>
-              <div className="font-display text-5xl font-bold text-violet-300 mt-2 leading-none">
+              <div className="font-display text-4xl font-bold text-violet-300 mt-1 leading-none">
                 {Math.round(45 * animationProgress)}
               </div>
             </div>
-            <div className="rounded-xl bg-violet-400/10 px-4 py-2.5">
+            <div className="rounded-xl bg-violet-400/10 px-3 py-2">
               <div className="text-sm font-bold text-violet-300">+16%</div>
               <div className="text-xs text-muted-foreground">vs mes anterior</div>
             </div>
           </div>
 
           {/* Ticket promedio */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex flex-col gap-4">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-sky-400/10 ring-1 ring-sky-400/20">
-              <DollarSign className="h-7 w-7 text-sky-400" />
+          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20">
+              <DollarSign className="h-5 w-5 text-sky-400" />
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Ticket promedio</div>
-              <div className="font-display text-4xl font-bold text-sky-300 mt-2 leading-none">
+              <div className="font-display text-3xl font-bold text-sky-300 mt-1 leading-none">
                 {fmtAR(Math.round(DEMO.ticket * animationProgress))}
               </div>
             </div>
-            <div className="rounded-xl bg-sky-400/10 px-4 py-2.5">
+            <div className="rounded-xl bg-sky-400/10 px-3 py-2">
               <div className="text-sm font-bold text-sky-300">+10%</div>
               <div className="text-xs text-muted-foreground">vs mes anterior</div>
             </div>
           </div>
 
           {/* Ocupación */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex flex-col gap-4">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-orange-400/10 ring-1 ring-orange-400/20">
-              <ClipboardList className="h-7 w-7 text-orange-400" />
+          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20">
+              <ClipboardList className="h-5 w-5 text-orange-400" />
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Ocupación</div>
-              <div className="font-display text-5xl font-bold text-orange-300 mt-2 leading-none">
+              <div className="font-display text-4xl font-bold text-orange-300 mt-1 leading-none">
                 {Math.round(DEMO.occupancy * animationProgress)}%
               </div>
             </div>
-            <div className="rounded-xl bg-orange-400/10 px-4 py-2.5">
+            <div className="rounded-xl bg-orange-400/10 px-3 py-2">
               <div className="text-sm font-bold text-orange-300">+8%</div>
               <div className="text-xs text-muted-foreground">vs mes anterior</div>
             </div>
@@ -543,11 +543,11 @@ function AdvisorContent({
         {/* Etiqueta GENERARON MÁS */}
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">Generaron más</div>
-          <div className="text-muted-foreground text-lg leading-none">↓</div>
+          <div className="text-muted-foreground text-base leading-none">↓</div>
         </div>
 
         {/* Bloque Utilidad gigante */}
-        <div className="relative overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] px-8 py-7 flex items-center justify-between gap-6">
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-6 py-5 flex items-center justify-between gap-5">
           {/* Left */}
           <div className="z-10">
             <div className="flex items-center gap-3">
@@ -557,13 +557,13 @@ function AdvisorContent({
               <div className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">Utilidad</div>
               <span className="rounded-lg bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/25">+30%</span>
             </div>
-            <div className="font-display text-5xl sm:text-6xl font-bold text-emerald-300 mt-4 leading-none">
+            <div className="font-display text-4xl sm:text-5xl font-bold text-emerald-300 mt-3 leading-none">
               {fmtAR(animatedProfit)}
             </div>
           </div>
           {/* Right: sparkline SVG */}
           <div className="shrink-0 opacity-80">
-            <svg width="160" height="80" viewBox="0 0 160 80" fill="none">
+            <svg width="120" height="60" viewBox="0 0 160 80" fill="none">
               <defs>
                 <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#4ade80" stopOpacity="0.3" />
@@ -581,15 +581,15 @@ function AdvisorContent({
 
       {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
       <div>
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-3">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
           <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Historial de análisis</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="p-7 sm:p-10 border border-white/[0.07]">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+      <GlassCard className="p-5 sm:p-7 border border-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(124,58,237,0.55)]">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
-            <h2 className="font-display text-3xl font-bold tracking-tight">📅 Historial de análisis</h2>
+            <h2 className="font-display text-2xl font-bold tracking-tight">📅 Historial de análisis</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
             </p>
@@ -599,7 +599,7 @@ function AdvisorContent({
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-3">
           {reports.map((report) => (
             <ReportCard key={report.month} report={report} />
           ))}
@@ -1163,7 +1163,7 @@ function getHealthTone(health: number) {
 }
 
 function GlassCard({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("glass rounded-3xl", className)}>{children}</div>;
+  return <div className={cn("glass rounded-3xl bg-white/[0.025] ring-1 ring-white/[0.08] shadow-[0_18px_70px_-45px_rgba(99,102,241,0.65)]", className)}>{children}</div>;
 }
 
 function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
