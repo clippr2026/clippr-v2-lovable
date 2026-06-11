@@ -235,6 +235,16 @@ function ProfessionalsPage() {
     ? ownProfessional?.id ?? null
     : activeId ?? visibleProfessionals[0]?.id ?? null;
 
+  useEffect(() => {
+    if (profile?.role !== "profesional") return;
+    console.log(
+      "[link] panel profesional →",
+      "profile.employee_id:", profileEmployeeId,
+      "| employees cargados:", professionals.map((p) => p.id),
+      "| employee encontrado:", ownProfessional?.id ?? "NINGUNO (no hay match)",
+    );
+  }, [profile?.role, profileEmployeeId, professionals, ownProfessional]);
+
   const canOperateSelectedPanel = !!empId && (
     isProfessionalAccess ? ownProfessional?.id === empId : true
   );
