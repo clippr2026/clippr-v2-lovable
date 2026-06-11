@@ -38,6 +38,40 @@ export function getPermissions(role: string | null | undefined, rolePermissions:
   return { ...defaults, ...(custom ?? {}) } as Record<PermKey, boolean>;
 }
 
+// El form de Configuración guarda permisos con sus propias claves. Acá las
+// traducimos a las PermKey que usa el guard de rutas (usePermGuard).
+const TEAM_PERM_MAP: Record<PermKey, string> = {
+  dashboard: "dashboard",
+  agenda: "agenda",
+  caja: "caja_cobro",
+  profesionales: "panel_profesionales",
+  clientes: "clientes",
+  configuracion: "configuracion",
+  branding: "branding",
+  horarios: "horarios",
+  equipo: "equipo",
+  servicios: "servicios",
+  catalogo: "catalogo",
+  config_caja: "caja",
+  senas: "senas",
+  plan: "plan_facturacion",
+};
+
+const ALL_PERM_KEYS = Object.keys(TEAM_PERM_MAP) as PermKey[];
+
+function mapTeamPermissions(perms: Record<string, boolean> | null | undefined): Record<PermKey, boolean> {
+  const source = perms ?? {};
+  return ALL_PERM_KEYS.reduce((acc, key) => {
+    acc[key] = source[TEAM_PERM_MAP[key]] === true;
+    return acc;
+  }, {} as Record<PermKey, boolean>);
+}
+
+const ALL_FALSE_PERMS: Record<PermKey, boolean> = ALL_PERM_KEYS.reduce(
+  (acc, key) => { acc[key] = false; return acc; },
+  {} as Record<PermKey, boolean>,
+);
+
 type AuthState = {
   loading: boolean;
   session: Session | null;
@@ -58,7 +92,7 @@ const AuthCtx = React.createContext<AuthState | undefined>(undefined);
  * 1) busca profile by id → 2) busca business por owner_id/owner_email/user_id
  * → 3) si no existe, crea uno → 4) upsert profile con business_id.
  */
-async function resolveBusinessId(user: User): Promise<{ businessId: string | null; profile: Profile }> {
+async function resolveBusinessId(user: User): Promise<{ businessId: string | null; profile: Profile; teamPermissions: Record<PermKey, boolean> | null }> {
   const uid = user.id;
   const email = user.email ?? null;
 
@@ -70,9 +104,31 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     console.warn("[AUTH] profile fetch:", (e as Error).message);
   }
 
-  let bizId: string | null = profile?.business_id ?? null;
+  // ¿Este usuario es un miembro del equipo invitado? Si lo es, hereda el negocio
+  // del que lo invitó y NO debemos crearle un negocio nuevo.
+  type TeamMemberRow = {
+    role: string | null;
+    permissions: Record<string, boolean> | null;
+    status: string | null;
+    business_id: string | null;
+    full_name: string | null;
+  };
+  let teamMember: TeamMemberRow | null = null;
+  try {
+    const { data } = await supabase
+      .from("team_members")
+      .select("role, permissions, status, business_id, full_name")
+      .eq("auth_user_id", uid)
+      .maybeSingle();
+    teamMember = (data as TeamMemberRow | null) ?? null;
+  } catch (e) {
+    console.warn("[AUTH] team_member fetch:", (e as Error).message);
+  }
 
-  if (!bizId) {
+  let bizId: string | null = profile?.business_id ?? teamMember?.business_id ?? null;
+
+  // Solo el flujo de dueño (sin team_member) busca/crea businesses.
+  if (!bizId && !teamMember) {
     const searches: Array<{ col: string; val: string | null }> = [
       { col: "owner_id", val: uid },
       { col: "owner_email", val: email },
@@ -89,7 +145,7 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     }
   }
 
-  if (!bizId) {
+  if (!bizId && !teamMember) {
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
     const bizName =
       (meta.business_name as string | undefined) || email?.split("@")[0] || "Mi Negocio";
@@ -119,14 +175,25 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
   const profileData: Profile = {
     id: uid,
     full_name:
+      teamMember?.full_name ||
       profile?.full_name ||
       (meta.full_name as string | undefined) ||
       email?.split("@")[0] ||
       "Usuario",
-    role: profile?.role || (meta.role as string | undefined) || "owner",
+    role: teamMember?.role || profile?.role || (meta.role as string | undefined) || "owner",
     email,
     business_id: bizId,
   };
+
+  // Permisos reales del usuario: si es team_member, salen de su fila.
+  // Suspendido → sin permisos. Dueño (sin team_member) → null (usa defaults de rol).
+  let teamPermissions: Record<PermKey, boolean> | null = null;
+  if (teamMember) {
+    teamPermissions =
+      teamMember.status === "suspended"
+        ? { ...ALL_FALSE_PERMS }
+        : mapTeamPermissions(teamMember.permissions);
+  }
 
   if (bizId) {
     try {
@@ -136,7 +203,7 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     }
   }
 
-  return { businessId: bizId, profile: profileData };
+  return { businessId: bizId, profile: profileData, teamPermissions };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -145,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [businessId, setBusinessId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [rolePermissions, setRolePermissions] = React.useState<Record<string, Record<string, boolean>> | null>(null);
+  const [teamPermissions, setTeamPermissions] = React.useState<Record<PermKey, boolean> | null>(null);
 
   const reloadRolePermissions = React.useCallback(async () => {
     if (!businessId) return;
@@ -166,9 +234,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(s);
     if (s?.user) {
       try {
-        const { businessId: biz, profile: prof } = await resolveBusinessId(s.user);
+        const { businessId: biz, profile: prof, teamPermissions: tp } = await resolveBusinessId(s.user);
         setBusinessId(biz);
         setProfile(prof);
+        setTeamPermissions(tp);
         // Load role_permissions from business_settings
         if (biz) {
           supabase.from("business_settings").select("role_permissions").eq("business_id", biz).maybeSingle()
@@ -181,6 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setBusinessId(null);
       setProfile(null);
       setRolePermissions(null);
+      setTeamPermissions(null);
     }
     setLoading(false);
   }, []);
@@ -232,6 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setProfile(null);
         setBusinessId(null);
+        setTeamPermissions(null);
         setLoading(false);
         return;
       }
@@ -282,8 +353,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const permissions = React.useMemo(
-    () => getPermissions(profile?.role, rolePermissions),
-    [profile?.role, rolePermissions]
+    // Si el usuario es un team_member, sus permisos reales mandan.
+    // Si no (dueño), se usan los defaults por rol.
+    () => teamPermissions ?? getPermissions(profile?.role, rolePermissions),
+    [teamPermissions, profile?.role, rolePermissions]
   );
 
   const value: AuthState = {
