@@ -216,19 +216,22 @@ function ProfessionalsPage() {
 
 
   const profileEmployeeId = (profile as { employee_id?: string | null } | null)?.employee_id ?? null;
-  const isProfessionalAccess = profile?.role === "profesional" && !!profileEmployeeId;
+  const isProfessional = profile?.role === "profesional";
+  const isProfessionalAccess = isProfessional && !!profileEmployeeId;
 
   const ownProfessional = useMemo(() => {
     if (!isProfessionalAccess || !profileEmployeeId) return null;
     return professionals.find((p) => p.id === profileEmployeeId) ?? null;
   }, [isProfessionalAccess, professionals, profileEmployeeId]);
 
+  // Un profesional SOLO ve su propio perfil (vacío si no tiene uno vinculado).
+  // Nunca la lista completa.
   const visibleProfessionals = useMemo(
-    () => (isProfessionalAccess ? (ownProfessional ? [ownProfessional] : []) : professionals),
-    [isProfessionalAccess, ownProfessional, professionals],
+    () => (isProfessional ? (ownProfessional ? [ownProfessional] : []) : professionals),
+    [isProfessional, ownProfessional, professionals],
   );
 
-  const empId = isProfessionalAccess
+  const empId = isProfessional
     ? ownProfessional?.id ?? null
     : activeId ?? visibleProfessionals[0]?.id ?? null;
 
@@ -247,10 +250,10 @@ function ProfessionalsPage() {
     if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
       setActiveId(ownProfessional.id);
     }
-    if (!isProfessionalAccess && !activeId && visibleProfessionals[0]?.id) {
+    if (!isProfessional && !activeId && visibleProfessionals[0]?.id) {
       setActiveId(visibleProfessionals[0].id);
     }
-  }, [activeId, isProfessionalAccess, ownProfessional?.id, visibleProfessionals]);
+  }, [activeId, isProfessional, isProfessionalAccess, ownProfessional?.id, visibleProfessionals]);
 
   // Reset date filter to "hoy" whenever the active professional changes
   const prevEmpIdRef = React.useRef<string | null>(null);
@@ -344,7 +347,7 @@ function ProfessionalsPage() {
                 <button
                   key={p.id}
                   onClick={() => {
-                    if (!isProfessionalAccess) setActiveId(p.id);
+                    if (!isProfessional) setActiveId(p.id);
                   }}
                   title={`${p.full_name ?? "Profesional"}${isInactive ? " · Inactivo" : ""}`}
                   className={cn(
@@ -353,7 +356,7 @@ function ProfessionalsPage() {
                       ? `bg-gradient-to-br ${c.color} text-background ${c.ring} ring-2 shadow-[0_0_20px_-2px_rgba(251,191,36,0.45)]`
                       : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20",
                     isInactive && "opacity-45 grayscale",
-                    isProfessionalAccess && "cursor-default"
+                    isProfessional && "cursor-default"
                   )}
                   aria-label={p.full_name ?? ""}
                 >
