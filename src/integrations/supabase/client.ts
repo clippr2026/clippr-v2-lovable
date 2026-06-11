@@ -22,4 +22,5 @@ export type Profile = {
   role?: string | null;
   email?: string | null;
   business_id?: string | null;
+  employee_id?: string | null;
 };
