@@ -112,12 +112,13 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     status: string | null;
     business_id: string | null;
     full_name: string | null;
+    professional_id: string | null;
   };
   let teamMember: TeamMemberRow | null = null;
   try {
     const { data } = await supabase
       .from("team_members")
-      .select("role, permissions, status, business_id, full_name")
+      .select("role, permissions, status, business_id, full_name, professional_id")
       .eq("auth_user_id", uid)
       .maybeSingle();
     teamMember = (data as TeamMemberRow | null) ?? null;
@@ -183,6 +184,7 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     role: teamMember?.role || profile?.role || (meta.role as string | undefined) || "owner",
     email,
     business_id: bizId,
+    employee_id: teamMember?.professional_id ?? profile?.employee_id ?? null,
   };
 
   // Permisos reales del usuario: si es team_member, salen de su fila.
