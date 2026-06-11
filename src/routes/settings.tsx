@@ -1742,7 +1742,8 @@ function EquipoSection() {
     const email = accessForm.email.trim();
 
     if (accessForm.role === "profesional" && !selectedEmployee) {
-      return toast.error("Elegí el profesional para este acceso");
+      setAccessTouched(true);
+      return toast.error("Debés seleccionar un profesional para este acceso.");
     }
     if (!email) return toast.error("Ingresá el correo electrónico");
     if (!businessId) return toast.error("No se pudo determinar el negocio");
@@ -2226,7 +2227,7 @@ function EquipoSection() {
                       </select>
                     </Field>
                     {accessTouched && !accessForm.employee_id && (
-                      <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                      <div className="text-xs text-red-400 mt-1">Debés seleccionar un profesional para este acceso.</div>
                     )}
                   </div>
                 )}
