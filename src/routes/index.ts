@@ -43,27 +43,70 @@ function json(body: unknown, status = 200): Response {
 async function isAuthorized(
   admin: SupabaseClient,
   callerId: string,
+  callerEmail: string | null,
   businessId: string,
 ): Promise<boolean> {
   // a) Es un team_member con rol admin (no suspendido) en este negocio.
-  const { data: tm } = await admin
+  const { data: tm, error: tmErr } = await admin
     .from("team_members")
     .select("role, status")
     .eq("business_id", businessId)
     .eq("auth_user_id", callerId)
     .maybeSingle();
-  if (tm && tm.status !== "suspended" && ADMIN_ROLES.has(tm.role)) return true;
+  console.log("[authz] team_member:", JSON.stringify(tm), "| err:", tmErr?.message ?? null);
+  if (tm && tm.status !== "suspended" && ADMIN_ROLES.has(tm.role)) {
+    console.log("[authz] OK → team_member admin");
+    return true;
+  }
 
-  // b) Es el dueño / admin del negocio vía profiles (no tiene fila en team_members).
-  const { data: prof } = await admin
+  // b) Es el dueño / admin del negocio vía profiles.
+  const { data: prof, error: profErr } = await admin
     .from("profiles")
     .select("business_id, role")
     .eq("id", callerId)
     .maybeSingle();
+  console.log("[authz] profile:", JSON.stringify(prof), "| err:", profErr?.message ?? null);
   if (prof?.business_id === businessId) {
     const role = prof.role ?? "owner";
-    if (role === "owner" || ADMIN_ROLES.has(role)) return true;
+    if (role === "owner" || ADMIN_ROLES.has(role)) {
+      console.log("[authz] OK → profiles role:", role);
+      return true;
+    }
+    console.log("[authz] profiles coincide en negocio pero rol no admin:", role);
+  } else if (prof) {
+    console.log("[authz] profiles.business_id !== businessId →", prof.business_id, "vs", businessId);
   }
+
+  // c) Es el dueño del negocio según la tabla businesses (la fuente real que usa
+  //    el login cuando no hay fila en profiles). Defensivo: el schema puede variar.
+  const ownerChecks: Array<{ col: string; val: string | null }> = [
+    { col: "owner_id", val: callerId },
+    { col: "user_id", val: callerId },
+    { col: "owner_email", val: callerEmail },
+  ];
+  for (const { col, val } of ownerChecks) {
+    if (!val) continue;
+    const { data: biz, error: bizErr } = await admin
+      .from("businesses")
+      .select("id")
+      .eq("id", businessId)
+      .eq(col, val)
+      .maybeSingle();
+    if (bizErr) {
+      console.log(`[authz] businesses.${col} no disponible:`, bizErr.message);
+      continue;
+    }
+    if (biz?.id) {
+      console.log(`[authz] OK → businesses.${col}`);
+      return true;
+    }
+  }
+
+  console.log(
+    "[authz] DENEGADO. callerId:", callerId,
+    "| email:", callerEmail,
+    "| businessId:", businessId,
+  );
   return false;
 }
 
@@ -102,13 +145,16 @@ Deno.serve(async (req) => {
     const { data: caller, error: callerErr } = await admin.auth.getUser(jwt);
     if (callerErr || !caller?.user) return json({ error: "Sesión inválida" }, 401);
     const callerId = caller.user.id;
+    const callerEmail = caller.user.email ?? null;
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? "create";
     const businessId: string = body.business_id ?? "";
+    console.log("[invite] action:", action, "| callerId:", callerId, "| email:", callerEmail, "| businessId:", businessId);
     if (!businessId) return json({ error: "business_id requerido" }, 400);
 
-    if (!(await isAuthorized(admin, callerId, businessId))) {
+    if (!(await isAuthorized(admin, callerId, callerEmail, businessId))) {
+      console.log("[invite] → 403 (isAuthorized=false)");
       return json({ error: "No tenés permisos sobre este negocio" }, 403);
     }
 
