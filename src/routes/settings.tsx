@@ -1100,6 +1100,7 @@ type AccessUser = {
   status: AccessStatus;
   employee_id?: string | null;
   branch_id?: string | null;
+  created_at?: string | null;
 };
 
 type AccessFormState = {
@@ -1260,6 +1261,8 @@ function EquipoSection() {
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
   const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<AccessUser | null>(null);
+  const [deletingAccess, setDeletingAccess] = useState(false);
   const [accessTouched, setAccessTouched] = useState(false);
   const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
   const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
@@ -1313,7 +1316,7 @@ function EquipoSection() {
     if (!businessId) return;
     const { data, error } = await supabase
       .from("team_members")
-      .select("id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions")
+      .select("id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at")
       .eq("business_id", businessId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -1337,6 +1340,7 @@ function EquipoSection() {
         status,
         employee_id: (r.professional_id as string | null) ?? null,
         branch_id: (r.branch_id as string | null) ?? null,
+        created_at: (r.created_at as string | null) ?? null,
       };
     });
     const perms: Record<string, PermissionMap> = {};
@@ -1798,16 +1802,47 @@ function EquipoSection() {
 
   async function removeAccessUser(id: string) {
     if (!businessId) return;
+    setDeletingAccess(true);
     const { data, error } = await supabase.functions.invoke("invite-team-member", {
       body: { action: "delete", member_id: id, business_id: businessId },
     });
-    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
-    if (errMsg) return toast.error("Error al eliminar: " + errMsg);
+    setDeletingAccess(false);
+
+    let errMsg = (data as { error?: string } | null)?.error ?? null;
+    if (error) {
+      // FunctionsHttpError: el mensaje específico viene en error.context (Response)
+      try {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          const body = await ctx.json();
+          errMsg = body?.error ?? errMsg ?? error.message;
+        } else {
+          errMsg = errMsg ?? error.message;
+        }
+      } catch {
+        errMsg = errMsg ?? error.message;
+      }
+    }
+
+    setPendingDeleteUser(null);
+    if (errMsg) return toast.error(errMsg);
+
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
     if (editingAccessUserId === id) cancelEditAccessUser();
     toast.success("Acceso eliminado");
     await loadTeamMembers();
   }
+
+  // Admin principal = el admin_general más antiguo del negocio (no se puede eliminar).
+  const principalAdminId = (() => {
+    const admins = accessUsers
+      .filter((u) => u.role === "admin_general")
+      .slice()
+      .sort((a, b) =>
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+      );
+    return admins[0]?.id ?? null;
+  })();
 
   function toggleUserPermission(userId: string, key: PermissionKey) {
     const user = accessUsers.find((item) => item.id === userId);
@@ -2399,17 +2434,74 @@ function EquipoSection() {
                         >
                           Editar
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => removeAccessUser(user.id)}
-                          className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {user.id === principalAdminId ? (
+                          <span
+                            className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
+                            title="El administrador principal no se puede eliminar"
+                          >
+                            Principal
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteUser(user)}
+                            className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteUser && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-xl grid place-items-center bg-red-500/15 ring-1 ring-red-500/30">
+                  <Trash2 className="h-5 w-5 text-red-300" />
+                </div>
+                <h3 className="text-lg font-semibold">¿Eliminar acceso?</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Esta acción eliminará de{" "}
+                <span className="text-foreground font-medium">
+                  {pendingDeleteUser.name || pendingDeleteUser.email}
+                </span>
+                :
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 mb-4 list-disc pl-5">
+                <li>Usuario</li>
+                <li>Permisos</li>
+                <li>Historial de acceso</li>
+              </ul>
+              <p className="text-sm text-red-300/90 mb-5">
+                El usuario ya no podrá iniciar sesión.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteUser(null)}
+                  disabled={deletingAccess}
+                  className="rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeAccessUser(pendingDeleteUser.id)}
+                  disabled={deletingAccess}
+                  className="rounded-xl bg-red-500/90 hover:bg-red-500 text-white font-semibold px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  {deletingAccess ? "Eliminando…" : "Eliminar acceso"}
+                </button>
               </div>
             </div>
           </div>
