@@ -1089,15 +1089,26 @@ type PermissionKey =
 type PermissionMap = Record<PermissionKey, boolean>;
 type RolePermissions = Record<RolePermissionId, PermissionMap>;
 
-type AccessStatus = "active" | "inactive";
+type AccessStatus = "invited" | "active" | "suspended";
 
 type AccessUser = {
   id: string;
+  auth_user_id?: string | null;
   name: string;
   email: string;
   role: RolePermissionId;
   status: AccessStatus;
   employee_id?: string | null;
+  branch_id?: string | null;
+};
+
+type AccessFormState = {
+  name: string;
+  email: string;
+  role: RolePermissionId;
+  status: "active" | "inactive";
+  employee_id: string | null;
+  branch_id: string | null;
 };
 
 const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
@@ -1108,13 +1119,13 @@ const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
   profesional: "Profesional",
 };
 
-const EMPTY_ACCESS_FORM: Omit<AccessUser, "id"> & { password: string } = {
+const EMPTY_ACCESS_FORM: AccessFormState = {
   name: "",
   email: "",
-  password: "",
   role: "profesional",
   status: "active",
   employee_id: null,
+  branch_id: null,
 };
 
 const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
@@ -1230,38 +1241,13 @@ function normalizeRolePermissions(value: unknown): RolePermissions {
     return acc;
   }, {} as RolePermissions);
 }
-function normalizeAccessUsers(value: unknown): AccessUser[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      const row = (item && typeof item === "object" ? item : {}) as Partial<AccessUser>;
-      const role = ROLE_PERMISSION_OPTIONS.some((r) => r.id === row.role)
-        ? (row.role as RolePermissionId)
-        : "profesional";
-      return {
-        id: String(row.id ?? crypto.randomUUID()),
-        name: String(row.name ?? "").trim(),
-        email: String(row.email ?? "").trim(),
-        role,
-        status: row.status === "inactive" ? "inactive" : "active",
-        employee_id: typeof row.employee_id === "string" ? row.employee_id : null,
-      };
-    })
-    .filter((item) => item.name || item.email);
-}
 
-function normalizeUserPermissions(value: unknown): Record<string, PermissionMap> {
-  const saved = (value && typeof value === "object" ? value : {}) as Record<string, Partial<PermissionMap>>;
-  return Object.entries(saved).reduce((acc, [id, perms]) => {
-    acc[id] = ALL_PERMISSION_KEYS.reduce(
-      (roleAcc, key) => ({
-        ...roleAcc,
-        [key]: typeof perms?.[key] === "boolean" ? Boolean(perms[key]) : false,
-      }),
-      {} as PermissionMap,
-    );
-    return acc;
-  }, {} as Record<string, PermissionMap>);
+function normalizePermissionMap(value: unknown): PermissionMap {
+  const src = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: src[key] === true }),
+    {} as PermissionMap,
+  );
 }
 
 function EquipoSection() {
@@ -1323,6 +1309,49 @@ function EquipoSection() {
     load();
   }, [load]);
 
+  const loadTeamMembers = useCallback(async () => {
+    if (!businessId) return;
+    const { data, error } = await supabase
+      .from("team_members")
+      .select("id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions")
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error("Error cargando accesos: " + error.message);
+      return;
+    }
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const users: AccessUser[] = rows.map((r) => {
+      const rawStatus = String(r.status ?? "invited");
+      const status: AccessStatus =
+        rawStatus === "active" ? "active" : rawStatus === "suspended" ? "suspended" : "invited";
+      const role: RolePermissionId = ROLE_PERMISSION_OPTIONS.some((o) => o.id === r.role)
+        ? (r.role as RolePermissionId)
+        : "profesional";
+      return {
+        id: String(r.id),
+        auth_user_id: (r.auth_user_id as string | null) ?? null,
+        name: String(r.full_name ?? "").trim(),
+        email: String(r.email ?? "").trim(),
+        role,
+        status,
+        employee_id: (r.professional_id as string | null) ?? null,
+        branch_id: (r.branch_id as string | null) ?? null,
+      };
+    });
+    const perms: Record<string, PermissionMap> = {};
+    rows.forEach((r) => {
+      perms[String(r.id)] = normalizePermissionMap(r.permissions);
+    });
+    setAccessUsers(users);
+    setUserPermissions(perms);
+    setSelectedAccessUserId((current) => current || users[0]?.id || "");
+  }, [businessId]);
+
+  useEffect(() => {
+    loadTeamMembers();
+  }, [loadTeamMembers]);
+
   useEffect(() => {
     if (!businessId) return;
     supabase
@@ -1333,13 +1362,9 @@ function EquipoSection() {
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
-        const loadedUsers = normalizeAccessUsers(schedule._accessUsers);
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
-        setAccessUsers(loadedUsers);
-        setUserPermissions(normalizeUserPermissions(schedule._userPermissions));
         setApprovalEnabled(caja.approvalModeEnabled === true);
         setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
-        setSelectedAccessUserId((current) => current || loadedUsers[0]?.id || "");
       });
   }, [businessId]);
 
@@ -1443,8 +1468,6 @@ function EquipoSection() {
         schedule: {
           ...existingSchedule,
           _rolePermissions: cleaned,
-          _accessUsers: accessUsers.map(({ id, name, email, role, status, employee_id }) => ({ id, name, email, role, status, employee_id: employee_id ?? null })),
-          _userPermissions: userPermissions,
           _caja: {
             ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
             approvalModeEnabled: approvalEnabled,
@@ -1704,71 +1727,49 @@ function EquipoSection() {
     });
   }
 
-  function saveAccessUser() {
+  async function saveAccessUser() {
     setAccessTouched(true);
     const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
-    const name =
+    const fallbackName =
       accessForm.role === "profesional"
-        ? (selectedEmployee?.full_name || selectedEmployee?.name || "").trim()
+        ? (selectedEmployee?.full_name || selectedEmployee?.name || "")
         : ROLE_LABEL_BY_ID[accessForm.role];
+    const name = (accessForm.name.trim() || fallbackName).trim();
     const email = accessForm.email.trim();
 
     if (accessForm.role === "profesional" && !selectedEmployee) {
       return toast.error("Elegí el profesional para este acceso");
     }
     if (!email) return toast.error("Ingresá el correo electrónico");
-    if (!editingAccessUserId && !accessForm.password.trim()) return toast.error("Ingresá la contraseña");
+    if (!businessId) return toast.error("No se pudo determinar el negocio");
 
-    if (editingAccessUserId) {
-      setAccessUsers((current) =>
-        current.map((user) =>
-          user.id === editingAccessUserId
-            ? {
-                ...user,
-                name,
-                email,
-                role: accessForm.role,
-                status: accessForm.status,
-                employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
-              }
-            : user,
-        ),
-      );
-      setUserPermissions((current) => ({
-        ...current,
-        [editingAccessUserId]: { ...accessPermissionsForm },
-      }));
-      setSelectedPermRole(accessForm.role);
-      setSelectedAccessUserId(editingAccessUserId);
-      setEditingAccessUserId(null);
-      setAccessForm(EMPTY_ACCESS_FORM);
-      setAccessTouched(false);
-      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
-      toast.success("Acceso actualizado correctamente");
-      return;
-    }
-
-    const id = crypto.randomUUID();
-    const newUser: AccessUser = {
-      id,
-      name,
+    setSaving(true);
+    const payload = {
+      action: editingAccessUserId ? "update" : "create",
+      member_id: editingAccessUserId ?? undefined,
+      business_id: businessId,
       email,
+      full_name: name,
       role: accessForm.role,
-      status: accessForm.status,
-      employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
+      status: accessForm.status === "inactive" ? "suspended" : "active",
+      professional_id: accessForm.role === "profesional" ? (selectedEmployee?.id ?? null) : null,
+      branch_id: accessForm.branch_id ?? null,
+      permissions: accessPermissionsForm,
     };
 
-    setAccessUsers((current) => [...current, newUser]);
-    setUserPermissions((current) => ({
-      ...current,
-      [id]: { ...accessPermissionsForm },
-    }));
+    const { data, error } = await supabase.functions.invoke("invite-team-member", { body: payload });
+    setSaving(false);
+
+    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    if (errMsg) return toast.error("Error: " + errMsg);
+
+    toast.success(editingAccessUserId ? "Acceso actualizado correctamente" : "Invitación enviada por email");
+    setEditingAccessUserId(null);
     setAccessForm(EMPTY_ACCESS_FORM);
     setAccessTouched(false);
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
     setSelectedPermRole(accessForm.role);
-    setSelectedAccessUserId(id);
-    toast.success("Acceso agregado correctamente");
+    await loadTeamMembers();
   }
 
   function editAccessUser(user: AccessUser) {
@@ -1776,10 +1777,10 @@ function EquipoSection() {
     setAccessForm({
       name: user.name,
       email: user.email,
-      password: "",
       role: user.role,
-      status: user.status,
+      status: user.status === "suspended" ? "inactive" : "active",
       employee_id: user.employee_id ?? null,
+      branch_id: user.branch_id ?? null,
     });
     setAccessPermissionsForm(userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role]);
     setSelectedPermRole(user.role);
@@ -1795,15 +1796,17 @@ function EquipoSection() {
   }
 
 
-  function removeAccessUser(id: string) {
-    setAccessUsers((current) => current.filter((user) => user.id !== id));
-    setUserPermissions((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
+  async function removeAccessUser(id: string) {
+    if (!businessId) return;
+    const { data, error } = await supabase.functions.invoke("invite-team-member", {
+      body: { action: "delete", member_id: id, business_id: businessId },
     });
+    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    if (errMsg) return toast.error("Error al eliminar: " + errMsg);
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
     if (editingAccessUserId === id) cancelEditAccessUser();
+    toast.success("Acceso eliminado");
+    await loadTeamMembers();
   }
 
   function toggleUserPermission(userId: string, key: PermissionKey) {
@@ -2142,7 +2145,6 @@ function EquipoSection() {
                           name: "",
                           employee_id: null,
                           email: "",
-                          password: "",
                         }));
                         setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[role]);
                         setAccessTouched(false);
@@ -2160,7 +2162,7 @@ function EquipoSection() {
                   <Field label="Estado">
                     <select
                       value={accessForm.status}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, status: e.target.value as AccessStatus }))}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, status: e.target.value as "active" | "inactive" }))}
                       className={inputCls}
                     >
                       <option value="active">Activo</option>
@@ -2206,6 +2208,26 @@ function EquipoSection() {
                   </div>
                 )}
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Nombre" hint={accessForm.role === "profesional" ? "Si lo dejás vacío se toma del profesional." : undefined}>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      name="clippr-access-name"
+                      value={accessForm.name}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Nombre del usuario"
+                    />
+                  </Field>
+
+                  <Field label="Sucursal" hint="Multi-sucursal próximamente.">
+                    <select disabled value="" className={cn(inputCls, "opacity-60 cursor-not-allowed")}>
+                      <option value="">Todas / principal</option>
+                    </select>
+                  </Field>
+                </div>
+
                 <div>
                   <Field label="Correo electrónico">
                     <input
@@ -2226,24 +2248,11 @@ function EquipoSection() {
                   )}
                 </div>
 
-                <div>
-                  <Field label="Contraseña" hint={editingAccessUserId ? "Dejala vacía para mantener la contraseña actual." : "Se usa para crear el acceso. No se muestra en el listado."}>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      name="clippr-access-password"
-                      value={accessForm.password}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
-                      className={cn(
-                        inputCls,
-                        accessTouched && !editingAccessUserId && !accessForm.password.trim() && "ring-red-500/70 focus:ring-red-500/70",
-                      )}
-                      placeholder="********"
-                    />
-                  </Field>
-                  {accessTouched && !accessForm.password.trim() && (
-                    <div className="text-xs text-red-400 mt-1">Campo requerido</div>
-                  )}
+                <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
+                  <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                  <span>
+                    No se asignan contraseñas. Al confirmar, se envía una invitación por email para que la persona cree su propia contraseña.
+                  </span>
                 </div>
 
                 <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
@@ -2334,9 +2343,14 @@ function EquipoSection() {
                 <button
                   type="button"
                   onClick={saveAccessUser}
-                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)]"
+                  disabled={saving}
+                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)] disabled:opacity-60"
                 >
-                  {editingAccessUserId ? "Guardar cambios" : "Confirmar"}
+                  {saving
+                    ? "Procesando…"
+                    : editingAccessUserId
+                      ? "Guardar cambios"
+                      : "Confirmar e invitar"}
                 </button>
               </div>
 
@@ -2367,10 +2381,16 @@ function EquipoSection() {
                             "rounded-full px-2 py-1 text-[10px] ring-1",
                             user.status === "active"
                               ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
-                              : "bg-white/5 text-muted-foreground ring-white/10",
+                              : user.status === "invited"
+                                ? "bg-amber-500/10 text-amber-300 ring-amber-400/20"
+                                : "bg-white/5 text-muted-foreground ring-white/10",
                           )}
                         >
-                          {user.status === "active" ? "Activo" : "Inactivo"}
+                          {user.status === "active"
+                            ? "Activo"
+                            : user.status === "invited"
+                              ? "Pendiente"
+                              : "Inactivo"}
                         </span>
                         <button
                           type="button"
