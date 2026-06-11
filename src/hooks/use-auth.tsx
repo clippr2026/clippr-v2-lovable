@@ -122,6 +122,12 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
       .eq("auth_user_id", uid)
       .maybeSingle();
     teamMember = (data as TeamMemberRow | null) ?? null;
+    console.log(
+      "[link] auth.uid:", uid,
+      "| team_member:", teamMember
+        ? JSON.stringify({ role: teamMember.role, status: teamMember.status, professional_id: teamMember.professional_id })
+        : null,
+    );
   } catch (e) {
     console.warn("[AUTH] team_member fetch:", (e as Error).message);
   }
