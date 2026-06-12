@@ -390,11 +390,14 @@ function BrandingSection() {
       return toast.error("Esa URL pública ya está en uso. Probá otra.");
     }
 
-    // Save name + slug to businesses
+    // Save name + slug to businesses. Pedimos la fila de vuelta para detectar
+    // el caso RLS: un UPDATE que no matchea filas devuelve éxito con 0 filas.
     const nameResult = await supabase
       .from("businesses")
       .update({ name: data.name, slug: finalSlug })
-      .eq("id", businessId);
+      .eq("id", businessId)
+      .select("id,name,slug")
+      .maybeSingle();
 
     // Save branding fields inside schedule._branding (schedule column exists)
     const { data: existingRow } = await supabase.from("business_settings")
@@ -419,9 +422,14 @@ function BrandingSection() {
 
     setSaving(false);
     if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
+    if (!nameResult.data) {
+      return toast.error("No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.");
+    }
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
     setData(d => ({ ...d, logo_url, slug: finalSlug }));
     setLogoFile(null);
+    // Avisar al header (botón 🌐) para que actualice el link al instante.
+    window.dispatchEvent(new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }));
     toast.success("Branding guardado correctamente");
   }
 
