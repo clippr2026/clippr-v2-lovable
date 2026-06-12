@@ -238,7 +238,7 @@ function PublicBookingPage() {
       setLoading(true);
       try {
         const businessQuery = supabase
-          .from("businesses")
+          .from("public_booking_businesses")
           .select("id,name,slug,address,phone,email,instagram,logo_url,accent_color");
 
         const isUuidSlug = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
@@ -255,28 +255,24 @@ function PublicBookingPage() {
         const businessId = businessData.id as string;
         const start = startOfDay(new Date()).toISOString();
         const end = addMinutes(startOfDay(new Date()), 10 * 24 * 60).toISOString();
-        const [employeesRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
+        const [employeesRes, servicesRes, appointmentsRes] = await Promise.all([
           supabase
-            .from("employees")
+            .from("public_booking_employees")
             .select("id,full_name,avatar_url,is_active")
             .eq("business_id", businessId)
             .order("full_name", { ascending: true }),
           supabase
-            .from("services")
+            .from("public_booking_services")
             .select("id,name,price,duration_min,is_active")
             .eq("business_id", businessId)
             .order("name", { ascending: true }),
           supabase
-            .from("appointments")
+            .from("public_booking_appointments")
             .select("id,employee_id,starts_at,ends_at,duration_min,status")
             .eq("business_id", businessId)
             .gte("starts_at", start)
             .lte("starts_at", end),
-          supabase
-            .from("business_settings")
-            .select("schedule")
-            .eq("business_id", businessId)
-            .maybeSingle(),
+
         ]);
 
         if (employeesRes.error) throw new Error(employeesRes.error.message);
@@ -288,7 +284,7 @@ function PublicBookingPage() {
           setEmployees(((employeesRes.data ?? []) as Employee[]).filter((employee) => employee.is_active !== false));
           setServices(((servicesRes.data ?? []) as Service[]).filter((service) => service.is_active !== false));
           setAppointments((appointmentsRes.data ?? []) as Appointment[]);
-          setSchedule(normalizeSchedule(settingsRes.data?.schedule));
+          setSchedule(DEFAULT_SCHEDULE);
         }
       } catch (error) {
         toast.error((error as Error).message);
@@ -309,50 +305,18 @@ function PublicBookingPage() {
 
     setSubmitting(true);
     try {
-      const normalizedPhone = clientPhone.trim();
-      const { data: existingClient } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("business_id", business.id)
-        .eq("phone", normalizedPhone)
-        .maybeSingle();
-
-      let clientId = existingClient?.id ?? null;
-      if (!clientId) {
-        const { data: newClient, error: clientError } = await supabase
-          .from("clients")
-          .insert({
-            business_id: business.id,
-            full_name: clientName.trim(),
-            phone: normalizedPhone,
-            email: clientEmail.trim() || null,
-            notes: notes.trim() || null,
-          })
-          .select("id")
-          .single();
-        if (clientError) throw new Error(clientError.message);
-        clientId = newClient?.id ?? null;
-      }
-
       const start = selectedSlot.time;
-      const end = addMinutes(start, serviceDuration);
-      const { error: appointmentError } = await supabase.from("appointments").insert({
-        business_id: business.id,
-        client_id: clientId,
-        client_name: clientName.trim(),
-        employee_id: selectedSlot.employeeId,
-        service_name: selectedService.name,
-        service_price: Number(selectedService.price ?? 0),
-        duration_min: serviceDuration,
-        starts_at: start.toISOString(),
-        ends_at: end.toISOString(),
-        status: "pending",
-        notes: [notes.trim(), "Origen: Reserva online"].filter(Boolean).join("\n"),
-        created_by_name: "Reserva online",
-        created_by_role: "public_booking",
-        updated_at: new Date().toISOString(),
+      const { error: bookingError } = await supabase.rpc("create_public_booking", {
+        p_business_id: business.id,
+        p_service_id: selectedService.id,
+        p_employee_id: selectedSlot.employeeId,
+        p_starts_at: start.toISOString(),
+        p_client_name: clientName.trim(),
+        p_client_phone: clientPhone.trim(),
+        p_client_email: clientEmail.trim() || null,
+        p_notes: notes.trim() || null,
       });
-      if (appointmentError) throw new Error(appointmentError.message);
+      if (bookingError) throw new Error(bookingError.message);
 
       setStep("done");
       toast.success("Turno reservado correctamente");
