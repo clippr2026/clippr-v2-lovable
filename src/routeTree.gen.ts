@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ProfessionalsRouteImport } from './routes/professionals'
@@ -20,12 +21,20 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AgendaRouteImport } from './routes/agenda'
+import { Route as AdvisorlRouteImport } from './routes/advisorl'
 import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ReservarSlugRouteImport } from './routes/reservar/$slug'
+import { Route as NegocioSlugRouteImport } from './routes/negocio/$slug'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetPasswordRoute = SetPasswordRouteImport.update({
+  id: '/set-password',
+  path: '/set-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ServicesRoute = ServicesRouteImport.update({
@@ -78,6 +87,11 @@ const AgendaRoute = AgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdvisorlRoute = AdvisorlRouteImport.update({
+  id: '/advisorl',
+  path: '/advisorl',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdvisorRoute = AdvisorRouteImport.update({
   id: '/advisor',
   path: '/advisor',
@@ -88,11 +102,22 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReservarSlugRoute = ReservarSlugRouteImport.update({
+  id: '/reservar/$slug',
+  path: '/reservar/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NegocioSlugRoute = NegocioSlugRouteImport.update({
+  id: '/negocio/$slug',
+  path: '/negocio/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/agenda': typeof AgendaRoute
   '/advisor': typeof AdvisorRoute
+  '/advisorl': typeof AdvisorlRoute
+  '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
@@ -102,12 +127,16 @@ export interface FileRoutesByFullPath {
   '/professionals': typeof ProfessionalsRoute
   '/reports': typeof ReportsRoute
   '/services': typeof ServicesRoute
+  '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/negocio/$slug': typeof NegocioSlugRoute
+  '/reservar/$slug': typeof ReservarSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/agenda': typeof AgendaRoute
   '/advisor': typeof AdvisorRoute
+  '/advisorl': typeof AdvisorlRoute
+  '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
@@ -117,13 +146,17 @@ export interface FileRoutesByTo {
   '/professionals': typeof ProfessionalsRoute
   '/reports': typeof ReportsRoute
   '/services': typeof ServicesRoute
+  '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/negocio/$slug': typeof NegocioSlugRoute
+  '/reservar/$slug': typeof ReservarSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/agenda': typeof AgendaRoute
   '/advisor': typeof AdvisorRoute
+  '/advisorl': typeof AdvisorlRoute
+  '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
@@ -133,14 +166,18 @@ export interface FileRoutesById {
   '/professionals': typeof ProfessionalsRoute
   '/reports': typeof ReportsRoute
   '/services': typeof ServicesRoute
+  '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/negocio/$slug': typeof NegocioSlugRoute
+  '/reservar/$slug': typeof ReservarSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/agenda'
     | '/advisor'
+    | '/advisorl'
+    | '/agenda'
     | '/appointments'
     | '/cash-register'
     | '/clients'
@@ -150,12 +187,16 @@ export interface FileRouteTypes {
     | '/professionals'
     | '/reports'
     | '/services'
+    | '/set-password'
     | '/settings'
+    | '/negocio/$slug'
+    | '/reservar/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/agenda'
     | '/advisor'
+    | '/advisorl'
+    | '/agenda'
     | '/appointments'
     | '/cash-register'
     | '/clients'
@@ -165,12 +206,16 @@ export interface FileRouteTypes {
     | '/professionals'
     | '/reports'
     | '/services'
+    | '/set-password'
     | '/settings'
+    | '/negocio/$slug'
+    | '/reservar/$slug'
   id:
     | '__root__'
     | '/'
-    | '/agenda'
     | '/advisor'
+    | '/advisorl'
+    | '/agenda'
     | '/appointments'
     | '/cash-register'
     | '/clients'
@@ -180,13 +225,17 @@ export interface FileRouteTypes {
     | '/professionals'
     | '/reports'
     | '/services'
+    | '/set-password'
     | '/settings'
+    | '/negocio/$slug'
+    | '/reservar/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AgendaRoute: typeof AgendaRoute
   AdvisorRoute: typeof AdvisorRoute
+  AdvisorlRoute: typeof AdvisorlRoute
+  AgendaRoute: typeof AgendaRoute
   AppointmentsRoute: typeof AppointmentsRoute
   CashRegisterRoute: typeof CashRegisterRoute
   ClientsRoute: typeof ClientsRoute
@@ -196,7 +245,10 @@ export interface RootRouteChildren {
   ProfessionalsRoute: typeof ProfessionalsRoute
   ReportsRoute: typeof ReportsRoute
   ServicesRoute: typeof ServicesRoute
+  SetPasswordRoute: typeof SetPasswordRoute
   SettingsRoute: typeof SettingsRoute
+  NegocioSlugRoute: typeof NegocioSlugRoute
+  ReservarSlugRoute: typeof ReservarSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -206,6 +258,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/set-password': {
+      id: '/set-password'
+      path: '/set-password'
+      fullPath: '/set-password'
+      preLoaderRoute: typeof SetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/services': {
@@ -278,6 +337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgendaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/advisorl': {
+      id: '/advisorl'
+      path: '/advisorl'
+      fullPath: '/advisorl'
+      preLoaderRoute: typeof AdvisorlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/advisor': {
       id: '/advisor'
       path: '/advisor'
@@ -292,13 +358,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reservar/$slug': {
+      id: '/reservar/$slug'
+      path: '/reservar/$slug'
+      fullPath: '/reservar/$slug'
+      preLoaderRoute: typeof ReservarSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/negocio/$slug': {
+      id: '/negocio/$slug'
+      path: '/negocio/$slug'
+      fullPath: '/negocio/$slug'
+      preLoaderRoute: typeof NegocioSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AgendaRoute: AgendaRoute,
   AdvisorRoute: AdvisorRoute,
+  AdvisorlRoute: AdvisorlRoute,
+  AgendaRoute: AgendaRoute,
   AppointmentsRoute: AppointmentsRoute,
   CashRegisterRoute: CashRegisterRoute,
   ClientsRoute: ClientsRoute,
@@ -308,7 +389,10 @@ const rootRouteChildren: RootRouteChildren = {
   ProfessionalsRoute: ProfessionalsRoute,
   ReportsRoute: ReportsRoute,
   ServicesRoute: ServicesRoute,
+  SetPasswordRoute: SetPasswordRoute,
   SettingsRoute: SettingsRoute,
+  NegocioSlugRoute: NegocioSlugRoute,
+  ReservarSlugRoute: ReservarSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
