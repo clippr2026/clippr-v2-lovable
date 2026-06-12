@@ -8,6 +8,7 @@ const PERM_ROUTES: Array<{ key: PermKey; to: string }> = [
   { key: "agenda", to: "/agenda" },
   { key: "caja", to: "/cash-register" },
   { key: "profesionales", to: "/professionals" },
+  { key: "asesor_ia", to: "/advisor" },
   { key: "clientes", to: "/clients" },
   { key: "configuracion", to: "/settings" },
 ];

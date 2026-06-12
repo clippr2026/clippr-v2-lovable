@@ -6,27 +6,28 @@ import { supabase, type Profile } from "@/integrations/supabase/client";
 export type PermKey =
   | "dashboard" | "agenda" | "caja" | "profesionales" | "clientes"
   | "configuracion" | "branding" | "horarios" | "equipo" | "servicios"
-  | "catalogo" | "config_caja" | "senas" | "plan";
+  | "catalogo" | "config_caja" | "senas" | "plan" | "asesor_ia";
 
 const ALL_TRUE_PERMS: Record<PermKey, boolean> = {
   dashboard: true, agenda: true, caja: true, profesionales: true, clientes: true,
   configuracion: true, branding: true, horarios: true, equipo: true, servicios: true,
-  catalogo: true, config_caja: true, senas: true, plan: true,
+  catalogo: true, config_caja: true, senas: true, plan: true, asesor_ia: true,
 };
 
 export const ROLE_DEFAULTS: Record<string, Record<PermKey, boolean>> = {
   admin_general: { ...ALL_TRUE_PERMS },
   socio: { ...ALL_TRUE_PERMS, plan: false },
-  admin_local: { ...ALL_TRUE_PERMS, plan: false },
+  admin_local: { ...ALL_TRUE_PERMS, plan: false, asesor_ia: false },
   recepcionista: {
     ...ALL_TRUE_PERMS, dashboard: false, profesionales: false, configuracion: false,
     branding: false, horarios: false, equipo: false, servicios: false, catalogo: false,
-    config_caja: false, senas: false, plan: false,
+    config_caja: false, senas: false, plan: false, asesor_ia: false,
   },
   profesional: {
     ...ALL_TRUE_PERMS, dashboard: false, agenda: false, caja: false, profesionales: true,
     clientes: false, configuracion: false, branding: false, horarios: false, equipo: false,
     servicios: false, catalogo: false, config_caja: false, senas: false, plan: false,
+    asesor_ia: false,
   },
   owner: { ...ALL_TRUE_PERMS },
 };
@@ -55,6 +56,7 @@ const TEAM_PERM_MAP: Record<PermKey, string> = {
   config_caja: "caja",
   senas: "senas",
   plan: "plan_facturacion",
+  asesor_ia: "asesor_ia",
 };
 
 const ALL_PERM_KEYS = Object.keys(TEAM_PERM_MAP) as PermKey[];
