@@ -35,6 +35,8 @@ import {
   MapPin,
   Phone,
   Globe,
+  ExternalLink,
+  Share2,
   FileText,
   Image as ImageIcon,
   Building2,
@@ -437,6 +439,42 @@ function BrandingSection() {
 
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
+  const publicSlug = slugify(data.slug) || slugify(data.name);
+  const publicUrl = `https://myclippr.com/negocio/${publicSlug}`;
+  const publicUrlShort = `myclippr.com/negocio/${publicSlug}`;
+
+  async function copyPublicLink() {
+    if (!publicSlug) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Link copiado correctamente");
+    } catch {
+      toast.error("No se pudo copiar el link");
+    }
+  }
+  function openPublicSite() {
+    if (!publicSlug) return;
+    window.open(publicUrl, "_blank", "noopener,noreferrer");
+  }
+  async function sharePublicLink() {
+    if (!publicSlug) return;
+    const nav = navigator as Navigator & { share?: (d: { title?: string; url?: string }) => Promise<void> };
+    if (typeof nav.share === "function") {
+      try {
+        await nav.share({ title: data.name || "Reservá tu turno", url: publicUrl });
+      } catch {
+        /* usuario canceló el share */
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(publicUrl);
+        toast.success("Link copiado correctamente");
+      } catch {
+        toast.error("No se pudo copiar el link");
+      }
+    }
+  }
+
   const infoRows: { icon: React.ComponentType<{className?:string}>; label: string; hint: string; key: keyof BrandingData; type?: string }[] = [
     { icon: Building2, label: "Nombre", hint: "", key: "name" },
     { icon: MapPin, label: "Dirección", hint: "", key: "address" },
@@ -513,6 +551,89 @@ function BrandingSection() {
         </div>
       </SectionCard>
 
+      <SectionCard label="Sitio web público">
+        <div className="space-y-5">
+          <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="h-9 w-9 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                  <Globe className="h-4.5 w-4.5 text-muted-foreground" />
+                </div>
+                <div className="font-medium text-sm">Sitio Web Público</div>
+              </div>
+              {publicSlug ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Activo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-muted-foreground ring-1 ring-white/10">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/30" /> Sin configurar
+                </span>
+              )}
+            </div>
+
+            <p className="mt-3 text-sm text-muted-foreground break-all">
+              {publicSlug ? publicUrlShort : "Definí una URL pública arriba para activar tu sitio."}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={copyPublicLink}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Copy className="h-4 w-4" /> Copiar link
+              </button>
+              <button
+                type="button"
+                onClick={openPublicSite}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ExternalLink className="h-4 w-4" /> Abrir sitio
+              </button>
+              <button
+                type="button"
+                onClick={sharePublicLink}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Share2 className="h-4 w-4" /> Compartir
+              </button>
+            </div>
+          </div>
+
+          {/* Vista previa */}
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Vista previa</div>
+            <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-[#09090f]">
+              <div className="h-16 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900" />
+              <div className="px-4 pb-4 -mt-6">
+                <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl border-4 border-[#09090f] bg-white text-xl font-bold text-zinc-950">
+                  {data.logo_url ? (
+                    <img src={data.logo_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    (data.name || "C").slice(0, 1)
+                  )}
+                </div>
+                <div className="mt-2 text-base font-semibold text-white">
+                  {data.name || "Nombre del negocio"}
+                </div>
+                {data.address ? (
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
+                    <MapPin className="h-3.5 w-3.5" /> {data.address}
+                  </div>
+                ) : null}
+                <div className="mt-1 text-xs text-white/40 break-all">
+                  {publicSlug ? publicUrlShort : "myclippr.com/negocio/tu-negocio"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
       <SectionCard label="Imágenes">
         <div className="space-y-5">
           <div className="flex items-center gap-4">
@@ -541,16 +662,6 @@ function BrandingSection() {
           </div>
         </div>
       </SectionCard>
-
-      <div className="flex justify-end">
-        <button
-          onClick={save}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition disabled:opacity-50"
-        >
-          {saving ? "Guardando…" : <><Check className="h-4 w-4" strokeWidth={3} /> Guardar branding</>}
-        </button>
-      </div>
     </>
   );
 }
