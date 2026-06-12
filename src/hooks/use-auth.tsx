@@ -16,8 +16,8 @@ const ALL_TRUE_PERMS: Record<PermKey, boolean> = {
 
 export const ROLE_DEFAULTS: Record<string, Record<PermKey, boolean>> = {
   admin_general: { ...ALL_TRUE_PERMS },
-  socio: { ...ALL_TRUE_PERMS },
-  admin_local: { ...ALL_TRUE_PERMS, dashboard: false, profesionales: false, branding: false, plan: false },
+  socio: { ...ALL_TRUE_PERMS, plan: false },
+  admin_local: { ...ALL_TRUE_PERMS, plan: false },
   recepcionista: {
     ...ALL_TRUE_PERMS, dashboard: false, profesionales: false, configuracion: false,
     branding: false, horarios: false, equipo: false, servicios: false, catalogo: false,
