@@ -286,6 +286,7 @@ function AparienciaSection() {
 // ─────────── Branding ───────────
 type BrandingData = {
   name: string;
+  slug: string;
   address: string;
   phone: string;
   email: string;
@@ -295,9 +296,28 @@ type BrandingData = {
   logo_url: string;
 };
 const EMPTY_BRANDING: BrandingData = {
-  name: "", address: "", phone: "", email: "",
+  name: "", slug: "", address: "", phone: "", email: "",
   instagram: "", website: "", description: "", logo_url: "",
 };
+
+// Normaliza un slug para URLs públicas: minúsculas, sin acentos, sin espacios,
+// solo a-z 0-9 y guiones, sin guiones colgando.
+function slugify(value: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+// Versión suave para mientras el usuario escribe (no recorta guiones del final).
+function slugifyLive(value: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9-]+/g, "-");
+}
 
 function BrandingSection() {
   const { businessId } = useAuth();
@@ -310,7 +330,7 @@ function BrandingSection() {
     if (!businessId) { setLoading(false); return; }
     // Load name from businesses, rest from business_settings.schedule._branding
     Promise.all([
-      supabase.from("businesses").select("name").eq("id", businessId).maybeSingle(),
+      supabase.from("businesses").select("name,slug").eq("id", businessId).maybeSingle(),
       supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
@@ -318,6 +338,7 @@ function BrandingSection() {
       const cfg = (schedule._branding ?? {}) as Record<string, unknown>;
       setData({
         name: (biz?.name as string) ?? "",
+        slug: (biz?.slug as string) ?? "",
         address: (cfg.address as string) ?? "",
         phone: (cfg.phone as string) ?? "",
         email: (cfg.email as string) ?? "",
@@ -349,8 +370,29 @@ function BrandingSection() {
       if (url) logo_url = url;
     }
 
-    // Save name to businesses
-    const nameResult = await supabase.from("businesses").update({ name: data.name }).eq("id", businessId);
+    // Resolver slug final: usa el escrito o lo deriva del nombre.
+    const finalSlug = slugify(data.slug) || slugify(data.name);
+    if (!finalSlug) {
+      setSaving(false);
+      return toast.error("Definí una URL pública (slug) o un nombre.");
+    }
+    // Validar que no esté usado por otro negocio.
+    const { data: clash } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("slug", finalSlug)
+      .neq("id", businessId)
+      .maybeSingle();
+    if (clash) {
+      setSaving(false);
+      return toast.error("Esa URL pública ya está en uso. Probá otra.");
+    }
+
+    // Save name + slug to businesses
+    const nameResult = await supabase
+      .from("businesses")
+      .update({ name: data.name, slug: finalSlug })
+      .eq("id", businessId);
 
     // Save branding fields inside schedule._branding (schedule column exists)
     const { data: existingRow } = await supabase.from("business_settings")
@@ -376,7 +418,7 @@ function BrandingSection() {
     setSaving(false);
     if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
-    setData(d => ({ ...d, logo_url }));
+    setData(d => ({ ...d, logo_url, slug: finalSlug }));
     setLogoFile(null);
     toast.success("Branding guardado correctamente");
   }
@@ -434,6 +476,25 @@ function BrandingSection() {
               </div>
             );
           })}
+          <div className="flex items-start gap-4 py-4">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <Globe className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">URL pública</div>
+              <div className="text-xs text-muted-foreground mt-0.5 break-all">
+                myclippr.com/negocio/<span className="text-foreground">{slugify(data.slug) || slugify(data.name) || "tu-negocio"}</span>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={data.slug}
+              onChange={(e) => setData(d => ({ ...d, slug: slugifyLive(e.target.value) }))}
+              onBlur={() => setData(d => ({ ...d, slug: slugify(d.slug) }))}
+              placeholder="auro-styloff"
+              className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+            />
+          </div>
           <div className="flex items-start gap-4 py-4 last:pb-0">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
               <FileText className="h-4.5 w-4.5 text-muted-foreground" />
