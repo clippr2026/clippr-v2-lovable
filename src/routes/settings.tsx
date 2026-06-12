@@ -165,13 +165,6 @@ const groups: { label: string; items: NavItem[] }[] = [
         glow: "from-[oklch(0.80_0.18_45/0.25)] to-[oklch(0.75_0.2_35/0.05)]",
       },
       {
-        id: "senas" as const,
-        label: "Señas",
-        icon: HandCoins,
-        tint: "text-[oklch(0.82_0.18_50)]",
-        glow: "from-[oklch(0.82_0.18_50/0.25)] to-[oklch(0.78_0.2_40/0.05)]",
-      },
-      {
         id: "apariencia" as const,
         label: "Apariencia",
         icon: Palette,
@@ -1154,6 +1147,18 @@ const ALL_PERMISSION_KEYS: PermissionKey[] = [
   ...CONFIG_PERMISSION_ITEMS.map((item) => item.key),
 ];
 
+// Subsecciones internas que dependen del único permiso "Configuración".
+// (Plan & Facturación queda aparte, no se incluye acá.)
+const CONFIG_SUB_KEYS: PermissionKey[] = [
+  "branding",
+  "horarios",
+  "equipo",
+  "servicios",
+  "catalogo",
+  "caja",
+  "senas",
+];
+
 const allOnPermissions = (): PermissionMap =>
   ALL_PERMISSION_KEYS.reduce((acc, key) => ({ ...acc, [key]: true }), {} as PermissionMap);
 
@@ -1165,7 +1170,21 @@ const buildPermissions = (enabled: PermissionKey[]): PermissionMap =>
 
 const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
   admin_general: allOnPermissions(),
-  socio: allOnPermissions(),
+  socio: buildPermissions([
+    "dashboard",
+    "agenda",
+    "caja_cobro",
+    "panel_profesionales",
+    "clientes",
+    "configuracion",
+    "branding",
+    "horarios",
+    "equipo",
+    "servicios",
+    "catalogo",
+    "caja",
+    "senas",
+  ]),
   admin_local: buildPermissions([
     "dashboard",
     "agenda",
@@ -1869,11 +1888,15 @@ function EquipoSection() {
   }
 
   function getRecommendedPermissionKeys(role: RolePermissionId) {
-    return ALL_PERMISSION_KEYS.filter((key) => DEFAULT_ROLE_PERMISSIONS[role][key]);
+    return MAIN_PERMISSION_ITEMS
+      .map((i) => i.key)
+      .filter((key) => DEFAULT_ROLE_PERMISSIONS[role][key]);
   }
 
   function getAdditionalPermissionKeys(role: RolePermissionId) {
-    return ALL_PERMISSION_KEYS.filter((key) => !DEFAULT_ROLE_PERMISSIONS[role][key]);
+    return MAIN_PERMISSION_ITEMS
+      .map((i) => i.key)
+      .filter((key) => !DEFAULT_ROLE_PERMISSIONS[role][key]);
   }
 
   function getPermissionItem(key: PermissionKey) {
@@ -1886,13 +1909,14 @@ function EquipoSection() {
   function toggleAccessFormPermission(key: PermissionKey) {
     setAccessPermissionsForm((current) => {
       const next = { ...current, [key]: !current[key] };
-      if (key === "configuracion" && !next[key]) {
-        CONFIG_PERMISSION_ITEMS.forEach((item) => {
-          next[item.key] = false;
+      // "Configuración" es un único permiso que habilita/inhabilita todas las
+      // subsecciones internas (Branding, Horarios, Equipo, Servicios, Catálogo,
+      // Caja, Señas) de una vez.
+      if (key === "configuracion") {
+        const v = next.configuracion;
+        CONFIG_SUB_KEYS.forEach((sub) => {
+          next[sub] = v;
         });
-      }
-      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && next[key]) {
-        next.configuracion = true;
       }
       return next;
     });
@@ -2244,7 +2268,7 @@ function EquipoSection() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <Field label="Nombre" hint={accessForm.role === "profesional" ? "Si lo dejás vacío se toma del profesional." : undefined}>
                     <input
                       type="text"
@@ -2255,12 +2279,6 @@ function EquipoSection() {
                       className={inputCls}
                       placeholder="Nombre del usuario"
                     />
-                  </Field>
-
-                  <Field label="Sucursal" hint="Multi-sucursal próximamente.">
-                    <select disabled value="" className={cn(inputCls, "opacity-60 cursor-not-allowed")}>
-                      <option value="">Todas / principal</option>
-                    </select>
                   </Field>
                 </div>
 
@@ -4152,7 +4170,7 @@ function SenasSection() {
   React.useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "senas") saveRef.current();
+      if (!section || section === "senas" || section === "servicios") saveRef.current();
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
@@ -4416,10 +4434,10 @@ function SettingsPage() {
             {active === "horarios" && <HorariosSection />}
             {active === "equipo" && <EquipoSection />}
             {active === "servicios" && <ServiciosSection />}
+            {active === "servicios" && <SenasSection />}
             {active === "catalogo" && <CatalogoSection />}
             {active === "clientes" && <ClientesSection />}
             {active === "caja" && <CajaSection />}
-            {active === "senas" && <SenasSection />}
             {active === "apariencia" && <AparienciaSection />}
 
             {active === "plan" && <PlanSection />}
