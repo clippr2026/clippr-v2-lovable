@@ -9,6 +9,10 @@ import {
   UserCog,
   Bell,
   Brain,
+  Globe,
+  Copy,
+  Share2,
+  ExternalLink,
   LogOut,
   User as UserIcon,
   Menu,
@@ -25,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 const ALL_NAV: Array<{
   label: string;
@@ -285,6 +290,118 @@ function UserMenu() {
   );
 }
 
+function PublicSiteMenu() {
+  const { businessId } = useAuth();
+  const [slug, setSlug] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (!businessId) return;
+    let cancelled = false;
+    const load = () => {
+      supabase
+        .from("businesses")
+        .select("slug")
+        .eq("id", businessId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled) setSlug(((data?.slug as string) || "").trim());
+        });
+    };
+    load();
+    const onUpdated = (e: Event) => {
+      const s = (e as CustomEvent).detail?.slug;
+      if (typeof s === "string") setSlug(s);
+      else load();
+    };
+    window.addEventListener("clippr:slug-updated", onUpdated);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("clippr:slug-updated", onUpdated);
+    };
+  }, [businessId]);
+
+  const publicUrl = `https://myclippr.com/negocio/${slug}`;
+  const publicUrlShort = `myclippr.com/negocio/${slug}`;
+
+  async function copyLink() {
+    if (!slug) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Link copiado correctamente");
+    } catch {
+      toast.error("No se pudo copiar el link");
+    }
+  }
+  function openSite() {
+    if (slug) window.open(publicUrl, "_blank", "noopener,noreferrer");
+  }
+  async function share() {
+    if (!slug) return;
+    const nav = navigator as Navigator & { share?: (d: { title?: string; url?: string }) => Promise<void> };
+    if (typeof nav.share === "function") {
+      try {
+        await nav.share({ title: "Reservá tu turno", url: publicUrl });
+      } catch {
+        /* cancelado */
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(publicUrl);
+        toast.success("Link copiado correctamente");
+      } catch {
+        toast.error("No se pudo copiar el link");
+      }
+    }
+  }
+
+  const actionCls =
+    "flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2 py-2 text-xs transition disabled:opacity-40 disabled:cursor-not-allowed";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Sitio web público"
+          className="h-10 w-10 rounded-xl grid place-items-center ring-1 ring-white/10 glass glass-hover text-muted-foreground hover:text-white transition"
+        >
+          <Globe className="h-4.5 w-4.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-semibold">Sitio Web Público</span>
+          </div>
+          {slug ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Activo
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground ring-1 ring-white/10">
+              Sin configurar
+            </span>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground break-all">
+          {slug ? publicUrlShort : "Configurá la URL pública en Branding."}
+        </p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <button onClick={copyLink} disabled={!slug} className={actionCls}>
+            <Copy className="h-3.5 w-3.5" /> Copiar
+          </button>
+          <button onClick={share} disabled={!slug} className={actionCls}>
+            <Share2 className="h-3.5 w-3.5" /> Compartir
+          </button>
+          <button onClick={openSite} disabled={!slug} className={actionCls}>
+            <ExternalLink className="h-3.5 w-3.5" /> Abrir
+          </button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppSidebar() {
   const { open, setOpen } = useSidebarToggle();
 
@@ -301,6 +418,7 @@ export function AppSidebar() {
 
           {/* Right cluster */}
           <div className="ml-auto flex items-center gap-2">
+            <PublicSiteMenu />
             <UserMenu />
             <button
               onClick={() => setOpen(true)}
