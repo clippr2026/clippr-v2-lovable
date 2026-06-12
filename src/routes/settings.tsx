@@ -1077,6 +1077,7 @@ type PermissionKey =
   | "catalogo"
   | "caja"
   | "senas"
+  | "asesor_ia"
   | "plan_facturacion";
 
 type PermissionMap = Record<PermissionKey, boolean>;
@@ -1129,6 +1130,7 @@ const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }
   { key: "panel_profesionales", label: "Panel Profesionales", desc: "Vista operativa para profesionales." },
   { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
   { key: "configuracion", label: "Configuración", desc: "Acceso a ajustes del negocio." },
+  { key: "asesor_ia", label: "Asesor IA", desc: "Análisis, recomendaciones, simuladores y métricas con IA." },
 ];
 
 const CONFIG_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
@@ -1177,6 +1179,7 @@ const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     "panel_profesionales",
     "clientes",
     "configuracion",
+    "asesor_ia",
     "branding",
     "horarios",
     "equipo",
@@ -2309,7 +2312,87 @@ function EquipoSection() {
                   </span>
                 </div>
 
-                <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={saveAccessUser}
+                  disabled={saving}
+                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)] disabled:opacity-60"
+                >
+                  {saving
+                    ? "Procesando…"
+                    : editingAccessUserId
+                      ? "Guardar cambios"
+                      : "Confirmar e invitar"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+                <div className="text-sm font-semibold mb-3">Accesos creados</div>
+                {accessUsers.length === 0 ? (
+                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
+                    Todavía no hay accesos creados.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {accessUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
+                      >
+                        <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                          {(user.name[0] || "A").toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{user.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {user.email} · {ROLE_LABEL_BY_ID[user.role]}
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-1 text-[10px] ring-1",
+                            user.status === "active"
+                              ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
+                              : user.status === "invited"
+                                ? "bg-amber-500/10 text-amber-300 ring-amber-400/20"
+                                : "bg-white/5 text-muted-foreground ring-white/10",
+                          )}
+                        >
+                          {user.status === "active"
+                            ? "Activo"
+                            : user.status === "invited"
+                              ? "Pendiente"
+                              : "Inactivo"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => editAccessUser(user)}
+                          className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                        >
+                          Editar
+                        </button>
+                        {user.id === principalAdminId ? (
+                          <span
+                            className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
+                            title="El administrador principal no se puede eliminar"
+                          >
+                            Principal
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteUser(user)}
+                            className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/5">
                     <div className="font-semibold text-sm">Permisos</div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -2393,86 +2476,6 @@ function EquipoSection() {
                     </div>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={saveAccessUser}
-                  disabled={saving}
-                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)] disabled:opacity-60"
-                >
-                  {saving
-                    ? "Procesando…"
-                    : editingAccessUserId
-                      ? "Guardar cambios"
-                      : "Confirmar e invitar"}
-                </button>
-              </div>
-
-              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-                <div className="text-sm font-semibold mb-3">Accesos creados</div>
-                {accessUsers.length === 0 ? (
-                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
-                    Todavía no hay accesos creados.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {accessUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
-                      >
-                        <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
-                          {(user.name[0] || "A").toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{user.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {user.email} · {ROLE_LABEL_BY_ID[user.role]}
-                          </div>
-                        </div>
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-1 text-[10px] ring-1",
-                            user.status === "active"
-                              ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
-                              : user.status === "invited"
-                                ? "bg-amber-500/10 text-amber-300 ring-amber-400/20"
-                                : "bg-white/5 text-muted-foreground ring-white/10",
-                          )}
-                        >
-                          {user.status === "active"
-                            ? "Activo"
-                            : user.status === "invited"
-                              ? "Pendiente"
-                              : "Inactivo"}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => editAccessUser(user)}
-                          className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
-                        >
-                          Editar
-                        </button>
-                        {user.id === principalAdminId ? (
-                          <span
-                            className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
-                            title="El administrador principal no se puede eliminar"
-                          >
-                            Principal
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setPendingDeleteUser(user)}
-                            className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
