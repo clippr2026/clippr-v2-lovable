@@ -37,9 +37,9 @@ const ALL_NAV: Array<{
   { label: "Agenda", to: "/agenda", icon: Calendar, permKey: "agenda" },
   { label: "Caja", to: "/cash-register", icon: Wallet, permKey: "caja" },
   { label: "Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
-  { label: "Asesor IA", to: "/advisor", icon: Brain, badge: "Nuevo" },
+  { label: "Asesor IA", to: "/advisor", icon: Brain, badge: "Nuevo", permKey: "asesor_ia" },
   { label: "Clientes", to: "/clients", icon: Users, permKey: "clientes" },
-  { label: "Configuración", to: "/settings", icon: Settings },
+  { label: "Configuración", to: "/settings", icon: Settings, permKey: "configuracion" },
 ];
 
 function initialsOf(name?: string | null, email?: string | null) {
