@@ -35,6 +35,7 @@ import {
   MapPin,
   Phone,
   Globe,
+  X,
   ExternalLink,
   Share2,
   FileText,
@@ -296,11 +297,57 @@ type BrandingData = {
   website: string;
   description: string;
   logo_url: string;
+  avatar_url: string;
+  cover_url: string;
 };
 const EMPTY_BRANDING: BrandingData = {
   name: "", slug: "", address: "", phone: "", email: "",
   instagram: "", website: "", description: "", logo_url: "",
+  avatar_url: "", cover_url: "",
 };
+
+// Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
+// maxW x maxH y la convierte a WebP (cae a JPEG si el navegador no soporta WebP).
+async function processImage(
+  file: File,
+  maxW: number,
+  maxH: number,
+  quality = 0.8,
+): Promise<{ blob: Blob; ext: string; type: string }> {
+  const dataUrl = await new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result as string);
+    r.onerror = () => rej(new Error("No se pudo leer la imagen"));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("No se pudo cargar la imagen"));
+    i.src = dataUrl;
+  });
+  const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+  const w = Math.max(1, Math.round(img.width * ratio));
+  const h = Math.max(1, Math.round(img.height * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No se pudo procesar la imagen");
+  ctx.drawImage(img, 0, 0, w, h);
+  const toBlob = (type: string) =>
+    new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), type, quality));
+  let blob = await toBlob("image/webp");
+  let ext = "webp";
+  let type = "image/webp";
+  if (!blob) {
+    blob = await toBlob("image/jpeg");
+    ext = "jpg";
+    type = "image/jpeg";
+  }
+  if (!blob) throw new Error("No se pudo procesar la imagen");
+  return { blob, ext, type };
+}
 
 // Normaliza un slug para URLs públicas: minúsculas, sin acentos, sin espacios,
 // solo a-z 0-9 y guiones, sin guiones colgando.
@@ -327,12 +374,14 @@ function BrandingSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
-    // Load name from businesses, rest from business_settings.schedule._branding
+    // Load name/slug + assets públicos desde businesses; el resto desde _branding.
     Promise.all([
-      supabase.from("businesses").select("name,slug").eq("id", businessId).maybeSingle(),
+      supabase.from("businesses").select("name,slug,avatar_url,cover_url").eq("id", businessId).maybeSingle(),
       supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
@@ -348,10 +397,22 @@ function BrandingSection() {
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
         logo_url: (cfg.logo_url as string) ?? "",
+        avatar_url: (biz?.avatar_url as string) ?? "",
+        cover_url: (biz?.cover_url as string) ?? "",
       });
       setLoading(false);
     });
   }, [businessId]);
+
+  // Previews en vivo (archivo recién elegido > url guardada > fallback).
+  const avatarPreview = React.useMemo(
+    () => (avatarFile ? URL.createObjectURL(avatarFile) : (data.avatar_url || data.logo_url || "")),
+    [avatarFile, data.avatar_url, data.logo_url],
+  );
+  const coverPreview = React.useMemo(
+    () => (coverFile ? URL.createObjectURL(coverFile) : (data.cover_url || "")),
+    [coverFile, data.cover_url],
+  );
 
   const set = (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setData(d => ({ ...d, [k]: e.target.value }));
@@ -363,6 +424,16 @@ function BrandingSection() {
     return urlData.publicUrl;
   }
 
+  async function uploadBlob(blob: Blob, path: string, contentType: string): Promise<string | null> {
+    const { error } = await supabase.storage
+      .from("business-assets")
+      .upload(path, blob, { upsert: true, contentType });
+    if (error) { toast.error("Error subiendo imagen: " + error.message); return null; }
+    const { data: urlData } = supabase.storage.from("business-assets").getPublicUrl(path);
+    // Cache-bust: el path se sobrescribe (upsert), así forzamos refrescar el CDN.
+    return `${urlData.publicUrl}?v=${Date.now()}`;
+  }
+
   async function save() {
     if (!businessId) return;
     setSaving(true);
@@ -370,6 +441,32 @@ function BrandingSection() {
     if (logoFile) {
       const url = await uploadImage(logoFile, `${businessId}/logo`);
       if (url) logo_url = url;
+    }
+
+    // Foto de perfil pública (avatar): WebP, máx 512x512, calidad 80%.
+    let avatar_url = data.avatar_url;
+    if (avatarFile) {
+      try {
+        const { blob, ext, type } = await processImage(avatarFile, 512, 512, 0.8);
+        const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
+        if (url) avatar_url = url;
+      } catch (e) {
+        setSaving(false);
+        return toast.error((e as Error).message);
+      }
+    }
+
+    // Portada pública (cover): WebP, máx 1600x600, calidad 80%.
+    let cover_url = data.cover_url;
+    if (coverFile) {
+      try {
+        const { blob, ext, type } = await processImage(coverFile, 1600, 600, 0.8);
+        const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
+        if (url) cover_url = url;
+      } catch (e) {
+        setSaving(false);
+        return toast.error((e as Error).message);
+      }
     }
 
     // Resolver slug final: usa el escrito o lo deriva del nombre.
@@ -394,7 +491,12 @@ function BrandingSection() {
     // el caso RLS: un UPDATE que no matchea filas devuelve éxito con 0 filas.
     const nameResult = await supabase
       .from("businesses")
-      .update({ name: data.name, slug: finalSlug })
+      .update({
+        name: data.name,
+        slug: finalSlug,
+        avatar_url: avatar_url || null,
+        cover_url: cover_url || null,
+      })
       .eq("id", businessId)
       .select("id,name,slug")
       .maybeSingle();
@@ -426,8 +528,10 @@ function BrandingSection() {
       return toast.error("No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.");
     }
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
-    setData(d => ({ ...d, logo_url, slug: finalSlug }));
+    setData(d => ({ ...d, logo_url, slug: finalSlug, avatar_url, cover_url }));
     setLogoFile(null);
+    setAvatarFile(null);
+    setCoverFile(null);
     // Avisar al header (botón 🌐) para que actualice el link al instante.
     window.dispatchEvent(new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }));
     toast.success("Branding guardado correctamente");
@@ -616,11 +720,15 @@ function BrandingSection() {
           <div>
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Vista previa</div>
             <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-[#09090f]">
-              <div className="h-16 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900" />
-              <div className="px-4 pb-4 -mt-6">
-                <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl border-4 border-[#09090f] bg-white text-xl font-bold text-zinc-950">
-                  {data.logo_url ? (
-                    <img src={data.logo_url} alt="" className="h-full w-full object-cover" />
+              <div className="h-24 w-full overflow-hidden bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900">
+                {coverPreview ? (
+                  <img src={coverPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                ) : null}
+              </div>
+              <div className="px-4 pb-4 -mt-7">
+                <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border-4 border-[#09090f] bg-white text-xl font-bold text-zinc-950">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                   ) : (
                     (data.name || "C").slice(0, 1)
                   )}
@@ -666,6 +774,76 @@ function BrandingSection() {
                 <Upload className="h-3.5 w-3.5" /> Subir logo
                 <input type="file" accept="image/*" className="hidden" onChange={e => setLogoFile(e.target.files?.[0] ?? null)} />
               </label>
+            </div>
+          </div>
+
+          {/* Foto de perfil (sitio web público) */}
+          <div className="flex items-start gap-4 border-t border-white/5 pt-5">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <UserIcon className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Foto de perfil</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Se muestra en tu sitio web público. Se optimiza a WebP 512px.</div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="h-16 w-16 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">vacío</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
+                  <Upload className="h-3.5 w-3.5" /> {avatarPreview ? "Cambiar foto" : "Subir foto"}
+                  <input type="file" accept="image/*" className="hidden" onChange={e => setAvatarFile(e.target.files?.[0] ?? null)} />
+                </label>
+                {avatarPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => { setAvatarFile(null); setData(d => ({ ...d, avatar_url: "" })); }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                  >
+                    <X className="h-3.5 w-3.5" /> Eliminar
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Portada (sitio web público) */}
+          <div className="border-t border-white/5 pt-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">Portada</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Banner superior de tu sitio web. Se optimiza a WebP 1600×600.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
+                  <Upload className="h-3.5 w-3.5" /> {coverPreview ? "Cambiar portada" : "Subir portada"}
+                  <input type="file" accept="image/*" className="hidden" onChange={e => setCoverFile(e.target.files?.[0] ?? null)} />
+                </label>
+                {coverPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => { setCoverFile(null); setData(d => ({ ...d, cover_url: "" })); }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                  >
+                    <X className="h-3.5 w-3.5" /> Eliminar
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <div className="mt-3 h-32 w-full rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+              {coverPreview ? (
+                <img src={coverPreview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-muted-foreground">Sin portada</span>
+              )}
             </div>
           </div>
         </div>
