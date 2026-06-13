@@ -434,9 +434,9 @@ function LandingSection() {
   }
 
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
-    { key: "primary", label: "Color primario", desc: "Botones principales (Reservar turno) e íconos." },
-    { key: "secondary", label: "Color secundario", desc: "Gradientes y glows de la portada y tarjetas." },
-    { key: "accent", label: "Color de resaltado", desc: "Estados destacados (ej. \u201cAbierto ahora\u201d)." },
+    { key: "primary", label: "Color primario", desc: "Gradientes y luces de fondo (portada y tarjetas)." },
+    { key: "secondary", label: "Color secundario", desc: "Segundo color de los gradientes y glows." },
+    { key: "accent", label: "Color de resaltado", desc: "Botones, estados y acciones principales." },
   ];
 
   if (loading) {
@@ -513,7 +513,7 @@ function LandingSection() {
               <button
                 type="button"
                 className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold text-zinc-950"
-                style={{ background: colors.primary, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.primary} 70%, transparent)` }}
+                style={{ background: colors.accent, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)` }}
               >
                 Reservar turno
               </button>
