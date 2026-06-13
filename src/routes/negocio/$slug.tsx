@@ -327,6 +327,10 @@ function PublicProfilePage() {
   }
 
   const reservarTo = { to: "/reservar/$slug" as const, params: { slug } };
+  const bookingHref = (query?: Record<string, string>) => {
+    const params = query ? `?${new URLSearchParams(query).toString()}` : "";
+    return `/reservar/${encodeURIComponent(slug)}${params}`;
+  };
   const mapLink = mapsUrl(business.address);
   const instagram = cleanInstagram(business.instagram);
   const todayStatus = getTodayStatus(schedule);
@@ -405,12 +409,12 @@ function PublicProfilePage() {
                           <span className="font-semibold text-white">{formatMoney(service.price)}</span>
                         </div>
                       </div>
-                      <Link
-                        {...reservarTo}
+                      <a
+                        href={bookingHref({ service: service.id })}
                         className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold transition hover:bg-white/10"
                       >
                         Reservar
-                      </Link>
+                      </a>
                     </div>
                   ))}
                 </div>
@@ -430,18 +434,21 @@ function PublicProfilePage() {
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {employees.map((employee) => (
-                    <div key={employee.id} className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-lg font-semibold">
-                        {employee.avatar_url ? (
-                          <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                        ) : (
-                          employee.full_name.slice(0, 1)
-                        )}
+                    <div key={employee.id} className="flex items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-lg font-semibold">
+                          {employee.avatar_url ? (
+                            <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                          ) : (
+                            employee.full_name.slice(0, 1)
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="truncate font-semibold">{employee.full_name}</h3>
+                          <p className="text-sm text-white/50">{employee.role || "Profesional"}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="truncate font-semibold">{employee.full_name}</h3>
-                        <p className="text-sm text-white/50">{employee.role || "Profesional"}</p>
-                      </div>
+                      <a href={bookingHref({ professional: employee.id })} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold transition hover:bg-white/10">Reservar</a>
                     </div>
                   ))}
                 </div>
