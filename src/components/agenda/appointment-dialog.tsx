@@ -23,7 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, X, CalendarDays, Repeat2,
-  Scissors, UserPlus } from "lucide-react";
+  Scissors, UserPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
@@ -688,7 +689,7 @@ export function AppointmentDialog({
               </Select>
             </div>
             {requiresDeposit && (
-              <div className="rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs">
+              <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs">
                 🟡 Requiere seña: ${Math.round(depositAmount).toLocaleString("es-AR")}
               </div>
             )}

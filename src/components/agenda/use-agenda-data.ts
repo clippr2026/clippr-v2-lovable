@@ -39,6 +39,9 @@ export type Appointment = {
   created_by_name: string | null;
   created_by_role: string | null;
   updated_at: string | null;
+  deposit_status?: string | null;
+  deposit_amount?: number | null;
+  deposit_paid?: number | null;
 };
 
 export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null };
@@ -199,7 +202,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     );
     const svc =
       sRes.status === "fulfilled" && !sRes.value.error
-        ? ((sRes.value.data ?? []) as (Service & { is_active?: boolean })[])
+        ? ((sRes.value.data ?? []) as unknown as (Service & { is_active?: boolean })[])
         : [];
     setServices(svc.filter((s) => s.is_active !== false));
     setClients(
