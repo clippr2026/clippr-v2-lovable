@@ -114,6 +114,7 @@ function PublicProfilePage() {
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
+  const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -160,11 +161,23 @@ function PublicProfilePage() {
         if (servicesRes.error) throw new Error(servicesRes.error.message);
 
         if (!cancelled) {
-          setBusiness(businessData as Business);
+          const settingsSchedule = settingsRes.error ? null : ((settingsRes.data as any)?.schedule as Record<string, any> | undefined);
+          const branding = (settingsSchedule?._branding ?? {}) as Record<string, any>;
+          setBusiness({
+            ...(businessData as Business),
+            address: (businessData as Business).address || (typeof branding.address === "string" ? branding.address : null),
+            phone: (businessData as Business).phone || (typeof branding.phone === "string" ? branding.phone : null),
+            email: (businessData as Business).email || (typeof branding.email === "string" ? branding.email : null),
+            instagram: (businessData as Business).instagram || (typeof branding.instagram === "string" ? branding.instagram : null),
+          });
           setEmployees(((employeesRes.data ?? []) as Employee[]).filter((e) => e.is_active !== false));
           setServices(((servicesRes.data ?? []) as Service[]).filter((s) => s.is_active !== false));
-          const sched = settingsRes.error ? null : normalizeSchedule((settingsRes.data as any)?.schedule);
-          setSchedule(sched);
+          setPortfolioUrls(
+            Array.isArray(branding.portfolio_urls)
+              ? (branding.portfolio_urls as unknown[]).filter((url): url is string => typeof url === "string" && url.length > 0).slice(0, 3)
+              : [],
+          );
+          setSchedule(normalizeSchedule(settingsSchedule));
         }
       } catch {
         if (!cancelled) setBusiness(null);
@@ -179,16 +192,6 @@ function PublicProfilePage() {
   }, [slug]);
 
   const accent = business?.accent_color || "#f59e0b";
-  // Galería con imágenes reales: logo + avatares del equipo (sin placeholders inventados).
-  const gallery = React.useMemo(() => {
-    const imgs: { src: string; label: string }[] = [];
-    if (business?.logo_url) imgs.push({ src: business.logo_url, label: business.name });
-    for (const e of employees) {
-      if (e.avatar_url) imgs.push({ src: e.avatar_url, label: e.full_name });
-    }
-    return imgs;
-  }, [business, employees]);
-
   if (loading) {
     return (
       <main className="min-h-dvh bg-[#09090f] text-white grid place-items-center px-4">
@@ -293,14 +296,20 @@ function PublicProfilePage() {
               ) : (
                 <div className="mt-4 divide-y divide-white/10">
                   {services.map((service) => (
-                    <div key={service.id} className="flex items-center justify-between gap-4 py-4">
+                    <div key={service.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="font-medium">{service.name}</p>
-                        {service.duration_min ? (
-                          <p className="text-sm text-white/50">{Number(service.duration_min)} min</p>
-                        ) : null}
+                        <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-white/50">
+                          {service.duration_min ? <span>{Number(service.duration_min)} min</span> : null}
+                          <span className="font-semibold text-white">{formatMoney(service.price)}</span>
+                        </div>
                       </div>
-                      <p className="font-semibold">{formatMoney(service.price)}</p>
+                      <Link
+                        {...reservarTo}
+                        className="inline-flex shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+                      >
+                        Reservar
+                      </Link>
                     </div>
                   ))}
                 </div>
@@ -343,21 +352,24 @@ function PublicProfilePage() {
             </Card>
           ) : null}
 
-          {/* Galería (solo imágenes reales) */}
-          {gallery.length > 0 ? (
+          {/* Portafolio */}
+          {portfolioUrls.length > 0 ? (
             <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
               <CardContent className="p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-2xl font-semibold">Galería</h2>
+                  <div>
+                    <p className="text-sm text-white/50">Local, trabajos e instalaciones</p>
+                    <h2 className="text-2xl font-semibold">Portafolio</h2>
+                  </div>
                   <Sparkles className="h-6 w-6" style={{ color: accent }} />
                 </div>
-                <div className="mt-5 grid grid-cols-3 gap-3">
-                  {gallery.slice(0, 9).map((img, i) => (
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {portfolioUrls.map((src, i) => (
                     <div
-                      key={`${img.src}-${i}`}
+                      key={`${src}-${i}`}
                       className="aspect-square overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]"
                     >
-                      <img src={img.src} alt={img.label} className="h-full w-full object-cover" loading="lazy" />
+                      <img src={src} alt={`Portafolio ${i + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                     </div>
                   ))}
                 </div>

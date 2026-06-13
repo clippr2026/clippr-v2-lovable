@@ -299,11 +299,12 @@ type BrandingData = {
   logo_url: string;
   avatar_url: string;
   cover_url: string;
+  portfolio_urls: string[];
 };
 const EMPTY_BRANDING: BrandingData = {
   name: "", slug: "", address: "", phone: "", email: "",
   instagram: "", website: "", description: "", logo_url: "",
-  avatar_url: "", cover_url: "",
+  avatar_url: "", cover_url: "", portfolio_urls: [],
 };
 
 // Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
@@ -376,6 +377,7 @@ function BrandingSection() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -399,6 +401,9 @@ function BrandingSection() {
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
         cover_url: (biz?.cover_url as string) ?? "",
+        portfolio_urls: Array.isArray(cfg.portfolio_urls)
+          ? (cfg.portfolio_urls as unknown[]).filter((url): url is string => typeof url === "string" && url.length > 0).slice(0, 3)
+          : [],
       });
       setLoading(false);
     });
@@ -500,6 +505,70 @@ function BrandingSection() {
     if (ok) { setData(d => ({ ...d, cover_url: "" })); toast.success("Portada eliminada"); }
   }
 
+  async function persistBrandingPortfolio(portfolioUrls: string[]): Promise<boolean> {
+    if (!businessId) return false;
+    const { data: existingRow, error: loadError } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    if (loadError) {
+      toast.error("No se pudo leer la configuración: " + loadError.message);
+      return false;
+    }
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const currentBranding = (existingSchedule._branding ?? {}) as Record<string, unknown>;
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        schedule: {
+          ...existingSchedule,
+          _branding: {
+            ...currentBranding,
+            portfolio_urls: portfolioUrls.slice(0, 3),
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+
+    if (error) {
+      toast.error("No se pudo guardar el portafolio: " + error.message);
+      return false;
+    }
+    return true;
+  }
+
+  async function handlePortfolioSelect(index: number, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingPortfolioIndex(index);
+    try {
+      const { blob, ext, type } = await processImage(file, 1200, 900, 0.78);
+      const url = await uploadBlob(blob, `${businessId}/portfolio-${index + 1}.${ext}`, type);
+      if (!url) return;
+      const next = [...data.portfolio_urls];
+      next[index] = url;
+      const normalized = next.filter(Boolean).slice(0, 3);
+      const ok = await persistBrandingPortfolio(normalized);
+      if (!ok) return;
+      setData(d => ({ ...d, portfolio_urls: normalized }));
+      toast.success("Imagen de portafolio actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingPortfolioIndex(null);
+    }
+  }
+
+  async function removePortfolioImage(index: number) {
+    const next = data.portfolio_urls.filter((_, i) => i !== index).slice(0, 3);
+    const ok = await persistBrandingPortfolio(next);
+    if (!ok) return;
+    setData(d => ({ ...d, portfolio_urls: next }));
+    toast.success("Imagen eliminada del portafolio");
+  }
+
   async function save() {
     if (!businessId) return;
     setSaving(true);
@@ -560,6 +629,7 @@ function BrandingSection() {
         website: data.website,
         description: data.description,
         logo_url,
+        portfolio_urls: data.portfolio_urls.slice(0, 3),
       },
     };
     const cfgResult = await supabase.from("business_settings").upsert(
@@ -862,6 +932,52 @@ function BrandingSection() {
               ) : (
                 <span className="text-xs text-muted-foreground">Sin portada</span>
               )}
+            </div>
+          </div>
+
+          {/* Portafolio público */}
+          <div className="border-t border-white/5 pt-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">Portafolio</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Hasta 3 imágenes del local, trabajos o instalaciones. Se muestran en tu sitio público.</div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {[0, 1, 2].map((index) => {
+                const url = data.portfolio_urls[index];
+                const uploading = uploadingPortfolioIndex === index;
+                return (
+                  <div key={index} className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-3">
+                    <div className="aspect-square overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                      {url ? (
+                        <img src={url} alt={`Portafolio ${index + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Imagen {index + 1}</span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : (url ? "Cambiar" : "Subir")}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handlePortfolioSelect(index, f); }} />
+                      </label>
+                      {url ? (
+                        <button
+                          type="button"
+                          onClick={() => removePortfolioImage(index)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                        >
+                          <X className="h-3.5 w-3.5" /> Eliminar
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
