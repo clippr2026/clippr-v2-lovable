@@ -59,6 +59,15 @@ type Service = {
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type ScheduleMap = Record<DayKey, DaySchedule>;
+type PublicBranding = {
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  instagram?: string | null;
+  website?: string | null;
+  description?: string | null;
+  portfolio_urls?: string[] | null;
+};
 
 // Orden de visualización (lunes a domingo) y etiquetas en español.
 const DISPLAY_DAYS: { key: DayKey; label: string }[] = [
@@ -83,6 +92,16 @@ function formatMoney(value: number | null | undefined) {
     currency: "ARS",
     maximumFractionDigits: 0,
   }).format(Number(value ?? 0));
+}
+
+function extractBranding(schedule: unknown): PublicBranding {
+  if (!schedule || typeof schedule !== "object") return {};
+  const branding = (schedule as Record<string, any>)._branding;
+  return branding && typeof branding === "object" ? branding : {};
+}
+
+function normalizePortfolio(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((url): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 3) : [];
 }
 
 function normalizeSchedule(value: unknown): ScheduleMap | null {
@@ -137,7 +156,7 @@ function PublicProfilePage() {
 
         const businessId = businessData.id as string;
 
-        const [employeesRes, servicesRes, settingsRes] = await Promise.all([
+        const [employeesRes, servicesRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
             .select("id,full_name,avatar_url,is_active")
@@ -148,36 +167,45 @@ function PublicProfilePage() {
             .select("id,name,price,duration_min,is_active")
             .eq("business_id", businessId)
             .order("name", { ascending: true }),
-          // Best-effort: si el RLS lo permite, mostramos horarios reales.
-          // Si no, degradamos con elegancia (sin romper la página).
-          supabase
+        ]);
+
+        // Preferimos una vista pública segura para exponer solo schedule/_branding.
+        // Si todavía no existe, intentamos la tabla original como fallback.
+        let settingsSchedule: unknown = null;
+        const publicSettingsRes = await supabase
+          .from("public_booking_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle();
+        if (!publicSettingsRes.error) {
+          settingsSchedule = (publicSettingsRes.data as any)?.schedule ?? null;
+        } else {
+          const fallbackSettingsRes = await supabase
             .from("business_settings")
             .select("schedule")
             .eq("business_id", businessId)
-            .maybeSingle(),
-        ]);
+            .maybeSingle();
+          if (!fallbackSettingsRes.error) settingsSchedule = (fallbackSettingsRes.data as any)?.schedule ?? null;
+        }
 
         if (employeesRes.error) throw new Error(employeesRes.error.message);
         if (servicesRes.error) throw new Error(servicesRes.error.message);
 
+        const branding = extractBranding(settingsSchedule);
+        const mergedBusiness = {
+          ...(businessData as Business),
+          address: branding.address || (businessData as Business).address,
+          phone: branding.phone || (businessData as Business).phone,
+          email: branding.email || (businessData as Business).email,
+          instagram: branding.instagram || (businessData as Business).instagram,
+        };
+
         if (!cancelled) {
-          const settingsSchedule = settingsRes.error ? null : ((settingsRes.data as any)?.schedule as Record<string, any> | undefined);
-          const branding = (settingsSchedule?._branding ?? {}) as Record<string, any>;
-          setBusiness({
-            ...(businessData as Business),
-            address: (businessData as Business).address || (typeof branding.address === "string" ? branding.address : null),
-            phone: (businessData as Business).phone || (typeof branding.phone === "string" ? branding.phone : null),
-            email: (businessData as Business).email || (typeof branding.email === "string" ? branding.email : null),
-            instagram: (businessData as Business).instagram || (typeof branding.instagram === "string" ? branding.instagram : null),
-          });
+          setBusiness(mergedBusiness as Business);
           setEmployees(((employeesRes.data ?? []) as Employee[]).filter((e) => e.is_active !== false));
           setServices(((servicesRes.data ?? []) as Service[]).filter((s) => s.is_active !== false));
-          setPortfolioUrls(
-            Array.isArray(branding.portfolio_urls)
-              ? (branding.portfolio_urls as unknown[]).filter((url): url is string => typeof url === "string" && url.length > 0).slice(0, 3)
-              : [],
-          );
           setSchedule(normalizeSchedule(settingsSchedule));
+          setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
         }
       } catch {
         if (!cancelled) setBusiness(null);
@@ -192,6 +220,8 @@ function PublicProfilePage() {
   }, [slug]);
 
   const accent = business?.accent_color || "#f59e0b";
+  const portfolio = portfolioUrls;
+
   if (loading) {
     return (
       <main className="min-h-dvh bg-[#09090f] text-white grid place-items-center px-4">
@@ -286,17 +316,17 @@ function PublicProfilePage() {
               ) : (
                 <div className="mt-4 divide-y divide-white/10">
                   {services.map((service) => (
-                    <div key={service.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div key={service.id} className="flex items-center justify-between gap-4 py-4">
                       <div className="min-w-0">
                         <p className="font-medium">{service.name}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-white/50">
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
                           {service.duration_min ? <span>{Number(service.duration_min)} min</span> : null}
                           <span className="font-semibold text-white">{formatMoney(service.price)}</span>
                         </div>
                       </div>
                       <Link
                         {...reservarTo}
-                        className="inline-flex shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+                        className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold transition hover:bg-white/10"
                       >
                         Reservar
                       </Link>
@@ -343,7 +373,7 @@ function PublicProfilePage() {
           ) : null}
 
           {/* Portafolio */}
-          {portfolioUrls.length > 0 ? (
+          {portfolio.length > 0 ? (
             <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
               <CardContent className="p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
@@ -354,10 +384,10 @@ function PublicProfilePage() {
                   <Sparkles className="h-6 w-6" style={{ color: accent }} />
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  {portfolioUrls.map((src, i) => (
+                  {portfolio.slice(0, 3).map((src, i) => (
                     <div
                       key={`${src}-${i}`}
-                      className="aspect-square overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]"
+                      className="aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]"
                     >
                       <img src={src} alt={`Portafolio ${i + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                     </div>
