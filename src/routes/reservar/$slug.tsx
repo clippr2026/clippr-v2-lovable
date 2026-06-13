@@ -257,6 +257,7 @@ function PublicBookingPage() {
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
+  const [colors, setColors] = React.useState<{ primary?: string; secondary?: string; accent?: string }>({});
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
@@ -346,6 +347,11 @@ function PublicBookingPage() {
           setAppointments((appointmentsRes.data ?? []) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
           setClientFields(extractClientFields(settingsSchedule));
+          {
+            const branding = settingsSchedule && typeof settingsSchedule === "object" ? (settingsSchedule as any)._branding : null;
+            const c = branding && typeof branding === "object" && branding.colors && typeof branding.colors === "object" ? branding.colors : {};
+            setColors({ primary: c.primary, secondary: c.secondary, accent: c.accent });
+          }
 
           const params = new URLSearchParams(window.location.search);
           const serviceId = params.get("service");
@@ -440,7 +446,10 @@ function PublicBookingPage() {
     }
   }
 
-  const accent = business?.accent_color || "#d6b66a";
+  const cPrimary = colors.primary || business?.accent_color || "#d6b66a";
+  const cSecondary = colors.secondary || "#7c3aed";
+  const cAccent = colors.accent || cPrimary;
+  const accent = cAccent; // resaltado: botones, pasos, estados, encabezado
 
   if (loading) {
     return (
@@ -469,9 +478,18 @@ function PublicBookingPage() {
   const stepIndex = step === "services" ? 1 : step === "professional" ? 2 : step === "datetime" ? 3 : step === "details" ? 4 : step === "confirm" ? 5 : 5;
 
   return (
-    <main className="min-h-dvh bg-[#08070c] text-white" style={{ ["--accent" as any]: accent }}>
+    <main
+      className="min-h-dvh bg-[#08070c] text-white"
+      style={{ ["--accent" as any]: accent, ["--c-primary" as any]: cPrimary, ["--c-secondary" as any]: cSecondary, ["--c-accent" as any]: cAccent }}
+    >
       <section className="relative overflow-hidden border-b border-white/10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.24),transparent_34%),radial-gradient(circle_at_top_right,rgba(124,58,237,0.20),transparent_34%)]" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 24%, transparent), transparent 36%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 36%)",
+          }}
+        />
         {business.cover_url ? <img src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
         <div className="relative mx-auto flex max-w-5xl items-center gap-4 px-4 py-8 sm:py-10">
           <Link to="/negocio/$slug" params={{ slug }} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white text-xl font-bold text-zinc-950">
@@ -487,7 +505,9 @@ function PublicBookingPage() {
 
       <section className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[1fr_330px] lg:items-start">
         <div className="space-y-6">
-          <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
+          <div className="relative">
+            <div aria-hidden className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.10] blur-2xl" style={{ background: "radial-gradient(60% 70% at 18% 0%, var(--c-primary), transparent 70%), radial-gradient(55% 70% at 100% 100%, var(--c-secondary), transparent 70%)" }} />
+          <Card className="relative border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -622,10 +642,13 @@ function PublicBookingPage() {
               ) : null}
             </CardContent>
           </Card>
+          </div>
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <Card className="border-white/10 bg-white/[0.06] text-white shadow-2xl backdrop-blur-xl">
+          <div className="relative">
+            <div aria-hidden className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.10] blur-2xl" style={{ background: "radial-gradient(60% 70% at 18% 0%, var(--c-primary), transparent 70%), radial-gradient(55% 70% at 100% 100%, var(--c-secondary), transparent 70%)" }} />
+          <Card className="relative border-white/10 bg-white/[0.06] text-white shadow-2xl backdrop-blur-xl">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5" style={{ color: accent }} /><h2 className="text-lg font-semibold">Tu reserva</h2></div>
               <div className="mt-5 space-y-4 text-sm text-white/65">
@@ -637,6 +660,7 @@ function PublicBookingPage() {
               </div>
             </CardContent>
           </Card>
+          </div>
         </aside>
       </section>
     </main>
