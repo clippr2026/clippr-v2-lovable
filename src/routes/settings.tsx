@@ -406,8 +406,8 @@ function BrandingSection() {
 
   // Previews en vivo (archivo recién elegido > url guardada > fallback).
   const avatarPreview = React.useMemo(
-    () => (avatarFile ? URL.createObjectURL(avatarFile) : (data.avatar_url || data.logo_url || "")),
-    [avatarFile, data.avatar_url, data.logo_url],
+    () => (avatarFile ? URL.createObjectURL(avatarFile) : (data.avatar_url || "")),
+    [avatarFile, data.avatar_url],
   );
   const coverPreview = React.useMemo(
     () => (coverFile ? URL.createObjectURL(coverFile) : (data.cover_url || "")),
@@ -428,7 +428,11 @@ function BrandingSection() {
     const { error } = await supabase.storage
       .from("business-assets")
       .upload(path, blob, { upsert: true, contentType });
-    if (error) { toast.error("Error subiendo imagen: " + error.message); return null; }
+    if (error) {
+      console.error("[storage] upload failed", { path, contentType, size: blob.size, error });
+      toast.error("No se pudo subir la imagen: " + error.message);
+      return null;
+    }
     const { data: urlData } = supabase.storage.from("business-assets").getPublicUrl(path);
     // Cache-bust: el path se sobrescribe (upsert), así forzamos refrescar el CDN.
     return `${urlData.publicUrl}?v=${Date.now()}`;
@@ -449,7 +453,8 @@ function BrandingSection() {
       try {
         const { blob, ext, type } = await processImage(avatarFile, 512, 512, 0.8);
         const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
-        if (url) avatar_url = url;
+        if (!url) { setSaving(false); return; } // uploadBlob ya mostró el error real
+        avatar_url = url;
       } catch (e) {
         setSaving(false);
         return toast.error((e as Error).message);
@@ -462,7 +467,8 @@ function BrandingSection() {
       try {
         const { blob, ext, type } = await processImage(coverFile, 1600, 600, 0.8);
         const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
-        if (url) cover_url = url;
+        if (!url) { setSaving(false); return; } // uploadBlob ya mostró el error real
+        cover_url = url;
       } catch (e) {
         setSaving(false);
         return toast.error((e as Error).message);
@@ -752,33 +758,8 @@ function BrandingSection() {
 
       <SectionCard label="Imágenes">
         <div className="space-y-5">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-              <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
-            </div>
-            <div className="flex-1">
-              <div className="font-medium text-sm">Logo</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Se muestra en el sidebar y en los tickets</div>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="h-16 w-24 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
-                {logoFile ? (
-                  <img src={URL.createObjectURL(logoFile)} alt="" className="h-full w-full object-cover" />
-                ) : data.logo_url ? (
-                  <img src={data.logo_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">vacío</span>
-                )}
-              </div>
-              <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
-                <Upload className="h-3.5 w-3.5" /> Subir logo
-                <input type="file" accept="image/*" className="hidden" onChange={e => setLogoFile(e.target.files?.[0] ?? null)} />
-              </label>
-            </div>
-          </div>
-
           {/* Foto de perfil (sitio web público) */}
-          <div className="flex items-start gap-4 border-t border-white/5 pt-5">
+          <div className="flex items-start gap-4">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
               <UserIcon className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
