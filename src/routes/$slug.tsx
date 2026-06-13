@@ -104,6 +104,27 @@ function normalizePortfolio(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((url): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 3) : [];
 }
 
+function normalizeBooleanMap(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key.trim().length > 0)
+      .map(([key, next]) => [key, next !== false]),
+  );
+}
+
+function extractPublicVisibility(schedule: unknown) {
+  if (!schedule || typeof schedule !== "object") {
+    return { services: {}, employees: {} } as { services: Record<string, boolean>; employees: Record<string, boolean> };
+  }
+  const source = schedule as Record<string, unknown>;
+  const visibility = (source._publicVisibility ?? {}) as Record<string, unknown>;
+  return {
+    services: normalizeBooleanMap(visibility.services ?? source._serviceReservable),
+    employees: normalizeBooleanMap(visibility.employees ?? source._employeeOnline),
+  };
+}
+
 function normalizeSchedule(value: unknown): ScheduleMap | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, any>;
@@ -200,10 +221,20 @@ function PublicProfilePage() {
           instagram: branding.instagram || (businessData as Business).instagram,
         };
 
+        const visibility = extractPublicVisibility(settingsSchedule);
+
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
-          setEmployees(((employeesRes.data ?? []) as Employee[]).filter((e) => e.is_active !== false));
-          setServices(((servicesRes.data ?? []) as Service[]).filter((s) => s.is_active !== false));
+          setEmployees(
+            ((employeesRes.data ?? []) as Employee[])
+              .filter((employee) => employee.is_active !== false)
+              .filter((employee) => visibility.employees[employee.id] !== false),
+          );
+          setServices(
+            ((servicesRes.data ?? []) as Service[])
+              .filter((service) => service.is_active !== false)
+              .filter((service) => visibility.services[service.id] !== false),
+          );
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
         }
@@ -316,17 +347,17 @@ function PublicProfilePage() {
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm text-white/50">Carta</p>
-                  <h2 className="text-2xl font-semibold">Servicios</h2>
+                  <p className="text-sm text-white/50">Servicios disponibles</p>
+                  <h2 className="text-2xl font-semibold">Elegí qué querés reservar</h2>
                 </div>
                 <Scissors className="h-6 w-6" style={{ color: accent }} />
               </div>
               {services.length === 0 ? (
-                <p className="mt-4 text-sm text-white/55">Todavía no hay servicios publicados.</p>
+                <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
-                <div className="mt-4 divide-y divide-white/10">
+                <div className="mt-5 grid gap-3">
                   {services.map((service) => (
-                    <div key={service.id} className="flex items-center justify-between gap-4 py-4">
+                    <div key={service.id} className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.035] p-4 transition hover:bg-white/[0.06]">
                       <div className="min-w-0">
                         <p className="font-medium">{service.name}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
@@ -353,8 +384,8 @@ function PublicProfilePage() {
               <CardContent className="p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm text-white/50">Profesionales</p>
-                    <h2 className="text-2xl font-semibold">El equipo</h2>
+                    <p className="text-sm text-white/50">Profesionales disponibles</p>
+                    <h2 className="text-2xl font-semibold">Elegí con quién atenderte</h2>
                   </div>
                   <UsersRound className="h-6 w-6" style={{ color: accent }} />
                 </div>

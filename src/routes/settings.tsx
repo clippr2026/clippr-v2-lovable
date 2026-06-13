@@ -1473,6 +1473,7 @@ type PendingProfessional = {
     is_active: boolean;
     commission_pct: number | null;
     avatar_url?: string | null;
+    acceptsOnline?: boolean;
     commissions?: Record<string, CommissionConfig>;
   };
   isNew: boolean;
@@ -1763,6 +1764,19 @@ function normalizePermissionMap(value: unknown): PermissionMap {
   );
 }
 
+function normalizePublicBooleanMap(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key.trim().length > 0)
+      .map(([key, next]) => [key, next !== false]),
+  );
+}
+
+function getPublicVisibility(schedule: Record<string, unknown>) {
+  return ((schedule._publicVisibility ?? {}) as Record<string, unknown>);
+}
+
 function EquipoSection() {
   const { businessId } = useAuth();
   const [tab, setTab] = useState<"pros" | "users">("pros");
@@ -1782,6 +1796,7 @@ function EquipoSection() {
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
   const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
   const [rows, setRows] = useState<EmployeeRow[]>([]);
+  const [employeeOnlineMap, setEmployeeOnlineMap] = useState<Record<string, boolean>>({});
   const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1879,6 +1894,8 @@ function EquipoSection() {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
+        const visibility = getPublicVisibility(schedule);
+        setEmployeeOnlineMap(normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline));
         setApprovalEnabled(caja.approvalModeEnabled === true);
         setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
       });
@@ -1906,7 +1923,7 @@ function EquipoSection() {
           return toast.error("Error guardando profesional: " + (error?.message ?? "no se pudo crear"));
         }
 
-        if (payload.commissions) {
+        {
           const { data: existingRow } = await supabase
             .from("business_settings")
             .select("schedule")
@@ -1914,15 +1931,23 @@ function EquipoSection() {
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
           const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+          const visibility = getPublicVisibility(existingSchedule);
+          const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
           await supabase.from("business_settings").upsert(
             {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
-                _employeeCommissions: {
-                  ...existingCommissions,
-                  [inserted.id]: payload.commissions,
+                _employeeCommissions: payload.commissions
+                  ? {
+                      ...existingCommissions,
+                      [inserted.id]: payload.commissions,
+                    }
+                  : existingCommissions,
+                _publicVisibility: {
+                  ...visibility,
+                  employees: { ...employeesVisibility, [inserted.id]: payload.acceptsOnline !== false },
                 },
               },
             },
@@ -1942,7 +1967,7 @@ function EquipoSection() {
 
         if (error) return toast.error("Error guardando profesional: " + error.message);
 
-        if (payload.commissions) {
+        {
           const { data: existingRow } = await supabase
             .from("business_settings")
             .select("schedule")
@@ -1950,15 +1975,23 @@ function EquipoSection() {
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
           const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+          const visibility = getPublicVisibility(existingSchedule);
+          const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
           await supabase.from("business_settings").upsert(
             {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
-                _employeeCommissions: {
-                  ...existingCommissions,
-                  [payload.id]: payload.commissions,
+                _employeeCommissions: payload.commissions
+                  ? {
+                      ...existingCommissions,
+                      [payload.id]: payload.commissions,
+                    }
+                  : existingCommissions,
+                _publicVisibility: {
+                  ...visibility,
+                  employees: { ...employeesVisibility, [payload.id]: payload.acceptsOnline !== false },
                 },
               },
             },
@@ -2144,6 +2177,7 @@ function EquipoSection() {
       is_active: editingEmp ? editingEmp.is_active !== false : true,
       commission_pct: commission,
       avatar_url: form.avatarUrl || null,
+      acceptsOnline: form.acceptsOnline,
       commissions: form.commissions,
     };
 
@@ -2161,6 +2195,7 @@ function EquipoSection() {
         ),
       );
 
+      setEmployeeOnlineMap((current) => ({ ...current, [editingEmp.id]: form.acceptsOnline }));
       setPendingProfessionals((current) => [
         ...current.filter((item) => item.payload.id !== editingEmp.id),
         { tempId: editingEmp.id, payload, isNew: false },
@@ -2184,6 +2219,7 @@ function EquipoSection() {
       },
     ]);
 
+    setEmployeeOnlineMap((current) => ({ ...current, [tempId]: form.acceptsOnline }));
     setPendingProfessionals((current) => [
       ...current,
       { tempId, payload: { ...payload, id: undefined }, isNew: true },
@@ -2555,7 +2591,7 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("perfil"); setOpen(true); }}
+                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? ""), acceptsOnline: employeeOnlineMap[emp.id] !== false }); setDlgTab("perfil"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
                         Editar
@@ -3817,6 +3853,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const isService = kind === "servicios";
   const { businessId } = useAuth();
   const [rows, setRows] = useState<PriceRow[]>([]);
+  const [serviceReservableMap, setServiceReservableMap] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
   const [editing, setEditing] = useState<PriceRow | null>(null);
@@ -3841,7 +3878,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const cats = (schedule._categories ?? {}) as Record<string, unknown>;
-        if (isService && Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
+        const visibility = getPublicVisibility(schedule);
+        if (isService) {
+          setServiceReservableMap(normalizePublicBooleanMap(visibility.services ?? schedule._serviceReservable));
+          if (Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
+        }
         if (!isService && Array.isArray(cats.catalog)) setCustomCatalogCategories(cats.catalog as string[]);
       });
   }, [businessId, isService]);
@@ -3938,8 +3979,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   useEffect(() => { persistCategoriesRef.current = persistCategories; }, [persistCategories]);
   const pendingItemsRef = useRef(pendingItems);
   const pendingDeletesRef = useRef(pendingDeletes);
+  const serviceReservableMapRef = useRef(serviceReservableMap);
   useEffect(() => { pendingItemsRef.current = pendingItems; }, [pendingItems]);
   useEffect(() => { pendingDeletesRef.current = pendingDeletes; }, [pendingDeletes]);
+  useEffect(() => { serviceReservableMapRef.current = serviceReservableMap; }, [serviceReservableMap]);
 
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -3950,21 +3993,55 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const deletes = pendingDeletesRef.current;
         const errors: string[] = [];
 
+        let nextServiceReservableMap = { ...serviceReservableMapRef.current };
+
         // Flush deletes
         for (const id of deletes) {
           const { error } = await supabase.from("price_catalog").delete().eq("id", id);
           if (error) errors.push(error.message);
+          if (isService) delete nextServiceReservableMap[id];
         }
 
         // Flush upserts
         for (const { tempId, payload, isNew } of items) {
           if (isNew) {
-            const { error } = await supabase.from("price_catalog").insert(payload);
-            if (error) errors.push(error.message);
+            const { data: inserted, error } = await supabase.from("price_catalog").insert(payload).select("id").single();
+            if (error || !inserted) {
+              errors.push(error?.message ?? "No se pudo crear el servicio");
+            } else if (isService) {
+              const reservable = nextServiceReservableMap[tempId] !== false;
+              delete nextServiceReservableMap[tempId];
+              nextServiceReservableMap[String(inserted.id)] = reservable;
+            }
           } else {
             const { error } = await supabase.from("price_catalog").update(payload).eq("id", tempId);
             if (error) errors.push(error.message);
           }
+        }
+
+        if (isService && businessId) {
+          serviceReservableMapRef.current = nextServiceReservableMap;
+          setServiceReservableMap(nextServiceReservableMap);
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+          const visibility = getPublicVisibility(existingSchedule);
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _publicVisibility: {
+                  ...visibility,
+                  services: nextServiceReservableMap,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
         }
 
         await persistCategoriesRef.current();
@@ -4002,7 +4079,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   function openEdit(row: PriceRow) {
     setEditing(row);
-    setForm(rowToForm(row, isService));
+    setForm({
+      ...rowToForm(row, isService),
+      reservable: isService ? serviceReservableMap[row.id] !== false : true,
+    });
     setModalOpen(true);
   }
 
@@ -4021,6 +4101,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!isService) payload.stock = Number(form.stock) || 0;
 
     if (editing) {
+      if (isService) setServiceReservableMap((current) => ({ ...current, [editing.id]: form.reservable }));
       // Update existing row locally
       setRows(prev => prev.map(r => r.id === editing.id ? { ...r, ...payload } as PriceRow : r));
       setPendingItems(prev => {
@@ -4030,6 +4111,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     } else {
       // New row — temp negative id until saved
       const tempId = `new_${Date.now()}`;
+      if (isService) setServiceReservableMap((current) => ({ ...current, [tempId]: form.reservable }));
       setRows(prev => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems(prev => [...prev, { tempId, payload: { ...payload }, isNew: true }]);
     }
@@ -4055,6 +4137,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const row = confirmDelItem;
     setConfirmDelItem(null);
     setRows(prev => prev.filter(r => r.id !== row.id));
+    if (isService) setServiceReservableMap((current) => { const next = { ...current }; delete next[row.id]; return next; });
     // If it was a new (unsaved) item, just remove from pending
     if (row.id.startsWith("new_")) {
       setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
