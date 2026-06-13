@@ -81,6 +81,7 @@ type DaySchedule = {
 type ScheduleMap = Record<DayKey, DaySchedule>;
 type BookingStep = "services" | "professional" | "datetime" | "details" | "confirm" | "done";
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
+type LandingColors = { primary?: string; secondary?: string; accent?: string };
 
 const DAY_KEYS: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const DEFAULT_SCHEDULE: ScheduleMap = {
@@ -175,6 +176,12 @@ function extractClientFields(schedule: unknown): ClientFields {
   };
 }
 
+function extractBranding(schedule: unknown): { colors?: LandingColors | null; address?: string | null; phone?: string | null; email?: string | null; instagram?: string | null } {
+  if (!schedule || typeof schedule !== "object") return {};
+  const branding = (schedule as Record<string, any>)._branding;
+  return branding && typeof branding === "object" ? branding : {};
+}
+
 function normalizeSchedule(value: unknown): ScheduleMap {
   if (!value || typeof value !== "object") return DEFAULT_SCHEDULE;
   const source = value as Record<string, any>;
@@ -257,6 +264,7 @@ function PublicBookingPage() {
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
+  const [colors, setColors] = React.useState<LandingColors>({});
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
@@ -331,6 +339,7 @@ function PublicBookingPage() {
         if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
 
         const settingsSchedule = settingsRes.error ? null : ((settingsRes.data as any)?.schedule ?? null);
+        const branding = extractBranding(settingsSchedule);
         const visibility = extractPublicVisibility(settingsSchedule);
         const visibleEmployees = ((employeesRes.data ?? []) as Employee[])
           .filter((employee) => employee.is_active !== false)
@@ -340,7 +349,14 @@ function PublicBookingPage() {
           .filter((service) => visibility.services[service.id] !== false);
 
         if (!cancelled) {
-          setBusiness(businessData as Business);
+          setBusiness({
+            ...(businessData as Business),
+            address: branding.address || (businessData as Business).address,
+            phone: branding.phone || (businessData as Business).phone,
+            email: branding.email || (businessData as Business).email,
+            instagram: branding.instagram || (businessData as Business).instagram,
+          } as Business);
+          setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setEmployees(visibleEmployees);
           setServices(visibleServices);
           setAppointments((appointmentsRes.data ?? []) as Appointment[]);
@@ -440,7 +456,10 @@ function PublicBookingPage() {
     }
   }
 
-  const accent = business?.accent_color || "#d6b66a";
+  const cPrimary = colors.primary || business?.accent_color || "#d6b66a";
+  const cSecondary = colors.secondary || "#7c3aed";
+  const cAccent = colors.accent || cPrimary;
+  const accent = cAccent;
 
   if (loading) {
     return (
@@ -469,9 +488,9 @@ function PublicBookingPage() {
   const stepIndex = step === "services" ? 1 : step === "professional" ? 2 : step === "datetime" ? 3 : step === "details" ? 4 : step === "confirm" ? 5 : 5;
 
   return (
-    <main className="min-h-dvh bg-[#08070c] text-white" style={{ ["--accent" as any]: accent }}>
+    <main className="min-h-dvh bg-[#08070c] text-white" style={{ ["--accent" as any]: accent, ["--c-primary" as any]: cPrimary, ["--c-secondary" as any]: cSecondary, ["--c-accent" as any]: cAccent }}>
       <section className="relative overflow-hidden border-b border-white/10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.24),transparent_34%),radial-gradient(circle_at_top_right,rgba(124,58,237,0.20),transparent_34%)]" />
+        <div className="absolute inset-0" style={{ background: "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 36%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 36%)" }} />
         {business.cover_url ? <img src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
         <div className="relative mx-auto flex max-w-5xl items-center gap-4 px-4 py-8 sm:py-10">
           <Link to="/negocio/$slug" params={{ slug }} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white text-xl font-bold text-zinc-950">
