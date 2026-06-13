@@ -34,6 +34,8 @@ export const ALL_CLIENT_FIELDS = [
   { key: "telefono",         label: "Teléfono",            required: true  },
   { key: "email",            label: "Email",               required: false },
   { key: "fecha_nacimiento", label: "Fecha de nacimiento", required: false },
+  { key: "instagram",        label: "Instagram",           required: false },
+  { key: "direccion",        label: "Dirección",           required: false },
   { key: "notas",            label: "Notas",               required: false },
 ] as const;
 
@@ -47,6 +49,7 @@ export function computeClientStatus(
   opts: {
     lastVisitDays: number | null;
     visits: number;
+    spent?: number;
     monthVisits: number;
     monthSpent: number;
   },
