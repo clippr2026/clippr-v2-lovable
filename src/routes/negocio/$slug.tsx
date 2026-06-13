@@ -226,7 +226,7 @@ function PublicProfilePage() {
         const [employeesRes, servicesRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
-            .select("id,full_name,avatar_url,is_active,role")
+            .select("id,full_name,avatar_url,is_active")
             .eq("business_id", businessId)
             .order("full_name", { ascending: true }),
           supabase
@@ -253,8 +253,12 @@ function PublicProfilePage() {
           if (!fallbackSettingsRes.error) settingsSchedule = (fallbackSettingsRes.data as any)?.schedule ?? null;
         }
 
-        if (employeesRes.error) throw new Error(employeesRes.error.message);
-        if (servicesRes.error) throw new Error(servicesRes.error.message);
+        // La página pública no debe caer completa si una vista secundaria falla.
+        // Primero mostramos el negocio y degradamos servicios/equipo con elegancia.
+        console.warn("Public profile secondary data", {
+          employeesError: employeesRes.error?.message,
+          servicesError: servicesRes.error?.message,
+        });
 
         const branding = extractBranding(settingsSchedule);
         const mergedBusiness = {
@@ -270,12 +274,12 @@ function PublicProfilePage() {
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
           setEmployees(
-            ((employeesRes.data ?? []) as Employee[])
+            (employeesRes.error ? [] : ((employeesRes.data ?? []) as Employee[]))
               .filter((employee) => employee.is_active !== false)
               .filter((employee) => visibility.employees[employee.id] !== false),
           );
           setServices(
-            ((servicesRes.data ?? []) as Service[])
+            (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
               .filter((service) => visibility.services[service.id] !== false),
           );
