@@ -374,10 +374,12 @@ function PublicProfilePage() {
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-6 sm:py-10">
-          <div className="h-44 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-60">
+          <div className="relative h-44 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-60">
             {business.cover_url ? (
               <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" decoding="async" />
             ) : null}
+            {/* Overlay para legibilidad del nombre sobre portadas claras */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
           </div>
           <div className="-mt-12 flex flex-col gap-4 px-4 sm:-mt-14 sm:px-8">
             <div className="flex items-end gap-4">
@@ -389,10 +391,7 @@ function PublicProfilePage() {
                 )}
               </div>
               <div className="pb-1">
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
-                {description ? (
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">{description}</p>
-                ) : null}
+                <h1 className="text-3xl font-semibold tracking-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)] sm:text-5xl">{business.name}</h1>
               </div>
             </div>
           </div>
@@ -419,7 +418,8 @@ function PublicProfilePage() {
                       </div>
                       <a
                         href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold transition hover:bg-white/10"
+                        className="shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition hover:brightness-110"
+                        style={{ color: cAccent, borderColor: "color-mix(in oklch, var(--c-accent) 45%, transparent)", background: "color-mix(in oklch, var(--c-accent) 12%, transparent)" }}
                       >
                         Reservar
                       </a>
@@ -473,19 +473,31 @@ function PublicProfilePage() {
               </div>
             </GlowCard>
           ) : null}
+
+          {description ? (
+            <GlowCard>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" style={{ color: cAccent }} />
+                  <h2 className="text-2xl font-semibold">Acerca de</h2>
+                </div>
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-white/70 sm:text-base">{description}</p>
+              </div>
+            </GlowCard>
+          ) : null}
         </div>
 
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           {/* Reserva */}
           <GlowCard className="p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" style={{ color: cPrimary }} />
+              <CalendarDays className="h-5 w-5" style={{ color: cAccent }} />
               <h2 className="text-lg font-semibold">Reservá tu turno</h2>
             </div>
             <Link
               {...reservarTo}
               className="mt-4 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 transition hover:brightness-110"
-              style={{ background: cPrimary, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-primary) 70%, transparent)" }}
+              style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
             >
               Reservar turno
             </Link>
@@ -498,7 +510,7 @@ function PublicProfilePage() {
           {/* Horarios + Dirección */}
           <GlowCard className="p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <Clock3 className="h-5 w-5" style={{ color: cPrimary }} />
+              <Clock3 className="h-5 w-5" style={{ color: cAccent }} />
               <h2 className="text-lg font-semibold">Horarios</h2>
             </div>
             {schedule ? (
@@ -520,11 +532,11 @@ function PublicProfilePage() {
             {business.address ? (
               <div className="mt-5 border-t border-white/10 pt-5">
                 <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cPrimary }} />
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cAccent }} />
                   <div className="min-w-0">
                     <p className="text-white/70">{business.address}</p>
                     {mapLink ? (
-                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: cPrimary }}>
+                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: cAccent }}>
                         Cómo llegar <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     ) : null}
@@ -588,7 +600,7 @@ function PublicProfilePage() {
         <Link
           {...reservarTo}
           className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950"
-          style={{ background: cPrimary, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-primary) 70%, transparent)" }}
+          style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
         >
           Reservar turno
         </Link>
