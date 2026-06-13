@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfStats, useProfPayments,
   useProfSales, useProfTurnos, useRegisterPayout,
-  type ProfPayment, type ProfSale, type ProfTurno,
+  type ProfPayment, type ProfTurno,
 } from "@/hooks/use-professionals-data";
 import { toast } from "sonner";
 
@@ -188,12 +188,12 @@ function shortName(email: string | null | undefined): string {
 
 
 const COLORS = [
-  { color: "from-amber-400 to-amber-600", ring: "ring-amber-400/60" },
+  { color: "from-cyan-400 to-cyan-600", ring: "ring-cyan-400/60" },
   { color: "from-emerald-300 to-emerald-500", ring: "ring-emerald-400/60" },
   { color: "from-violet-300 to-violet-500", ring: "ring-violet-400/60" },
   { color: "from-sky-300 to-sky-500", ring: "ring-sky-400/60" },
   { color: "from-rose-300 to-rose-500", ring: "ring-rose-400/60" },
-  { color: "from-amber-300 to-yellow-500", ring: "ring-yellow-400/60" },
+  { color: "from-cyan-300 to-cyan-500", ring: "ring-cyan-400/60" },
 ];
 
 function ProfessionalsPage() {
@@ -311,7 +311,7 @@ function ProfessionalsPage() {
       <div className="space-y-6 animate-fade-up">
       {/* Header card */}
       <div className="glass rounded-3xl p-5 md:p-6 relative overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -left-16 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center gap-5 md:gap-6 relative">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <div
@@ -336,7 +336,7 @@ function ProfessionalsPage() {
               {permissions.equipo && approvalModeEnabled && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
                 approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
-                approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
+                approvalMode === "manual" && "bg-cyan-500/10 ring-cyan-400/30 text-cyan-300",
                 approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
               )}>
                 {approvalMode === "auto" && <><Zap className="h-3 w-3 fill-emerald-300" /> Automático</>}
@@ -385,7 +385,7 @@ function ProfessionalsPage() {
       {/* Tabs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {([
-          { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-amber-300" },
+          { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-cyan-300" },
           { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
           { key: "historial-servicios",label: "Historial de ventas",   Icon: Clock,         tint: "text-violet-300"},
           { key: "historial-pagos",    label: "Historial de pagos",    Icon: DollarSign,    tint: "text-emerald-300"},
@@ -412,7 +412,7 @@ function ProfessionalsPage() {
       </div>
 
       {profile?.role === "profesional" && !profileEmployeeId && (
-        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-amber-500/8 ring-amber-400/15 text-amber-300">
+        <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-cyan-500/8 ring-cyan-400/15 text-cyan-300">
           Este acceso profesional no tiene un profesional asociado. Asignalo desde Configuración → Equipo → Accesos para ver su panel.
         </div>
       )}
@@ -781,7 +781,7 @@ function CobroModal({
 
           {/* Mode banner */}
           <div className={cn("rounded-2xl px-4 py-2.5 text-sm ring-1",
-            mode === "auto" ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-200" : "bg-amber-500/10 ring-amber-400/20 text-amber-200")}>
+            mode === "auto" ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-200" : "bg-cyan-500/10 ring-cyan-400/20 text-cyan-200")}>
             <span className="font-semibold">{mode === "auto" ? "⚡ Cobro automático" : "👁 Enviar a Caja"}</span>
             <span className="text-xs opacity-70 ml-2">{mode === "auto" ? "Se registra directamente en caja." : "Recepción revisará y confirmará."}</span>
           </div>
@@ -899,7 +899,7 @@ function CobroModal({
                       isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
                       : showVuelto ? "bg-sky-500/10 ring-1 ring-sky-400/20 text-sky-300"
                       : isOver && !hasCash ? "hidden"
-                      : "bg-amber-500/10 ring-1 ring-amber-400/20 text-amber-300")}>
+                      : "bg-cyan-500/10 ring-1 ring-cyan-400/20 text-cyan-300")}>
                       {isBalanced ? <span>✓ Total cubierto</span>
                       : showVuelto ? <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
                       : <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>}
@@ -950,7 +950,7 @@ function CobroModal({
                       isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
                       : showVuelto ? "bg-sky-500/10 ring-1 ring-sky-400/20 text-sky-300"
                       : isOver && !hasCash ? "hidden"
-                      : "bg-amber-500/10 ring-1 ring-amber-400/20 text-amber-300")}>
+                      : "bg-cyan-500/10 ring-1 ring-cyan-400/20 text-cyan-300")}>
                       {isBalanced ? <span>✓ Total cubierto</span>
                       : showVuelto ? <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
                       : <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>}
@@ -975,7 +975,7 @@ function CobroModal({
           <button onClick={confirm} disabled={saving || !canConfirm}
             className={cn("flex-1 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-40",
               mode === "auto" ? "bg-gradient-to-r from-emerald-400 to-emerald-500 text-background"
-                             : "bg-gradient-to-r from-amber-300 to-amber-500 text-background")}>
+                             : "bg-gradient-to-r from-cyan-300 to-cyan-500 text-background")}>
             {saving ? "Guardando…" : mode === "auto" ? "Confirmar cobro" : "Enviar a Caja"}
           </button>
         </div>
@@ -1029,7 +1029,7 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
         </div>
         {cursorStr !== todayStr && (
           <button onClick={() => onSelect(startOfDay(new Date()))}
-            className="text-xs font-medium text-amber-300 hover:text-amber-200 transition">Hoy</button>
+            className="text-xs font-medium text-cyan-300 hover:text-cyan-200 transition">Hoy</button>
         )}
       </div>
       <div ref={scrollRef} className="flex gap-1 overflow-x-auto px-3 pb-3 scroll-smooth"
@@ -1043,7 +1043,7 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
             <button key={dStr} onClick={() => onSelect(startOfDay(d))}
               className={cn(
                 "flex flex-col items-center gap-1 rounded-2xl py-2 transition-all shrink-0 w-[52px]",
-                isSelected ? "text-white" : isToday ? "text-amber-300 ring-1 ring-amber-400/30 bg-amber-500/10" : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
+                isSelected ? "text-white" : isToday ? "text-cyan-300 ring-1 ring-cyan-400/30 bg-cyan-500/10" : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
               )}
               style={isSelected ? { background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))" } : undefined}
             >
@@ -1061,7 +1061,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   businessId: string | null; empId: string | null;
   approvalMode: "auto" | "manual" | "disabled";
   approvalModeEnabled: boolean;
-  profile: { id: string; email?: string } | null;
+  profile: { id: string; email?: string | null } | null;
   canOperate: boolean;
   equipoEnabled: boolean;
 }) {
@@ -1258,7 +1258,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
       {approvalModeEnabled && canOperate && (
         <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
           approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
-          approvalMode === "manual" && "bg-amber-500/8 ring-amber-400/15 text-amber-300",
+          approvalMode === "manual" && "bg-cyan-500/8 ring-cyan-400/15 text-cyan-300",
           approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
         )}>
           {approvalMode === "auto" && "⚡ Cobro automático — el profesional ve el botón Cobrar y al confirmar queda como Cobrado."}
@@ -1384,7 +1384,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                           className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
                             approvalMode === "auto"
                               ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                              : "bg-amber-500/15 ring-amber-400/30 text-amber-300 hover:bg-amber-500/25"
+                              : "bg-cyan-500/15 ring-cyan-400/30 text-cyan-300 hover:bg-cyan-500/25"
                           )}
                         >
                           {approvalMode === "auto" ? "Cobrar" : "Enviar"}
@@ -1507,8 +1507,8 @@ function StatsView({
     <div className="space-y-4 animate-fade-up">
       {/* KPI cards: Comisión / Pagado / Pendiente */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-400/20 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-cyan-400/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>💸</span> Comisión
           </div>
@@ -1528,8 +1528,8 @@ function StatsView({
             <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.pagado.toLocaleString("es-AR") : "—"}</span>
           </div>
         </div>
-        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-300/20 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-cyan-300/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-cyan-300/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
             <span>⏳</span> Pendiente
           </div>
@@ -1553,7 +1553,7 @@ const PIE_COLORS = [
   "oklch(0.72 0.22 300)",  // violet
   "oklch(0.72 0.20 200)",  // sky
   "oklch(0.72 0.22 145)",  // emerald
-  "oklch(0.78 0.18 60)",   // amber
+  "oklch(0.78 0.16 200)",   // amber
   "oklch(0.72 0.22 15)",   // rose
   "oklch(0.72 0.18 250)",  // blue
   "oklch(0.75 0.14 95)",   // lime
@@ -2004,7 +2004,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
           <span>Total de ventas: <strong className="text-foreground">{enriched.length}</strong></span>
           <span className="text-white/20">•</span>
-          <span>Comisiones: <strong className="text-amber-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
+          <span>Comisiones: <strong className="text-cyan-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
         </div>
 
         {loading ? (
@@ -2070,7 +2070,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                   </div>
 
                   <div className="text-right font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.total.toLocaleString("es-AR")}</div>
-                  <div className="text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
+                  <div className="text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
                 </div>
               );
             })}

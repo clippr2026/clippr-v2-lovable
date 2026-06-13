@@ -431,11 +431,11 @@ function AdvisorContent({
                   <div className="flex items-center gap-2.5">
                     {item.tone === "good"
                       ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
-                      : <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />}
+                      : <AlertTriangle className="h-5 w-5 shrink-0 text-cyan-400" />}
                     <span className="text-sm text-muted-foreground">{item.label}</span>
                   </div>
                   {item.value && (
-                    <span className={cn("text-sm font-bold", item.tone === "good" ? "text-emerald-300" : "text-amber-300")}>
+                    <span className={cn("text-sm font-bold", item.tone === "good" ? "text-emerald-300" : "text-cyan-300")}>
                       {item.value}
                     </span>
                   )}
@@ -1017,7 +1017,7 @@ function HistorialMesAnterior() {
     { label: "Utilidad",           value: fmtAR(DEMO_PREV.profit),        sub: "Ganancia neta",           color: "text-emerald-300",bg: "bg-emerald-400/10 ring-1 ring-emerald-400/20" },
     { label: "Clientes atendidos", value: String(DEMO_PREV.clientsTotal), sub: "Total del mes",           color: "text-sky-300",    bg: "bg-sky-400/10 ring-1 ring-sky-400/20" },
     { label: "Clientes nuevos",    value: String(DEMO_PREV.clientsNew),   sub: "+16% vs mes previo",      color: "text-sky-300",    bg: "bg-sky-400/10 ring-1 ring-sky-400/20" },
-    { label: "Ticket promedio",    value: fmtAR(DEMO_PREV.ticket),        sub: "+10% vs mes previo",      color: "text-amber-300",  bg: "bg-amber-400/10 ring-1 ring-amber-400/20" },
+    { label: "Ticket promedio",    value: fmtAR(DEMO_PREV.ticket),        sub: "+10% vs mes previo",      color: "text-cyan-300",  bg: "bg-cyan-400/10 ring-1 ring-cyan-400/20" },
     { label: "Ocupación",          value: `${DEMO_PREV.occupancy}%`,      sub: "+8 pts vs mes previo",    color: "text-orange-300", bg: "bg-orange-400/10 ring-1 ring-orange-400/20" },
   ];
 
@@ -1108,7 +1108,7 @@ function HistorialMesAnterior() {
               {item.tone === "good" ? (
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
               ) : (
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
               )}
               <span className="text-muted-foreground leading-snug">{item.text}</span>
             </div>
@@ -1127,8 +1127,8 @@ function HistorialMesAnterior() {
         <p className="text-sm text-muted-foreground leading-relaxed">
           La utilidad de {DEMO_PREV.month} creció un{" "}
           <span className="font-semibold text-emerald-300">+30%</span> respecto al mes previo, impulsada principalmente por el aumento de clientes nuevos (+16%) y el ticket promedio (+10%). La ocupación mejoró 8 puntos alcanzando el 62%. Sin embargo, persisten{" "}
-          <span className="font-semibold text-amber-300">{DEMO.freeSlotsMonth} espacios libres en agenda</span> y{" "}
-          <span className="font-semibold text-amber-300">{DEMO.inactiveClients} clientes inactivos</span> que representan una oportunidad concreta de crecimiento para el mes actual.
+          <span className="font-semibold text-cyan-300">{DEMO.freeSlotsMonth} espacios libres en agenda</span> y{" "}
+          <span className="font-semibold text-cyan-300">{DEMO.inactiveClients} clientes inactivos</span> que representan una oportunidad concreta de crecimiento para el mes actual.
         </p>
       </div>
     </GlassCard>
@@ -1158,8 +1158,8 @@ function percent(now: number, previous: number) {
 function getHealthTone(health: number) {
   if (health >= 85) return { label: "Excelente", message: "Tu negocio está funcionando muy bien. Mantené el ritmo actual.", text: "text-emerald-400", bar: "from-emerald-500 to-primary" };
   if (health >= 70) return { label: "Bueno", message: "Tu negocio está saludable, aunque todavía hay oportunidades de crecimiento.", text: "text-lime-300", bar: "from-lime-400 to-primary" };
-  if (health >= 50) return { label: "Regular", message: "Hay indicadores que requieren atención para mejorar el rendimiento.", text: "text-amber-300", bar: "from-amber-400 to-accent" };
-  return { label: "Crítico", message: "Tu negocio necesita acciones urgentes para recuperar su rendimiento.", text: "text-red-400", bar: "from-red-500 to-amber-400" };
+  if (health >= 50) return { label: "Regular", message: "Hay indicadores que requieren atención para mejorar el rendimiento.", text: "text-cyan-300", bar: "from-cyan-400 to-accent" };
+  return { label: "Crítico", message: "Tu negocio necesita acciones urgentes para recuperar su rendimiento.", text: "text-red-400", bar: "from-red-500 to-cyan-400" };
 }
 
 function GlassCard({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -1215,7 +1215,7 @@ function ReasonItem({ tone, text }: { tone: "good" | "warning"; text: string }) 
       {tone === "good" ? (
         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
       ) : (
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
       )}
       <span className="text-muted-foreground">{text}</span>
     </div>
@@ -1229,7 +1229,7 @@ function ActionCard({ action, onOpen }: { action: AdvisorAction; onOpen: () => v
         className={cn(
           "mb-4 grid h-9 w-9 place-items-center rounded-2xl ring-1",
           action.tone === "money" && "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20",
-          action.tone === "warning" && "bg-amber-400/10 text-amber-300 ring-amber-400/20",
+          action.tone === "warning" && "bg-cyan-400/10 text-cyan-300 ring-cyan-400/20",
           action.tone === "growth" && "bg-primary/10 text-primary ring-primary/20",
           action.tone === "client" && "bg-cyan-400/10 text-cyan-300 ring-cyan-400/20",
           action.tone === "neutral" && "bg-white/5 text-white ring-white/10",
@@ -1440,10 +1440,10 @@ function PrioridadesTab({
 
               {/* Oportunidad económica recalculada */}
               {discountPct > 0 && (
-                <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 flex items-start gap-3">
-                  <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 flex items-start gap-3">
+                  <AlertTriangle className="h-4 w-4 text-cyan-400 mt-0.5 shrink-0" />
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Con un <span className="font-semibold text-amber-300">{discountPct}% de descuento</span> la oportunidad económica se reduce a{" "}
+                    Con un <span className="font-semibold text-cyan-300">{discountPct}% de descuento</span> la oportunidad económica se reduce a{" "}
                     <span className="font-semibold text-white">+{fmtAR(adjustedAmount)}/mes</span>{" "}
                     (vs {fmtAR(baseAmount)} sin descuento). Diferencia: <span className="text-rose-300 font-semibold">{fmtAR(diffVsBase)}</span>.
                   </p>
@@ -1454,7 +1454,7 @@ function PrioridadesTab({
               <div className={cn(
                 "rounded-2xl border p-4",
                 !selOpt?.discount ? "border-emerald-400/20 bg-emerald-400/[0.05]" :
-                selOpt.discount <= 10 ? "border-amber-400/20 bg-amber-400/[0.05]" :
+                selOpt.discount <= 10 ? "border-cyan-400/20 bg-cyan-400/[0.05]" :
                 "border-rose-400/20 bg-rose-400/[0.05]"
               )}>
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Recomendación IA</div>
@@ -1719,7 +1719,7 @@ type SimuladorProps = {
 };
 
 type IARecomendacion = {
-  nivel: "recomendado" | "evaluar" | "no_recomendado";
+  nivel: "recomendado" | "evaluar" | "no_recomendado" | "progresivo" | "alto_riesgo";
   resumen: string;
 };
 
@@ -1811,8 +1811,8 @@ function fmtNum(n: number) {
 
 const nivelMeta = {
   recomendado:     { emoji: "✅", label: "Recomendado",            cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
-  progresivo:      { emoji: "🟡", label: "Aplicar progresivamente", cls: "border-amber-400/30 bg-amber-400/[0.07]",   titleCls: "text-amber-300",   dot: "bg-amber-400" },
-  evaluar:         { emoji: "🟡", label: "Evaluar con cuidado",    cls: "border-amber-400/30 bg-amber-400/[0.07]",   titleCls: "text-amber-300",   dot: "bg-amber-400" },
+  progresivo:      { emoji: "🟡", label: "Aplicar progresivamente", cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
+  evaluar:         { emoji: "🟡", label: "Evaluar con cuidado",    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
   no_recomendado:  { emoji: "🔴", label: "No recomendado todavía", cls: "border-rose-400/30 bg-rose-400/[0.07]",     titleCls: "text-rose-300",    dot: "bg-rose-400" },
   alto_riesgo:     { emoji: "⚠️", label: "Alto riesgo",            cls: "border-orange-400/30 bg-orange-400/[0.07]", titleCls: "text-orange-300",  dot: "bg-orange-400" },
 };
@@ -1881,7 +1881,7 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
   const serviciosPerdibles = Math.max(0, cantidadMensual - cantidadEquilibrio);
   const pctPerdible = cantidadMensual > 0 ? ((serviciosPerdibles / cantidadMensual) * 100).toFixed(1) : "0";
   const riesgoLabel = Number(pctPerdible) < 10 ? "Bajo" : Number(pctPerdible) < 25 ? "Medio" : "Alto";
-  const riesgoColor = Number(pctPerdible) < 10 ? "text-emerald-300" : Number(pctPerdible) < 25 ? "text-amber-300" : "text-rose-300";
+  const riesgoColor = Number(pctPerdible) < 10 ? "text-emerald-300" : Number(pctPerdible) < 25 ? "text-cyan-300" : "text-rose-300";
 
   const recomendacion = simulado && aumentoNum > 0
     ? getRecomendacion(aumentoNum, precioActual, ocupacion, serviciosPerdibles, cantidadMensual)
@@ -2255,11 +2255,11 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{resultado.explicacionFacturacion}</p>
             </div>
           ) : resultado.nivel === "evaluar" ? (
-            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">📈 Potencial de crecimiento con el equipo actual</p>
-              <p className="mt-3 font-display text-4xl font-semibold text-amber-300 tracking-tight">
+            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.06] p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">📈 Potencial de crecimiento con el equipo actual</p>
+              <p className="mt-3 font-display text-4xl font-semibold text-cyan-300 tracking-tight">
                 {Math.round((1 - ocupacion / 100) * 100)}%
-                <span className="ml-2 text-base font-normal text-amber-300/70">de capacidad disponible</span>
+                <span className="ml-2 text-base font-normal text-cyan-300/70">de capacidad disponible</span>
               </p>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                 Ocupación actual: {ocupacion}%. Todavía existe capacidad suficiente para crecer con el equipo actual. Se recomienda volver a analizar cuando la ocupación supere el 80%.

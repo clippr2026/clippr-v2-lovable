@@ -2539,7 +2539,7 @@ function EquipoSection() {
             <div className="mb-5">
               <h3 className="font-semibold">Accesos</h3>
               {editingAccessUserId && (
-                <div className="mt-3 rounded-xl bg-amber-500/10 ring-1 ring-amber-400/20 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-3">
+                <div className="mt-3 rounded-xl bg-cyan-500/10 ring-1 ring-cyan-400/20 px-3 py-2 text-xs text-cyan-200 flex items-center justify-between gap-3">
                   <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
                   <button
                     type="button"
@@ -2712,7 +2712,7 @@ function EquipoSection() {
                             user.status === "active"
                               ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
                               : user.status === "invited"
-                                ? "bg-amber-500/10 text-amber-300 ring-amber-400/20"
+                                ? "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
                                 : "bg-white/5 text-muted-foreground ring-white/10",
                           )}
                         >
@@ -4503,6 +4503,7 @@ function SenasSection() {
     if (!businessId) return;
     const localPct = parseFloat(lostLocal) || 0;
     const typedProfPct = parseFloat(lostProf) || 0;
+    const parsedAmount = parseFloat(amountValue) || 0;
 
     if (lostDist === "custom") {
       const totalPct = Math.round((localPct + typedProfPct) * 10) / 10;
@@ -5034,7 +5035,7 @@ function ClientesSection() {
         <div className="grid grid-cols-3 gap-2 text-center">
           {[
             { label: "Activo",   color: "text-emerald-300", ring: "ring-emerald-400/25 bg-emerald-400/8",  range: `0 – ${cfg.diasInactivo - 1} días` },
-            { label: "Inactivo", color: "text-amber-300",   ring: "ring-amber-400/25 bg-amber-400/8",      range: `${cfg.diasInactivo} – ${cfg.diasPerdido - 1} días` },
+            { label: "Inactivo", color: "text-cyan-300",   ring: "ring-cyan-400/25 bg-cyan-400/8",      range: `${cfg.diasInactivo} – ${cfg.diasPerdido - 1} días` },
             { label: "Perdido",  color: "text-rose-300",    ring: "ring-rose-400/25 bg-rose-400/8",        range: `${cfg.diasPerdido}+ días` },
           ].map(s => (
             <div key={s.label} className={cn("rounded-xl ring-1 p-3", s.ring)}>

@@ -105,7 +105,7 @@ function ReportsPage() {
     ]).then(([pr, er, emp]) => {
       const pData = pr.status === "fulfilled" && !pr.value.error ? (pr.value.data as Payment[]) ?? [] : [];
       const eData = er.status === "fulfilled" && !er.value.error ? (er.value.data as Expense[]) ?? [] : [];
-      const empData = emp.status === "fulfilled" && !emp.value.error ? (emp.value.data as { id: string; name: string }[]) ?? [] : [];
+      const empData = emp.status === "fulfilled" && !emp.value.error ? (emp.value.data as { id: string; name: string; full_name?: string }[]) ?? [] : [];
       setPayments(pData);
       setExpenses(eData);
       setEmployeesMap(Object.fromEntries(empData.map((e) => [e.id, e.full_name ?? e.name])));
