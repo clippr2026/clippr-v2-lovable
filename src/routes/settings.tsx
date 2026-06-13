@@ -81,11 +81,13 @@ import {
   Palette,
   Moon,
   Sun,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SectionId =
   | "branding"
+  | "landing"
   | "horarios"
   | "equipo"
   | "servicios"
@@ -114,6 +116,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Sparkles,
         tint: "text-[oklch(0.82_0.18_300)]",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
+      },
+      {
+        id: "landing",
+        label: "Landing",
+        icon: Palette,
+        tint: "text-[oklch(0.80_0.18_330)]",
+        glow: "from-[oklch(0.80_0.18_330/0.25)] to-[oklch(0.68_0.22_310/0.05)]",
       },
       {
         id: "horarios",
@@ -367,6 +376,157 @@ function slugifyLive(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9-]+/g, "-");
+}
+
+// ─────────── Landing (colores de la página pública) ───────────
+const LANDING_DEFAULTS = { primary: "#d6b66a", secondary: "#7c3aed", accent: "#d6b66a" };
+const HEX_RE = /^#([0-9a-fA-F]{6})$/;
+
+function normalizeHex(value: string, fallback: string): string {
+  const v = (value || "").trim();
+  return HEX_RE.test(v) ? v.toLowerCase() : fallback;
+}
+
+function LandingSection() {
+  const { businessId } = useAuth();
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [colors, setColors] = React.useState(LANDING_DEFAULTS);
+
+  React.useEffect(() => {
+    if (!businessId) { setLoading(false); return; }
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, any>;
+        const c = (schedule._branding?.colors ?? {}) as Record<string, string>;
+        setColors({
+          primary: normalizeHex(c.primary, LANDING_DEFAULTS.primary),
+          secondary: normalizeHex(c.secondary, LANDING_DEFAULTS.secondary),
+          accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
+        });
+        setLoading(false);
+      });
+  }, [businessId]);
+
+  async function save() {
+    if (!businessId) return;
+    setSaving(true);
+    const next = {
+      primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+      secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
+      accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
+    };
+    // Merge sin pisar el resto de _branding.
+    const { data: row, error: loadErr } = await supabase
+      .from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+    if (loadErr) { setSaving(false); return toast.error("No se pudo leer la configuración: " + loadErr.message); }
+    const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
+    const branding = (schedule._branding ?? {}) as Record<string, unknown>;
+    const nextSchedule = { ...schedule, _branding: { ...branding, colors: next } };
+    const { error } = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: nextSchedule },
+      { onConflict: "business_id" },
+    );
+    setSaving(false);
+    if (error) return toast.error("No se pudo guardar: " + error.message);
+    setColors(next);
+    toast.success("Colores de la landing guardados");
+  }
+
+  const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
+    { key: "primary", label: "Color primario", desc: "Botones principales (Reservar turno) e íconos." },
+    { key: "secondary", label: "Color secundario", desc: "Gradientes y glows de la portada y tarjetas." },
+    { key: "accent", label: "Color de resaltado", desc: "Estados destacados (ej. \u201cAbierto ahora\u201d)." },
+  ];
+
+  if (loading) {
+    return <div className="grid place-items-center py-20"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+        <h2 className="text-lg font-semibold">Colores de la landing</h2>
+        <p className="mt-1 text-sm text-white/55">Personalizá la identidad visual de tu página pública. Se aplican a botones, resaltados, gradientes y luces.</p>
+
+        <div className="mt-5 space-y-4">
+          {fields.map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center gap-4">
+              <label className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15" style={{ background: colors[key] }}>
+                <input
+                  type="color"
+                  value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
+                  onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium">{label}</div>
+                <div className="text-xs text-white/50">{desc}</div>
+              </div>
+              <input
+                type="text"
+                value={colors[key]}
+                onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))}
+                spellCheck={false}
+                className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25"
+                placeholder="#000000"
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:opacity-50"
+          >
+            {saving ? "Guardando…" : "Guardar colores"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setColors(LANDING_DEFAULTS)}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10"
+          >
+            Restaurar predeterminados
+          </button>
+        </div>
+      </div>
+
+      {/* Vista previa */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+        <p className="text-sm font-medium text-white/70">Vista previa</p>
+        <div
+          className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#08070c] p-6"
+          style={{ background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 22%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.secondary} 20%, transparent), transparent 40%), #08070c` }}
+        >
+          <div className="relative">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.14] blur-2xl"
+              style={{ background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.secondary}, transparent 70%)` }}
+            />
+            <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-white shadow-xl">
+              <h3 className="text-base font-semibold">Reservá tu turno</h3>
+              <button
+                type="button"
+                className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold text-zinc-950"
+                style={{ background: colors.primary, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.primary} 70%, transparent)` }}
+              >
+                Reservar turno
+              </button>
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} />
+                <span style={{ color: colors.accent, fontWeight: 600 }}>Abierto ahora</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BrandingSection() {
@@ -5007,6 +5167,7 @@ function SettingsPage() {
           {/* Content */}
           <section className="space-y-6">
             {active === "branding" && <BrandingSection />}
+            {active === "landing" && <LandingSection />}
 
             {active === "horarios" && <HorariosSection />}
             {active === "equipo" && <EquipoSection />}
