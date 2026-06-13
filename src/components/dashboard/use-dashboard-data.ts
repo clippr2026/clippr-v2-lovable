@@ -120,6 +120,7 @@ async function loadDashboard(
     starts_at: string;
     service_name?: string;
     client_name?: string;
+    service_price?: number | null;
       };
   type Pay = { id: string; total: number; created_at: string; appointment_id?: string; service_name?: string; client_name?: string };
   type Emp = { id: string };
