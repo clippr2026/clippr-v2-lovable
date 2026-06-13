@@ -56,6 +56,7 @@ type Service = {
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type ScheduleMap = Record<DayKey, DaySchedule>;
+type LandingColors = { primary?: string; secondary?: string; accent?: string };
 type PublicBranding = {
   address?: string | null;
   phone?: string | null;
@@ -64,6 +65,7 @@ type PublicBranding = {
   website?: string | null;
   description?: string | null;
   portfolio_urls?: string[] | null;
+  colors?: LandingColors | null;
 };
 
 const DISPLAY_DAYS: { key: DayKey; label: string; short: string }[] = [
@@ -188,6 +190,26 @@ function cleanInstagram(value?: string | null) {
   return value?.replace(/^@/, "").trim() ?? "";
 }
 
+// Tarjeta oscura con un glow de color muy sutil detrás (estilo Stripe/Linear/Raycast).
+// No cambia el fondo de la tarjeta; sólo agrega luz difusa con los colores configurados.
+function GlowCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className="relative">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.10] blur-2xl"
+        style={{
+          background:
+            "radial-gradient(60% 70% at 18% 0%, var(--c-primary), transparent 70%), radial-gradient(55% 70% at 100% 100%, var(--c-secondary), transparent 70%)",
+        }}
+      />
+      <div className={"relative rounded-3xl border border-white/10 bg-white/[0.04] text-white shadow-xl " + className}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function PublicProfilePage() {
   const { slug } = Route.useParams();
 
@@ -198,6 +220,7 @@ function PublicProfilePage() {
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
   const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
   const [description, setDescription] = React.useState<string>("");
+  const [colors, setColors] = React.useState<LandingColors>({});
 
   React.useEffect(() => {
     let cancelled = false;
@@ -283,6 +306,7 @@ function PublicProfilePage() {
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
+          setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
         }
       } catch {
         if (!cancelled) setBusiness(null);
@@ -296,7 +320,10 @@ function PublicProfilePage() {
     };
   }, [slug]);
 
-  const accent = business?.accent_color || "#d6b66a";
+  const cPrimary = colors.primary || business?.accent_color || "#d6b66a";
+  const cSecondary = colors.secondary || "#7c3aed";
+  const cAccent = colors.accent || cPrimary;
+  const accent = cPrimary; // compat: el resto del componente usa `accent` para botones/íconos
   const portfolio = portfolioUrls;
 
   if (loading) {
@@ -334,13 +361,16 @@ function PublicProfilePage() {
   const isOpen = todayStatus.startsWith("Abierto");
 
   return (
-    <main className="min-h-dvh bg-[#08070c] text-white pb-24 sm:pb-10" style={{ ["--accent" as any]: accent }}>
+    <main
+      className="min-h-dvh bg-[#08070c] text-white pb-24 sm:pb-10"
+      style={{ ["--accent" as any]: accent, ["--c-primary" as any]: cPrimary, ["--c-secondary" as any]: cSecondary, ["--c-accent" as any]: cAccent }}
+    >
       <section className="relative overflow-hidden border-b border-white/10">
         <div
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at top left, color-mix(in oklch, var(--accent) 25%, transparent), transparent 34%), radial-gradient(circle at top right, rgba(124,58,237,0.22), transparent 35%)",
+              "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 36%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 36%)",
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-6 sm:py-10">
@@ -371,8 +401,8 @@ function PublicProfilePage() {
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="space-y-6">
-          <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
-            <CardContent className="p-5 sm:p-6">
+          <GlowCard>
+            <div className="p-5 sm:p-6">
               <h2 className="text-2xl font-semibold">Servicios disponibles</h2>
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
@@ -397,12 +427,12 @@ function PublicProfilePage() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </GlowCard>
 
           {employees.length > 0 ? (
-            <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
-              <CardContent className="p-5 sm:p-6">
+            <GlowCard>
+              <div className="p-5 sm:p-6">
                 <h2 className="text-2xl font-semibold">Profesionales disponibles</h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {employees.map((employee) => (
@@ -425,13 +455,13 @@ function PublicProfilePage() {
                     </a>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </GlowCard>
           ) : null}
 
           {portfolio.length > 0 ? (
-            <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
-              <CardContent className="p-5 sm:p-6">
+            <GlowCard>
+              <div className="p-5 sm:p-6">
                 <h2 className="text-2xl font-semibold">Portafolio</h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   {portfolio.slice(0, 3).map((src, i) => (
@@ -440,35 +470,35 @@ function PublicProfilePage() {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </GlowCard>
           ) : null}
         </div>
 
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           {/* Reserva */}
-          <div className="rounded-3xl border border-zinc-200 bg-white text-zinc-900 p-5 shadow-sm sm:p-6">
+          <GlowCard className="p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" style={{ color: accent }} />
+              <CalendarDays className="h-5 w-5" style={{ color: cPrimary }} />
               <h2 className="text-lg font-semibold">Reservá tu turno</h2>
             </div>
             <Link
               {...reservarTo}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 shadow-sm transition hover:brightness-105"
-              style={{ background: accent }}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 transition hover:brightness-110"
+              style={{ background: cPrimary, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-primary) 70%, transparent)" }}
             >
               Reservar turno
             </Link>
             <div className="mt-4 flex items-center gap-2 text-sm">
-              <span className={`h-2 w-2 rounded-full ${isOpen ? "bg-emerald-500" : "bg-zinc-400"}`} />
-              <span className={isOpen ? "font-medium text-emerald-600" : "text-zinc-500"}>{todayStatus}</span>
+              <span className="h-2 w-2 rounded-full" style={{ background: isOpen ? cAccent : "rgba(255,255,255,0.3)" }} />
+              <span style={isOpen ? { color: cAccent, fontWeight: 600 } : undefined} className={isOpen ? "" : "text-white/55"}>{todayStatus}</span>
             </div>
-          </div>
+          </GlowCard>
 
           {/* Horarios + Dirección */}
-          <div className="rounded-3xl border border-zinc-200 bg-white text-zinc-900 p-5 shadow-sm sm:p-6">
+          <GlowCard className="p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <Clock3 className="h-5 w-5" style={{ color: accent }} />
+              <Clock3 className="h-5 w-5" style={{ color: cPrimary }} />
               <h2 className="text-lg font-semibold">Horarios</h2>
             </div>
             {schedule ? (
@@ -477,24 +507,24 @@ function PublicProfilePage() {
                   const day = schedule[key];
                   return (
                     <li key={key} className="flex items-center justify-between gap-3">
-                      <span className="text-zinc-500">{label}</span>
-                      {day.enabled ? <span className="font-medium text-zinc-900">{day.start} – {day.end}</span> : <span className="text-zinc-400">Cerrado</span>}
+                      <span className="text-white/55">{label}</span>
+                      {day.enabled ? <span className="font-medium text-white">{day.start} – {day.end}</span> : <span className="text-white/35">Cerrado</span>}
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <p className="mt-4 text-sm text-zinc-500">Consultá la disponibilidad al momento de reservar.</p>
+              <p className="mt-4 text-sm text-white/55">Consultá la disponibilidad al momento de reservar.</p>
             )}
 
             {business.address ? (
-              <div className="mt-5 border-t border-zinc-200 pt-5">
+              <div className="mt-5 border-t border-white/10 pt-5">
                 <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent }} />
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cPrimary }} />
                   <div className="min-w-0">
-                    <p className="text-zinc-700">{business.address}</p>
+                    <p className="text-white/70">{business.address}</p>
                     {mapLink ? (
-                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: accent }}>
+                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: cPrimary }}>
                         Cómo llegar <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     ) : null}
@@ -502,13 +532,13 @@ function PublicProfilePage() {
                 </div>
               </div>
             ) : null}
-          </div>
+          </GlowCard>
         </aside>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-6">
-        <Card className="overflow-hidden border-white/10 bg-white/[0.04] text-white shadow-xl">
-          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <GlowCard className="overflow-hidden">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <h2 className="text-2xl font-semibold">Contactanos</h2>
             <div className="flex flex-wrap gap-3">
               {business.phone ? (
@@ -543,8 +573,8 @@ function PublicProfilePage() {
                 </a>
               ) : null}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </GlowCard>
       </section>
 
       <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2">
@@ -555,7 +585,11 @@ function PublicProfilePage() {
       </footer>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08070c]/95 p-3 backdrop-blur sm:hidden">
-        <Link {...reservarTo} className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 shadow-lg" style={{ background: accent }}>
+        <Link
+          {...reservarTo}
+          className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950"
+          style={{ background: cPrimary, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-primary) 70%, transparent)" }}
+        >
           Reservar turno
         </Link>
       </div>
