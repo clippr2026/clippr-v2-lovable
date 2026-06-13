@@ -37,6 +37,8 @@ type Business = {
   instagram?: string | null;
   logo_url?: string | null;
   accent_color?: string | null;
+  avatar_url?: string | null;
+  cover_url?: string | null;
 };
 
 type Employee = {
@@ -120,7 +122,7 @@ function PublicProfilePage() {
       try {
         const businessQuery = supabase
           .from("public_booking_businesses")
-          .select("id,name,slug,address,phone,email,instagram,logo_url,accent_color");
+          .select("id,name,slug,address,phone,email,instagram,logo_url,accent_color,avatar_url,cover_url");
 
         const { data: businessData, error: businessError } = await (isUuid(slug)
           ? businessQuery.eq("id", slug).maybeSingle()
@@ -225,12 +227,16 @@ function PublicProfilePage() {
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-6 sm:py-10">
-          <div className="h-40 rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-56" />
+          <div className="h-40 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-56">
+            {business.cover_url ? (
+              <img src={business.cover_url} alt="" className="h-full w-full object-cover" decoding="async" />
+            ) : null}
+          </div>
           <div className="-mt-12 flex flex-col gap-4 px-4 sm:-mt-14 sm:flex-row sm:items-end sm:justify-between sm:px-8">
             <div className="flex items-end gap-4">
               <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 border-[#09090f] bg-white text-3xl font-bold text-zinc-950 shadow-xl">
-                {business.logo_url ? (
-                  <img src={business.logo_url} alt={business.name} className="h-full w-full object-cover" />
+                {business.avatar_url || business.logo_url ? (
+                  <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" decoding="async" />
                 ) : (
                   business.name.slice(0, 1)
                 )}
