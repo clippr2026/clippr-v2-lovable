@@ -374,8 +374,8 @@ function BrandingSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -404,15 +404,10 @@ function BrandingSection() {
     });
   }, [businessId]);
 
-  // Previews en vivo (archivo recién elegido > url guardada > fallback).
-  const avatarPreview = React.useMemo(
-    () => (avatarFile ? URL.createObjectURL(avatarFile) : (data.avatar_url || "")),
-    [avatarFile, data.avatar_url],
-  );
-  const coverPreview = React.useMemo(
-    () => (coverFile ? URL.createObjectURL(coverFile) : (data.cover_url || "")),
-    [coverFile, data.cover_url],
-  );
+  // El preview sale de la URL real ya persistida (nada de object URLs locales,
+  // que se pierden en re-renders / scroll / cambios de sección).
+  const avatarPreview = data.avatar_url;
+  const coverPreview = data.cover_url;
 
   const set = (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setData(d => ({ ...d, [k]: e.target.value }));
@@ -438,6 +433,73 @@ function BrandingSection() {
     return `${urlData.publicUrl}?v=${Date.now()}`;
   }
 
+  // Persiste una columna de imagen directo en businesses (sin esperar a "Guardar").
+  async function persistAsset(fields: { avatar_url?: string | null; cover_url?: string | null }): Promise<boolean> {
+    if (!businessId) return false;
+    const { data: row, error } = await supabase
+      .from("businesses")
+      .update(fields)
+      .eq("id", businessId)
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      console.error("[branding] persistAsset error", { fields, error });
+      toast.error("No se pudo guardar la imagen: " + error.message);
+      return false;
+    }
+    if (!row) {
+      toast.error("No se pudo guardar la imagen. Revisá los permisos del negocio.");
+      return false;
+    }
+    return true;
+  }
+
+  // Subida inmediata: optimiza → sube a Storage → persiste la URL en businesses.
+  async function handleAvatarSelect(file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingAvatar(true);
+    try {
+      const { blob, ext, type } = await processImage(file, 512, 512, 0.8);
+      const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
+      if (!url) return;
+      const ok = await persistAsset({ avatar_url: url });
+      if (!ok) return;
+      setData(d => ({ ...d, avatar_url: url }));
+      toast.success("Foto de perfil actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function handleCoverSelect(file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingCover(true);
+    try {
+      const { blob, ext, type } = await processImage(file, 1600, 600, 0.8);
+      const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
+      if (!url) return;
+      const ok = await persistAsset({ cover_url: url });
+      if (!ok) return;
+      setData(d => ({ ...d, cover_url: url }));
+      toast.success("Portada actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  async function removeAvatar() {
+    const ok = await persistAsset({ avatar_url: null });
+    if (ok) { setData(d => ({ ...d, avatar_url: "" })); toast.success("Foto eliminada"); }
+  }
+  async function removeCover() {
+    const ok = await persistAsset({ cover_url: null });
+    if (ok) { setData(d => ({ ...d, cover_url: "" })); toast.success("Portada eliminada"); }
+  }
+
   async function save() {
     if (!businessId) return;
     setSaving(true);
@@ -447,33 +509,10 @@ function BrandingSection() {
       if (url) logo_url = url;
     }
 
-    // Foto de perfil pública (avatar): WebP, máx 512x512, calidad 80%.
-    let avatar_url = data.avatar_url;
-    if (avatarFile) {
-      try {
-        const { blob, ext, type } = await processImage(avatarFile, 512, 512, 0.8);
-        const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
-        if (!url) { setSaving(false); return; } // uploadBlob ya mostró el error real
-        avatar_url = url;
-      } catch (e) {
-        setSaving(false);
-        return toast.error((e as Error).message);
-      }
-    }
-
-    // Portada pública (cover): WebP, máx 1600x600, calidad 80%.
-    let cover_url = data.cover_url;
-    if (coverFile) {
-      try {
-        const { blob, ext, type } = await processImage(coverFile, 1600, 600, 0.8);
-        const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
-        if (!url) { setSaving(false); return; } // uploadBlob ya mostró el error real
-        cover_url = url;
-      } catch (e) {
-        setSaving(false);
-        return toast.error((e as Error).message);
-      }
-    }
+    // Foto de perfil y portada ya se suben y persisten al seleccionarlas.
+    // Acá solo reusamos lo que ya está en data (se reescribe igual, es idempotente).
+    const avatar_url = data.avatar_url;
+    const cover_url = data.cover_url;
 
     // Resolver slug final: usa el escrito o lo deriva del nombre.
     const finalSlug = slugify(data.slug) || slugify(data.name);
@@ -536,8 +575,6 @@ function BrandingSection() {
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
     setData(d => ({ ...d, logo_url, slug: finalSlug, avatar_url, cover_url }));
     setLogoFile(null);
-    setAvatarFile(null);
-    setCoverFile(null);
     // Avisar al header (botón 🌐) para que actualice el link al instante.
     window.dispatchEvent(new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }));
     toast.success("Branding guardado correctamente");
@@ -776,14 +813,14 @@ function BrandingSection() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
-                  <Upload className="h-3.5 w-3.5" /> {avatarPreview ? "Cambiar foto" : "Subir foto"}
-                  <input type="file" accept="image/*" className="hidden" onChange={e => setAvatarFile(e.target.files?.[0] ?? null)} />
+                <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                  <Upload className="h-3.5 w-3.5" /> {uploadingAvatar ? "Subiendo…" : (avatarPreview ? "Cambiar foto" : "Subir foto")}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleAvatarSelect(f); }} />
                 </label>
                 {avatarPreview ? (
                   <button
                     type="button"
-                    onClick={() => { setAvatarFile(null); setData(d => ({ ...d, avatar_url: "" })); }}
+                    onClick={removeAvatar}
                     className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
                   >
                     <X className="h-3.5 w-3.5" /> Eliminar
@@ -804,14 +841,14 @@ function BrandingSection() {
                 <div className="text-xs text-muted-foreground mt-0.5">Banner superior de tu sitio web. Se optimiza a WebP 1600×600.</div>
               </div>
               <div className="flex items-center gap-2">
-                <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
-                  <Upload className="h-3.5 w-3.5" /> {coverPreview ? "Cambiar portada" : "Subir portada"}
-                  <input type="file" accept="image/*" className="hidden" onChange={e => setCoverFile(e.target.files?.[0] ?? null)} />
+                <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                  <Upload className="h-3.5 w-3.5" /> {uploadingCover ? "Subiendo…" : (coverPreview ? "Cambiar portada" : "Subir portada")}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploadingCover} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleCoverSelect(f); }} />
                 </label>
                 {coverPreview ? (
                   <button
                     type="button"
-                    onClick={() => { setCoverFile(null); setData(d => ({ ...d, cover_url: "" })); }}
+                    onClick={removeCover}
                     className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
                   >
                     <X className="h-3.5 w-3.5" /> Eliminar
