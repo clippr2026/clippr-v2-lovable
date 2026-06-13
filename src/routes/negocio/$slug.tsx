@@ -10,9 +10,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  Scissors,
-  Sparkles,
-  UsersRound,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -334,6 +331,7 @@ function PublicProfilePage() {
   const mapLink = mapsUrl(business.address);
   const instagram = cleanInstagram(business.instagram);
   const todayStatus = getTodayStatus(schedule);
+  const isOpen = todayStatus.startsWith("Abierto");
 
   return (
     <main className="min-h-dvh bg-[#08070c] text-white pb-24 sm:pb-10" style={{ ["--accent" as any]: accent }}>
@@ -351,7 +349,7 @@ function PublicProfilePage() {
               <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" decoding="async" />
             ) : null}
           </div>
-          <div className="-mt-12 flex flex-col gap-4 px-4 sm:-mt-14 sm:flex-row sm:items-end sm:justify-between sm:px-8">
+          <div className="-mt-12 flex flex-col gap-4 px-4 sm:-mt-14 sm:px-8">
             <div className="flex items-end gap-4">
               <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 border-[#08070c] bg-white text-3xl font-bold text-zinc-950 shadow-xl">
                 {business.avatar_url || business.logo_url ? (
@@ -360,27 +358,13 @@ function PublicProfilePage() {
                   business.name.slice(0, 1)
                 )}
               </div>
-              <div className="pb-2">
-                <p className="text-xs uppercase tracking-[0.3em]" style={{ color: accent }}>
-                  Perfil del local
-                </p>
+              <div className="pb-1">
                 <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
-                {business.address ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/70">
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="h-4 w-4" /> {business.address}
-                    </span>
-                  </div>
+                {description ? (
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">{description}</p>
                 ) : null}
               </div>
             </div>
-            <Link
-              {...reservarTo}
-              className="hidden rounded-2xl px-6 py-4 text-base font-bold text-zinc-950 shadow-lg transition hover:brightness-110 sm:inline-flex sm:items-center"
-              style={{ background: accent }}
-            >
-              Reservar turno
-            </Link>
           </div>
         </div>
       </section>
@@ -389,13 +373,7 @@ function PublicProfilePage() {
         <div className="space-y-6">
           <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white/50">Servicios disponibles</p>
-                  <h2 className="text-2xl font-semibold">Elegí qué querés reservar</h2>
-                </div>
-                <Scissors className="h-6 w-6" style={{ color: accent }} />
-              </div>
+              <h2 className="text-2xl font-semibold">Servicios disponibles</h2>
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
@@ -425,43 +403,28 @@ function PublicProfilePage() {
           {employees.length > 0 ? (
             <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
               <CardContent className="p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-white/50">Profesionales disponibles</p>
-                    <h2 className="text-2xl font-semibold">El equipo</h2>
-                  </div>
-                  <UsersRound className="h-6 w-6" style={{ color: accent }} />
-                </div>
+                <h2 className="text-2xl font-semibold">Profesionales disponibles</h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {employees.map((employee) => (
-                    <div key={employee.id} className="flex items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-lg font-semibold">
-                          {employee.avatar_url ? (
-                            <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                          ) : (
-                            employee.full_name.slice(0, 1)
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="truncate font-semibold">{employee.full_name}</h3>
-                          <p className="text-sm text-white/50">{employee.role || "Profesional"}</p>
-                        </div>
+                    <a
+                      key={employee.id}
+                      href={bookingHref({ professional: employee.id })}
+                      className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
+                    >
+                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-lg font-semibold">
+                        {employee.avatar_url ? (
+                          <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                        ) : (
+                          employee.full_name.slice(0, 1)
+                        )}
                       </div>
-                      <a href={bookingHref({ professional: employee.id })} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold transition hover:bg-white/10">Reservar</a>
-                    </div>
+                      <div className="min-w-0">
+                        <h3 className="truncate font-semibold">{employee.full_name}</h3>
+                        <p className="text-sm text-white/50">{employee.role || "Profesional"}</p>
+                      </div>
+                    </a>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {description ? (
-            <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
-              <CardContent className="p-5 sm:p-6">
-                <p className="text-sm text-white/50">Sobre el local</p>
-                <h2 className="mt-1 text-2xl font-semibold">Conocé {business.name}</h2>
-                <p className="mt-4 max-w-3xl text-sm leading-6 text-white/65">{description}</p>
               </CardContent>
             </Card>
           ) : null}
@@ -469,13 +432,7 @@ function PublicProfilePage() {
           {portfolio.length > 0 ? (
             <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
               <CardContent className="p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-white/50">Local, trabajos e instalaciones</p>
-                    <h2 className="text-2xl font-semibold">Portafolio</h2>
-                  </div>
-                  <Sparkles className="h-6 w-6" style={{ color: accent }} />
-                </div>
+                <h2 className="text-2xl font-semibold">Portafolio</h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   {portfolio.slice(0, 3).map((src, i) => (
                     <div key={`${src}-${i}`} className="aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
@@ -488,89 +445,101 @@ function PublicProfilePage() {
           ) : null}
         </div>
 
-        <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-          <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5" style={{ color: accent }} />
-                <h2 className="text-lg font-semibold">Reservá tu turno</h2>
-              </div>
-              <p className="mt-4 text-sm font-semibold text-white">Horario de hoy</p>
-              <p className="mt-1 text-sm text-white/60">{todayStatus}</p>
-              {business.address ? (
-                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/70">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent }} />
-                    <div>
-                      <p>{business.address}</p>
-                      <p>Buenos Aires, Ciudad Autónoma de Buenos Aires</p>
-                      {mapLink ? (
-                        <a href={mapLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 font-semibold hover:text-white" style={{ color: accent }}>
-                          Cómo llegar <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      ) : null}
-                    </div>
+        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+          {/* Reserva */}
+          <div className="rounded-3xl border border-zinc-200 bg-white text-zinc-900 p-5 shadow-sm sm:p-6">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" style={{ color: accent }} />
+              <h2 className="text-lg font-semibold">Reservá tu turno</h2>
+            </div>
+            <Link
+              {...reservarTo}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 shadow-sm transition hover:brightness-105"
+              style={{ background: accent }}
+            >
+              Reservar turno
+            </Link>
+            <div className="mt-4 flex items-center gap-2 text-sm">
+              <span className={`h-2 w-2 rounded-full ${isOpen ? "bg-emerald-500" : "bg-zinc-400"}`} />
+              <span className={isOpen ? "font-medium text-emerald-600" : "text-zinc-500"}>{todayStatus}</span>
+            </div>
+          </div>
+
+          {/* Horarios + Dirección */}
+          <div className="rounded-3xl border border-zinc-200 bg-white text-zinc-900 p-5 shadow-sm sm:p-6">
+            <div className="flex items-center gap-2">
+              <Clock3 className="h-5 w-5" style={{ color: accent }} />
+              <h2 className="text-lg font-semibold">Horarios</h2>
+            </div>
+            {schedule ? (
+              <ul className="mt-4 space-y-2 text-sm">
+                {DISPLAY_DAYS.map(({ key, label }) => {
+                  const day = schedule[key];
+                  return (
+                    <li key={key} className="flex items-center justify-between gap-3">
+                      <span className="text-zinc-500">{label}</span>
+                      {day.enabled ? <span className="font-medium text-zinc-900">{day.start} – {day.end}</span> : <span className="text-zinc-400">Cerrado</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-zinc-500">Consultá la disponibilidad al momento de reservar.</p>
+            )}
+
+            {business.address ? (
+              <div className="mt-5 border-t border-zinc-200 pt-5">
+                <div className="flex items-start gap-2 text-sm">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent }} />
+                  <div className="min-w-0">
+                    <p className="text-zinc-700">{business.address}</p>
+                    {mapLink ? (
+                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: accent }}>
+                        Cómo llegar <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
                   </div>
                 </div>
-              ) : null}
-              <Link
-                {...reservarTo}
-                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 shadow-lg transition hover:brightness-110"
-                style={{ background: accent }}
-              >
-                Reservar turno
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex items-center gap-2">
-                <Clock3 className="h-5 w-5" style={{ color: accent }} />
-                <h2 className="text-lg font-semibold">Horarios</h2>
               </div>
-              {schedule ? (
-                <ul className="mt-4 space-y-2 text-sm">
-                  {DISPLAY_DAYS.map(({ key, label }) => {
-                    const day = schedule[key];
-                    return (
-                      <li key={key} className="flex items-center justify-between gap-3">
-                        <span className="text-white/70">{label}</span>
-                        {day.enabled ? <span className="font-medium">{day.start} – {day.end}</span> : <span className="text-white/40">Cerrado</span>}
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="mt-4 text-sm text-white/55">Consultá la disponibilidad al momento de reservar.</p>
-              )}
-            </CardContent>
-          </Card>
+            ) : null}
+          </div>
         </aside>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-6">
         <Card className="overflow-hidden border-white/10 bg-white/[0.04] text-white shadow-xl">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <p className="text-sm text-white/50">¿Tenés dudas?</p>
-              <h2 className="text-2xl font-semibold">Contactanos</h2>
-              <p className="mt-1 text-sm text-white/60">Escribinos y te ayudamos a elegir el mejor turno.</p>
-            </div>
+            <h2 className="text-2xl font-semibold">Contactanos</h2>
             <div className="flex flex-wrap gap-3">
               {business.phone ? (
-                <a href={`https://wa.me/${business.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
-                  WhatsApp
+                <a
+                  href={`https://wa.me/${business.phone.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="WhatsApp"
+                  className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 transition hover:bg-white/10"
+                >
+                  <Phone className="h-5 w-5" />
                 </a>
               ) : null}
               {instagram ? (
-                <a href={`https://instagram.com/${instagram}`} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
-                  Instagram
+                <a
+                  href={`https://instagram.com/${instagram}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Instagram"
+                  className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 transition hover:bg-white/10"
+                >
+                  <Instagram className="h-5 w-5" />
                 </a>
               ) : null}
               {business.email ? (
-                <a href={`mailto:${business.email}`} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
-                  Email
+                <a
+                  href={`mailto:${business.email}`}
+                  aria-label="Email"
+                  className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 transition hover:bg-white/10"
+                >
+                  <Mail className="h-5 w-5" />
                 </a>
               ) : null}
             </div>
@@ -578,10 +547,10 @@ function PublicProfilePage() {
         </Card>
       </section>
 
-      <footer className="mx-auto max-w-6xl px-4 pb-10">
-        <div className="rounded-[2rem] border border-white/10 bg-gradient-to-r from-sky-500/15 via-violet-500/15 to-fuchsia-500/15 p-6 text-center shadow-xl">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/45">Hecho con Clippr</p>
-          <p className="mt-2 text-lg font-semibold text-white">Gestioná tu negocio desde un solo lugar</p>
+      <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2">
+        <div className="flex items-center justify-center gap-2 text-sm text-white/50">
+          <span className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-sky-400 via-violet-500 to-fuchsia-500 text-xs font-bold text-white">C</span>
+          <span>Hecho con <span className="font-semibold text-white/80">Clippr</span></span>
         </div>
       </footer>
 
