@@ -296,6 +296,38 @@ function AparienciaSection() {
 }
 
 // ─────────── Branding ───────────
+type FeaturedClientCategory = "Marca" | "Artista" | "Futbolista" | "Equipo de fútbol" | "Influencer" | "Empresa" | "Celebridad" | "Otro";
+
+type FeaturedClient = {
+  id: string;
+  name: string;
+  category: FeaturedClientCategory;
+  image_url: string;
+  active: boolean;
+  order: number;
+};
+
+const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = ["Marca", "Artista", "Futbolista", "Equipo de fútbol", "Influencer", "Empresa", "Celebridad", "Otro"];
+
+function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+      const category = FEATURED_CLIENT_CATEGORIES.includes(row.category as FeaturedClientCategory) ? row.category as FeaturedClientCategory : "Otro";
+      return {
+        id: typeof row.id === "string" && row.id ? row.id : `featured-${Date.now()}-${index}`,
+        name: typeof row.name === "string" ? row.name : "",
+        category,
+        image_url: typeof row.image_url === "string" ? row.image_url : "",
+        active: row.active !== false,
+        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
+      };
+    })
+    .filter((item) => item.name.trim() || item.image_url.trim())
+    .sort((a, b) => a.order - b.order);
+}
+
 type BrandingData = {
   name: string;
   slug: string;
@@ -310,11 +342,12 @@ type BrandingData = {
   avatar_url: string;
   cover_url: string;
   portfolio_urls: string[];
+  featured_clients: FeaturedClient[];
 };
 const EMPTY_BRANDING: BrandingData = {
   name: "", slug: "", address: "", phone: "", email: "",
   instagram: "", website: "", description: "", profile_note: "", logo_url: "",
-  avatar_url: "", cover_url: "", portfolio_urls: [],
+  avatar_url: "", cover_url: "", portfolio_urls: [], featured_clients: [],
 };
 
 // Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
@@ -642,6 +675,7 @@ function BrandingSection() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<number | null>(null);
+  const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -667,6 +701,7 @@ function BrandingSection() {
         avatar_url: (biz?.avatar_url as string) ?? "",
         cover_url: (biz?.cover_url as string) ?? "",
         portfolio_urls: Array.isArray(cfg.portfolio_urls) ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3) : [],
+        featured_clients: normalizeFeaturedClients(cfg.featured_clients),
       });
       setLoading(false);
     });
@@ -702,7 +737,7 @@ function BrandingSection() {
   }
 
   // Persiste una columna de imagen directo en businesses (sin esperar a "Guardar").
-  async function persistBrandingPatch(patch: Partial<Pick<BrandingData, "address" | "phone" | "email" | "instagram" | "website" | "description" | "profile_note" | "logo_url" | "portfolio_urls">>): Promise<boolean> {
+  async function persistBrandingPatch(patch: Partial<Pick<BrandingData, "address" | "phone" | "email" | "instagram" | "website" | "description" | "profile_note" | "logo_url" | "portfolio_urls" | "featured_clients">>): Promise<boolean> {
     if (!businessId) return false;
     const { data: existingRow, error: loadError } = await supabase
       .from("business_settings")
@@ -832,6 +867,58 @@ function BrandingSection() {
     toast.success("Imagen eliminada del portafolio");
   }
 
+
+  function addFeaturedClient() {
+    setData(d => ({
+      ...d,
+      featured_clients: [
+        ...d.featured_clients,
+        { id: `featured-${Date.now()}`, name: "", category: "Marca", image_url: "", active: true, order: d.featured_clients.length },
+      ],
+    }));
+  }
+
+  function updateFeaturedClient(id: string, patch: Partial<FeaturedClient>) {
+    setData(d => ({
+      ...d,
+      featured_clients: d.featured_clients.map((item) => item.id === id ? { ...item, ...patch } : item),
+    }));
+  }
+
+  function removeFeaturedClient(id: string) {
+    setData(d => ({
+      ...d,
+      featured_clients: d.featured_clients.filter((item) => item.id !== id).map((item, index) => ({ ...item, order: index })),
+    }));
+  }
+
+  function moveFeaturedClient(id: string, direction: -1 | 1) {
+    setData(d => {
+      const list = [...d.featured_clients];
+      const index = list.findIndex((item) => item.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return d;
+      [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
+      return { ...d, featured_clients: list.map((item, order) => ({ ...item, order })) };
+    });
+  }
+
+  async function handleFeaturedImageSelect(id: string, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingFeaturedId(id);
+    try {
+      const { blob, ext, type } = await processImage(file, 512, 512, 0.82);
+      const url = await uploadBlob(blob, `${businessId}/featured-${id}.${ext}`, type);
+      if (!url) return;
+      updateFeaturedClient(id, { image_url: url });
+      toast.success("Imagen actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingFeaturedId(null);
+    }
+  }
+
   async function save() {
     if (!businessId) return;
     setSaving(true);
@@ -889,6 +976,7 @@ function BrandingSection() {
     const newSchedule = {
       ...existingSchedule,
       _branding: {
+        ...((existingSchedule._branding ?? {}) as Record<string, unknown>),
         address: data.address,
         phone: data.phone,
         email: data.email,
@@ -898,6 +986,9 @@ function BrandingSection() {
         profile_note: data.profile_note,
         logo_url,
         portfolio_urls: data.portfolio_urls.filter(Boolean).slice(0, 3),
+        featured_clients: data.featured_clients
+          .map((item, index) => ({ ...item, order: index, name: item.name.trim(), image_url: item.image_url.trim() }))
+          .filter((item) => item.name || item.image_url),
       },
     };
     const cfgResult = await supabase.from("business_settings").upsert(
@@ -1148,6 +1239,64 @@ function BrandingSection() {
               </div>
             </div>
           </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard label="Confían en nosotros">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-medium">Clientes destacados</div>
+              <p className="mt-1 text-xs text-muted-foreground">Marcas, artistas, futbolistas, equipos y empresas que eligieron tu trabajo. Si no cargás nada activo, esta sección no aparece en la web.</p>
+            </div>
+            <button type="button" onClick={addFeaturedClient} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10">
+              <Plus className="h-4 w-4" /> Agregar
+            </button>
+          </div>
+
+          {data.featured_clients.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-muted-foreground">
+              Todavía no cargaste marcas, artistas, futbolistas o equipos.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.featured_clients.map((item, index) => {
+                const uploading = uploadingFeaturedId === item.id;
+                return (
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="grid gap-3 lg:grid-cols-[72px_1fr_180px_120px_auto] lg:items-center">
+                      <div className="h-16 w-16 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                        {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
+                      </div>
+                      <input
+                        value={item.name}
+                        onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                        placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      />
+                      <select
+                        value={item.category}
+                        onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      >
+                        {FEATURED_CLIENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      <label className={cn("inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : "Imagen"}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleFeaturedImageSelect(item.id, f); }} />
+                      </label>
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => updateFeaturedClient(item.id, { active: !item.active })} className={cn("rounded-lg px-2.5 py-2 text-xs ring-1", item.active ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" : "bg-white/5 text-muted-foreground ring-white/10")}>{item.active ? "Activo" : "Inactivo"}</button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, -1)} disabled={index === 0} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, 1)} disabled={index === data.featured_clients.length - 1} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => removeFeaturedClient(item.id)} className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </SectionCard>
 
