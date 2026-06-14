@@ -15,6 +15,7 @@ import {
   Phone,
   Sparkles,
   Star,
+  Trophy,
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,6 +65,15 @@ type DaySchedule = { enabled: boolean; start: string; end: string };
 type ScheduleMap = Record<DayKey, DaySchedule>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
+type FeaturedClient = {
+  id?: string;
+  name: string;
+  category: string;
+  image_url?: string;
+  active?: boolean;
+  order?: number;
+};
+
 type PublicBranding = {
   address?: string | null;
   phone?: string | null;
@@ -74,6 +84,7 @@ type PublicBranding = {
   profile_note?: string | null;
   additional_info?: string[] | null;
   portfolio_urls?: string[] | null;
+  featured_clients?: FeaturedClient[] | null;
   colors?: LandingColors | null;
   theme?: LandingTheme | null;
 };
@@ -119,6 +130,25 @@ function normalizeAdditionalInfo(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 12)
     : [];
+}
+
+
+function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+      return {
+        id: typeof row.id === "string" ? row.id : `featured-${index}`,
+        name: typeof row.name === "string" ? row.name.trim() : "",
+        category: typeof row.category === "string" ? row.category : "Otro",
+        image_url: typeof row.image_url === "string" ? row.image_url : "",
+        active: row.active !== false,
+        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
+      };
+    })
+    .filter((item) => item.active !== false && (item.name || item.image_url))
+    .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
 }
 
 function normalizeBooleanMap(value: unknown): Record<string, boolean> {
@@ -269,6 +299,7 @@ function PublicProfilePage() {
   const [services, setServices] = React.useState<Service[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
   const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
+  const [featuredClients, setFeaturedClients] = React.useState<FeaturedClient[]>([]);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
@@ -374,6 +405,7 @@ function PublicProfilePage() {
           );
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
+          setFeaturedClients(normalizeFeaturedClients(branding.featured_clients));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
           setProfileNote(typeof branding.profile_note === "string" ? branding.profile_note.trim().slice(0, 80) : "");
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
@@ -545,6 +577,41 @@ function PublicProfilePage() {
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="space-y-6">
+
+          {featuredClients.length > 0 ? (
+            <GlowCard>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                      <Trophy className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
+                      <p className="mt-1 text-sm text-white/55">Marcas, artistas, futbolistas, equipos y empresas que eligieron nuestro trabajo.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
+                  {featuredClients.map((item, index) => (
+                    <div key={item.id || `${item.name}-${index}`} className="min-w-[160px] rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.07]">
+                      <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                        ) : (
+                          <span className="text-xl font-bold text-white/80">{item.name.slice(0, 1)}</span>
+                        )}
+                      </div>
+                      <div className="mt-3 min-w-0">
+                        <p className="truncate font-semibold text-white">{item.name}</p>
+                        <p className="mt-0.5 text-xs text-white/50">{item.category}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </GlowCard>
+          ) : null}
           <GlowCard>
             <div className="p-5 sm:p-6">
               <div className="flex items-center gap-3">
