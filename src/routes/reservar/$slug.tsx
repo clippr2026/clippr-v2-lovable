@@ -311,8 +311,13 @@ function PublicBookingPage() {
 
         if (businessError) throw new Error(businessError.message);
         if (!businessData) {
-          if (!cancelled) setBusiness(null);
-          return;
+          const fallback = await supabase.from("businesses").select("id,name,slug,address,phone,email,instagram,logo_url,avatar_url,cover_url,accent_color").eq("slug", slug).maybeSingle();
+          if (fallback.data) {
+            businessData = fallback.data as any;
+          } else {
+            if (!cancelled) setBusiness(null);
+            return;
+          }
         }
 
         const businessId = businessData.id as string;
