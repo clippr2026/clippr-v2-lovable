@@ -3,13 +3,20 @@ import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   ExternalLink,
+  Images,
+  Info,
   Instagram,
   Loader2,
   Mail,
   MapPin,
   Phone,
+  Sparkles,
+  Star,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -192,6 +199,16 @@ function cleanInstagram(value?: string | null) {
   return value?.replace(/^@/, "").trim() ?? "";
 }
 
+function FiveStars({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-1" aria-label="5 estrellas">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <Star key={index} className={compact ? "h-3.5 w-3.5 fill-current" : "h-4 w-4 fill-current"} />
+      ))}
+    </div>
+  );
+}
+
 // Tarjeta oscura con un glow de color muy sutil detrás (estilo Stripe/Linear/Raycast).
 // No cambia el fondo de la tarjeta; sólo agrega luz difusa con los colores configurados.
 function GlowCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -224,6 +241,7 @@ function PublicProfilePage() {
   const [description, setDescription] = React.useState<string>("");
   const [colors, setColors] = React.useState<LandingColors>({});
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
+  const [selectedPortfolioIndex, setSelectedPortfolioIndex] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -330,6 +348,23 @@ function PublicProfilePage() {
   const accent = cAccent; // acciones principales: botones, estados e indicadores
   const isLight = theme === "light";
   const portfolio = portfolioUrls;
+  const selectedPortfolio = selectedPortfolioIndex !== null ? portfolio[selectedPortfolioIndex] : null;
+  const openPortfolio = (index: number) => setSelectedPortfolioIndex(index);
+  const closePortfolio = () => setSelectedPortfolioIndex(null);
+  const showPrevPortfolio = () => {
+    if (!portfolio.length) return;
+    setSelectedPortfolioIndex((current) => {
+      const index = current ?? 0;
+      return (index - 1 + portfolio.length) % portfolio.length;
+    });
+  };
+  const showNextPortfolio = () => {
+    if (!portfolio.length) return;
+    setSelectedPortfolioIndex((current) => {
+      const index = current ?? 0;
+      return (index + 1) % portfolio.length;
+    });
+  };
 
   if (loading) {
     return (
@@ -413,7 +448,11 @@ function PublicProfilePage() {
                 )}
               </div>
               <div className="pb-1">
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+                <h1 className="drop-shadow-[0_3px_14px_rgba(0,0,0,0.85)] text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+                <div className="mt-2 flex items-center gap-2 text-sm font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" style={{ color: cAccent }}>
+                  <FiveStars />
+                  <span className="text-white/90">5.0</span>
+                </div>
 
               </div>
             </div>
@@ -425,7 +464,12 @@ function PublicProfilePage() {
         <div className="space-y-6">
           <GlowCard>
             <div className="p-5 sm:p-6">
-              <h2 className="text-2xl font-semibold">Servicios disponibles</h2>
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                  <Sparkles className="h-5 w-5" />
+                </span>
+                <h2 className="text-2xl font-semibold">Servicios disponibles</h2>
+              </div>
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
@@ -456,7 +500,12 @@ function PublicProfilePage() {
           {employees.length > 0 ? (
             <GlowCard>
               <div className="p-5 sm:p-6">
-                <h2 className="text-2xl font-semibold">Profesionales disponibles</h2>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                    <CalendarDays className="h-5 w-5" />
+                  </span>
+                  <h2 className="text-2xl font-semibold">Profesionales disponibles</h2>
+                </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {employees.map((employee) => (
                     <a
@@ -474,6 +523,9 @@ function PublicProfilePage() {
                       <div className="min-w-0">
                         <h3 className="truncate font-semibold">{employee.full_name}</h3>
                         <p className="text-sm text-white/50">{employee.role || "Profesional"}</p>
+                        <div className="mt-1" style={{ color: cAccent }}>
+                          <FiveStars compact />
+                        </div>
                       </div>
                     </a>
                   ))}
@@ -482,15 +534,39 @@ function PublicProfilePage() {
             </GlowCard>
           ) : null}
 
+          {description ? (
+            <GlowCard>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                    <Info className="h-5 w-5" />
+                  </span>
+                  <h2 className="text-2xl font-semibold">Acerca de</h2>
+                </div>
+                <p className="mt-4 max-w-3xl text-sm leading-6 text-white/65 sm:text-base">{description}</p>
+              </div>
+            </GlowCard>
+          ) : null}
+
           {portfolio.length > 0 ? (
             <GlowCard>
               <div className="p-5 sm:p-6">
-                <h2 className="text-2xl font-semibold">Portafolio</h2>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                    <Images className="h-5 w-5" />
+                  </span>
+                  <h2 className="text-2xl font-semibold">Portafolio</h2>
+                </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   {portfolio.slice(0, 3).map((src, i) => (
-                    <div key={`${src}-${i}`} className="aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
-                      <img src={src} alt={`Portafolio ${i + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                    </div>
+                    <button
+                      key={`${src}-${i}`}
+                      type="button"
+                      onClick={() => openPortfolio(i)}
+                      className="group aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:scale-[1.015] hover:border-white/20"
+                    >
+                      <img src={src} alt={`Portafolio ${i + 1}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" decoding="async" />
+                    </button>
                   ))}
                 </div>
               </div>
@@ -551,10 +627,47 @@ function PublicProfilePage() {
         </aside>
       </section>
 
+      {business.address ? (
+        <section className="mx-auto max-w-6xl px-4 pb-6">
+          <GlowCard className="overflow-hidden">
+            <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
+              <div className="min-h-[260px] overflow-hidden bg-white/[0.03]">
+                <iframe
+                  title={`Mapa de ${business.name}`}
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
+                  className="h-[280px] w-full border-0 grayscale-[.15]"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+              <div className="flex flex-col justify-center p-5 sm:p-6">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                    <MapPin className="h-5 w-5" />
+                  </span>
+                  <h2 className="text-2xl font-semibold">Ubicación</h2>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-white/65">{business.address}</p>
+                {mapLink ? (
+                  <a href={mapLink} target="_blank" rel="noreferrer" className="mt-5 inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-zinc-950 transition hover:brightness-110" style={{ background: cAccent }}>
+                    Cómo llegar <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </GlowCard>
+        </section>
+      ) : null}
+
       <section className="mx-auto max-w-6xl px-4 pb-6">
         <GlowCard className="overflow-hidden">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <h2 className="text-2xl font-semibold">Contactanos</h2>
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                <Phone className="h-5 w-5" />
+              </span>
+              <h2 className="text-2xl font-semibold">Contactanos</h2>
+            </div>
             <div className="flex flex-wrap gap-3">
               {business.phone ? (
                 <a
@@ -598,6 +711,49 @@ function PublicProfilePage() {
           <span>Hecho con <span className="font-semibold text-white/80">Clippr</span></span>
         </div>
       </footer>
+
+      {selectedPortfolio ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 text-white">
+          <div className="absolute left-6 top-6 text-lg font-semibold">{business.name}</div>
+          <div className="absolute left-1/2 top-6 -translate-x-1/2 text-sm font-semibold text-white/80">
+            {(selectedPortfolioIndex ?? 0) + 1}/{portfolio.length}
+          </div>
+          <button
+            type="button"
+            onClick={closePortfolio}
+            className="absolute right-6 top-6 grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-white/5 transition hover:bg-white/10"
+            aria-label="Cerrar portafolio"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {portfolio.length > 1 ? (
+            <button
+              type="button"
+              onClick={showPrevPortfolio}
+              className="absolute left-4 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white text-zinc-950 shadow-xl transition hover:scale-105"
+              aria-label="Imagen anterior"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+          ) : null}
+          <img
+            src={selectedPortfolio}
+            alt="Imagen ampliada del portafolio"
+            className="max-h-[78vh] max-w-[min(92vw,760px)] rounded-2xl object-contain shadow-2xl"
+            decoding="async"
+          />
+          {portfolio.length > 1 ? (
+            <button
+              type="button"
+              onClick={showNextPortfolio}
+              className="absolute right-4 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white text-zinc-950 shadow-xl transition hover:scale-105"
+              aria-label="Imagen siguiente"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08070c]/95 p-3 backdrop-blur sm:hidden">
         <Link
