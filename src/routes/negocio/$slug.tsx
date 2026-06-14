@@ -266,7 +266,7 @@ function PublicProfilePage() {
         const [employeesRes, servicesRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
-            .select("id,full_name,avatar_url,is_active")
+            .select("id,full_name,avatar_url,is_active,role")
             .eq("business_id", businessId)
             .order("full_name", { ascending: true }),
           supabase
@@ -518,7 +518,7 @@ function PublicProfilePage() {
                       </div>
                       <div className="min-w-0">
                         <h3 className="truncate font-semibold">{employee.full_name}</h3>
-                        <p className="text-sm text-white/50">{employee.role || "Profesional"}</p>
+                        <p className="text-sm text-white/50">{employee.role?.trim() || "Profesional"}</p>
                         <div className="mt-1" style={{ color: cAccent }}>
                           <FiveStars compact />
                         </div>
