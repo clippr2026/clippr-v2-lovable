@@ -80,7 +80,7 @@ type DaySchedule = {
   breakEnd?: string;
 };
 type ScheduleMap = Record<DayKey, DaySchedule>;
-type BookingStep = "services" | "professional" | "datetime" | "details" | "confirm" | "done";
+type BookingStep = "services" | "professional" | "datetime" | "details" | "done";
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string };
 type LandingTheme = "dark" | "light";
@@ -273,6 +273,17 @@ function PublicBookingPage() {
   const [notes, setNotes] = React.useState("");
   const [landingColors, setLandingColors] = React.useState<LandingColors>({});
   const [landingTheme, setLandingTheme] = React.useState<LandingTheme>("dark");
+  const [confirmedBooking, setConfirmedBooking] = React.useState<{
+    services: string;
+    professional: string;
+    date: string;
+    time: string;
+    duration: number;
+    total: number;
+    clientName: string;
+    clientPhone: string;
+    clientEmail?: string;
+  } | null>(null);
 
   const selectedServices = React.useMemo(
     () => selectedServiceIds.map((id) => services.find((service) => service.id === id)).filter(Boolean) as Service[],
@@ -434,6 +445,18 @@ function PublicBookingPage() {
       "Origen: reserva online",
     ].filter(Boolean).join("\n\n");
 
+    const confirmationSnapshot = {
+      services: selectedServices.map((service) => service.name).join(" + "),
+      professional: selectedEmployee?.full_name ?? "Sin preferencia",
+      date: formatDay(selectedSlot.time),
+      time: formatTime(selectedSlot.time),
+      duration: totalDuration,
+      total: totalPrice,
+      clientName: clientName.trim(),
+      clientPhone: clientPhone.trim(),
+      clientEmail: clientEmail.trim() || undefined,
+    };
+
     setSubmitting(true);
     try {
       const start = selectedSlot.time;
@@ -464,6 +487,7 @@ function PublicBookingPage() {
         if (fallback.error) throw new Error(fallback.error.message);
       }
 
+      setConfirmedBooking(confirmationSnapshot);
       setStep("done");
       toast.success("Turno reservado correctamente");
     } catch (error) {
@@ -502,7 +526,7 @@ function PublicBookingPage() {
     );
   }
 
-  const stepIndex = step === "services" ? 1 : step === "professional" ? 2 : step === "datetime" ? 3 : step === "details" ? 4 : step === "confirm" ? 5 : 5;
+  const stepIndex = step === "services" ? 1 : step === "professional" ? 2 : step === "datetime" ? 3 : step === "details" ? 4 : 4;
 
   return (
     <main
@@ -527,6 +551,15 @@ function PublicBookingPage() {
         .public-booking[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
         .public-booking[data-theme="light"] [class*="bg-white/"] { background-color: rgba(255,255,255,0.72) !important; }
       `}</style>
+      {submitting ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
+          <div className="rounded-3xl border border-white/10 bg-[#09090f] p-8 text-center text-white shadow-2xl">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 via-violet-500 to-fuchsia-500 text-2xl font-black text-white">C</div>
+            <Loader2 className="mx-auto mt-5 h-7 w-7 animate-spin" style={{ color: accent }} />
+            <p className="mt-4 text-sm text-white/65">Confirmando tu turno...</p>
+          </div>
+        </div>
+      ) : null}
       <section className="relative overflow-hidden border-b border-white/10">
         <div
           className="absolute inset-0"
@@ -554,17 +587,16 @@ function PublicBookingPage() {
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm text-white/50">Paso {stepIndex} de 5</p>
+                  <p className="text-sm text-white/50">Paso {stepIndex} de 4</p>
                   <h2 className="text-2xl font-semibold">
                     {step === "services" && "Elegí tus servicios"}
                     {step === "professional" && "Elegí profesional"}
                     {step === "datetime" && "Elegí día y horario"}
                     {step === "details" && "Tus datos"}
-                    {step === "confirm" && "Confirmá tu reserva"}
                     {step === "done" && "Reserva confirmada"}
                   </h2>
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/5</div>
+                <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/4</div>
               </div>
 
               {step !== "services" && step !== "done" ? (
@@ -574,7 +606,6 @@ function PublicBookingPage() {
                     if (step === "professional") setStep("services");
                     if (step === "datetime") setStep(professionalLocked ? "services" : "professional");
                     if (step === "details") setStep("datetime");
-                    if (step === "confirm") setStep("details");
                   }}
                   className="mt-5 inline-flex items-center gap-1 text-sm text-white/55 hover:text-white"
                 >
@@ -628,7 +659,7 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "datetime" ? (
-                <div className="mt-6 space-y-8">
+                <div className="mt-5 space-y-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="inline-flex w-max items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] p-1.5 pr-4">
                       <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10">
@@ -636,14 +667,14 @@ function PublicBookingPage() {
                       </span>
                       <span className="text-base font-semibold">{selectedEmployee?.full_name ?? "Sin preferencia"}</span>
                     </div>
-                    <button type="button" className="grid h-14 w-14 place-items-center rounded-full border border-white/10 bg-white/[0.04]">
-                      <CalendarDays className="h-6 w-6" />
+                    <button type="button" className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.04]">
+                      <CalendarDays className="h-5 w-5" />
                     </button>
                   </div>
 
                   <div>
                     <div className="mb-4 flex items-center justify-between gap-3">
-                      <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">Selecciona una fecha</h3>
+                      <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">Seleccioná una fecha</h3>
                       <div className="hidden items-center gap-2 sm:flex">
                         <button type="button" onClick={() => setSelectedDayIndex((index) => Math.max(0, index - 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha anterior"><ChevronLeft className="h-5 w-5" /></button>
                         <button type="button" onClick={() => setSelectedDayIndex((index) => Math.min(Math.max(availableDays.length - 1, 0), index + 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha siguiente"><ChevronRight className="h-5 w-5" /></button>
@@ -664,14 +695,14 @@ function PublicBookingPage() {
                               type="button"
                               onClick={() => setSelectedDayIndex(index)}
                               className={cn(
-                                "flex min-w-[88px] flex-col items-center rounded-3xl border px-5 py-4 text-center transition",
+                                "flex min-w-[72px] flex-col items-center rounded-2xl border px-4 py-3 text-center transition",
                                 active ? "border-transparent text-zinc-950 shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
                               )}
                               style={active ? { background: accent } : undefined}
                             >
-                              <span className="text-lg capitalize leading-none">{weekday}</span>
-                              <span className="mt-2 text-3xl font-bold leading-none">{day.date.getDate()}</span>
-                              <span className="mt-2 text-base lowercase leading-none">{month}</span>
+                              <span className="text-sm capitalize leading-none">{weekday}</span>
+                              <span className="mt-1.5 text-2xl font-bold leading-none">{day.date.getDate()}</span>
+                              <span className="mt-1.5 text-sm lowercase leading-none">{month}</span>
                             </button>
                           );
                         })}
@@ -681,14 +712,14 @@ function PublicBookingPage() {
 
                   {selectedDay ? (
                     <div>
-                      <h3 className="mb-4 text-2xl font-semibold tracking-tight sm:text-3xl">Escoge una hora</h3>
-                      <div className="space-y-4">
+                      <h3 className="mb-3 text-xl font-semibold tracking-tight sm:text-2xl">Elegí una hora</h3>
+                      <div className="space-y-3">
                         {selectedDay.slots.map((slot) => (
                           <button
                             key={`${slot.employeeId}-${slot.time.toISOString()}`}
                             type="button"
                             onClick={() => { setSelectedSlot(slot); setStep("details"); }}
-                            className="flex w-full items-center rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-5 text-left text-xl font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-8 sm:py-6"
+                            className="flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4"
                           >
                             {formatTime(slot.time)}
                           </button>
@@ -708,20 +739,6 @@ function PublicBookingPage() {
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
                   {clientFields.notas ? <div className="space-y-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={notes} onChange={(event) => setNotes(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Ej: corte bajo, barba marcada..." /></div> : null}
-                  <Button onClick={() => setStep("confirm")} className="w-full rounded-2xl py-6 font-bold text-zinc-950 hover:brightness-110" style={{ background: accent }}>Continuar</Button>
-                </div>
-              ) : null}
-
-              {step === "confirm" ? (
-                <div className="mt-5 space-y-4">
-                  <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/70">
-                    <p className="font-semibold text-white">Resumen</p>
-                    <p className="mt-3">Servicios: {selectedServices.map((service) => service.name).join(" + ")}</p>
-                    <p>Profesional: {selectedEmployee?.full_name ?? "Sin preferencia"}</p>
-                    <p>Horario: {selectedSlot ? `${formatDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "-"}</p>
-                    <p>Duración: {totalDuration} min</p>
-                    <p>Total estimado: {formatMoney(totalPrice)}</p>
-                  </div>
                   <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold text-zinc-950 hover:brightness-110" style={{ background: accent }}>
                     {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Confirmar reserva
@@ -731,9 +748,26 @@ function PublicBookingPage() {
 
               {step === "done" ? (
                 <div className="mt-6 text-center">
-                  <CheckCircle2 className="mx-auto h-14 w-14" style={{ color: accent }} />
-                  <h3 className="mt-4 text-2xl font-semibold">Turno reservado</h3>
+                  <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 via-violet-500 to-fuchsia-500 text-2xl font-black text-white shadow-2xl">C</div>
+                  <CheckCircle2 className="mx-auto mt-5 h-14 w-14" style={{ color: accent }} />
+                  <h3 className="mt-4 text-2xl font-semibold">Turno confirmado</h3>
                   <p className="mt-2 text-sm text-white/60">El turno ya quedó registrado en la agenda de {business.name}.</p>
+
+                  <div className="mx-auto mt-6 max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-left text-sm text-white/70">
+                    <p className="font-semibold text-white">Datos de la reserva</p>
+                    <div className="mt-4 space-y-2">
+                      <p><span className="text-white/45">Cliente:</span> <span className="font-medium text-white">{confirmedBooking?.clientName || clientName}</span></p>
+                      <p><span className="text-white/45">Teléfono:</span> <span className="font-medium text-white">{confirmedBooking?.clientPhone || clientPhone}</span></p>
+                      {confirmedBooking?.clientEmail || clientEmail ? <p><span className="text-white/45">Email:</span> <span className="font-medium text-white">{confirmedBooking?.clientEmail || clientEmail}</span></p> : null}
+                      <p><span className="text-white/45">Servicios:</span> <span className="font-medium text-white">{confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + ")}</span></p>
+                      <p><span className="text-white/45">Profesional:</span> <span className="font-medium text-white">{confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia"}</span></p>
+                      <p><span className="text-white/45">Fecha:</span> <span className="font-medium text-white">{confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-")}</span></p>
+                      <p><span className="text-white/45">Horario:</span> <span className="font-medium text-white">{confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-")}</span></p>
+                      <p><span className="text-white/45">Duración:</span> <span className="font-medium text-white">{confirmedBooking?.duration ?? totalDuration} min</span></p>
+                      <p><span className="text-white/45">Total:</span> <span className="font-semibold text-white">{formatMoney(confirmedBooking?.total ?? totalPrice)}</span></p>
+                    </div>
+                  </div>
+
                   <Link to="/negocio/$slug" params={{ slug }} className="mt-6 inline-flex rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/5">Volver al perfil</Link>
                 </div>
               ) : null}
