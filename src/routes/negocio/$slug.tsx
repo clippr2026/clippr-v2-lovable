@@ -484,6 +484,17 @@ function PublicProfilePage() {
   const todayStatus = getTodayStatus(schedule);
   const todayKey = getTodayKey();
   const isOpen = todayStatus.startsWith("Abierto");
+  const featuredCategoryOrder = ["Marca", "Artista", "Futbolista", "Equipo de fútbol", "Influencer", "Empresa", "Celebridad", "Otro"];
+  const featuredClientsByCategory = featuredClients.reduce<Record<string, FeaturedClient[]>>((groups, item) => {
+    const category = item.category || "Otro";
+    groups[category] = groups[category] ? [...groups[category], item] : [item];
+    return groups;
+  }, {});
+  const featuredCategoryEntries = Object.entries(featuredClientsByCategory).sort(([a], [b]) => {
+    const ai = featuredCategoryOrder.indexOf(a);
+    const bi = featuredCategoryOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
 
   return (
     <main
@@ -886,22 +897,27 @@ function PublicProfilePage() {
 
 
       {showAllFeaturedClients ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm" onClick={() => setShowAllFeaturedClients(false)}>
-          <div className="max-h-[86vh] w-full max-w-4xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#080512] shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm" onClick={() => setShowAllFeaturedClients(false)}>
+          <div
+            className={(isLight
+              ? "border-zinc-200 bg-white text-zinc-950"
+              : "border-white/10 bg-[#080512] text-white") + " max-h-[86vh] w-full max-w-4xl overflow-hidden rounded-[2rem] border shadow-2xl"}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={(isLight ? "border-zinc-200" : "border-white/10") + " flex items-start justify-between gap-4 border-b p-5 sm:p-6"}>
               <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                <span className={(isLight ? "border-zinc-200 bg-zinc-50" : "border-white/10 bg-white/5") + " grid h-11 w-11 place-items-center rounded-2xl border"} style={{ color: cAccent }}>
                   <Trophy className="h-5 w-5" />
                 </span>
                 <div>
-                  <h2 className="text-2xl font-semibold text-white">Confían en nosotros</h2>
-                  <p className="mt-1 text-sm text-white/55">Todos los clientes destacados del negocio.</p>
+                  <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
+                  <p className={(isLight ? "text-zinc-600" : "text-white/55") + " mt-1 text-sm"}>Todos los clientes destacados del negocio, ordenados por categoría.</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAllFeaturedClients(false)}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/15"
+                className={(isLight ? "bg-zinc-100 text-zinc-900 hover:bg-zinc-200" : "bg-white/10 text-white hover:bg-white/15") + " grid h-10 w-10 shrink-0 place-items-center rounded-full transition"}
                 aria-label="Cerrar"
               >
                 <X className="h-5 w-5" />
@@ -909,19 +925,32 @@ function PublicProfilePage() {
             </div>
 
             <div className="max-h-[calc(86vh-96px)] overflow-y-auto p-5 sm:p-6">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {featuredClients.map((item, index) => (
-                  <div key={item.id || `featured-modal-${item.name}-${index}`} className="rounded-3xl border border-white/10 bg-white/[0.05] p-4 text-center">
-                    <div className="mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl bg-white/5 ring-1 ring-white/10 sm:h-28 sm:w-28">
-                      {item.image_url ? (
-                        <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                      ) : (
-                        <span className="text-3xl font-bold text-white/80">{item.name.slice(0, 1)}</span>
-                      )}
+              <div className="space-y-7">
+                {featuredCategoryEntries.map(([category, items]) => (
+                  <section key={category}>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h3 className="text-lg font-bold">{category}</h3>
+                      <span className={(isLight ? "bg-zinc-100 text-zinc-600" : "bg-white/10 text-white/60") + " rounded-full px-3 py-1 text-xs font-semibold"}>{items.length}</span>
                     </div>
-                    <p className="mt-4 truncate font-semibold text-white">{item.name}</p>
-                    <p className="mt-1 truncate text-sm text-white/50">{item.category}</p>
-                  </div>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                      {items.map((item, index) => (
+                        <div
+                          key={item.id || `featured-modal-${category}-${item.name}-${index}`}
+                          className={(isLight ? "border-zinc-200 bg-zinc-50" : "border-white/10 bg-white/[0.05]") + " rounded-3xl border p-4 text-center"}
+                        >
+                          <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/5 ring-white/10") + " mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl ring-1 sm:h-28 sm:w-28"}>
+                            {item.image_url ? (
+                              <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                            ) : (
+                              <span className={(isLight ? "text-zinc-800" : "text-white/80") + " text-3xl font-bold"}>{item.name.slice(0, 1)}</span>
+                            )}
+                          </div>
+                          <p className="mt-4 truncate font-semibold">{item.name}</p>
+                          <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-1 truncate text-sm"}>{item.category}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
             </div>
