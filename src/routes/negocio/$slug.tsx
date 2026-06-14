@@ -462,39 +462,37 @@ function PublicProfilePage() {
                 )}
               </div>
             </div>
-            <div className="mt-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
-                <span className="inline-grid h-8 w-8 place-items-center text-white shadow-lg sm:h-9 sm:w-9" aria-label="Negocio verificado" title="Negocio verificado">
-                  <svg viewBox="0 0 24 24" className="h-8 w-8 sm:h-9 sm:w-9" aria-hidden="true">
-                    <path
-                      d="M12 1.6l1.75 1.52 2.3-.29.99 2.1 2.2.72.07 2.32 1.64 1.63-1.1 2.04.46 2.27-1.94 1.27-.58 2.24-2.29.2-1.5 1.77L12 18.22l-2 1.17-1.5-1.77-2.29-.2-.58-2.24-1.94-1.27.46-2.27-1.1-2.04 1.64-1.63.07-2.32 2.2-.72.99-2.1 2.3.29L12 1.6z"
-                      fill="#1DA1F2"
-                    />
-                    <path d="M10.45 14.7 6.9 11.15l1.45-1.45 2.1 2.1 5.2-5.2 1.45 1.45-6.65 6.65z" fill="white" />
-                  </svg>
-                </span>
-              </div>
-              <div className="mt-2 flex flex-wrap items-start justify-between gap-6">
-                <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
+            <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+                  <span className="inline-grid h-8 w-8 place-items-center text-white sm:h-9 sm:w-9" aria-label="Negocio verificado" title="Negocio verificado">
+                    <svg viewBox="0 0 24 24" className="h-8 w-8 sm:h-9 sm:w-9 drop-shadow-sm" aria-hidden="true">
+                      <path
+                        d="M12 1.6l1.75 1.52 2.3-.29.99 2.1 2.2.72.07 2.32 1.64 1.63-1.1 2.04.46 2.27-1.94 1.27-.58 2.24-2.29.2-1.5 1.77L12 18.22l-2 1.17-1.5-1.77-2.29-.2-.58-2.24-1.94-1.27.46-2.27-1.1-2.04 1.64-1.63.07-2.32 2.2-.72.99-2.1 2.3.29L12 1.6z"
+                        fill="#1DA1F2"
+                      />
+                      <path d="M10.45 14.7 6.9 11.15l1.45-1.45 2.1 2.1 5.2-5.2 1.45 1.45-6.65 6.65z" fill="white" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
                   <FiveStars />
-                  <span className={isLight ? "text-zinc-700" : "text-white/90"}>5.0</span>
+                  <span className={isLight ? "text-zinc-700" : "text-white/90"}>5,0</span>
                 </div>
+              </div>
 
-                <div className="flex gap-8 sm:gap-12 text-center">
-                  <div>
-                    <div className="text-3xl sm:text-4xl font-bold">16.284</div>
-                    <div className="text-sm opacity-70">Clientes<br/>atendidos</div>
+              <div className="grid w-full max-w-xl grid-cols-3 divide-x text-center lg:w-auto lg:min-w-[460px]" style={{ borderColor: isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)" }}>
+                {[
+                  { value: "16.284", label: <>Clientes<br />atendidos</> },
+                  { value: "27.541", label: <>Servicios<br />realizados</> },
+                  { value: "7", label: <>Años de<br />experiencia</> },
+                ].map((item) => (
+                  <div key={item.value} className="px-4 sm:px-7">
+                    <div className="text-3xl font-bold leading-none tracking-tight sm:text-4xl">{item.value}</div>
+                    <div className="mt-2 text-sm leading-5 text-white/55 sm:text-base">{item.label}</div>
                   </div>
-                  <div>
-                    <div className="text-3xl sm:text-4xl font-bold">27.541</div>
-                    <div className="text-sm opacity-70">Servicios<br/>realizados</div>
-                  </div>
-                  <div>
-                    <div className="text-3xl sm:text-4xl font-bold">7</div>
-                    <div className="text-sm opacity-70">Años de<br/>experiencia</div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
