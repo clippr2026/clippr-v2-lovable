@@ -82,6 +82,7 @@ type ScheduleMap = Record<DayKey, DaySchedule>;
 type BookingStep = "services" | "professional" | "datetime" | "details" | "confirm" | "done";
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string };
+type LandingTheme = "dark" | "light";
 
 const DAY_KEYS: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const DEFAULT_SCHEDULE: ScheduleMap = {
@@ -176,12 +177,6 @@ function extractClientFields(schedule: unknown): ClientFields {
   };
 }
 
-function extractBranding(schedule: unknown): { colors?: LandingColors | null; address?: string | null; phone?: string | null; email?: string | null; instagram?: string | null } {
-  if (!schedule || typeof schedule !== "object") return {};
-  const branding = (schedule as Record<string, any>)._branding;
-  return branding && typeof branding === "object" ? branding : {};
-}
-
 function normalizeSchedule(value: unknown): ScheduleMap {
   if (!value || typeof value !== "object") return DEFAULT_SCHEDULE;
   const source = value as Record<string, any>;
@@ -264,7 +259,6 @@ function PublicBookingPage() {
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
-  const [colors, setColors] = React.useState<LandingColors>({});
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
@@ -276,6 +270,8 @@ function PublicBookingPage() {
   const [clientEmail, setClientEmail] = React.useState("");
   const [clientBirthDate, setClientBirthDate] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [landingColors, setLandingColors] = React.useState<LandingColors>({});
+  const [landingTheme, setLandingTheme] = React.useState<LandingTheme>("dark");
 
   const selectedServices = React.useMemo(
     () => selectedServiceIds.map((id) => services.find((service) => service.id === id)).filter(Boolean) as Service[],
@@ -339,7 +335,7 @@ function PublicBookingPage() {
         if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
 
         const settingsSchedule = settingsRes.error ? null : ((settingsRes.data as any)?.schedule ?? null);
-        const branding = extractBranding(settingsSchedule);
+        const branding = settingsSchedule && typeof settingsSchedule === "object" ? ((settingsSchedule as Record<string, any>)._branding ?? {}) : {};
         const visibility = extractPublicVisibility(settingsSchedule);
         const visibleEmployees = ((employeesRes.data ?? []) as Employee[])
           .filter((employee) => employee.is_active !== false)
@@ -349,19 +345,14 @@ function PublicBookingPage() {
           .filter((service) => visibility.services[service.id] !== false);
 
         if (!cancelled) {
-          setBusiness({
-            ...(businessData as Business),
-            address: branding.address || (businessData as Business).address,
-            phone: branding.phone || (businessData as Business).phone,
-            email: branding.email || (businessData as Business).email,
-            instagram: branding.instagram || (businessData as Business).instagram,
-          } as Business);
-          setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
+          setBusiness(businessData as Business);
           setEmployees(visibleEmployees);
           setServices(visibleServices);
           setAppointments((appointmentsRes.data ?? []) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
           setClientFields(extractClientFields(settingsSchedule));
+          setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
+          setLandingTheme(branding.theme === "light" ? "light" : "dark");
 
           const params = new URLSearchParams(window.location.search);
           const serviceId = params.get("service");
@@ -456,10 +447,10 @@ function PublicBookingPage() {
     }
   }
 
-  const cPrimary = colors.primary || business?.accent_color || "#d6b66a";
-  const cSecondary = colors.secondary || "#7c3aed";
-  const cAccent = colors.accent || cPrimary;
-  const accent = cAccent;
+  const cPrimary = landingColors.primary || business?.accent_color || "#d6b66a";
+  const cSecondary = landingColors.secondary || "#7c3aed";
+  const accent = landingColors.accent || cPrimary;
+  const isLight = landingTheme === "light";
 
   if (loading) {
     return (
@@ -488,9 +479,36 @@ function PublicBookingPage() {
   const stepIndex = step === "services" ? 1 : step === "professional" ? 2 : step === "datetime" ? 3 : step === "details" ? 4 : step === "confirm" ? 5 : 5;
 
   return (
-    <main className="min-h-dvh bg-[#08070c] text-white" style={{ ["--accent" as any]: accent, ["--c-primary" as any]: cPrimary, ["--c-secondary" as any]: cSecondary, ["--c-accent" as any]: cAccent }}>
+    <main
+      data-theme={landingTheme}
+      className="public-booking min-h-dvh"
+      style={{
+        ["--accent" as any]: accent,
+        ["--c-primary" as any]: cPrimary,
+        ["--c-secondary" as any]: cSecondary,
+        ["--page-bg" as any]: isLight ? "#f6f7fb" : "#08070c",
+        ["--card-bg" as any]: isLight ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.06)",
+        ["--text" as any]: isLight ? "#111827" : "#ffffff",
+        ["--muted" as any]: isLight ? "rgba(17,24,39,0.62)" : "rgba(255,255,255,0.62)",
+        ["--border" as any]: isLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+      }}
+    >
+      <style>{`
+        .public-booking { background: var(--page-bg); color: var(--text); }
+        .public-booking .booking-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text) !important; }
+        .public-booking[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }
+        .public-booking[data-theme="light"] [class*="text-white/"] { color: var(--muted) !important; }
+        .public-booking[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
+        .public-booking[data-theme="light"] [class*="bg-white/"] { background-color: rgba(255,255,255,0.72) !important; }
+      `}</style>
       <section className="relative overflow-hidden border-b border-white/10">
-        <div className="absolute inset-0" style={{ background: "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 36%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 36%)" }} />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 34%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 34%)",
+          }}
+        />
         {business.cover_url ? <img src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
         <div className="relative mx-auto flex max-w-5xl items-center gap-4 px-4 py-8 sm:py-10">
           <Link to="/negocio/$slug" params={{ slug }} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white text-xl font-bold text-zinc-950">
@@ -506,7 +524,7 @@ function PublicBookingPage() {
 
       <section className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[1fr_330px] lg:items-start">
         <div className="space-y-6">
-          <Card className="border-white/10 bg-white/[0.04] text-white shadow-xl">
+          <Card className="booking-card border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -633,7 +651,7 @@ function PublicBookingPage() {
 
               {step === "done" ? (
                 <div className="mt-6 text-center">
-                  <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-300" />
+                  <CheckCircle2 className="mx-auto h-14 w-14" style={{ color: accent }} />
                   <h3 className="mt-4 text-2xl font-semibold">Turno reservado</h3>
                   <p className="mt-2 text-sm text-white/60">El turno ya quedó registrado en la agenda de {business.name}.</p>
                   <Link to="/negocio/$slug" params={{ slug }} className="mt-6 inline-flex rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/5">Volver al perfil</Link>
@@ -644,7 +662,7 @@ function PublicBookingPage() {
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <Card className="border-white/10 bg-white/[0.06] text-white shadow-2xl backdrop-blur-xl">
+          <Card className="booking-card border-white/10 bg-white/[0.06] text-white shadow-2xl backdrop-blur-xl">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5" style={{ color: accent }} /><h2 className="text-lg font-semibold">Tu reserva</h2></div>
               <div className="mt-5 space-y-4 text-sm text-white/65">
