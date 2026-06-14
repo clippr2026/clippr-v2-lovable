@@ -62,7 +62,7 @@ type Service = {
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type ScheduleMap = Record<DayKey, DaySchedule>;
-type LandingColors = { primary?: string; secondary?: string; accent?: string };
+type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
 type PublicBranding = {
   address?: string | null;
@@ -392,12 +392,12 @@ function PublicProfilePage() {
     };
   }, [slug]);
 
-  const cPrimary = colors.primary || business?.accent_color || "#d6b66a";
-  const cSecondary = colors.secondary || "#7c3aed";
-  const cAccent = colors.accent || cPrimary;
+  const cPrimary = colors.primary || colors.secondary || business?.accent_color || "#7c3aed";
+  const cSecondary = cPrimary;
+  const cAccent = colors.accent || business?.accent_color || "#d6b66a";
   const accent = cAccent; // acciones principales: botones, estados e indicadores
   const isLight = theme === "light";
-  const accentButtonText = isLight ? "#ffffff" : "#111827";
+  const accentButtonText = colors.buttonText || "#ffffff";
   const portfolio = portfolioUrls;
   const selectedPortfolio = selectedPortfolioIndex !== null ? portfolio[selectedPortfolioIndex] : null;
   const openPortfolio = (index: number) => setSelectedPortfolioIndex(index);
@@ -481,7 +481,7 @@ function PublicProfilePage() {
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 36%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 36%)",
+              isLight ? "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 36%, transparent), transparent 42%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 32%, transparent), transparent 42%)" : "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 36%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 36%)",
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-6 sm:py-10">
