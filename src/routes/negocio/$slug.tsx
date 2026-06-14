@@ -72,6 +72,7 @@ type PublicBranding = {
   website?: string | null;
   description?: string | null;
   profile_note?: string | null;
+  additional_info?: string[] | null;
   portfolio_urls?: string[] | null;
   colors?: LandingColors | null;
   theme?: LandingTheme | null;
@@ -110,6 +111,13 @@ function extractBranding(schedule: unknown): PublicBranding {
 function normalizePortfolio(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((url): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 3)
+    : [];
+}
+
+
+function normalizeAdditionalInfo(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 10)
     : [];
 }
 
@@ -240,6 +248,7 @@ function PublicProfilePage() {
   const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
+  const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
   const [colors, setColors] = React.useState<LandingColors>({});
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
   const [selectedPortfolioIndex, setSelectedPortfolioIndex] = React.useState<number | null>(null);
@@ -344,6 +353,7 @@ function PublicProfilePage() {
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
           setProfileNote(typeof branding.profile_note === "string" ? branding.profile_note.trim().slice(0, 80) : "");
+          setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setTheme(branding.theme === "light" ? "light" : "dark");
         }
@@ -691,6 +701,32 @@ function PublicProfilePage() {
         </aside>
       </section>
 
+
+      {additionalInfo.length > 0 ? (
+        <section className="mx-auto max-w-6xl px-4 pb-6">
+          <GlowCard className="overflow-hidden">
+            <div className="p-5 sm:p-6">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                  <Sparkles className="h-5 w-5" />
+                </span>
+                <h2 className="text-2xl font-semibold">Información adicional</h2>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                {additionalInfo.map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold shadow-sm backdrop-blur transition hover:bg-white/[0.10]"
+                    style={{ boxShadow: "0 12px 28px -18px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </GlowCard>
+        </section>
+      ) : null}
 
       <section className="mx-auto max-w-6xl px-4 pb-6">
         <GlowCard className="overflow-hidden">
