@@ -117,7 +117,7 @@ function normalizePortfolio(value: unknown): string[] {
 
 function normalizeAdditionalInfo(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 10)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 12)
     : [];
 }
 
@@ -502,14 +502,14 @@ function PublicProfilePage() {
                 </div>
               </div>
 
-              <div className="grid w-full max-w-xl grid-cols-3 divide-x text-center lg:w-auto lg:min-w-[460px]" style={{ borderColor: isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)" }}>
+              <div className="grid w-full max-w-xl grid-cols-3 divide-x text-center lg:w-auto lg:min-w-[460px] lg:justify-self-start" style={{ borderColor: isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)" }}>
                 {[
-                  { value: "16.284", label: <>Clientes<br />atendidos</> },
-                  { value: "27.541", label: <>Servicios<br />realizados</> },
+                  { value: "+16,2 mil", label: <>Clientes<br />atendidos</> },
+                  { value: "+27,5 mil", label: <>Servicios<br />realizados</> },
                   { value: "7", label: <>Años de<br />experiencia</> },
                 ].map((item) => (
                   <div key={item.value} className="px-4 sm:px-7">
-                    <div className="text-3xl font-bold leading-none tracking-tight sm:text-4xl">{item.value}</div>
+                    <div className="text-2xl font-bold leading-none tracking-tight sm:text-3xl lg:text-4xl">{item.value}</div>
                     <div className="mt-2 text-sm leading-5 text-white/55 sm:text-base">{item.label}</div>
                   </div>
                 ))}
@@ -638,7 +638,7 @@ function PublicProfilePage() {
                 <iframe
                   title={`Mapa de ${business.name}`}
                   src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
-                  className={`h-full w-full border-0 ${isLight ? "" : "grayscale contrast-90 brightness-90"}`}
+                  className={`h-full w-full border-0 ${isLight ? "" : "invert hue-rotate-180 saturate-150 brightness-75 contrast-95"}`}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
