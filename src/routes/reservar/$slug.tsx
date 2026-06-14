@@ -460,6 +460,26 @@ function PublicBookingPage() {
     setSubmitting(true);
     try {
       const start = selectedSlot.time;
+      const directInsertBooking = async () => {
+        const { error } = await supabase.from("appointments").insert({
+          business_id: business.id,
+          client_id: null,
+          client_name: clientName.trim(),
+          employee_id: selectedSlot.employeeId,
+          service_name: serviceName,
+          service_price: totalPrice,
+          starts_at: start.toISOString(),
+          ends_at: addMinutes(start, totalDuration).toISOString(),
+          duration_min: totalDuration,
+          status: "pending",
+          notes: publicNotes || null,
+          created_by_name: "Reserva online",
+          created_by_role: "public",
+          updated_at: new Date().toISOString(),
+        } as any);
+        if (error) throw error;
+      };
+
       const v2Result = await supabase.rpc("create_public_booking_v2", {
         p_business_id: business.id,
         p_service_ids: selectedServiceIds,
@@ -473,18 +493,28 @@ function PublicBookingPage() {
       } as any);
 
       if (v2Result.error) {
-        if (selectedServices.length > 1) throw new Error(v2Result.error.message);
-        const fallback = await supabase.rpc("create_public_booking", {
-          p_business_id: business.id,
-          p_service_id: selectedServiceIds[0],
-          p_employee_id: selectedSlot.employeeId,
-          p_starts_at: start.toISOString(),
-          p_client_name: clientName.trim(),
-          p_client_phone: clientPhone.trim(),
-          p_client_email: clientEmail.trim() || null,
-          p_notes: publicNotes || null,
-        } as any);
-        if (fallback.error) throw new Error(fallback.error.message);
+        let fallbackError = v2Result.error;
+        if (selectedServices.length === 1) {
+          const fallback = await supabase.rpc("create_public_booking", {
+            p_business_id: business.id,
+            p_service_id: selectedServiceIds[0],
+            p_employee_id: selectedSlot.employeeId,
+            p_starts_at: start.toISOString(),
+            p_client_name: clientName.trim(),
+            p_client_phone: clientPhone.trim(),
+            p_client_email: clientEmail.trim() || null,
+            p_notes: publicNotes || null,
+          } as any);
+          if (!fallback.error) fallbackError = null as any;
+          else fallbackError = fallback.error;
+        }
+        if (fallbackError) {
+          try {
+            await directInsertBooking();
+          } catch (insertError) {
+            throw new Error((fallbackError as any)?.message || (insertError as Error).message || "No se pudo crear la reserva.");
+          }
+        }
       }
 
       setConfirmedBooking(confirmationSnapshot);
@@ -622,7 +652,7 @@ function PublicBookingPage() {
                       return (
                         <button key={service.id} type="button" onClick={() => toggleService(service.id)} className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-white/[0.04]">
                           <span className="flex min-w-0 items-center gap-3">
-                            <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent text-zinc-950" : "border-white/20")} style={checked ? { background: accent } : undefined}>
+                            <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent text-white" : "border-white/20")} style={checked ? { background: accent } : undefined}>
                               {checked ? <CheckCircle2 className="h-4 w-4" /> : null}
                             </span>
                             <span>
@@ -635,7 +665,7 @@ function PublicBookingPage() {
                       );
                     })}
                   </div>
-                  <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold text-zinc-950 hover:brightness-110" style={{ background: accent }}>
+                  <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110" style={{ background: accent }}>
                     Continuar
                   </Button>
                 </div>
@@ -696,7 +726,7 @@ function PublicBookingPage() {
                               onClick={() => setSelectedDayIndex(index)}
                               className={cn(
                                 "flex min-w-[72px] flex-col items-center rounded-2xl border px-4 py-3 text-center transition",
-                                active ? "border-transparent text-zinc-950 shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
+                                active ? "border-transparent text-white shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
                               )}
                               style={active ? { background: accent } : undefined}
                             >
@@ -739,7 +769,7 @@ function PublicBookingPage() {
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
                   {clientFields.notas ? <div className="space-y-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={notes} onChange={(event) => setNotes(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Ej: corte bajo, barba marcada..." /></div> : null}
-                  <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold text-zinc-950 hover:brightness-110" style={{ background: accent }}>
+                  <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110" style={{ background: accent }}>
                     {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Confirmar reserva
                   </Button>
