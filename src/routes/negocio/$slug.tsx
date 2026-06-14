@@ -475,9 +475,26 @@ function PublicProfilePage() {
                   </svg>
                 </span>
               </div>
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
-                <FiveStars />
-                <span className={isLight ? "text-zinc-700" : "text-white/90"}>5.0</span>
+              <div className="mt-2 flex flex-wrap items-start justify-between gap-6">
+                <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
+                  <FiveStars />
+                  <span className={isLight ? "text-zinc-700" : "text-white/90"}>5.0</span>
+                </div>
+
+                <div className="flex gap-8 sm:gap-12 text-center">
+                  <div>
+                    <div className="text-3xl sm:text-4xl font-bold">16.284</div>
+                    <div className="text-sm opacity-70">Clientes<br/>atendidos</div>
+                  </div>
+                  <div>
+                    <div className="text-3xl sm:text-4xl font-bold">27.541</div>
+                    <div className="text-sm opacity-70">Servicios<br/>realizados</div>
+                  </div>
+                  <div>
+                    <div className="text-3xl sm:text-4xl font-bold">7</div>
+                    <div className="text-sm opacity-70">Años de<br/>experiencia</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
