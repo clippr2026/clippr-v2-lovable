@@ -209,7 +209,7 @@ function cleanInstagram(value?: string | null) {
 
 function FiveStars({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-1" aria-label="5 estrellas" style={{ color: "#E0B84F" }}>
+    <div className="flex items-center gap-1" aria-label="5 estrellas" style={{ color: "#F5B301" }}>
       {Array.from({ length: 5 }).map((_, index) => (
         <Star key={index} className={compact ? "h-3.5 w-3.5 fill-current" : "h-4 w-4 fill-current"} />
       ))}
@@ -606,7 +606,7 @@ function PublicProfilePage() {
                         <h3 className="truncate font-semibold">{employee.full_name}</h3>
                         <p className="text-sm text-white/50">{employee.role?.trim() || "Profesional"}</p>
                         <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-sm font-bold text-zinc-950 shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)" }}>
-                          <Star className="h-4 w-4 fill-current" style={{ color: cAccent }} />
+                          <Star className="h-4 w-4 fill-current" style={{ color: "#F5B301" }} />
                           <span>5,0</span>
                         </div>
                       </div>
@@ -662,7 +662,6 @@ function PublicProfilePage() {
                   title={`Mapa de ${business.name}`}
                   src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
                   className="h-full w-full border-0"
-                  style={isLight ? undefined : { filter: mapDarkFilter(cAccent) }}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
@@ -687,7 +686,7 @@ function PublicProfilePage() {
           {/* Horarios + Dirección */}
           <GlowCard className="flex flex-col p-5 sm:p-6 lg:min-h-[448px]">
             <div className="flex items-center gap-2">
-              <Clock3 className="h-5 w-5" style={{ color: cPrimary }} />
+              <Clock3 className="h-5 w-5" style={{ color: cAccent }} />
               <h2 className="text-lg font-semibold">Horarios</h2>
             </div>
             {schedule ? (
@@ -709,11 +708,11 @@ function PublicProfilePage() {
             {business.address ? (
               <div className="mt-auto border-t border-white/10 pt-5">
                 <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cPrimary }} />
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cAccent }} />
                   <div className="min-w-0">
                     <p className="text-white/70">{business.address}</p>
                     {mapLink ? (
-                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: cPrimary }}>
+                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: cAccent }}>
                         Cómo llegar <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     ) : null}
