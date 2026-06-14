@@ -15,7 +15,6 @@ import {
   Phone,
   Sparkles,
   Star,
-  BadgeCheck,
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -269,7 +268,7 @@ function PublicProfilePage() {
         const [employeesRes, servicesRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
-            .select("id,full_name,avatar_url,is_active")
+            .select("id,full_name,avatar_url,is_active,role")
             .eq("business_id", businessId)
             .order("full_name", { ascending: true }),
           supabase
@@ -466,8 +465,14 @@ function PublicProfilePage() {
             <div className="mt-3">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
-                <span className="inline-grid h-8 w-8 place-items-center rounded-full text-white shadow-lg sm:h-9 sm:w-9" style={{ background: "linear-gradient(135deg, var(--c-primary), var(--c-secondary))" }} aria-label="Negocio verificado" title="Negocio verificado">
-                  <BadgeCheck className="h-5 w-5 fill-current text-white sm:h-6 sm:w-6" />
+                <span className="inline-grid h-8 w-8 place-items-center text-white shadow-lg sm:h-9 sm:w-9" aria-label="Negocio verificado" title="Negocio verificado">
+                  <svg viewBox="0 0 24 24" className="h-8 w-8 sm:h-9 sm:w-9" aria-hidden="true">
+                    <path
+                      d="M12 1.6l1.75 1.52 2.3-.29.99 2.1 2.2.72.07 2.32 1.64 1.63-1.1 2.04.46 2.27-1.94 1.27-.58 2.24-2.29.2-1.5 1.77L12 18.22l-2 1.17-1.5-1.77-2.29-.2-.58-2.24-1.94-1.27.46-2.27-1.1-2.04 1.64-1.63.07-2.32 2.2-.72.99-2.1 2.3.29L12 1.6z"
+                      fill="#1DA1F2"
+                    />
+                    <path d="M10.45 14.7 6.9 11.15l1.45-1.45 2.1 2.1 5.2-5.2 1.45 1.45-6.65 6.65z" fill="white" />
+                  </svg>
                 </span>
               </div>
               <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
