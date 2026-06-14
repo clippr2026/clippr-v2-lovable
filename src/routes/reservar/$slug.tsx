@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   Clock3,
   Loader2,
   MapPin,
@@ -284,6 +285,17 @@ function PublicBookingPage() {
     () => buildSlots(schedule, appointments, employees, selectedEmployeeId, totalDuration, 10),
     [schedule, appointments, employees, selectedEmployeeId, totalDuration],
   );
+  const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
+  const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
+  const selectedDay = availableDays[selectedDayIndex] ?? availableDays[0] ?? null;
+
+  React.useEffect(() => {
+    setSelectedDayIndex(0);
+  }, [selectedEmployeeId, selectedServiceIds.join(","), totalDuration]);
+
+  React.useEffect(() => {
+    if (selectedDayIndex > 0 && selectedDayIndex >= availableDays.length) setSelectedDayIndex(0);
+  }, [availableDays.length, selectedDayIndex]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -309,7 +321,7 @@ function PublicBookingPage() {
         const [employeesRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
-            .select("id,full_name,avatar_url,is_active")
+            .select("id,full_name,avatar_url,is_active,role")
             .eq("business_id", businessId)
             .order("full_name", { ascending: true }),
           supabase
@@ -602,20 +614,74 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "datetime" ? (
-                <div className="mt-5 space-y-5">
-                  {slots.every((day) => day.slots.length === 0) ? <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">No hay horarios disponibles en los próximos días.</p> : null}
-                  {slots.map((day) => day.slots.length ? (
-                    <div key={day.date.toISOString()}>
-                      <p className="mb-2 text-sm font-semibold text-white/75 capitalize">{formatShortDay(day.date)}</p>
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                        {day.slots.map((slot) => (
-                          <button key={`${slot.employeeId}-${slot.time.toISOString()}`} type="button" onClick={() => { setSelectedSlot(slot); setStep("details"); }} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm hover:border-white/30" style={selectedSlot?.time.toISOString() === slot.time.toISOString() ? { borderColor: accent, color: accent } : undefined}>
+                <div className="mt-6 space-y-8">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="inline-flex w-max items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] p-1.5 pr-4">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10">
+                        {selectedEmployee?.avatar_url ? <img src={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-5 w-5" />}
+                      </span>
+                      <span className="text-base font-semibold">{selectedEmployee?.full_name ?? "Sin preferencia"}</span>
+                    </div>
+                    <button type="button" className="grid h-14 w-14 place-items-center rounded-full border border-white/10 bg-white/[0.04]">
+                      <CalendarDays className="h-6 w-6" />
+                    </button>
+                  </div>
+
+                  <div>
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">Selecciona una fecha</h3>
+                      <div className="hidden items-center gap-2 sm:flex">
+                        <button type="button" onClick={() => setSelectedDayIndex((index) => Math.max(0, index - 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha anterior"><ChevronLeft className="h-5 w-5" /></button>
+                        <button type="button" onClick={() => setSelectedDayIndex((index) => Math.min(Math.max(availableDays.length - 1, 0), index + 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha siguiente"><ChevronRight className="h-5 w-5" /></button>
+                      </div>
+                    </div>
+
+                    {availableDays.length === 0 ? (
+                      <p className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60">No hay horarios disponibles en los próximos días.</p>
+                    ) : (
+                      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+                        {availableDays.map((day, index) => {
+                          const active = index === selectedDayIndex;
+                          const weekday = day.date.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
+                          const month = day.date.toLocaleDateString("es-AR", { month: "short" }).replace(".", "");
+                          return (
+                            <button
+                              key={day.date.toISOString()}
+                              type="button"
+                              onClick={() => setSelectedDayIndex(index)}
+                              className={cn(
+                                "flex min-w-[88px] flex-col items-center rounded-3xl border px-5 py-4 text-center transition",
+                                active ? "border-transparent text-zinc-950 shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
+                              )}
+                              style={active ? { background: accent } : undefined}
+                            >
+                              <span className="text-lg capitalize leading-none">{weekday}</span>
+                              <span className="mt-2 text-3xl font-bold leading-none">{day.date.getDate()}</span>
+                              <span className="mt-2 text-base lowercase leading-none">{month}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedDay ? (
+                    <div>
+                      <h3 className="mb-4 text-2xl font-semibold tracking-tight sm:text-3xl">Escoge una hora</h3>
+                      <div className="space-y-4">
+                        {selectedDay.slots.map((slot) => (
+                          <button
+                            key={`${slot.employeeId}-${slot.time.toISOString()}`}
+                            type="button"
+                            onClick={() => { setSelectedSlot(slot); setStep("details"); }}
+                            className="flex w-full items-center rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-5 text-left text-xl font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-8 sm:py-6"
+                          >
                             {formatTime(slot.time)}
                           </button>
                         ))}
                       </div>
                     </div>
-                  ) : null)}
+                  ) : null}
                 </div>
               ) : null}
 
