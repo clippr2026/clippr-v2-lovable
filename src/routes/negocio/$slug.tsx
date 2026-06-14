@@ -266,7 +266,7 @@ function PublicProfilePage() {
         const [employeesRes, servicesRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
-            .select("id,full_name,avatar_url,is_active,role")
+            .select("id,full_name,avatar_url,is_active")
             .eq("business_id", businessId)
             .order("full_name", { ascending: true }),
           supabase
@@ -313,10 +313,26 @@ function PublicProfilePage() {
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
-          setEmployees(
-            (employeesRes.error ? [] : ((employeesRes.data ?? []) as Employee[]))
-              .filter((employee) => employee.is_active !== false),
-          );
+          let publicEmployees = (employeesRes.error ? [] : ((employeesRes.data ?? []) as Employee[]))
+            .filter((employee) => employee.is_active !== false);
+
+          // No bloqueamos la página pública por el mapa de visibilidad.
+          // La vista public_booking_employees ya debería exponer únicamente los profesionales públicos/online.
+          // Si el mapa queda desactualizado, no queremos ocultar todo el equipo por error.
+          if (!employeesRes.error && publicEmployees.length > 0) {
+            const { data: roleRows } = await supabase
+              .from("employees")
+              .select("id,role")
+              .eq("business_id", businessId);
+
+            const rolesById = new Map((roleRows ?? []).map((row: any) => [row.id, row.role]));
+            publicEmployees = publicEmployees.map((employee) => ({
+              ...employee,
+              role: (rolesById.get(employee.id) as string | null | undefined) ?? employee.role ?? null,
+            }));
+          }
+
+          setEmployees(publicEmployees);
           setServices(
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
