@@ -305,6 +305,7 @@ type BrandingData = {
   instagram: string;
   website: string;
   description: string;
+  profile_note: string;
   logo_url: string;
   avatar_url: string;
   cover_url: string;
@@ -312,7 +313,7 @@ type BrandingData = {
 };
 const EMPTY_BRANDING: BrandingData = {
   name: "", slug: "", address: "", phone: "", email: "",
-  instagram: "", website: "", description: "", logo_url: "",
+  instagram: "", website: "", description: "", profile_note: "", logo_url: "",
   avatar_url: "", cover_url: "", portfolio_urls: [],
 };
 
@@ -589,6 +590,7 @@ function BrandingSection() {
         instagram: (cfg.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
+        profile_note: (cfg.profile_note as string) ?? "",
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
         cover_url: (biz?.cover_url as string) ?? "",
@@ -628,7 +630,7 @@ function BrandingSection() {
   }
 
   // Persiste una columna de imagen directo en businesses (sin esperar a "Guardar").
-  async function persistBrandingPatch(patch: Partial<Pick<BrandingData, "address" | "phone" | "email" | "instagram" | "website" | "description" | "logo_url" | "portfolio_urls">>): Promise<boolean> {
+  async function persistBrandingPatch(patch: Partial<Pick<BrandingData, "address" | "phone" | "email" | "instagram" | "website" | "description" | "profile_note" | "logo_url" | "portfolio_urls">>): Promise<boolean> {
     if (!businessId) return false;
     const { data: existingRow, error: loadError } = await supabase
       .from("business_settings")
@@ -821,6 +823,7 @@ function BrandingSection() {
         instagram: data.instagram,
         website: data.website,
         description: data.description,
+        profile_note: data.profile_note,
         logo_url,
         portfolio_urls: data.portfolio_urls.filter(Boolean).slice(0, 3),
       },
@@ -965,6 +968,26 @@ function BrandingSection() {
               rows={3}
               className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
             />
+          </div>
+          <div className="flex items-start gap-4 py-4 last:pb-0">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Nota destacada</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Mensaje fijo arriba del perfil. Máximo 80 caracteres. Acepta emojis, números y letras.</div>
+            </div>
+            <div className="w-72 max-w-[55%]">
+              <input
+                type="text"
+                value={data.profile_note}
+                onChange={(e) => setData(d => ({ ...d, profile_note: e.target.value.slice(0, 80) }))}
+                maxLength={80}
+                placeholder="Ej: 🔥 10% OFF pagando en efectivo"
+                className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+              />
+              <div className="mt-1 text-right text-[10px] text-muted-foreground">{data.profile_note.length}/80</div>
+            </div>
           </div>
         </div>
       </SectionCard>
@@ -1654,6 +1677,7 @@ type EmployeeRow = {
   avatar_url?: string | null;
   is_active?: boolean | null;
   commission_pct?: number | null;
+  role?: string | null;
 };
 
 type PendingProfessional = {
@@ -1664,6 +1688,7 @@ type PendingProfessional = {
     is_active: boolean;
     commission_pct: number | null;
     avatar_url?: string | null;
+    role?: string | null;
     acceptsOnline?: boolean;
     commissions?: Record<string, CommissionConfig>;
   };
@@ -2006,7 +2031,7 @@ function EquipoSection() {
       return;
     }
     setLoading(true);
-    const [{ data, error }, catalogResult] = await Promise.all([
+    const [{ data, error }, catalogResult, settingsResult] = await Promise.all([
       supabase
         .from("employees")
         .select("id,full_name,avatar_url,is_active,commission_pct")
@@ -2018,10 +2043,17 @@ function EquipoSection() {
         .eq("business_id", businessId)
         .order("category")
         .order("name"),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
     ]);
     if (error) toast.error("Error cargando profesionales: " + error.message);
     if (catalogResult.error) toast.error("Error cargando servicios y catálogo: " + catalogResult.error.message);
-    setRows((data ?? []) as EmployeeRow[]);
+    const schedule = (settingsResult.data?.schedule ?? {}) as Record<string, unknown>;
+    const employeeRoles = (schedule._employeeRoles && typeof schedule._employeeRoles === "object" ? schedule._employeeRoles : {}) as Record<string, string>;
+    setRows(((data ?? []) as EmployeeRow[]).map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })));
     setCommissionItems((catalogResult.data ?? []) as PriceRow[]);
     setLoading(false);
   }, [businessId]);
@@ -2087,6 +2119,8 @@ function EquipoSection() {
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
         const visibility = getPublicVisibility(schedule);
         setEmployeeOnlineMap(normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline));
+        const employeeRoles = (schedule._employeeRoles && typeof schedule._employeeRoles === "object" ? schedule._employeeRoles : {}) as Record<string, string>;
+        setRows((current) => current.map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })));
         setApprovalEnabled(caja.approvalModeEnabled === true);
         setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
       });
@@ -2122,6 +2156,7 @@ function EquipoSection() {
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
           const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
@@ -2136,6 +2171,7 @@ function EquipoSection() {
                       [inserted.id]: payload.commissions,
                     }
                   : existingCommissions,
+                _employeeRoles: { ...existingRoles, [inserted.id]: payload.role ?? "Profesional" },
                 _publicVisibility: {
                   ...visibility,
                   employees: { ...employeesVisibility, [inserted.id]: payload.acceptsOnline !== false },
@@ -2166,6 +2202,7 @@ function EquipoSection() {
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
           const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
@@ -2180,6 +2217,7 @@ function EquipoSection() {
                       [payload.id]: payload.commissions,
                     }
                   : existingCommissions,
+                _employeeRoles: { ...existingRoles, [payload.id]: payload.role ?? "Profesional" },
                 _publicVisibility: {
                   ...visibility,
                   employees: { ...employeesVisibility, [payload.id]: payload.acceptsOnline !== false },
@@ -2368,6 +2406,7 @@ function EquipoSection() {
       is_active: editingEmp ? editingEmp.is_active !== false : true,
       commission_pct: commission,
       avatar_url: form.avatarUrl || null,
+      role: form.role.trim() || "Profesional",
       acceptsOnline: form.acceptsOnline,
       commissions: form.commissions,
     };
@@ -2381,6 +2420,7 @@ function EquipoSection() {
                 full_name: name,
                 commission_pct: commission,
                 avatar_url: form.avatarUrl || null,
+                role: form.role.trim() || "Profesional",
               }
             : emp,
         ),
@@ -2405,6 +2445,7 @@ function EquipoSection() {
         id: tempId,
         full_name: name,
         avatar_url: form.avatarUrl || null,
+        role: form.role.trim() || "Profesional",
         is_active: true,
         commission_pct: commission,
       },
@@ -2782,7 +2823,7 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? ""), acceptsOnline: employeeOnlineMap[emp.id] !== false }); setDlgTab("perfil"); setOpen(true); }}
+                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? ""), role: emp.role ?? "Barbero", acceptsOnline: employeeOnlineMap[emp.id] !== false }); setDlgTab("perfil"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
                         Editar
