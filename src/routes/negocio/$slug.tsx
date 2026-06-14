@@ -397,6 +397,7 @@ function PublicProfilePage() {
   const cAccent = colors.accent || cPrimary;
   const accent = cAccent; // acciones principales: botones, estados e indicadores
   const isLight = theme === "light";
+  const accentButtonText = isLight ? "#ffffff" : "#111827";
   const portfolio = portfolioUrls;
   const selectedPortfolio = selectedPortfolioIndex !== null ? portfolio[selectedPortfolioIndex] : null;
   const openPortfolio = (index: number) => setSelectedPortfolioIndex(index);
@@ -568,7 +569,7 @@ function PublicProfilePage() {
                       <a
                         href={bookingHref({ service: service.id })}
                         className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
-                        style={{ background: cAccent, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+                        style={{ background: cAccent, color: accentButtonText, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
                       >
                         Reservar
                       </a>
@@ -677,7 +678,7 @@ function PublicProfilePage() {
             <Link
               {...reservarTo}
               className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white transition hover:brightness-110"
-              style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+              style={{ background: cAccent, color: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
             >
               Reservar turno
             </Link>
@@ -851,7 +852,7 @@ function PublicProfilePage() {
         <Link
           {...reservarTo}
           className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white"
-          style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+          style={{ background: cAccent, color: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
         >
           Reservar turno
         </Link>
