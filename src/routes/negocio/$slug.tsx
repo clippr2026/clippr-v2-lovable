@@ -265,7 +265,7 @@ function PublicProfilePage() {
 
         const businessId = businessData.id as string;
 
-        const [employeesRes, servicesRes] = await Promise.all([
+        const [employeesWithRoleRes, servicesRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
             .select("id,full_name,avatar_url,is_active,role")
@@ -277,6 +277,16 @@ function PublicProfilePage() {
             .eq("business_id", businessId)
             .order("name", { ascending: true }),
         ]);
+
+        // Algunas bases todavía tienen la vista public_booking_employees sin la columna role.
+        // Si pedimos role y Supabase devuelve error, hacemos fallback sin role para no ocultar profesionales.
+        const employeesRes = employeesWithRoleRes.error
+          ? await supabase
+              .from("public_booking_employees")
+              .select("id,full_name,avatar_url,is_active")
+              .eq("business_id", businessId)
+              .order("full_name", { ascending: true })
+          : employeesWithRoleRes;
 
         let settingsSchedule: unknown = null;
         const publicSettingsRes = await supabase
