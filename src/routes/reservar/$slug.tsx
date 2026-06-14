@@ -82,7 +82,7 @@ type DaySchedule = {
 type ScheduleMap = Record<DayKey, DaySchedule>;
 type BookingStep = "services" | "professional" | "datetime" | "details" | "done";
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
-type LandingColors = { primary?: string; secondary?: string; accent?: string };
+type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
 
 const DAY_KEYS: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -529,11 +529,11 @@ function PublicBookingPage() {
     }
   }
 
-  const cPrimary = landingColors.primary || business?.accent_color || "#d6b66a";
-  const cSecondary = landingColors.secondary || "#7c3aed";
-  const accent = landingColors.accent || cPrimary;
+  const cPrimary = landingColors.primary || landingColors.secondary || business?.accent_color || "#7c3aed";
+  const cSecondary = cPrimary;
+  const accent = landingColors.accent || business?.accent_color || "#d6b66a";
   const isLight = landingTheme === "light";
-  const accentButtonText = isLight ? "#ffffff" : "#111827";
+  const accentButtonText = landingColors.buttonText || "#ffffff";
 
   if (loading) {
     return (
@@ -598,7 +598,7 @@ function PublicBookingPage() {
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 34%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 34%)",
+              isLight ? "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 36%, transparent), transparent 42%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 32%, transparent), transparent 42%)" : "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 34%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 34%)",
           }}
         />
         {business.cover_url ? <img src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
