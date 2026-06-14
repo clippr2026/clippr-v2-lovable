@@ -311,19 +311,14 @@ function PublicBookingPage() {
 
         if (businessError) throw new Error(businessError.message);
         if (!businessData) {
-          const fallback = await supabase.from("businesses").select("id,name,slug,address,phone,email,instagram,logo_url,avatar_url,cover_url,accent_color").eq("slug", slug).maybeSingle();
-          if (fallback.data) {
-            businessData = fallback.data as any;
-          } else {
-            if (!cancelled) setBusiness(null);
-            return;
-          }
+          if (!cancelled) setBusiness(null);
+          return;
         }
 
         const businessId = businessData.id as string;
         const start = startOfDay(new Date()).toISOString();
         const end = addMinutes(startOfDay(new Date()), 14 * 24 * 60).toISOString();
-        const [employeesRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
+        const [employeesWithRoleRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
             .select("id,full_name,avatar_url,is_active,role")
@@ -347,17 +342,31 @@ function PublicBookingPage() {
             .maybeSingle(),
         ]);
 
-        if (employeesRes.error) throw new Error(employeesRes.error.message);
-        if (servicesRes.error) throw new Error(servicesRes.error.message);
-        if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
+        // Algunas bases todavía tienen la vista public_booking_employees sin la columna role.
+        // Si pedimos role y Supabase devuelve 400, hacemos fallback sin role para que la reserva no caiga.
+        const employeesRes = employeesWithRoleRes.error
+          ? await supabase
+              .from("public_booking_employees")
+              .select("id,full_name,avatar_url,is_active")
+              .eq("business_id", businessId)
+              .order("full_name", { ascending: true })
+          : employeesWithRoleRes;
+
+        // La reserva pública no debe mostrar "Página no encontrada" si falla una vista secundaria.
+        console.warn("Public booking secondary data", {
+          employeesError: employeesRes.error?.message,
+          servicesError: servicesRes.error?.message,
+          appointmentsError: appointmentsRes.error?.message,
+          settingsError: settingsRes.error?.message,
+        });
 
         const settingsSchedule = settingsRes.error ? null : ((settingsRes.data as any)?.schedule ?? null);
         const branding = settingsSchedule && typeof settingsSchedule === "object" ? ((settingsSchedule as Record<string, any>)._branding ?? {}) : {};
         const visibility = extractPublicVisibility(settingsSchedule);
-        const visibleEmployees = ((employeesRes.data ?? []) as Employee[])
+        const visibleEmployees = ((employeesRes.error ? [] : (employeesRes.data ?? [])) as Employee[])
           .filter((employee) => employee.is_active !== false)
           .filter((employee) => visibility.employees[employee.id] !== false);
-        const visibleServices = ((servicesRes.data ?? []) as Service[])
+        const visibleServices = ((servicesRes.error ? [] : (servicesRes.data ?? [])) as Service[])
           .filter((service) => service.is_active !== false)
           .filter((service) => visibility.services[service.id] !== false);
 
@@ -365,7 +374,7 @@ function PublicBookingPage() {
           setBusiness(businessData as Business);
           setEmployees(visibleEmployees);
           setServices(visibleServices);
-          setAppointments((appointmentsRes.data ?? []) as Appointment[]);
+          setAppointments((appointmentsRes.error ? [] : (appointmentsRes.data ?? [])) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
           setClientFields(extractClientFields(settingsSchedule));
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
