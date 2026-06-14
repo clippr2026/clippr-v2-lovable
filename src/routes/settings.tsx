@@ -470,7 +470,7 @@ function LandingSection() {
   function toggleAdditionalInfo(item: string) {
     setAdditionalInfo((current) => {
       if (current.includes(item)) return current.filter((value) => value !== item);
-      if (current.length >= 10) {
+      if (current.length >= 12) {
         toast.error("Podés seleccionar hasta 12 opciones");
         return current;
       }
