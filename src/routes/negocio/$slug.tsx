@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Clock3,
   ExternalLink,
-  Images,
   Info,
   Instagram,
   Loader2,
@@ -438,22 +437,19 @@ function PublicProfilePage() {
               <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" decoding="async" />
             ) : null}
           </div>
-          <div className="relative z-10 -mt-16 flex flex-col gap-4 px-4 sm:-mt-20 sm:px-8">
-            <div className="flex items-end gap-4">
-              <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
-                {business.avatar_url || business.logo_url ? (
-                  <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" decoding="async" />
-                ) : (
-                  business.name.slice(0, 1)
-                )}
-              </div>
-              <div className="pb-1">
-                <h1 className="drop-shadow-[0_3px_14px_rgba(0,0,0,0.85)] text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
-                <div className="mt-2 flex items-center gap-2 text-sm font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]" style={{ color: cAccent }}>
-                  <FiveStars />
-                  <span className="text-white/90">5.0</span>
-                </div>
-
+          <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
+            <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
+              {business.avatar_url || business.logo_url ? (
+                <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" decoding="async" />
+              ) : (
+                business.name.slice(0, 1)
+              )}
+            </div>
+            <div className="mt-3">
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
+                <FiveStars />
+                <span className={isLight ? "text-zinc-700" : "text-white/90"}>5.0</span>
               </div>
             </div>
           </div>
@@ -534,7 +530,7 @@ function PublicProfilePage() {
             </GlowCard>
           ) : null}
 
-          {description ? (
+          {(description || portfolio.length > 0) ? (
             <GlowCard>
               <div className="p-5 sm:p-6">
                 <div className="flex items-center gap-3">
@@ -543,32 +539,23 @@ function PublicProfilePage() {
                   </span>
                   <h2 className="text-2xl font-semibold">Acerca de</h2>
                 </div>
-                <p className="mt-4 max-w-3xl text-sm leading-6 text-white/65 sm:text-base">{description}</p>
-              </div>
-            </GlowCard>
-          ) : null}
-
-          {portfolio.length > 0 ? (
-            <GlowCard>
-              <div className="p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
-                    <Images className="h-5 w-5" />
-                  </span>
-                  <h2 className="text-2xl font-semibold">Portafolio</h2>
-                </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  {portfolio.slice(0, 3).map((src, i) => (
-                    <button
-                      key={`${src}-${i}`}
-                      type="button"
-                      onClick={() => openPortfolio(i)}
-                      className="group aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:scale-[1.015] hover:border-white/20"
-                    >
-                      <img src={src} alt={`Portafolio ${i + 1}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" decoding="async" />
-                    </button>
-                  ))}
-                </div>
+                {description ? (
+                  <p className="mt-4 max-w-3xl text-sm leading-6 text-white/65 sm:text-base">{description}</p>
+                ) : null}
+                {portfolio.length > 0 ? (
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    {portfolio.slice(0, 3).map((src, i) => (
+                      <button
+                        key={`${src}-${i}`}
+                        type="button"
+                        onClick={() => openPortfolio(i)}
+                        className="group aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:scale-[1.015] hover:border-white/20"
+                      >
+                        <img src={src} alt={`Imagen ${i + 1} de ${business.name}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" decoding="async" />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </GlowCard>
           ) : null}
@@ -587,7 +574,7 @@ function PublicProfilePage() {
                 <iframe
                   title={`Mapa de ${business.name}`}
                   src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
-                  className="h-full w-full border-0 grayscale-[.15]"
+                  className={`h-full w-full border-0 ${isLight ? "" : "grayscale contrast-90 brightness-90"}`}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
