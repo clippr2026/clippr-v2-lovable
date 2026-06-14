@@ -5,17 +5,13 @@ import {
   CalendarDays,
   Clock3,
   ExternalLink,
-  Images,
-  Info,
   Instagram,
   Loader2,
   Mail,
   MapPin,
   Phone,
-  UsersRound,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import clipprLogo from "@/assets/clippr-logo.png";
 
 export const Route = createFileRoute("/negocio/$slug")({
   head: () => ({
@@ -61,6 +57,7 @@ type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type ScheduleMap = Record<DayKey, DaySchedule>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string };
+type LandingTheme = "dark" | "light";
 type PublicBranding = {
   address?: string | null;
   phone?: string | null;
@@ -70,6 +67,7 @@ type PublicBranding = {
   description?: string | null;
   portfolio_urls?: string[] | null;
   colors?: LandingColors | null;
+  theme?: LandingTheme | null;
 };
 
 const DISPLAY_DAYS: { key: DayKey; label: string; short: string }[] = [
@@ -207,7 +205,7 @@ function GlowCard({ children, className = "" }: { children: React.ReactNode; cla
             "radial-gradient(60% 70% at 18% 0%, var(--c-primary), transparent 70%), radial-gradient(55% 70% at 100% 100%, var(--c-secondary), transparent 70%)",
         }}
       />
-      <div className={"relative rounded-3xl border border-white/10 bg-white/[0.04] text-white shadow-xl " + className}>
+      <div className={"public-card relative rounded-3xl border shadow-xl " + className}>
         {children}
       </div>
     </div>
@@ -225,6 +223,7 @@ function PublicProfilePage() {
   const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
   const [description, setDescription] = React.useState<string>("");
   const [colors, setColors] = React.useState<LandingColors>({});
+  const [theme, setTheme] = React.useState<LandingTheme>("dark");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -311,6 +310,7 @@ function PublicProfilePage() {
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
+          setTheme(branding.theme === "light" ? "light" : "dark");
         }
       } catch {
         if (!cancelled) setBusiness(null);
@@ -327,7 +327,8 @@ function PublicProfilePage() {
   const cPrimary = colors.primary || business?.accent_color || "#d6b66a";
   const cSecondary = colors.secondary || "#7c3aed";
   const cAccent = colors.accent || cPrimary;
-  const accent = cAccent; // Color de resaltado: botones, estados e indicadores
+  const accent = cAccent; // acciones principales: botones, estados e indicadores
+  const isLight = theme === "light";
   const portfolio = portfolioUrls;
 
   if (loading) {
@@ -366,9 +367,28 @@ function PublicProfilePage() {
 
   return (
     <main
-      className="min-h-dvh bg-[#08070c] text-white pb-24 sm:pb-10"
-      style={{ ["--accent" as any]: accent, ["--c-primary" as any]: cPrimary, ["--c-secondary" as any]: cSecondary, ["--c-accent" as any]: cAccent }}
+      data-theme={theme}
+      className="public-landing min-h-dvh pb-24 sm:pb-10"
+      style={{
+        ["--accent" as any]: accent,
+        ["--c-primary" as any]: cPrimary,
+        ["--c-secondary" as any]: cSecondary,
+        ["--c-accent" as any]: cAccent,
+        ["--page-bg" as any]: isLight ? "#f6f7fb" : "#08070c",
+        ["--card-bg" as any]: isLight ? "rgba(255,255,255,0.86)" : "rgba(255,255,255,0.04)",
+        ["--text" as any]: isLight ? "#111827" : "#ffffff",
+        ["--muted" as any]: isLight ? "rgba(17,24,39,0.62)" : "rgba(255,255,255,0.60)",
+        ["--border" as any]: isLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+      }}
     >
+      <style>{`
+        .public-landing { background: var(--page-bg); color: var(--text); }
+        .public-landing .public-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text); }
+        .public-landing[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }
+        .public-landing[data-theme="light"] [class*="text-white/"] { color: var(--muted) !important; }
+        .public-landing[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
+        .public-landing[data-theme="light"] [class*="bg-white/"] { background-color: rgba(255,255,255,0.72) !important; }
+      `}</style>
       <section className="relative overflow-hidden border-b border-white/10">
         <div
           className="absolute inset-0"
@@ -378,15 +398,14 @@ function PublicProfilePage() {
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-6 sm:py-10">
-          <div className="relative h-44 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-60">
+          <div className="h-44 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-60">
             {business.cover_url ? (
               <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" decoding="async" />
             ) : null}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
           </div>
-          <div className="-mt-12 flex flex-col gap-4 px-4 sm:-mt-14 sm:px-8">
+          <div className="relative z-10 -mt-16 flex flex-col gap-4 px-4 sm:-mt-20 sm:px-8">
             <div className="flex items-end gap-4">
-              <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 border-[#08070c] bg-white text-3xl font-bold text-zinc-950 shadow-xl">
+              <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
                 {business.avatar_url || business.logo_url ? (
                   <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" decoding="async" />
                 ) : (
@@ -394,7 +413,8 @@ function PublicProfilePage() {
                 )}
               </div>
               <div className="pb-1">
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl" style={{ textShadow: "0 4px 18px rgba(0,0,0,0.85), 0 1px 2px rgba(0,0,0,0.95)" }}>{business.name}</h1>
+                <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+
               </div>
             </div>
           </div>
@@ -405,10 +425,7 @@ function PublicProfilePage() {
         <div className="space-y-6">
           <GlowCard>
             <div className="p-5 sm:p-6">
-              <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04]" style={{ color: accent }}><CalendarDays className="h-5 w-5" /></span>
-                <h2 className="text-2xl font-semibold">Servicios disponibles</h2>
-              </div>
+              <h2 className="text-2xl font-semibold">Servicios disponibles</h2>
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
@@ -424,8 +441,8 @@ function PublicProfilePage() {
                       </div>
                       <a
                         href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-110"
-                        style={{ background: accent, boxShadow: "0 12px 30px -14px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-zinc-950 transition hover:brightness-110"
+                        style={{ background: cAccent, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
                       >
                         Reservar
                       </a>
@@ -439,10 +456,7 @@ function PublicProfilePage() {
           {employees.length > 0 ? (
             <GlowCard>
               <div className="p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04]" style={{ color: accent }}><UsersRound className="h-5 w-5" /></span>
                 <h2 className="text-2xl font-semibold">Profesionales disponibles</h2>
-              </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {employees.map((employee) => (
                     <a
@@ -468,25 +482,10 @@ function PublicProfilePage() {
             </GlowCard>
           ) : null}
 
-          {description ? (
-            <GlowCard>
-              <div className="p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04]" style={{ color: accent }}><Info className="h-5 w-5" /></span>
-                  <h2 className="text-2xl font-semibold">Acerca de</h2>
-                </div>
-                <p className="mt-5 max-w-3xl text-sm leading-7 text-white/70 sm:text-base">{description}</p>
-              </div>
-            </GlowCard>
-          ) : null}
-
           {portfolio.length > 0 ? (
             <GlowCard>
               <div className="p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04]" style={{ color: accent }}><Images className="h-5 w-5" /></span>
-                  <h2 className="text-2xl font-semibold">Portafolio</h2>
-                </div>
+                <h2 className="text-2xl font-semibold">Portafolio</h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   {portfolio.slice(0, 3).map((src, i) => (
                     <div key={`${src}-${i}`} className="aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
@@ -502,27 +501,19 @@ function PublicProfilePage() {
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           {/* Reserva */}
           <GlowCard className="p-5 sm:p-6">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" style={{ color: accent }} />
-              <h2 className="text-lg font-semibold">Reservá tu turno</h2>
-            </div>
             <Link
               {...reservarTo}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 transition hover:brightness-110"
-              style={{ background: accent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 transition hover:brightness-110"
+              style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
             >
               Reservar turno
             </Link>
-            <div className="mt-4 flex items-center gap-2 text-sm">
-              <span className="h-2 w-2 rounded-full" style={{ background: isOpen ? cAccent : "rgba(255,255,255,0.3)" }} />
-              <span style={isOpen ? { color: cAccent, fontWeight: 600 } : undefined} className={isOpen ? "" : "text-white/55"}>{todayStatus}</span>
-            </div>
           </GlowCard>
 
           {/* Horarios + Dirección */}
           <GlowCard className="p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <Clock3 className="h-5 w-5" style={{ color: accent }} />
+              <Clock3 className="h-5 w-5" style={{ color: cPrimary }} />
               <h2 className="text-lg font-semibold">Horarios</h2>
             </div>
             {schedule ? (
@@ -544,11 +535,11 @@ function PublicProfilePage() {
             {business.address ? (
               <div className="mt-5 border-t border-white/10 pt-5">
                 <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent }} />
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cPrimary }} />
                   <div className="min-w-0">
                     <p className="text-white/70">{business.address}</p>
                     {mapLink ? (
-                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: accent }}>
+                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: cPrimary }}>
                         Cómo llegar <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     ) : null}
@@ -560,43 +551,10 @@ function PublicProfilePage() {
         </aside>
       </section>
 
-      {business.address ? (
-        <section className="mx-auto max-w-6xl px-4 pb-6">
-          <GlowCard className="overflow-hidden">
-            <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="min-h-64 overflow-hidden bg-white/[0.03]">
-                <iframe
-                  title={`Mapa de ${business.name}`}
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
-                  className="h-full min-h-64 w-full border-0 grayscale invert-[0.92] opacity-80"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                />
-              </div>
-              <div className="p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04]" style={{ color: accent }}><MapPin className="h-5 w-5" /></span>
-                  <h2 className="text-2xl font-semibold">Ubicación</h2>
-                </div>
-                <p className="mt-5 text-sm leading-6 text-white/70">{business.address}</p>
-                {mapLink ? (
-                  <a href={mapLink} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-zinc-950 transition hover:brightness-110" style={{ background: accent }}>
-                    Cómo llegar <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          </GlowCard>
-        </section>
-      ) : null}
-
       <section className="mx-auto max-w-6xl px-4 pb-6">
         <GlowCard className="overflow-hidden">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04]" style={{ color: accent }}><Phone className="h-5 w-5" /></span>
-              <h2 className="text-2xl font-semibold">Contactanos</h2>
-            </div>
+            <h2 className="text-2xl font-semibold">Contactanos</h2>
             <div className="flex flex-wrap gap-3">
               {business.phone ? (
                 <a
@@ -635,8 +593,8 @@ function PublicProfilePage() {
       </section>
 
       <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2">
-        <div className="flex items-center justify-center gap-3 text-sm text-white/50">
-          <img src={clipprLogo} alt="Clippr" className="h-7 w-auto object-contain" loading="lazy" decoding="async" />
+        <div className="flex items-center justify-center gap-2 text-sm text-white/50">
+          <span className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-sky-400 via-violet-500 to-fuchsia-500 text-xs font-bold text-white">C</span>
           <span>Hecho con <span className="font-semibold text-white/80">Clippr</span></span>
         </div>
       </footer>
@@ -645,7 +603,7 @@ function PublicProfilePage() {
         <Link
           {...reservarTo}
           className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950"
-          style={{ background: accent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+          style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
         >
           Reservar turno
         </Link>
