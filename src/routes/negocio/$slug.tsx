@@ -15,6 +15,7 @@ import {
   Phone,
   Sparkles,
   Star,
+  BadgeCheck,
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -447,20 +448,28 @@ function PublicProfilePage() {
             ) : null}
           </div>
           <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
-            <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
-              {business.avatar_url || business.logo_url ? (
-                <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" decoding="async" />
-              ) : (
-                business.name.slice(0, 1)
-              )}
-            </div>
-            <div className="mt-3">
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+            <div className="relative w-max">
               {profileNote ? (
-                <div className="mt-3 inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-sm font-semibold shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)", background: "color-mix(in oklch, var(--c-accent) 10%, transparent)", color: cAccent }}>
-                  <span className="truncate">{profileNote}</span>
+                <div className="absolute bottom-full left-1/2 mb-2 max-w-[280px] -translate-x-1/2 whitespace-nowrap rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 shadow-xl ring-1 ring-black/5">
+                  <span className="block truncate">{profileNote}</span>
+                  <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
                 </div>
               ) : null}
+              <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
+                {business.avatar_url || business.logo_url ? (
+                  <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" decoding="async" />
+                ) : (
+                  business.name.slice(0, 1)
+                )}
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+                <span className="inline-grid h-8 w-8 place-items-center rounded-full text-white shadow-lg sm:h-9 sm:w-9" style={{ background: "linear-gradient(135deg, var(--c-primary), var(--c-secondary))" }} aria-label="Negocio verificado" title="Negocio verificado">
+                  <BadgeCheck className="h-5 w-5 fill-current text-white sm:h-6 sm:w-6" />
+                </span>
+              </div>
               <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
                 <FiveStars />
                 <span className={isLight ? "text-zinc-700" : "text-white/90"}>5.0</span>
@@ -533,8 +542,9 @@ function PublicProfilePage() {
                       <div className="min-w-0">
                         <h3 className="truncate font-semibold">{employee.full_name}</h3>
                         <p className="text-sm text-white/50">{employee.role?.trim() || "Profesional"}</p>
-                        <div className="mt-1" style={{ color: cAccent }}>
-                          <FiveStars compact />
+                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-sm font-bold text-zinc-950 shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)" }}>
+                          <Star className="h-4 w-4 fill-current" style={{ color: cAccent }} />
+                          <span>5,0</span>
                         </div>
                       </div>
                     </a>
