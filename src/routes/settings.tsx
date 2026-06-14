@@ -390,12 +390,36 @@ function normalizeHex(value: string, fallback: string): string {
   return HEX_RE.test(v) ? v.toLowerCase() : fallback;
 }
 
+const ADDITIONAL_INFO_OPTIONS = [
+  "✅ Confirmación instantánea",
+  "📱 Reserva online 24/7",
+  "💳 Acepta tarjetas",
+  "📶 Wi-Fi gratuito",
+  "🅿️ Estacionamiento cercano",
+  "♿ Accesible para silla de ruedas",
+  "🚇 Cerca del transporte público",
+  "☕ Café de cortesía",
+  "🥤 Bebidas incluidas",
+  "❄️ Ambiente climatizado",
+  "👶 Apto para niños",
+  "🐶 Pet friendly",
+  "💎 Atención premium",
+  "🎵 Música ambiente",
+  "🧴 Productos profesionales",
+  "🎮 PlayStation disponible",
+  "💆 Masajes",
+  "🧖 Mascarilla facial",
+  "💈 Atención por orden de llegada",
+  "🇺🇸 Atención en inglés",
+];
+
 function LandingSection() {
   const { businessId } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [colors, setColors] = React.useState(LANDING_DEFAULTS);
   const [theme, setTheme] = React.useState<LandingTheme>(LANDING_THEME_DEFAULT);
+  const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -410,6 +434,8 @@ function LandingSection() {
         });
         const savedTheme = schedule._branding?.theme;
         setTheme(savedTheme === "light" ? "light" : "dark");
+        const savedAdditional = Array.isArray(schedule._branding?.additional_info) ? schedule._branding.additional_info : [];
+        setAdditionalInfo(savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 10));
         setLoading(false);
       });
   }, [businessId]);
@@ -428,7 +454,8 @@ function LandingSection() {
     if (loadErr) { setSaving(false); return toast.error("No se pudo leer la configuración: " + loadErr.message); }
     const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
     const branding = (schedule._branding ?? {}) as Record<string, unknown>;
-    const nextSchedule = { ...schedule, _branding: { ...branding, colors: next, theme } };
+    const nextAdditionalInfo = additionalInfo.filter((item) => item.trim().length > 0).slice(0, 10);
+    const nextSchedule = { ...schedule, _branding: { ...branding, colors: next, theme, additional_info: nextAdditionalInfo } };
     const { error } = await supabase.from("business_settings").upsert(
       { business_id: businessId, schedule: nextSchedule },
       { onConflict: "business_id" },
@@ -437,6 +464,17 @@ function LandingSection() {
     if (error) return toast.error("No se pudo guardar: " + error.message);
     setColors(next);
     toast.success("Landing guardada");
+  }
+
+  function toggleAdditionalInfo(item: string) {
+    setAdditionalInfo((current) => {
+      if (current.includes(item)) return current.filter((value) => value !== item);
+      if (current.length >= 10) {
+        toast.error("Podés seleccionar hasta 10 opciones");
+        return current;
+      }
+      return [...current, item];
+    });
   }
 
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
@@ -501,6 +539,36 @@ function LandingSection() {
                 {mode === "dark" ? "Modo oscuro" : "Modo claro"}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">Información adicional</h3>
+              <p className="mt-1 text-xs text-white/50">Elegí hasta 10 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección.</p>
+            </div>
+            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/10</span>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {ADDITIONAL_INFO_OPTIONS.map((item) => {
+              const active = additionalInfo.includes(item);
+              const disabled = !active && additionalInfo.length >= 10;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => toggleAdditionalInfo(item)}
+                  className={
+                    "rounded-full border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35 " +
+                    (active ? "border-white/25 bg-white text-zinc-950 shadow-lg" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white")
+                  }
+                >
+                  {item}
+                </button>
+              );
+            })}
           </div>
         </div>
 
