@@ -512,7 +512,9 @@ function PublicBookingPage() {
           try {
             await directInsertBooking();
           } catch (insertError) {
-            throw new Error((fallbackError as any)?.message || (insertError as Error).message || "No se pudo crear la reserva.");
+            const directMessage = (insertError as Error)?.message;
+            const rpcMessage = (fallbackError as any)?.message;
+            throw new Error(directMessage || rpcMessage || "No se pudo crear la reserva.");
           }
         }
       }
