@@ -71,6 +71,7 @@ type PublicBranding = {
   instagram?: string | null;
   website?: string | null;
   description?: string | null;
+  profile_note?: string | null;
   portfolio_urls?: string[] | null;
   colors?: LandingColors | null;
   theme?: LandingTheme | null;
@@ -238,6 +239,7 @@ function PublicProfilePage() {
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
   const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
   const [description, setDescription] = React.useState<string>("");
+  const [profileNote, setProfileNote] = React.useState<string>("");
   const [colors, setColors] = React.useState<LandingColors>({});
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
   const [selectedPortfolioIndex, setSelectedPortfolioIndex] = React.useState<number | null>(null);
@@ -313,26 +315,16 @@ function PublicProfilePage() {
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
-          let publicEmployees = (employeesRes.error ? [] : ((employeesRes.data ?? []) as Employee[]))
-            .filter((employee) => employee.is_active !== false);
-
-          // No bloqueamos la página pública por el mapa de visibilidad.
-          // La vista public_booking_employees ya debería exponer únicamente los profesionales públicos/online.
-          // Si el mapa queda desactualizado, no queremos ocultar todo el equipo por error.
-          if (!employeesRes.error && publicEmployees.length > 0) {
-            const { data: roleRows } = await supabase
-              .from("employees")
-              .select("id,role")
-              .eq("business_id", businessId);
-
-            const rolesById = new Map((roleRows ?? []).map((row: any) => [row.id, row.role]));
-            publicEmployees = publicEmployees.map((employee) => ({
-              ...employee,
-              role: (rolesById.get(employee.id) as string | null | undefined) ?? employee.role ?? null,
-            }));
-          }
-
-          setEmployees(publicEmployees);
+          const employeeRoles =
+            settingsSchedule && typeof settingsSchedule === "object" && (settingsSchedule as Record<string, unknown>)._employeeRoles &&
+            typeof (settingsSchedule as Record<string, unknown>)._employeeRoles === "object"
+              ? ((settingsSchedule as Record<string, unknown>)._employeeRoles as Record<string, string>)
+              : {};
+          setEmployees(
+            (employeesRes.error ? [] : ((employeesRes.data ?? []) as Employee[]))
+              .filter((employee) => employee.is_active !== false)
+              .map((employee) => ({ ...employee, role: employee.role ?? employeeRoles[employee.id] ?? null })),
+          );
           setServices(
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
@@ -341,6 +333,7 @@ function PublicProfilePage() {
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
+          setProfileNote(typeof branding.profile_note === "string" ? branding.profile_note.trim().slice(0, 80) : "");
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setTheme(branding.theme === "light" ? "light" : "dark");
         }
@@ -412,6 +405,7 @@ function PublicProfilePage() {
   const mapLink = mapsUrl(business.address);
   const instagram = cleanInstagram(business.instagram);
   const todayStatus = getTodayStatus(schedule);
+  const todayKey = getTodayKey();
   const isOpen = todayStatus.startsWith("Abierto");
 
   return (
@@ -462,6 +456,11 @@ function PublicProfilePage() {
             </div>
             <div className="mt-3">
               <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+              {profileNote ? (
+                <div className="mt-3 inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-sm font-semibold shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)", background: "color-mix(in oklch, var(--c-accent) 10%, transparent)", color: cAccent }}>
+                  <span className="truncate">{profileNote}</span>
+                </div>
+              ) : null}
               <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
                 <FiveStars />
                 <span className={isLight ? "text-zinc-700" : "text-white/90"}>5.0</span>
@@ -623,7 +622,7 @@ function PublicProfilePage() {
                   const day = schedule[key];
                   return (
                     <li key={key} className="flex items-center justify-between gap-3">
-                      <span className="text-white/55">{label}</span>
+                      <span className={key === todayKey ? "font-bold text-white" : "text-white/55"}>{label}</span>
                       {day.enabled ? <span className="font-medium text-white">{day.start} – {day.end}</span> : <span className="text-white/35">Cerrado</span>}
                     </li>
                   );
