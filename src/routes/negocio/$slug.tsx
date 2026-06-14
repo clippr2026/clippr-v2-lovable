@@ -315,8 +315,7 @@ function PublicProfilePage() {
           setBusiness(mergedBusiness as Business);
           setEmployees(
             (employeesRes.error ? [] : ((employeesRes.data ?? []) as Employee[]))
-              .filter((employee) => employee.is_active !== false)
-              .filter((employee) => visibility.employees[employee.id] !== false),
+              .filter((employee) => employee.is_active !== false),
           );
           setServices(
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
