@@ -380,6 +380,8 @@ function slugifyLive(value: string): string {
 
 // ─────────── Landing (colores de la página pública) ───────────
 const LANDING_DEFAULTS = { primary: "#d6b66a", secondary: "#7c3aed", accent: "#d6b66a" };
+const LANDING_THEME_DEFAULT = "dark" as const;
+type LandingTheme = "dark" | "light";
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
 
 function normalizeHex(value: string, fallback: string): string {
@@ -392,6 +394,7 @@ function LandingSection() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [colors, setColors] = React.useState(LANDING_DEFAULTS);
+  const [theme, setTheme] = React.useState<LandingTheme>(LANDING_THEME_DEFAULT);
 
   React.useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -404,6 +407,8 @@ function LandingSection() {
           secondary: normalizeHex(c.secondary, LANDING_DEFAULTS.secondary),
           accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
         });
+        const savedTheme = schedule._branding?.theme;
+        setTheme(savedTheme === "light" ? "light" : "dark");
         setLoading(false);
       });
   }, [businessId]);
@@ -422,7 +427,7 @@ function LandingSection() {
     if (loadErr) { setSaving(false); return toast.error("No se pudo leer la configuración: " + loadErr.message); }
     const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
     const branding = (schedule._branding ?? {}) as Record<string, unknown>;
-    const nextSchedule = { ...schedule, _branding: { ...branding, colors: next } };
+    const nextSchedule = { ...schedule, _branding: { ...branding, colors: next, theme } };
     const { error } = await supabase.from("business_settings").upsert(
       { business_id: businessId, schedule: nextSchedule },
       { onConflict: "business_id" },
@@ -430,7 +435,7 @@ function LandingSection() {
     setSaving(false);
     if (error) return toast.error("No se pudo guardar: " + error.message);
     setColors(next);
-    toast.success("Colores de la landing guardados");
+    toast.success("Landing guardada");
   }
 
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
@@ -476,6 +481,28 @@ function LandingSection() {
           ))}
         </div>
 
+
+
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <h3 className="text-sm font-semibold">Modo de la página pública</h3>
+          <p className="mt-1 text-xs text-white/50">Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.</p>
+          <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
+            {(["dark", "light"] as LandingTheme[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setTheme(mode)}
+                className={
+                  "rounded-xl px-4 py-2 text-sm font-semibold transition " +
+                  (theme === mode ? "bg-white text-zinc-950" : "text-white/60 hover:bg-white/10 hover:text-white")
+                }
+              >
+                {mode === "dark" ? "Modo oscuro" : "Modo claro"}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-5 flex items-center gap-3">
           <button
             type="button"
@@ -499,8 +526,12 @@ function LandingSection() {
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
         <p className="text-sm font-medium text-white/70">Vista previa</p>
         <div
-          className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#08070c] p-6"
-          style={{ background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 22%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.secondary} 20%, transparent), transparent 40%), #08070c` }}
+          className="mt-3 overflow-hidden rounded-2xl border p-6"
+          style={{
+            borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+            color: theme === "light" ? "#0f172a" : "#fff",
+            background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 22%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.secondary} 20%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`
+          }}
         >
           <div className="relative">
             <div
@@ -508,7 +539,7 @@ function LandingSection() {
               className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.14] blur-2xl"
               style={{ background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.secondary}, transparent 70%)` }}
             />
-            <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-white shadow-xl">
+            <div className="relative rounded-3xl border p-5 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)", color: theme === "light" ? "#0f172a" : "#fff" }}>
               <h3 className="text-base font-semibold">Reservá tu turno</h3>
               <button
                 type="button"
