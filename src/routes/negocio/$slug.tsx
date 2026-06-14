@@ -572,6 +572,29 @@ function PublicProfilePage() {
               </div>
             </GlowCard>
           ) : null}
+
+          {business.address ? (
+            <GlowCard className="overflow-hidden">
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                    <MapPin className="h-5 w-5" />
+                  </span>
+                  <h2 className="text-2xl font-semibold">Mapa</h2>
+                </div>
+              </div>
+              <div className="h-[300px] overflow-hidden bg-white/[0.03] sm:h-[360px]">
+                <iframe
+                  title={`Mapa de ${business.name}`}
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
+                  className="h-full w-full border-0 grayscale-[.15]"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+            </GlowCard>
+          ) : null}
+
         </div>
 
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
@@ -627,37 +650,6 @@ function PublicProfilePage() {
         </aside>
       </section>
 
-      {business.address ? (
-        <section className="mx-auto max-w-6xl px-4 pb-6">
-          <GlowCard className="overflow-hidden">
-            <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
-              <div className="min-h-[260px] overflow-hidden bg-white/[0.03]">
-                <iframe
-                  title={`Mapa de ${business.name}`}
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
-                  className="h-[280px] w-full border-0 grayscale-[.15]"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                />
-              </div>
-              <div className="flex flex-col justify-center p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
-                    <MapPin className="h-5 w-5" />
-                  </span>
-                  <h2 className="text-2xl font-semibold">Ubicación</h2>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-white/65">{business.address}</p>
-                {mapLink ? (
-                  <a href={mapLink} target="_blank" rel="noreferrer" className="mt-5 inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-zinc-950 transition hover:brightness-110" style={{ background: cAccent }}>
-                    Cómo llegar <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          </GlowCard>
-        </section>
-      ) : null}
 
       <section className="mx-auto max-w-6xl px-4 pb-6">
         <GlowCard className="overflow-hidden">
