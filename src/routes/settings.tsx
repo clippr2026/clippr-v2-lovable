@@ -399,6 +399,7 @@ const ADDITIONAL_INFO_OPTIONS = [
   "♿ Accesible para silla de ruedas",
   "🚇 Cerca del transporte público",
   "☕ Café de cortesía",
+  "🥤 Bebidas",
   "🥤 Bebidas incluidas",
   "❄️ Ambiente climatizado",
   "👶 Apto para niños",
@@ -435,7 +436,7 @@ function LandingSection() {
         const savedTheme = schedule._branding?.theme;
         setTheme(savedTheme === "light" ? "light" : "dark");
         const savedAdditional = Array.isArray(schedule._branding?.additional_info) ? schedule._branding.additional_info : [];
-        setAdditionalInfo(savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 10));
+        setAdditionalInfo(savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 12));
         setLoading(false);
       });
   }, [businessId]);
@@ -454,7 +455,7 @@ function LandingSection() {
     if (loadErr) { setSaving(false); return toast.error("No se pudo leer la configuración: " + loadErr.message); }
     const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
     const branding = (schedule._branding ?? {}) as Record<string, unknown>;
-    const nextAdditionalInfo = additionalInfo.filter((item) => item.trim().length > 0).slice(0, 10);
+    const nextAdditionalInfo = additionalInfo.filter((item) => item.trim().length > 0).slice(0, 12);
     const nextSchedule = { ...schedule, _branding: { ...branding, colors: next, theme, additional_info: nextAdditionalInfo } };
     const { error } = await supabase.from("business_settings").upsert(
       { business_id: businessId, schedule: nextSchedule },
@@ -470,7 +471,7 @@ function LandingSection() {
     setAdditionalInfo((current) => {
       if (current.includes(item)) return current.filter((value) => value !== item);
       if (current.length >= 10) {
-        toast.error("Podés seleccionar hasta 10 opciones");
+        toast.error("Podés seleccionar hasta 12 opciones");
         return current;
       }
       return [...current, item];
@@ -546,14 +547,14 @@ function LandingSection() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-sm font-semibold">Información adicional</h3>
-              <p className="mt-1 text-xs text-white/50">Elegí hasta 10 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección.</p>
+              <p className="mt-1 text-xs text-white/50">Elegí hasta 12 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección.</p>
             </div>
-            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/10</span>
+            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {ADDITIONAL_INFO_OPTIONS.map((item) => {
               const active = additionalInfo.includes(item);
-              const disabled = !active && additionalInfo.length >= 10;
+              const disabled = !active && additionalInfo.length >= 12;
               return (
                 <button
                   key={item}
