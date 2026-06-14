@@ -209,12 +209,35 @@ function cleanInstagram(value?: string | null) {
 
 function FiveStars({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-1" aria-label="5 estrellas">
+    <div className="flex items-center gap-1" aria-label="5 estrellas" style={{ color: "#E0B84F" }}>
       {Array.from({ length: 5 }).map((_, index) => (
         <Star key={index} className={compact ? "h-3.5 w-3.5 fill-current" : "h-4 w-4 fill-current"} />
       ))}
     </div>
   );
+}
+
+function getHueFromHex(hex?: string | null) {
+  const clean = String(hex || "").replace("#", "").trim();
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return 42;
+  const r = parseInt(full.slice(0, 2), 16) / 255;
+  const g = parseInt(full.slice(2, 4), 16) / 255;
+  const b = parseInt(full.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return 0;
+  let h = 0;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return Math.round((h * 60 + 360) % 360);
+}
+
+function mapDarkFilter(accentColor: string) {
+  const hue = getHueFromHex(accentColor);
+  return `invert(92%) hue-rotate(${180 + hue}deg) saturate(220%) brightness(58%) contrast(112%)`;
 }
 
 // Tarjeta oscura con un glow de color muy sutil detrás (estilo Stripe/Linear/Raycast).
@@ -544,7 +567,7 @@ function PublicProfilePage() {
                       </div>
                       <a
                         href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-zinc-950 transition hover:brightness-110"
+                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
                         style={{ background: cAccent, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
                       >
                         Reservar
@@ -639,7 +662,7 @@ function PublicProfilePage() {
                   title={`Mapa de ${business.name}`}
                   src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
                   className="h-full w-full border-0"
-                  style={isLight ? undefined : { filter: "invert(92%) hue-rotate(180deg) saturate(210%) brightness(58%) contrast(112%)" }}
+                  style={isLight ? undefined : { filter: mapDarkFilter(cAccent) }}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
@@ -654,7 +677,7 @@ function PublicProfilePage() {
           <GlowCard className="p-5 sm:p-6">
             <Link
               {...reservarTo}
-              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950 transition hover:brightness-110"
+              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white transition hover:brightness-110"
               style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
             >
               Reservar turno
@@ -828,7 +851,7 @@ function PublicProfilePage() {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08070c]/95 p-3 backdrop-blur sm:hidden">
         <Link
           {...reservarTo}
-          className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-zinc-950"
+          className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white"
           style={{ background: cAccent, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
         >
           Reservar turno
