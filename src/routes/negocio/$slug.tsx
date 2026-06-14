@@ -610,7 +610,7 @@ function PublicProfilePage() {
           </GlowCard>
 
           {/* Horarios + Dirección */}
-          <GlowCard className="p-5 sm:p-6">
+          <GlowCard className="flex flex-col p-5 sm:p-6 lg:min-h-[448px]">
             <div className="flex items-center gap-2">
               <Clock3 className="h-5 w-5" style={{ color: cPrimary }} />
               <h2 className="text-lg font-semibold">Horarios</h2>
@@ -632,7 +632,7 @@ function PublicProfilePage() {
             )}
 
             {business.address ? (
-              <div className="mt-5 border-t border-white/10 pt-5">
+              <div className="mt-auto border-t border-white/10 pt-5">
                 <div className="flex items-start gap-2 text-sm">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cPrimary }} />
                   <div className="min-w-0">
