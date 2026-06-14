@@ -300,6 +300,7 @@ function PublicProfilePage() {
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
   const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
   const [featuredClients, setFeaturedClients] = React.useState<FeaturedClient[]>([]);
+  const [showAllFeaturedClients, setShowAllFeaturedClients] = React.useState(false);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
@@ -581,7 +582,7 @@ function PublicProfilePage() {
           {featuredClients.length > 0 ? (
             <GlowCard>
               <div className="p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-center gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
                       <Trophy className="h-5 w-5" />
@@ -591,20 +592,31 @@ function PublicProfilePage() {
                       <p className="mt-1 text-sm text-white/55">Marcas, artistas, futbolistas, equipos y empresas que eligieron nuestro trabajo.</p>
                     </div>
                   </div>
+
+                  {featuredClients.length > 5 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllFeaturedClients(true)}
+                      className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.10]"
+                    >
+                      Ver todos
+                    </button>
+                  ) : null}
                 </div>
-                <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
-                  {featuredClients.map((item, index) => (
-                    <div key={item.id || `${item.name}-${index}`} className="min-w-[160px] rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.07]">
-                      <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+
+                <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+                  {featuredClients.slice(0, 5).map((item, index) => (
+                    <div key={item.id || `${item.name}-${index}`} className="min-w-[145px] rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07]">
+                      <div className="mx-auto grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                         ) : (
-                          <span className="text-xl font-bold text-white/80">{item.name.slice(0, 1)}</span>
+                          <span className="text-lg font-bold text-white/80">{item.name.slice(0, 1)}</span>
                         )}
                       </div>
-                      <div className="mt-3 min-w-0">
+                      <div className="mt-3 min-w-0 text-center">
                         <p className="truncate font-semibold text-white">{item.name}</p>
-                        <p className="mt-0.5 text-xs text-white/50">{item.category}</p>
+                        <p className="mt-0.5 truncate text-xs text-white/50">{item.category}</p>
                       </div>
                     </div>
                   ))}
@@ -871,6 +883,51 @@ function PublicProfilePage() {
           <span>Hecho con <span className="font-semibold text-white/80">Clippr</span></span>
         </div>
       </footer>
+
+
+      {showAllFeaturedClients ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm" onClick={() => setShowAllFeaturedClients(false)}>
+          <div className="max-h-[86vh] w-full max-w-4xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#080512] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
+                  <Trophy className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-2xl font-semibold text-white">Confían en nosotros</h2>
+                  <p className="mt-1 text-sm text-white/55">Todos los clientes destacados del negocio.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllFeaturedClients(false)}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/15"
+                aria-label="Cerrar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(86vh-96px)] overflow-y-auto p-5 sm:p-6">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {featuredClients.map((item, index) => (
+                  <div key={item.id || `featured-modal-${item.name}-${index}`} className="rounded-3xl border border-white/10 bg-white/[0.05] p-4 text-center">
+                    <div className="mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl bg-white/5 ring-1 ring-white/10 sm:h-28 sm:w-28">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="text-3xl font-bold text-white/80">{item.name.slice(0, 1)}</span>
+                      )}
+                    </div>
+                    <p className="mt-4 truncate font-semibold text-white">{item.name}</p>
+                    <p className="mt-1 truncate text-sm text-white/50">{item.category}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selectedPortfolio ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 text-white">
