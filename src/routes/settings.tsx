@@ -380,7 +380,7 @@ function slugifyLive(value: string): string {
 }
 
 // ─────────── Landing (colores de la página pública) ───────────
-const LANDING_DEFAULTS = { primary: "#d6b66a", secondary: "#7c3aed", accent: "#d6b66a" };
+const LANDING_DEFAULTS = { primary: "#7c3aed", secondary: "#7c3aed", accent: "#d6b66a", buttonText: "#ffffff" };
 const LANDING_THEME_DEFAULT = "dark" as const;
 type LandingTheme = "dark" | "light";
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
@@ -429,9 +429,10 @@ function LandingSection() {
         const schedule = (data?.schedule ?? {}) as Record<string, any>;
         const c = (schedule._branding?.colors ?? {}) as Record<string, string>;
         setColors({
-          primary: normalizeHex(c.primary, LANDING_DEFAULTS.primary),
-          secondary: normalizeHex(c.secondary, LANDING_DEFAULTS.secondary),
+          primary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.primary)),
+          secondary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.secondary)),
           accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
+          buttonText: normalizeHex(c.buttonText, LANDING_DEFAULTS.buttonText),
         });
         const savedTheme = schedule._branding?.theme;
         setTheme(savedTheme === "light" ? "light" : "dark");
@@ -444,10 +445,12 @@ function LandingSection() {
   async function save() {
     if (!businessId) return;
     setSaving(true);
+    const gradientGlow = normalizeHex(colors.primary, LANDING_DEFAULTS.primary);
     const next = {
-      primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
-      secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
+      primary: gradientGlow,
+      secondary: gradientGlow,
       accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
+      buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
     };
     // Merge sin pisar el resto de _branding.
     const { data: row, error: loadErr } = await supabase
@@ -479,9 +482,9 @@ function LandingSection() {
   }
 
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
-    { key: "primary", label: "Color primario", desc: "Gradientes y luces de fondo (portada y tarjetas)." },
-    { key: "secondary", label: "Color secundario", desc: "Segundo color de los gradientes y glows." },
-    { key: "accent", label: "Color de resaltado", desc: "Botones, estados y acciones principales." },
+    { key: "primary", label: "Gradientes y glows", desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales." },
+    { key: "accent", label: "Color de resaltado", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
+    { key: "buttonText", label: "Texto de botones", desc: "Color de la letra dentro de los botones principales." },
   ];
 
   if (loading) {
@@ -600,21 +603,21 @@ function LandingSection() {
           style={{
             borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
             color: theme === "light" ? "#0f172a" : "#fff",
-            background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 22%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.secondary} 20%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`
+            background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`
           }}
         >
           <div className="relative">
             <div
               aria-hidden
               className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.14] blur-2xl"
-              style={{ background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.secondary}, transparent 70%)` }}
+              style={{ background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.primary}, transparent 70%)` }}
             />
             <div className="relative rounded-3xl border p-5 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)", color: theme === "light" ? "#0f172a" : "#fff" }}>
               <h3 className="text-base font-semibold">Reservá tu turno</h3>
               <button
                 type="button"
-                className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold text-zinc-950"
-                style={{ background: colors.accent, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)` }}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold"
+                style={{ background: colors.accent, color: colors.buttonText, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)` }}
               >
                 Reservar turno
               </button>
