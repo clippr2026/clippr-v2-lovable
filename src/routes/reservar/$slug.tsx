@@ -811,46 +811,110 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "done" ? (
-                <div className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[#070711] p-5 text-white shadow-2xl sm:p-8">
-                  <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-sky-500/25 blur-3xl" />
-                  <div className="pointer-events-none absolute -bottom-28 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
+                <div
+                  className={cn(
+                    "relative mt-6 overflow-hidden rounded-[2rem] border p-5 shadow-2xl sm:p-8",
+                    isLight
+                      ? "border-slate-200 bg-white text-slate-950 shadow-slate-200/70"
+                      : "border-white/10 bg-[#070711] text-white shadow-black/50",
+                  )}
+                >
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-90"
+                    style={{
+                      background: isLight
+                        ? "radial-gradient(circle at 12% 20%, color-mix(in oklch, var(--c-primary) 20%, transparent), transparent 34%), radial-gradient(circle at 88% 88%, color-mix(in oklch, var(--c-secondary) 18%, transparent), transparent 38%)"
+                        : "radial-gradient(circle at 10% 18%, rgba(56,189,248,.20), transparent 34%), radial-gradient(circle at 88% 86%, rgba(217,70,239,.24), transparent 40%)",
+                    }}
+                  />
 
-                  <div className="relative grid gap-8 lg:grid-cols-[240px_1fr] lg:items-center">
-                    <div className="mx-auto w-full max-w-[220px]">
-                      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-black shadow-[0_24px_80px_rgba(168,85,247,.28)]">
-                        <div className="flex aspect-square h-full w-full items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,.45),transparent_34%),linear-gradient(135deg,#070711_0%,#0b1024_44%,#3b0764_100%)]">
-                          <div className="relative flex h-28 w-28 items-center justify-center rounded-[2rem] bg-gradient-to-br from-sky-400 via-blue-600 to-fuchsia-500 text-6xl font-black tracking-tighter text-white shadow-[0_0_60px_rgba(168,85,247,.55)] sm:h-32 sm:w-32">
-                            C
-                            <span className="absolute -bottom-7 text-sm font-semibold tracking-[0.45em] text-white/70">CLIPPR</span>
+                  <div className="relative mx-auto max-w-4xl">
+                    <div className="mb-7 text-center">
+                      <div
+                        className={cn(
+                          "mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold",
+                          isLight ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+                        )}
+                      >
+                        <CheckCircle2 className="h-4 w-4" /> Reserva confirmada
+                      </div>
+                      <h3 className={cn("mt-4 text-3xl font-bold tracking-tight sm:text-5xl", isLight ? "text-slate-950" : "text-white")}>
+                        ¡Turno confirmado!
+                      </h3>
+                      <p className={cn("mx-auto mt-3 max-w-2xl text-sm sm:text-base", isLight ? "text-slate-600" : "text-white/70")}>
+                        Tu reserva ya quedó registrada en la agenda de {business.name}. Ese horario quedó bloqueado para nuevas reservas.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-5 lg:grid-cols-[260px_1fr] lg:items-stretch">
+                      <div className={cn("relative overflow-hidden rounded-[1.75rem] border p-5", isLight ? "border-slate-200 bg-slate-950" : "border-white/10 bg-black/35")}>
+                        <div className="pointer-events-none absolute -left-12 -top-12 h-40 w-40 rounded-full bg-sky-400/35 blur-3xl" />
+                        <div className="pointer-events-none absolute -bottom-14 -right-12 h-44 w-44 rounded-full bg-fuchsia-500/35 blur-3xl" />
+                        <div className="relative flex h-full min-h-[230px] flex-col items-center justify-center text-center">
+                          <img
+                            src="/clippr-confirmation-logo.jpeg"
+                            alt="Clippr"
+                            className="h-36 w-36 rounded-[2rem] object-cover shadow-[0_0_70px_rgba(168,85,247,.45)]"
+                          />
+                          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.55em] text-white/60">Clippr</p>
+                        </div>
+                      </div>
+
+                      <div className={cn("rounded-[1.75rem] border p-5 backdrop-blur-xl sm:p-6", isLight ? "border-slate-200 bg-white/85" : "border-white/10 bg-white/[0.07]")}>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {[
+                            { label: "Servicio", value: confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + "), icon: Scissors },
+                            { label: "Profesional", value: confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia", icon: UserRound },
+                            { label: "Cliente", value: confirmedBooking?.clientName || clientName, icon: UsersRound },
+                            { label: "Teléfono", value: confirmedBooking?.clientPhone || clientPhone, icon: Clock3 },
+                            { label: "Fecha", value: confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-"), icon: CalendarDays },
+                            { label: "Horario", value: confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-"), icon: Clock3 },
+                          ].map((item) => (
+                            <div key={item.label} className={cn("rounded-2xl border p-4", isLight ? "border-slate-200 bg-slate-50/90" : "border-white/10 bg-black/20")}>
+                              <div className="flex items-start gap-3">
+                                <span
+                                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
+                                  style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                                >
+                                  {React.createElement(item.icon, { className: "h-5 w-5" })}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className={cn("text-xs font-medium", isLight ? "text-slate-500" : "text-white/50")}>{item.label}</p>
+                                  <p className={cn("mt-1 break-words text-sm font-bold", isLight ? "text-slate-950" : "text-white")}>{item.value}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {(confirmedBooking?.clientEmail || clientEmail) ? (
+                          <div className={cn("mt-4 rounded-2xl border p-4", isLight ? "border-slate-200 bg-slate-50/90" : "border-white/10 bg-black/20")}>
+                            <p className={cn("text-xs font-medium", isLight ? "text-slate-500" : "text-white/50")}>Email</p>
+                            <p className={cn("mt-1 break-words text-sm font-bold", isLight ? "text-slate-950" : "text-white")}>{confirmedBooking?.clientEmail || clientEmail}</p>
                           </div>
+                        ) : null}
+
+                        <div
+                          className={cn("mt-5 flex items-center justify-between rounded-3xl border px-5 py-4", isLight ? "border-slate-200 bg-slate-950 text-white" : "border-white/10 bg-white/[0.08]")}
+                          style={{ boxShadow: `0 0 35px color-mix(in oklch, ${cPrimary} 22%, transparent)` }}
+                        >
+                          <span className={cn("text-sm font-medium", isLight ? "text-white/70" : "text-white/60")}>Total</span>
+                          <span className="text-3xl font-black tracking-tight text-white">{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div>
-                      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm font-semibold text-emerald-200">
-                        <CheckCircle2 className="h-4 w-4" /> Reserva confirmada
-                      </div>
-                      <h3 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Tu turno quedó agendado</h3>
-                      <p className="mt-2 text-sm text-white/60">Ya impactó en la agenda de {business.name} y ese horario quedó bloqueado para nuevas reservas.</p>
-
-                      <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
-                        <div className="grid gap-4 text-sm sm:grid-cols-2">
-                          <div><p className="text-white/40">Cliente</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.clientName || clientName}</p></div>
-                          <div><p className="text-white/40">Teléfono</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.clientPhone || clientPhone}</p></div>
-                          {confirmedBooking?.clientEmail || clientEmail ? <div><p className="text-white/40">Email</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.clientEmail || clientEmail}</p></div> : null}
-                          <div><p className="text-white/40">Profesional</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia"}</p></div>
-                          <div className="sm:col-span-2"><p className="text-white/40">Servicio</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + ")}</p></div>
-                          <div><p className="text-white/40">Fecha y horario</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-")} · {confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-")}</p></div>
-                          <div><p className="text-white/40">Duración</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.duration ?? totalDuration} min</p></div>
-                        </div>
-                        <div className="mt-5 flex items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-                          <span className="text-sm text-white/55">Total</span>
-                          <span className="text-2xl font-bold text-white">{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
-                        </div>
-                      </div>
-
-                      <Link to="/negocio/$slug" params={{ slug }} className="mt-6 inline-flex rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-sm font-semibold hover:bg-white/10">Volver al perfil</Link>
+                    <div className="mt-7 flex justify-center">
+                      <Link
+                        to="/negocio/$slug"
+                        params={{ slug }}
+                        className={cn(
+                          "inline-flex rounded-2xl border px-6 py-3 text-sm font-bold transition hover:scale-[1.01]",
+                          isLight ? "border-slate-200 bg-white text-slate-950 shadow-lg shadow-slate-200/70 hover:bg-slate-50" : "border-white/10 bg-white/[0.08] text-white hover:bg-white/10",
+                        )}
+                      >
+                        Volver al perfil
+                      </Link>
                     </div>
                   </div>
                 </div>
