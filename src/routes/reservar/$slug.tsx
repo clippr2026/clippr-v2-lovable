@@ -849,6 +849,30 @@ function PublicBookingPage() {
                       <p className={cn("mx-auto mt-3 max-w-md text-sm leading-relaxed sm:text-base", isLight ? "text-slate-500" : "text-white/60")}>
                         Tu reserva fue registrada correctamente. Revisá los detalles de tu turno a continuación.
                       </p>
+
+                      <div
+                        className={cn(
+                          "mx-auto mt-6 max-w-md rounded-2xl border px-5 py-4",
+                          isLight ? "border-slate-200 bg-slate-50/60" : "border-white/[0.08] bg-white/[0.02]",
+                        )}
+                      >
+                        <div className="flex flex-col items-center text-center">
+                          <span
+                            className={cn(
+                              "mb-3 grid h-10 w-10 place-items-center rounded-full",
+                              isLight ? "bg-white text-slate-500 ring-1 ring-slate-200/80" : "bg-white/[0.06] text-white/70 ring-1 ring-white/10",
+                            )}
+                          >
+                            <Mail className="h-5 w-5" />
+                          </span>
+                          <p className={cn("text-sm font-medium", isLight ? "text-slate-700" : "text-white/80")}>
+                            Te enviamos la confirmación a tu correo electrónico.
+                          </p>
+                          <p className={cn("mt-1 text-xs leading-relaxed sm:text-sm", isLight ? "text-slate-500" : "text-white/55")}>
+                            Desde allí podrás consultar todos los detalles de tu reserva.
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Datos del turno */}
@@ -907,13 +931,6 @@ function PublicBookingPage() {
                         <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
                       </div>
                     </div>
-
-                    {business.email ? (
-                      <p className={cn("mt-5 flex items-center justify-center gap-2 px-4 text-center text-xs", isLight ? "text-slate-400" : "text-white/40")}>
-                        <Mail className="h-3.5 w-3.5 shrink-0" />
-                        <span>Enviamos la información de tu reserva a <span className="font-medium">{business.email}</span></span>
-                      </p>
-                    ) : null}
 
                     {/* Acción */}
                     <div className="mt-7 flex justify-center">
