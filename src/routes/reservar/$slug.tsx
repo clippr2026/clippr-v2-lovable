@@ -520,6 +520,29 @@ function PublicBookingPage() {
       setConfirmedBooking(confirmationSnapshot);
       setStep("done");
       toast.success("Turno reservado correctamente");
+
+      // Correo de confirmación (no bloquea la reserva: si el envío falla,
+      // el turno igual queda confirmado).
+      if (confirmationSnapshot.clientEmail) {
+        void supabase.functions
+          .invoke("send-booking-email", {
+            body: {
+              type: "confirmation",
+              businessId: business.id,
+              to: confirmationSnapshot.clientEmail,
+              booking: {
+                services: confirmationSnapshot.services,
+                professional: confirmationSnapshot.professional,
+                clientName: confirmationSnapshot.clientName,
+                clientPhone: confirmationSnapshot.clientPhone,
+                date: confirmationSnapshot.date,
+                time: confirmationSnapshot.time,
+                total: confirmationSnapshot.total,
+              },
+            },
+          })
+          .catch((emailError) => console.error("send-booking-email", emailError));
+      }
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
