@@ -36,10 +36,10 @@ export type BookingEmailData = {
   date: string; // ya formateada: "lunes, 15 de junio"
   time: string; // ya formateada: "11:00 a. m."
   total: number;
-  /** Link a la página de gestión del turno (/gestion?...). */
-  manageUrl?: string | null;
-  /** Link directo a calendario; no debe abrir /gestion. */
+  /** Link a la página de calendario del turno (/gestion?...). */
   calendarUrl?: string | null;
+  /** Link directo a WhatsApp para pedir cancelación o reprogramación. */
+  whatsappUrl?: string | null;
 };
 
 type Row = { label: string; value: string };
@@ -229,8 +229,8 @@ function detailRows(d: BookingEmailData): Row[] {
 
 function bookingButtons(d: BookingEmailData): Btn[] {
   const btns: Btn[] = [];
-  if (d.manageUrl) btns.push({ label: "Gestionar reserva", url: d.manageUrl, variant: "primary" });
-  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: "secondary" });
+  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: "primary" });
+  if (d.whatsappUrl) btns.push({ label: "Cancelar o reprogramar por WhatsApp", url: d.whatsappUrl, variant: "secondary" });
   return btns;
 }
 
