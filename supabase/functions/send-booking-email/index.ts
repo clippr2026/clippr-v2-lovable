@@ -172,6 +172,10 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     const branding = ((settings?.schedule as Record<string, any> | null)?._branding ?? {}) as Record<string, any>;
     const colors = (branding.colors ?? {}) as Record<string, string>;
+    // WhatsApp configurado en Configuración > Branding > WhatsApp.
+    // Fallback: columna businesses.phone para instalaciones viejas.
+    const businessWhatsApp =
+      ((branding.phone as string | undefined)?.trim() || (biz?.phone as string | undefined)?.trim() || null);
 
     // Misma derivación que la página pública de reservas.
     const accentColor = (biz?.accent_color as string) ?? null;
@@ -241,7 +245,7 @@ Deno.serve(async (req: Request) => {
       businessId,
       manageToken,
       employeeId,
-      { slug: biz?.slug as string, address: biz?.address as string, phone: biz?.phone as string },
+      { slug: biz?.slug as string, address: biz?.address as string, phone: businessWhatsApp },
       booking,
     ] as const;
 
