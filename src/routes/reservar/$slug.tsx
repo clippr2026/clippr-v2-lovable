@@ -139,6 +139,13 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatInputDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
@@ -298,6 +305,7 @@ function PublicBookingPage() {
   );
   const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
+  const [showDatePicker, setShowDatePicker] = React.useState(false);
   const selectedDay = availableDays[selectedDayIndex] ?? availableDays[0] ?? null;
 
   React.useEffect(() => {
@@ -400,7 +408,7 @@ function PublicBookingPage() {
           }
           if (professionalId && visibleEmployees.some((employee) => employee.id === professionalId)) {
             setSelectedEmployeeId(professionalId);
-            setProfessionalLocked(true);
+            setProfessionalLocked(false);
             if (serviceId) setStep("datetime");
           }
         }
@@ -425,7 +433,7 @@ function PublicBookingPage() {
 
   function nextFromServices() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
-    setStep(professionalLocked ? "datetime" : "professional");
+    setStep("professional");
   }
 
   async function submitBooking() {
@@ -460,25 +468,21 @@ function PublicBookingPage() {
     setSubmitting(true);
     try {
       const start = selectedSlot.time;
-      const directInsertBooking = async () => {
-        const { error } = await supabase.from("appointments").insert({
-          business_id: business.id,
-          client_id: null,
-          client_name: clientName.trim(),
-          employee_id: selectedSlot.employeeId,
-          service_name: serviceName,
-          service_price: totalPrice,
-          starts_at: start.toISOString(),
-          ends_at: addMinutes(start, totalDuration).toISOString(),
-          duration_min: totalDuration,
-          status: "pending",
-          notes: publicNotes || null,
-          created_by_name: "Reserva online",
-          created_by_role: "public",
-          updated_at: new Date().toISOString(),
-        } as any);
-        if (error) throw error;
-      };
+      const end = addMinutes(start, totalDuration);
+
+      const alreadyTaken = appointments.some((appt) => {
+        if (appt.status === "cancelled") return false;
+        if (appt.employee_id !== selectedSlot.employeeId) return false;
+        const apptStart = new Date(appt.starts_at);
+        const apptEnd = appt.ends_at ? new Date(appt.ends_at) : addMinutes(apptStart, Number(appt.duration_min ?? totalDuration));
+        return overlaps(start, end, apptStart, apptEnd);
+      });
+      if (alreadyTaken) {
+        toast.error("Ese horario ya fue reservado. Elegí otro turno disponible.");
+        setSelectedSlot(null);
+        setStep("datetime");
+        return;
+      }
 
       const v2Result = await supabase.rpc("create_public_booking_v2", {
         p_business_id: business.id,
@@ -509,16 +513,22 @@ function PublicBookingPage() {
           else fallbackError = fallback.error;
         }
         if (fallbackError) {
-          try {
-            await directInsertBooking();
-          } catch (insertError) {
-            const directMessage = (insertError as Error)?.message;
-            const rpcMessage = (fallbackError as any)?.message;
-            throw new Error(directMessage || rpcMessage || "No se pudo crear la reserva.");
-          }
+          const rpcMessage = (fallbackError as any)?.message;
+          throw new Error(rpcMessage || "No se pudo crear la reserva. Revisá la función create_public_booking_v2 en Supabase.");
         }
       }
 
+      setAppointments((current) => [
+        ...current,
+        {
+          id: `local-${Date.now()}`,
+          employee_id: selectedSlot.employeeId,
+          starts_at: start.toISOString(),
+          ends_at: end.toISOString(),
+          duration_min: totalDuration,
+          status: "pending",
+        },
+      ]);
       setConfirmedBooking(confirmationSnapshot);
       setStep("done");
       toast.success("Turno reservado correctamente");
@@ -579,6 +589,9 @@ function PublicBookingPage() {
       <style>{`
         .public-booking { background: var(--page-bg); color: var(--text); }
         .public-booking .booking-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text) !important; }
+        .public-booking .booking-shell { border-radius: 2rem; box-shadow: 0 24px 80px rgba(0,0,0,.22); }
+        .public-booking .slot-button { position: relative; overflow: hidden; }
+        .public-booking .slot-button:before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--accent); opacity: .85; }
         .public-booking[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }
         .public-booking[data-theme="light"] [class*="text-white/"] { color: var(--muted) !important; }
         .public-booking[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
@@ -616,7 +629,7 @@ function PublicBookingPage() {
 
       <section className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[1fr_330px] lg:items-start">
         <div className="space-y-6">
-          <Card className="booking-card border-white/10 bg-white/[0.04] text-white shadow-xl">
+          <Card className="booking-card booking-shell border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -637,7 +650,7 @@ function PublicBookingPage() {
                   type="button"
                   onClick={() => {
                     if (step === "professional") setStep("services");
-                    if (step === "datetime") setStep(professionalLocked ? "services" : "professional");
+                    if (step === "datetime") setStep("professional");
                     if (step === "details") setStep("datetime");
                   }}
                   className="mt-5 inline-flex items-center gap-1 text-sm text-white/55 hover:text-white"
@@ -694,15 +707,48 @@ function PublicBookingPage() {
               {step === "datetime" ? (
                 <div className="mt-5 space-y-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="inline-flex w-max items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] p-1.5 pr-4">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10">
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedSlot(null); setStep("professional"); }}
+                      className="group inline-flex w-max items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 pr-4 text-left transition hover:border-white/25 hover:bg-white/[0.08]"
+                      title="Cambiar profesional"
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/10">
                         {selectedEmployee?.avatar_url ? <img src={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-5 w-5" />}
                       </span>
-                      <span className="text-base font-semibold">{selectedEmployee?.full_name ?? "Sin preferencia"}</span>
-                    </div>
-                    <button type="button" className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.04]">
-                      <CalendarDays className="h-5 w-5" />
+                      <span>
+                        <span className="block text-base font-semibold">{selectedEmployee?.full_name ?? "Sin preferencia"}</span>
+                        <span className="block text-xs text-white/45 group-hover:text-white/65">Tocá para cambiar</span>
+                      </span>
                     </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowDatePicker((value) => !value)}
+                        className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] transition hover:border-white/25 hover:bg-white/[0.08]"
+                        title="Abrir calendario"
+                      >
+                        <CalendarDays className="h-5 w-5" />
+                      </button>
+                      {showDatePicker ? (
+                        <input
+                          type="date"
+                          className="absolute right-0 top-12 z-20 rounded-2xl border border-white/10 bg-white p-3 text-sm text-zinc-950 shadow-2xl"
+                          min={formatInputDate(new Date())}
+                          value={selectedDay ? formatInputDate(selectedDay.date) : ""}
+                          onChange={(event) => {
+                            const index = availableDays.findIndex((day) => formatInputDate(day.date) === event.target.value);
+                            if (index >= 0) {
+                              setSelectedDayIndex(index);
+                              setSelectedSlot(null);
+                              setShowDatePicker(false);
+                            } else {
+                              toast.error("Ese día no tiene horarios disponibles.");
+                            }
+                          }}
+                        />
+                      ) : null}
+                    </div>
                   </div>
 
                   <div>
@@ -752,7 +798,7 @@ function PublicBookingPage() {
                             key={`${slot.employeeId}-${slot.time.toISOString()}`}
                             type="button"
                             onClick={() => { setSelectedSlot(slot); setStep("details"); }}
-                            className="flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4"
+                            className="slot-button flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
                           >
                             {formatTime(slot.time)}
                           </button>
