@@ -4,8 +4,8 @@ on:
 push:
 branches: [main]
 paths:
-- "supabase/functions/**"
-- ".github/workflows/deploy-supabase-functions.yml"
+- supabase/functions/**
+- .github/workflows/deploy-supabase-functions.yml
 
 workflow_dispatch:
 
