@@ -4,10 +4,10 @@ import { CalendarDays, Clock3, MapPin, Scissors, UserRound, CalendarPlus, Refres
 import { supabase } from "@/integrations/supabase/client";
 import { buildSlots, normalizeSchedule, addMinutes, startOfDay, type Appointment } from "@/lib/availability";
 
-// Página pública de gestión de turno. Datos + branding por query params (los
-// arma la Edge Function send-booking-email). Con token (tk) permite cancelar y
-// reprogramar self-service vía RPCs SECURITY DEFINER. La reprogramación reusa
-// EXACTAMENTE el motor de disponibilidad de la página de reservas (buildSlots).
+// Página pública del turno. Datos + branding por query params (los arma la Edge
+// Function send-booking-email). Por ahora no permite cancelar/reprogramar desde
+// la web: esos cambios se piden por WhatsApp. Esta pantalla muestra el detalle
+// del turno y permite elegir calendario: Apple, Google u Outlook.
 
 type Search = {
   b?: string; bid?: string; tk?: string; emp?: string; slug?: string; svc?: string; prof?: string;
@@ -129,13 +129,9 @@ function GestionPage() {
     URL.revokeObjectURL(url);
   }, [start, end, eventTitle, eventDetails, p.addr, businessName]);
 
-  // Botón único: detecta el entorno y abre el calendario correcto.
+  // El cliente elige manualmente entre Apple, Google u Outlook.
   function smartCalendar() {
-    if (!start) return;
-    const plat = detectPlatform();
-    if (plat === "apple") { downloadIcs(); return; }
-    if (plat === "google" && googleUrl) { window.open(googleUrl, "_blank"); return; }
-    setShowCalChooser(true);
+    setShowCalChooser((v) => !v);
   }
 
   const fireEmail = React.useCallback((type: "cancellation" | "reschedule", dLabel?: string, tLabel?: string) => {
@@ -224,8 +220,8 @@ function GestionPage() {
 
         <div style={{ ...cardStyle, padding: 24, overflow: "hidden" }}>
           <div style={{ height: 4, margin: "-24px -24px 20px", background: `linear-gradient(90deg, ${primary}, ${accent})` }} />
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-.02em" }}>Gestión de tu turno</h1>
-          <p style={{ margin: "8px 0 20px", fontSize: 14, color: c.muted }}>Revisá los detalles, reprogramá o cancelá tu turno.</p>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-.02em" }}>Detalle de tu turno</h1>
+          <p style={{ margin: "8px 0 20px", fontSize: 14, color: c.muted }}>Revisá los detalles y agregalo al calendario que prefieras.</p>
 
           {cancelled ? (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: dark ? "rgba(239,68,68,.12)" : "#fef2f2", color: "#ef4444", fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
@@ -255,71 +251,18 @@ function GestionPage() {
 
         {!cancelled ? (
           <div style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
-            <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700 }}>¿Necesitás un cambio?</h2>
-
-            {!validToken ? (
-              <p style={{ margin: "8px 0 0", fontSize: 13, color: c.subtle }}>Esta reserva ya no está disponible o el enlace venció. Solicitá una nueva confirmación desde el negocio.</p>
-            ) : rescheduleMode ? (
-              <div style={{ marginTop: 12 }}>
-                {loadingSlots ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: c.muted, fontSize: 14, padding: "12px 0" }}>
-                    <Loader2 size={18} className="animate-spin" /> Buscando horarios disponibles…
-                  </div>
-                ) : days.length > 0 ? (
-                  <>
-                    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
-                      {days.map((d, i) => (
-                        <button key={i} onClick={() => { setDayIdx(i); setChosen(null); }} style={{
-                          ...noWrap, padding: "8px 14px", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                          border: `1px solid ${i === dayIdx ? accent : c.border}`, background: i === dayIdx ? accent : c.innerBg, color: i === dayIdx ? buttonText : c.text,
-                        }}>{fmtDayShort(d.date)}</button>
-                      ))}
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8, marginTop: 14 }}>
-                      {currentDay?.slots.map((slot, i) => {
-                        const isSel = chosen?.getTime() === slot.time.getTime();
-                        return (
-                          <button key={i} onClick={() => setChosen(slot.time)} style={{
-                            ...noWrap, padding: "10px 0", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer",
-                            border: `1px solid ${isSel ? accent : c.border}`, background: isSel ? accent : c.cardBg, color: isSel ? buttonText : c.text,
-                          }}>{fmtClock(slot.time)}</button>
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-                      <button onClick={confirmReschedule} disabled={!chosen || busy} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: chosen && !busy ? "pointer" : "default", opacity: chosen && !busy ? 1 : 0.55 }}>
-                        {busy ? "Confirmando…" : "Confirmar nuevo horario"}
-                      </button>
-                      <button onClick={() => setRescheduleMode(false)} style={{ ...outlineBtn(c), ...noWrap, cursor: "pointer" }}>Volver</button>
-                    </div>
-                  </>
-                ) : (
-                  <p style={{ fontSize: 13, color: c.subtle, marginTop: 12 }}>No hay horarios disponibles por ahora.</p>
-                )}
+            <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700 }}>Agregar al calendario</h2>
+            <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Elegí dónde querés guardar el turno.</p>
+            <button onClick={smartCalendar} disabled={!start} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: start ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 8, opacity: start ? 1 : 0.55 }}>
+              <CalendarPlus size={16} /> Elegir calendario
+            </button>
+            {showCalChooser || start ? (
+              <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+                <button onClick={downloadIcs} style={{ ...calBtn(c), ...noWrap, cursor: "pointer", width: "100%" }}>Apple Calendar</button>
+                <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Google Calendar</a>
+                <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Outlook</a>
               </div>
-            ) : (
-              <>
-                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Reprogramá, cancelá o agregá el turno a tu calendario.</p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button onClick={openReschedule} disabled={busy} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <RefreshCw size={16} /> Reprogramar turno
-                  </button>
-                  <button onClick={handleCancel} disabled={busy} style={{ ...outlineBtn(c), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
-                    <X size={16} /> Cancelar turno
-                  </button>
-                  <button onClick={smartCalendar} disabled={!start} style={{ ...outlineBtn(c), ...noWrap, cursor: start ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 8, opacity: start ? 1 : 0.55 }}>
-                    <CalendarPlus size={16} /> Agregar al calendario
-                  </button>
-                </div>
-                {showCalChooser ? (
-                  <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-                    <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Google Calendar</a>
-                    <button onClick={downloadIcs} style={{ ...calBtn(c), ...noWrap, cursor: "pointer", width: "100%" }}>Apple Calendar</button>
-                    <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Outlook</a>
-                  </div>
-                ) : null}
-              </>
-            )}
+            ) : null}
           </div>
         ) : null}
 
