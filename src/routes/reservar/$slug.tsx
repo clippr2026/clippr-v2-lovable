@@ -466,6 +466,7 @@ function PublicBookingPage() {
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
       clientEmail: clientEmail.trim() || undefined,
+      startIso: selectedSlot.time.toISOString(),
     };
 
     setSubmitting(true);
@@ -538,6 +539,8 @@ function PublicBookingPage() {
                 date: confirmationSnapshot.date,
                 time: confirmationSnapshot.time,
                 total: confirmationSnapshot.total,
+                startIso: confirmationSnapshot.startIso,
+                durationMin: confirmationSnapshot.duration,
               },
             },
           })
