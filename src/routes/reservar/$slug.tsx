@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import clipprConfirmationLogo from "@/assets/clippr-confirmation-logo.jpeg";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -819,7 +818,12 @@ function PublicBookingPage() {
                   <div className="relative grid gap-8 lg:grid-cols-[240px_1fr] lg:items-center">
                     <div className="mx-auto w-full max-w-[220px]">
                       <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-black shadow-[0_24px_80px_rgba(168,85,247,.28)]">
-                        <img src={clipprConfirmationLogo} alt="Clippr" className="aspect-square h-full w-full object-cover" />
+                        <div className="flex aspect-square h-full w-full items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,.45),transparent_34%),linear-gradient(135deg,#070711_0%,#0b1024_44%,#3b0764_100%)]">
+                          <div className="relative flex h-28 w-28 items-center justify-center rounded-[2rem] bg-gradient-to-br from-sky-400 via-blue-600 to-fuchsia-500 text-6xl font-black tracking-tighter text-white shadow-[0_0_60px_rgba(168,85,247,.55)] sm:h-32 sm:w-32">
+                            C
+                            <span className="absolute -bottom-7 text-sm font-semibold tracking-[0.45em] text-white/70">CLIPPR</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
