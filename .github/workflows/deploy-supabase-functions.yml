@@ -1,18 +1,13 @@
 name: Deploy Supabase Functions
 
-# Despliega la Edge Function `send-booking-email` a Supabase automáticamente.
-
-# Se ejecuta cuando cambian archivos de funciones (o manualmente desde la
-
-# pestaña Actions de GitHub). No necesita terminal local.
-
 on:
 push:
 branches: [main]
 paths:
 - "supabase/functions/**"
 - ".github/workflows/deploy-supabase-functions.yml"
-workflow_dispatch: {}
+
+workflow_dispatch:
 
 jobs:
 deploy:
