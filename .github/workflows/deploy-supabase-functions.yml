@@ -1,0 +1,40 @@
+name: Deploy Supabase Functions
+
+# Despliega la Edge Function `send-booking-email` a Supabase automáticamente.
+# Se ejecuta cuando cambian archivos de funciones (o manualmente desde la
+# pestaña Actions de GitHub). No necesita terminal local.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/deploy-supabase-functions.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    name: Deploy send-booking-email
+    runs-on: ubuntu-latest
+    env:
+      # Token personal de acceso de Supabase (GitHub → Settings → Secrets).
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      # Project ref: pypduwtioxudgepwjvom
+      PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy send-booking-email
+        # --no-verify-jwt: la página de reservas es pública (cliente anónimo),
+        # sin este flag la función responde 401 al invitado.
+        run: |
+          supabase functions deploy send-booking-email \
+            --project-ref "$PROJECT_ID" \
+            --no-verify-jwt
