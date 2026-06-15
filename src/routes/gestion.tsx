@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as React from "react";
-import { CalendarDays, Clock3, MapPin, Scissors, UserRound, CalendarPlus, RefreshCw, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, Scissors, UserRound, CalendarPlus, RefreshCw, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { buildSlots, normalizeSchedule, addMinutes, startOfDay, type Appointment } from "@/lib/availability";
 
-// Página pública de gestión de turno. Recibe datos + branding por query params
-// (los arma la Edge Function send-booking-email). Si viene un token (tk), permite
-// cancelar/reprogramar self-service vía RPCs SECURITY DEFINER. Sin token, cae a
-// coordinar por WhatsApp. No toca la lógica de reservas.
+// Página pública de gestión de turno. Datos + branding por query params (los
+// arma la Edge Function send-booking-email). Con token (tk) permite cancelar y
+// reprogramar self-service vía RPCs SECURITY DEFINER. La reprogramación reusa
+// EXACTAMENTE el motor de disponibilidad de la página de reservas (buildSlots).
 
 type Search = {
-  b?: string; bid?: string; tk?: string; slug?: string; svc?: string; prof?: string;
+  b?: string; bid?: string; tk?: string; emp?: string; slug?: string; svc?: string; prof?: string;
   d?: string; t?: string; s?: string; dur?: string; tot?: string;
   addr?: string; ph?: string; n?: string;
   pc?: string; ac?: string; bt?: string; m?: string; logo?: string;
@@ -19,7 +20,7 @@ const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 export const Route = createFileRoute("/gestion")({
   validateSearch: (search: Record<string, unknown>): Search => ({
-    b: str(search.b), bid: str(search.bid), tk: str(search.tk), slug: str(search.slug),
+    b: str(search.b), bid: str(search.bid), tk: str(search.tk), emp: str(search.emp), slug: str(search.slug),
     svc: str(search.svc), prof: str(search.prof), d: str(search.d), t: str(search.t),
     s: str(search.s), dur: str(search.dur), tot: str(search.tot),
     addr: str(search.addr), ph: str(search.ph), n: str(search.n),
@@ -31,7 +32,18 @@ export const Route = createFileRoute("/gestion")({
 const isHex = (s?: string) => !!s && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s);
 const icsStamp = (dt: Date) => dt.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 const fmtDay = (dt: Date) => dt.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+const fmtDayShort = (dt: Date) => dt.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" });
 const fmtTime = (dt: Date) => dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) + " hs";
+const fmtClock = (dt: Date) => dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+
+function detectPlatform(): "apple" | "google" | "unknown" {
+  if (typeof navigator === "undefined") return "unknown";
+  const ua = navigator.userAgent || "";
+  const plat = (navigator as any).platform || "";
+  if (/iPhone|iPad|iPod|Macintosh|Mac OS X/i.test(ua) || /Mac|iPhone|iPad/i.test(plat)) return "apple";
+  if (/Android/i.test(ua)) return "google";
+  return "unknown";
+}
 
 function GestionPage() {
   const p = Route.useSearch();
@@ -53,15 +65,22 @@ function GestionPage() {
   const total = p.tot ? Number(p.tot) : 0;
   const hasToken = !!p.tk;
 
-  // Estado dinámico del turno
   const [start, setStart] = React.useState<Date | null>(p.s ? new Date(p.s) : null);
   const [status, setStatus] = React.useState<"active" | "cancelled" | "loading">(hasToken ? "loading" : "active");
   const [busy, setBusy] = React.useState(false);
   const [feedback, setFeedback] = React.useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const [showReschedule, setShowReschedule] = React.useState(false);
-  const [newDt, setNewDt] = React.useState("");
 
-  // Carga el estado real del turno por token
+  // Reprogramación
+  const [rescheduleMode, setRescheduleMode] = React.useState(false);
+  const [loadingSlots, setLoadingSlots] = React.useState(false);
+  const [days, setDays] = React.useState<Array<{ date: Date; slots: Array<{ time: Date; employeeId: string }> }>>([]);
+  const [dayIdx, setDayIdx] = React.useState(0);
+  const [chosen, setChosen] = React.useState<Date | null>(null);
+
+  // Calendario
+  const [showCalChooser, setShowCalChooser] = React.useState(false);
+
+  // Estado real del turno por token
   React.useEffect(() => {
     if (!p.tk) return;
     let alive = true;
@@ -69,12 +88,11 @@ function GestionPage() {
       try {
         const { data } = await supabase.rpc("get_public_booking_v1", { p_token: p.tk });
         const row = Array.isArray(data) ? data[0] : data;
-        if (!alive || !row) { if (alive) setStatus("active"); return; }
+        if (!alive) return;
+        if (!row) { setStatus("active"); return; }
         setStatus(row.status === "cancelled" ? "cancelled" : "active");
         if (row.starts_at) setStart(new Date(row.starts_at));
-      } catch {
-        if (alive) setStatus("active");
-      }
+      } catch { if (alive) setStatus("active"); }
     })();
     return () => { alive = false; };
   }, [p.tk]);
@@ -111,21 +129,24 @@ function GestionPage() {
     URL.revokeObjectURL(url);
   }, [start, end, eventTitle, eventDetails, p.addr, businessName]);
 
+  // Botón único: detecta el entorno y abre el calendario correcto.
+  function smartCalendar() {
+    if (!start) return;
+    const plat = detectPlatform();
+    if (plat === "apple") { downloadIcs(); return; }
+    if (plat === "google" && googleUrl) { window.open(googleUrl, "_blank"); return; }
+    setShowCalChooser(true);
+  }
+
   const fireEmail = React.useCallback((type: "cancellation" | "reschedule", dLabel?: string, tLabel?: string) => {
     if (!p.bid || !p.tk) return;
     void supabase.functions.invoke("send-booking-email", {
-      body: {
-        type, businessId: p.bid, token: p.tk,
-        booking: { services: p.svc, professional: p.prof, date: dLabel ?? dateLabel, time: tLabel ?? timeLabel, total },
-      },
+      body: { type, businessId: p.bid, token: p.tk, booking: { services: p.svc, professional: p.prof, date: dLabel ?? dateLabel, time: tLabel ?? timeLabel, total } },
     }).catch(() => {});
   }, [p.bid, p.tk, p.svc, p.prof, dateLabel, timeLabel, total]);
 
-  const waDigits = (p.ph || "").replace(/\D/g, "");
-  const wa = (verb: string) => `https://wa.me/${waDigits}?text=${encodeURIComponent(`Hola ${businessName}, quiero ${verb} mi turno de ${service} del ${dateLabel || ""} ${timeLabel || ""}.`)}`;
-
   async function handleCancel() {
-    if (!hasToken) { window.open(wa("CANCELAR"), "_blank"); return; }
+    if (!hasToken) return;
     if (!confirm("¿Seguro que querés cancelar este turno?")) return;
     setBusy(true); setFeedback(null);
     try {
@@ -139,18 +160,37 @@ function GestionPage() {
     } finally { setBusy(false); }
   }
 
-  async function handleReschedule() {
-    if (!hasToken) { window.open(wa("REPROGRAMAR"), "_blank"); return; }
-    if (!newDt) { setFeedback({ kind: "err", text: "Elegí una nueva fecha y horario." }); return; }
-    const nd = new Date(newDt);
-    if (Number.isNaN(nd.getTime())) { setFeedback({ kind: "err", text: "Fecha inválida." }); return; }
+  // Carga disponibilidad real con el MISMO motor que la reserva pública.
+  async function openReschedule() {
+    setRescheduleMode(true); setChosen(null); setDayIdx(0); setLoadingSlots(true); setFeedback(null);
+    try {
+      const from = startOfDay(new Date()).toISOString();
+      const to = addMinutes(startOfDay(new Date()), 14 * 24 * 60).toISOString();
+      const [settingsRes, apptsRes] = await Promise.all([
+        supabase.from("public_booking_settings").select("schedule").eq("business_id", p.bid).maybeSingle(),
+        supabase.from("public_booking_appointments").select("id,employee_id,starts_at,ends_at,duration_min,status").eq("business_id", p.bid).gte("starts_at", from).lte("starts_at", to),
+      ]);
+      const schedule = normalizeSchedule((settingsRes.data as any)?.schedule ?? null);
+      const appts = ((apptsRes.data ?? []) as Appointment[]);
+      const emp = p.emp || "any";
+      const built = buildSlots(schedule, appts, emp !== "any" ? [{ id: emp }] : [], emp, Number.isFinite(durMin) ? durMin : 60, 14)
+        .filter((d) => d.slots.length > 0);
+      setDays(built);
+      if (built.length === 0) setFeedback({ kind: "err", text: "No hay horarios disponibles en los próximos días." });
+    } catch (e) {
+      setFeedback({ kind: "err", text: "No se pudo cargar la disponibilidad." });
+    } finally { setLoadingSlots(false); }
+  }
+
+  async function confirmReschedule() {
+    if (!chosen || !hasToken) return;
     setBusy(true); setFeedback(null);
     try {
-      const { data, error } = await supabase.rpc("reschedule_public_booking_v1", { p_token: p.tk, p_starts_at: nd.toISOString() });
+      const { data, error } = await supabase.rpc("reschedule_public_booking_v1", { p_token: p.tk, p_starts_at: chosen.toISOString() });
       if (error || !data?.ok) throw new Error(data?.error || error?.message || "No se pudo reprogramar");
-      setStart(nd); setShowReschedule(false);
-      setFeedback({ kind: "ok", text: `Reprogramado para el ${fmtDay(nd)} a las ${fmtTime(nd)}.` });
-      fireEmail("reschedule", fmtDay(nd), fmtTime(nd));
+      setStart(chosen); setRescheduleMode(false);
+      setFeedback({ kind: "ok", text: `Reprogramado para el ${fmtDay(chosen)} a las ${fmtClock(chosen)} hs.` });
+      fireEmail("reschedule", fmtDay(chosen), fmtTime(chosen));
     } catch (e) {
       setFeedback({ kind: "err", text: (e as Error).message });
     } finally { setBusy(false); }
@@ -166,6 +206,8 @@ function GestionPage() {
   ].filter((r) => r.value);
 
   const cardStyle: React.CSSProperties = { background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 24 };
+  const noWrap: React.CSSProperties = { whiteSpace: "nowrap" };
+  const currentDay = days[dayIdx];
 
   return (
     <div style={{ minHeight: "100vh", background: c.pageBg, color: c.text, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif", padding: "40px 16px" }}>
@@ -211,51 +253,85 @@ function GestionPage() {
         ) : null}
 
         {!cancelled ? (
-          <div id="calendario" style={{ ...cardStyle, padding: 24, marginTop: 16, scrollMarginTop: 24 }}>
+          <div style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
               <CalendarPlus size={18} style={{ color: accent }} />
               <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Agregar al calendario</h2>
             </div>
-            <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Elegí tu calendario para guardar el turno.</p>
-            {start ? (
-              <div style={{ display: "grid", gap: 10 }}>
-                <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={calBtn(c)}>Google Calendar</a>
-                <button onClick={downloadIcs} style={{ ...calBtn(c), cursor: "pointer", width: "100%" }}>Apple Calendar</button>
-                <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={calBtn(c)}>Outlook</a>
-              </div>
-            ) : <p style={{ fontSize: 13, color: c.subtle }}>No se pudo leer la fecha del turno.</p>}
+            {!showCalChooser ? (
+              <>
+                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Guardá el turno en tu calendario con un toque.</p>
+                <button onClick={smartCalendar} disabled={!start} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: "pointer", width: "100%" }}>Agregar al calendario</button>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Elegí tu calendario:</p>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Google Calendar</a>
+                  <button onClick={downloadIcs} style={{ ...calBtn(c), ...noWrap, cursor: "pointer", width: "100%" }}>Apple Calendar</button>
+                  <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Outlook</a>
+                </div>
+              </>
+            )}
           </div>
         ) : null}
 
         {!cancelled ? (
           <div style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
             <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700 }}>¿Necesitás un cambio?</h2>
-            <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>
-              {hasToken ? "Reprogramá o cancelá tu turno al instante." : `Coordiná con ${businessName} la reprogramación o cancelación.`}
-            </p>
 
-            {showReschedule && hasToken ? (
-              <div style={{ marginBottom: 14 }}>
-                <input type="datetime-local" value={newDt} onChange={(e) => setNewDt(e.target.value)}
-                  style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.innerBg, color: c.text, fontSize: 14, marginBottom: 10 }} />
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={handleReschedule} disabled={busy} style={{ ...solidBtn(accent, buttonText), cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
-                    {busy ? "Confirmando…" : "Confirmar nuevo horario"}
-                  </button>
-                  <button onClick={() => setShowReschedule(false)} style={{ ...outlineBtn(c), cursor: "pointer" }}>Volver</button>
-                </div>
+            {!hasToken ? (
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: c.subtle }}>No pudimos validar este turno desde el link. Revisá el correo o contactá al negocio.</p>
+            ) : rescheduleMode ? (
+              <div style={{ marginTop: 12 }}>
+                {loadingSlots ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: c.muted, fontSize: 14, padding: "12px 0" }}>
+                    <Loader2 size={18} className="animate-spin" /> Buscando horarios disponibles…
+                  </div>
+                ) : days.length > 0 ? (
+                  <>
+                    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+                      {days.map((d, i) => (
+                        <button key={i} onClick={() => { setDayIdx(i); setChosen(null); }} style={{
+                          ...noWrap, padding: "8px 14px", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                          border: `1px solid ${i === dayIdx ? accent : c.border}`, background: i === dayIdx ? accent : c.innerBg, color: i === dayIdx ? buttonText : c.text,
+                        }}>{fmtDayShort(d.date)}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8, marginTop: 14 }}>
+                      {currentDay?.slots.map((slot, i) => {
+                        const isSel = chosen?.getTime() === slot.time.getTime();
+                        return (
+                          <button key={i} onClick={() => setChosen(slot.time)} style={{
+                            ...noWrap, padding: "10px 0", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer",
+                            border: `1px solid ${isSel ? accent : c.border}`, background: isSel ? accent : c.cardBg, color: isSel ? buttonText : c.text,
+                          }}>{fmtClock(slot.time)}</button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                      <button onClick={confirmReschedule} disabled={!chosen || busy} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: chosen && !busy ? "pointer" : "default", opacity: chosen && !busy ? 1 : 0.55 }}>
+                        {busy ? "Confirmando…" : "Confirmar nuevo horario"}
+                      </button>
+                      <button onClick={() => setRescheduleMode(false)} style={{ ...outlineBtn(c), ...noWrap, cursor: "pointer" }}>Volver</button>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ fontSize: 13, color: c.subtle, marginTop: 12 }}>No hay horarios disponibles por ahora.</p>
+                )}
               </div>
             ) : (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button onClick={() => (hasToken ? setShowReschedule(true) : (window.open(wa("REPROGRAMAR"), "_blank"), undefined))} disabled={busy}
-                  style={{ ...solidBtn(accent, buttonText), cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <RefreshCw size={16} /> Reprogramar
-                </button>
-                <button onClick={handleCancel} disabled={busy}
-                  style={{ ...outlineBtn(c), cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
-                  <X size={16} /> Cancelar
-                </button>
-              </div>
+              <>
+                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Reprogramá o cancelá tu turno al instante.</p>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button onClick={openReschedule} disabled={busy} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <RefreshCw size={16} /> Reprogramar turno
+                  </button>
+                  <button onClick={handleCancel} disabled={busy} style={{ ...outlineBtn(c), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
+                    <X size={16} /> Cancelar turno
+                  </button>
+                </div>
+              </>
             )}
           </div>
         ) : null}
@@ -272,8 +348,8 @@ function calBtn(c: { innerBg: string; border: string; text: string }): React.CSS
   return { display: "block", textAlign: "center", padding: "13px 18px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.innerBg, color: c.text, fontSize: 14, fontWeight: 700, textDecoration: "none" };
 }
 function solidBtn(bg: string, text: string): React.CSSProperties {
-  return { padding: "12px 22px", borderRadius: 12, background: bg, color: text, fontSize: 14, fontWeight: 700, textDecoration: "none", border: "none" };
+  return { padding: "13px 24px", borderRadius: 12, background: bg, color: text, fontSize: 14, fontWeight: 700, textDecoration: "none", border: "none" };
 }
 function outlineBtn(c: { border: string; text: string; cardBg: string }): React.CSSProperties {
-  return { padding: "12px 22px", borderRadius: 12, background: c.cardBg, color: c.text, fontSize: 14, fontWeight: 700, textDecoration: "none", border: `1px solid ${c.border}` };
+  return { padding: "13px 24px", borderRadius: 12, background: c.cardBg, color: c.text, fontSize: 14, fontWeight: 700, textDecoration: "none", border: `1px solid ${c.border}` };
 }
