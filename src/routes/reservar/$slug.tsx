@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import clipprConfirmationLogo from "@/assets/clippr-confirmation-logo.jpeg";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -612,7 +613,7 @@ function PublicBookingPage() {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[1fr_330px] lg:items-start">
+      <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
         <div className="space-y-6">
           <Card className="booking-card booking-shell border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
@@ -811,34 +812,50 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "done" ? (
-                <div className="mt-6 text-center">
-                  <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 via-violet-500 to-fuchsia-500 text-2xl font-black text-white shadow-2xl">C</div>
-                  <CheckCircle2 className="mx-auto mt-5 h-14 w-14" style={{ color: accent }} />
-                  <h3 className="mt-4 text-2xl font-semibold">Turno confirmado</h3>
-                  <p className="mt-2 text-sm text-white/60">El turno ya quedó registrado en la agenda de {business.name}.</p>
+                <div className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[#070711] p-5 text-white shadow-2xl sm:p-8">
+                  <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-sky-500/25 blur-3xl" />
+                  <div className="pointer-events-none absolute -bottom-28 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
 
-                  <div className="mx-auto mt-6 max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-left text-sm text-white/70">
-                    <p className="font-semibold text-white">Datos de la reserva</p>
-                    <div className="mt-4 space-y-2">
-                      <p><span className="text-white/45">Cliente:</span> <span className="font-medium text-white">{confirmedBooking?.clientName || clientName}</span></p>
-                      <p><span className="text-white/45">Teléfono:</span> <span className="font-medium text-white">{confirmedBooking?.clientPhone || clientPhone}</span></p>
-                      {confirmedBooking?.clientEmail || clientEmail ? <p><span className="text-white/45">Email:</span> <span className="font-medium text-white">{confirmedBooking?.clientEmail || clientEmail}</span></p> : null}
-                      <p><span className="text-white/45">Servicios:</span> <span className="font-medium text-white">{confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + ")}</span></p>
-                      <p><span className="text-white/45">Profesional:</span> <span className="font-medium text-white">{confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia"}</span></p>
-                      <p><span className="text-white/45">Fecha:</span> <span className="font-medium text-white">{confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-")}</span></p>
-                      <p><span className="text-white/45">Horario:</span> <span className="font-medium text-white">{confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-")}</span></p>
-                      <p><span className="text-white/45">Duración:</span> <span className="font-medium text-white">{confirmedBooking?.duration ?? totalDuration} min</span></p>
-                      <p><span className="text-white/45">Total:</span> <span className="font-semibold text-white">{formatMoney(confirmedBooking?.total ?? totalPrice)}</span></p>
+                  <div className="relative grid gap-8 lg:grid-cols-[240px_1fr] lg:items-center">
+                    <div className="mx-auto w-full max-w-[220px]">
+                      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-black shadow-[0_24px_80px_rgba(168,85,247,.28)]">
+                        <img src={clipprConfirmationLogo} alt="Clippr" className="aspect-square h-full w-full object-cover" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm font-semibold text-emerald-200">
+                        <CheckCircle2 className="h-4 w-4" /> Reserva confirmada
+                      </div>
+                      <h3 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Tu turno quedó agendado</h3>
+                      <p className="mt-2 text-sm text-white/60">Ya impactó en la agenda de {business.name} y ese horario quedó bloqueado para nuevas reservas.</p>
+
+                      <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+                        <div className="grid gap-4 text-sm sm:grid-cols-2">
+                          <div><p className="text-white/40">Cliente</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.clientName || clientName}</p></div>
+                          <div><p className="text-white/40">Teléfono</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.clientPhone || clientPhone}</p></div>
+                          {confirmedBooking?.clientEmail || clientEmail ? <div><p className="text-white/40">Email</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.clientEmail || clientEmail}</p></div> : null}
+                          <div><p className="text-white/40">Profesional</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia"}</p></div>
+                          <div className="sm:col-span-2"><p className="text-white/40">Servicio</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + ")}</p></div>
+                          <div><p className="text-white/40">Fecha y horario</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-")} · {confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-")}</p></div>
+                          <div><p className="text-white/40">Duración</p><p className="mt-1 font-semibold text-white">{confirmedBooking?.duration ?? totalDuration} min</p></div>
+                        </div>
+                        <div className="mt-5 flex items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+                          <span className="text-sm text-white/55">Total</span>
+                          <span className="text-2xl font-bold text-white">{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
+                        </div>
+                      </div>
+
+                      <Link to="/negocio/$slug" params={{ slug }} className="mt-6 inline-flex rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-sm font-semibold hover:bg-white/10">Volver al perfil</Link>
                     </div>
                   </div>
-
-                  <Link to="/negocio/$slug" params={{ slug }} className="mt-6 inline-flex rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/5">Volver al perfil</Link>
                 </div>
               ) : null}
             </CardContent>
           </Card>
         </div>
 
+        {step !== "done" ? (
         <aside className="lg:sticky lg:top-6 lg:self-start">
           <Card className="booking-card border-white/10 bg-white/[0.06] text-white shadow-2xl backdrop-blur-xl">
             <CardContent className="p-5 sm:p-6">
@@ -853,6 +870,7 @@ function PublicBookingPage() {
             </CardContent>
           </Card>
         </aside>
+        ) : null}
       </section>
     </main>
   );
