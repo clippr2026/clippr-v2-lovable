@@ -66,7 +66,7 @@ function GestionPage() {
   const hasToken = !!p.tk;
 
   const [start, setStart] = React.useState<Date | null>(p.s ? new Date(p.s) : null);
-  const [status, setStatus] = React.useState<"active" | "cancelled" | "loading">(hasToken ? "loading" : "active");
+  const [status, setStatus] = React.useState<"active" | "cancelled" | "loading" | "invalid">(hasToken ? "loading" : "invalid");
   const [busy, setBusy] = React.useState(false);
   const [feedback, setFeedback] = React.useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
@@ -89,10 +89,10 @@ function GestionPage() {
         const { data } = await supabase.rpc("get_public_booking_v1", { p_token: p.tk });
         const row = Array.isArray(data) ? data[0] : data;
         if (!alive) return;
-        if (!row) { setStatus("active"); return; }
+        if (!row) { setStatus("invalid"); return; }
         setStatus(row.status === "cancelled" ? "cancelled" : "active");
         if (row.starts_at) setStart(new Date(row.starts_at));
-      } catch { if (alive) setStatus("active"); }
+      } catch { if (alive) setStatus("invalid"); }
     })();
     return () => { alive = false; };
   }, [p.tk]);
@@ -197,6 +197,7 @@ function GestionPage() {
   }
 
   const cancelled = status === "cancelled";
+  const validToken = hasToken && status !== "invalid" && status !== "loading";
   const rows = [
     { icon: Scissors, label: "Servicio", value: p.svc },
     { icon: UserRound, label: "Profesional", value: p.prof },
@@ -224,7 +225,7 @@ function GestionPage() {
         <div style={{ ...cardStyle, padding: 24, overflow: "hidden" }}>
           <div style={{ height: 4, margin: "-24px -24px 20px", background: `linear-gradient(90deg, ${primary}, ${accent})` }} />
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-.02em" }}>Gestión de tu turno</h1>
-          <p style={{ margin: "8px 0 20px", fontSize: 14, color: c.muted }}>Revisá los detalles, agregalo a tu calendario o pedí un cambio.</p>
+          <p style={{ margin: "8px 0 20px", fontSize: 14, color: c.muted }}>Revisá los detalles, reprogramá o cancelá tu turno.</p>
 
           {cancelled ? (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: dark ? "rgba(239,68,68,.12)" : "#fef2f2", color: "#ef4444", fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
@@ -254,34 +255,10 @@ function GestionPage() {
 
         {!cancelled ? (
           <div style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <CalendarPlus size={18} style={{ color: accent }} />
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Agregar al calendario</h2>
-            </div>
-            {!showCalChooser ? (
-              <>
-                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Guardá el turno en tu calendario con un toque.</p>
-                <button onClick={smartCalendar} disabled={!start} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: "pointer", width: "100%" }}>Agregar al calendario</button>
-              </>
-            ) : (
-              <>
-                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Elegí tu calendario:</p>
-                <div style={{ display: "grid", gap: 10 }}>
-                  <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Google Calendar</a>
-                  <button onClick={downloadIcs} style={{ ...calBtn(c), ...noWrap, cursor: "pointer", width: "100%" }}>Apple Calendar</button>
-                  <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Outlook</a>
-                </div>
-              </>
-            )}
-          </div>
-        ) : null}
-
-        {!cancelled ? (
-          <div style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
             <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700 }}>¿Necesitás un cambio?</h2>
 
-            {!hasToken ? (
-              <p style={{ margin: "8px 0 0", fontSize: 13, color: c.subtle }}>No pudimos validar este turno desde el link. Revisá el correo o contactá al negocio.</p>
+            {!validToken ? (
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: c.subtle }}>No pudimos validar este turno desde el link. Abrí el botón “Gestionar reserva” desde el último correo de confirmación.</p>
             ) : rescheduleMode ? (
               <div style={{ marginTop: 12 }}>
                 {loadingSlots ? (
@@ -322,7 +299,7 @@ function GestionPage() {
               </div>
             ) : (
               <>
-                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Reprogramá o cancelá tu turno al instante.</p>
+                <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Reprogramá, cancelá o agregá el turno a tu calendario.</p>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button onClick={openReschedule} disabled={busy} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
                     <RefreshCw size={16} /> Reprogramar turno
@@ -330,7 +307,17 @@ function GestionPage() {
                   <button onClick={handleCancel} disabled={busy} style={{ ...outlineBtn(c), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, opacity: busy ? 0.6 : 1 }}>
                     <X size={16} /> Cancelar turno
                   </button>
+                  <button onClick={smartCalendar} disabled={!start} style={{ ...outlineBtn(c), ...noWrap, cursor: start ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 8, opacity: start ? 1 : 0.55 }}>
+                    <CalendarPlus size={16} /> Agregar al calendario
+                  </button>
                 </div>
+                {showCalChooser ? (
+                  <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+                    <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Google Calendar</a>
+                    <button onClick={downloadIcs} style={{ ...calBtn(c), ...noWrap, cursor: "pointer", width: "100%" }}>Apple Calendar</button>
+                    <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Outlook</a>
+                  </div>
+                ) : null}
               </>
             )}
           </div>
