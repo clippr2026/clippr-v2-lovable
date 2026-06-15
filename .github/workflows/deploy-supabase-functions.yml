@@ -1,36 +1,35 @@
 name: Deploy Supabase Functions
 
-on:
-push:
-branches: [main]
-paths:
-- supabase/functions/**
-- .github/workflows/deploy-supabase-functions.yml
+# Despliega la Edge Function `send-booking-email` a Supabase automáticamente.
+# Corre cuando cambian archivos de funciones (o manualmente desde Actions).
 
-workflow_dispatch:
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/deploy-supabase-functions.yml"
+  workflow_dispatch: {}
 
 jobs:
-deploy:
-name: Deploy send-booking-email
-runs-on: ubuntu-latest
+  deploy:
+    name: Deploy send-booking-email
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-```
-env:
-  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-  PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.30.4
 
-steps:
-  - name: Checkout
-    uses: actions/checkout@v4
-
-  - name: Setup Supabase CLI
-    uses: supabase/setup-cli@v1
-    with:
-      version: 2.30.4
-
-  - name: Deploy send-booking-email
-    run: |
-      supabase functions deploy send-booking-email \
-        --project-ref "$PROJECT_ID" \
-        --no-verify-jwt
-```
+      - name: Deploy send-booking-email
+        # --no-verify-jwt: la página de reservas es pública (cliente anónimo).
+        run: |
+          supabase functions deploy send-booking-email \
+            --project-ref "$PROJECT_ID" \
+            --no-verify-jwt
