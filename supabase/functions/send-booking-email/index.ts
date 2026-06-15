@@ -61,32 +61,34 @@ function icsStamp(dt: Date): string {
   return dt.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 }
 
-/** Link directo a Google Calendar para que el botón del email NO abra /gestion. */
-function buildDirectCalendarUrl(
+function normalizePhoneForWhatsapp(phone?: string | null): string | null {
+  let digits = String(phone ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  // WhatsApp Argentina suele usar 549 + código de área + número.
+  if (digits.startsWith("549")) return digits;
+  if (digits.startsWith("54")) return `549${digits.slice(2).replace(/^0/, "")}`;
+  if (digits.startsWith("0")) digits = digits.slice(1);
+  if (digits.startsWith("15")) digits = digits.slice(2);
+  return `549${digits}`;
+}
+
+function buildWhatsappUrl(
   brand: BrandTheme,
-  biz: { address?: string | null },
+  biz: { phone?: string | null },
   booking: Payload["booking"],
 ): string | null {
-  if (!booking?.startIso) return null;
-  const start = new Date(booking.startIso);
-  if (Number.isNaN(start.getTime())) return null;
-  const duration = Number(booking.durationMin ?? 60);
-  const end = new Date(start.getTime() + (Number.isFinite(duration) ? duration : 60) * 60_000);
-  const title = `${booking.services || "Turno"} · ${brand.name}`;
-  const details = [
-    booking.professional ? `Profesional: ${booking.professional}` : null,
-    `Negocio: ${brand.name}`,
-    booking.notes ? `Notas: ${booking.notes}` : null,
-    "Reservado con Clippr",
+  const phone = normalizePhoneForWhatsapp(biz.phone);
+  if (!phone) return null;
+  const message = [
+    `Hola ${brand.name}, necesito cancelar o reprogramar mi turno.`,
+    `Servicio: ${booking?.services || "-"}`,
+    `Profesional: ${booking?.professional || "Sin preferencia"}`,
+    `Fecha: ${booking?.date || "-"}`,
+    `Horario: ${booking?.time || "-"}`,
+    booking?.clientName ? `Cliente: ${booking.clientName}` : null,
+    booking?.clientPhone ? `Teléfono: ${booking.clientPhone}` : null,
   ].filter(Boolean).join("\n");
-
-  const q = new URLSearchParams();
-  q.set("action", "TEMPLATE");
-  q.set("text", title);
-  q.set("dates", `${icsStamp(start)}/${icsStamp(end)}`);
-  q.set("details", details);
-  if (biz.address) q.set("location", biz.address);
-  return `https://calendar.google.com/calendar/render?${q.toString()}`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
 function buildManageUrl(
@@ -252,8 +254,8 @@ Deno.serve(async (req: Request) => {
       date: booking.date || "-",
       time: booking.time || "-",
       total: Number(booking.total ?? 0),
-      manageUrl,
-      calendarUrl: buildDirectCalendarUrl(brand, { address: biz?.address as string }, booking),
+      calendarUrl: manageUrl,
+      whatsappUrl: buildWhatsappUrl(brand, { phone: biz?.phone as string }, booking),
     };
 
     const email = buildBookingEmail(type, data);
