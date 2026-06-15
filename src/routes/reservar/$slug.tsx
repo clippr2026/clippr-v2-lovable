@@ -366,6 +366,8 @@ function PublicBookingPage() {
       clientPhone: clientPhone.trim(),
       clientEmail: clientEmail.trim() || undefined,
       startIso: selectedSlot.time.toISOString(),
+      appointmentId: undefined as string | undefined,
+      manageToken: undefined as string | undefined,
     };
 
     setSubmitting(true);
@@ -406,6 +408,10 @@ function PublicBookingPage() {
         throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v3 en Supabase.");
       }
 
+      const returnedBooking = Array.isArray(bookingResult.data) ? bookingResult.data[0] : bookingResult.data;
+      confirmationSnapshot.appointmentId = returnedBooking?.id ?? returnedBooking?.appointment_id ?? undefined;
+      confirmationSnapshot.manageToken = returnedBooking?.manage_token ?? returnedBooking?.manageToken ?? undefined;
+
       setAppointments((current) => [
         ...current,
         {
@@ -435,6 +441,9 @@ function PublicBookingPage() {
                 professional: confirmationSnapshot.professional,
                 clientName: confirmationSnapshot.clientName,
                 clientPhone: confirmationSnapshot.clientPhone,
+                clientEmail: confirmationSnapshot.clientEmail,
+                appointmentId: confirmationSnapshot.appointmentId,
+                manageToken: confirmationSnapshot.manageToken,
                 date: confirmationSnapshot.date,
                 time: confirmationSnapshot.time,
                 total: confirmationSnapshot.total,
