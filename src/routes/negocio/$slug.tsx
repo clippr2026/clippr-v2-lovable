@@ -15,7 +15,6 @@ import {
   Phone,
   Sparkles,
   Star,
-  Trophy,
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -596,12 +595,11 @@ function PublicProfilePage() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-center gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
-                      <Trophy className="h-5 w-5" />
+                      <Star className="h-5 w-5 fill-current" />
                     </span>
                     <div>
                       <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
-                      <p className="mt-1 text-sm text-white/55">Marcas, artistas, futbolistas, equipos y empresas que eligieron nuestro trabajo.</p>
-                    </div>
+                                          </div>
                   </div>
 
                   {featuredClients.length > 5 ? (
@@ -617,7 +615,7 @@ function PublicProfilePage() {
 
                 <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
                   {featuredClients.slice(0, 5).map((item, index) => (
-                    <div key={item.id || `${item.name}-${index}`} className="min-w-[145px] rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07]">
+                    <div key={item.id || `${item.name}-${index}`} className="relative min-w-[145px] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.055] p-3 shadow-[0_0_34px_rgba(168,85,247,0.18)] transition before:absolute before:inset-x-4 before:-top-8 before:h-16 before:rounded-full before:bg-[radial-gradient(circle,rgba(217,70,239,0.42),transparent_68%)] before:blur-xl hover:bg-white/[0.08] hover:shadow-[0_0_44px_rgba(168,85,247,0.28)]">
                       <div className="mx-auto grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
@@ -907,7 +905,7 @@ function PublicProfilePage() {
             <div className={(isLight ? "border-zinc-200" : "border-white/10") + " flex items-start justify-between gap-4 border-b p-5 sm:p-6"}>
               <div className="flex items-center gap-3">
                 <span className={(isLight ? "border-zinc-200 bg-zinc-50" : "border-white/10 bg-white/5") + " grid h-11 w-11 place-items-center rounded-2xl border"} style={{ color: cAccent }}>
-                  <Trophy className="h-5 w-5" />
+                  <Star className="h-5 w-5 fill-current" />
                 </span>
                 <div>
                   <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
@@ -935,7 +933,7 @@ function PublicProfilePage() {
                       {items.map((item, index) => (
                         <div
                           key={item.id || `featured-modal-${category}-${item.name}-${index}`}
-                          className={(isLight ? "border-zinc-200 bg-zinc-50" : "border-white/10 bg-white/[0.05]") + " rounded-3xl border p-4 text-center"}
+                          className={(isLight ? "border-zinc-200 bg-white shadow-[0_0_42px_rgba(168,85,247,0.18)]" : "border-white/10 bg-white/[0.055] shadow-[0_0_42px_rgba(168,85,247,0.22)]") + " relative overflow-hidden rounded-3xl border p-4 text-center before:absolute before:inset-x-6 before:-top-10 before:h-20 before:rounded-full before:bg-[radial-gradient(circle,rgba(217,70,239,0.42),transparent_68%)] before:blur-xl"}
                         >
                           <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/5 ring-white/10") + " mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl ring-1 sm:h-28 sm:w-28"}>
                             {item.image_url ? (
