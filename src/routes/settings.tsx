@@ -1247,7 +1247,7 @@ function BrandingSection() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-medium">Clientes destacados</div>
-              <p className="mt-1 text-xs text-muted-foreground">Marcas, artistas, futbolistas, equipos y empresas que eligieron tu trabajo. Si no cargás nada activo, esta sección no aparece en la web.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta sección no aparece.</p>
             </div>
             <button type="button" onClick={addFeaturedClient} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10">
               <Plus className="h-4 w-4" /> Agregar
@@ -1256,7 +1256,7 @@ function BrandingSection() {
 
           {data.featured_clients.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-muted-foreground">
-              Todavía no cargaste marcas, artistas, futbolistas o equipos.
+              Todavía no cargaste clientes destacados.
             </div>
           ) : (
             <div className="space-y-3">

@@ -20,7 +20,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-export const Route = createFileRoute("/advisor")({
+export const Route = createFileRoute("/advisorl")({
   head: () => ({
     meta: [
       { title: "Asesor IA — Clippr" },
