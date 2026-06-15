@@ -258,7 +258,7 @@ function GestionPage() {
             <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700 }}>¿Necesitás un cambio?</h2>
 
             {!validToken ? (
-              <p style={{ margin: "8px 0 0", fontSize: 13, color: c.subtle }}>No pudimos validar este turno desde el link. Abrí el botón “Gestionar reserva” desde el último correo de confirmación.</p>
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: c.subtle }}>Esta reserva ya no está disponible o el enlace venció. Solicitá una nueva confirmación desde el negocio.</p>
             ) : rescheduleMode ? (
               <div style={{ marginTop: 12 }}>
                 {loadingSlots ? (
