@@ -27,6 +27,7 @@ type Payload = {
   type?: string;
   businessId?: string;
   to?: string;
+  token?: string;
   booking?: {
     services?: string;
     professional?: string;
@@ -54,11 +55,15 @@ const hex = (s: unknown, fb: string) =>
 /** Construye el link a la página de gestión del turno con el branding embebido. */
 function buildManageUrl(
   brand: BrandTheme,
+  businessId: string,
+  token: string | null,
   biz: { slug?: string | null; address?: string | null; phone?: string | null },
   booking: Payload["booking"],
 ): string {
   const q = new URLSearchParams();
   q.set("b", brand.name);
+  q.set("bid", businessId);
+  if (token) q.set("tk", token);
   if (biz.slug) q.set("slug", biz.slug);
   q.set("svc", booking?.services ?? "");
   q.set("prof", booking?.professional ?? "");
@@ -66,6 +71,7 @@ function buildManageUrl(
   q.set("t", booking?.time ?? "");
   if (booking?.startIso) q.set("s", booking.startIso);
   if (booking?.durationMin) q.set("dur", String(booking.durationMin));
+  if (typeof booking?.total === "number") q.set("tot", String(booking.total));
   if (biz.address) q.set("addr", biz.address);
   if (biz.phone) q.set("ph", biz.phone);
   if (booking?.notes) q.set("n", booking.notes);
@@ -86,11 +92,10 @@ Deno.serve(async (req: Request) => {
     const payload = (await req.json()) as Payload;
     const type = payload.type ?? "confirmation";
     const businessId = payload.businessId;
-    const to = payload.to?.trim();
+    let to = payload.to?.trim();
     const booking = payload.booking ?? {};
 
     if (!businessId) return json({ error: "businessId requerido" }, 400);
-    if (!to) return json({ ok: true, skipped: "sin email del cliente" });
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) return json({ error: "RESEND_API_KEY no configurada" }, 500);
@@ -99,6 +104,18 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
+
+    // Si no llegó el email pero sí un token de gestión, lo resolvemos del turno.
+    if (!to && payload.token) {
+      const { data: appt } = await supabase
+        .from("appointments")
+        .select("client_email")
+        .eq("manage_token", payload.token)
+        .maybeSingle();
+      to = (appt?.client_email as string)?.trim() || undefined;
+    }
+
+    if (!to) return json({ ok: true, skipped: "sin email del cliente" });
 
     // Datos del negocio (nombre, dirección, logo, color de acento).
     const { data: biz } = await supabase
@@ -129,8 +146,27 @@ Deno.serve(async (req: Request) => {
       logoUrl: (biz?.avatar_url as string) || (biz?.logo_url as string) || null,
     };
 
+    // Token de gestión del turno recién creado (para self-service en /gestion).
+    // Lectura con service role sobre la tabla real; si no se encuentra, el link
+    // igual funciona en modo solo-lectura (sin acciones).
+    let manageToken: string | null = null;
+    if (booking.startIso && booking.clientPhone) {
+      const { data: appt } = await supabase
+        .from("appointments")
+        .select("manage_token")
+        .eq("business_id", businessId)
+        .eq("starts_at", booking.startIso)
+        .eq("client_phone", booking.clientPhone)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      manageToken = (appt?.manage_token as string) ?? null;
+    }
+
     const manageUrl = buildManageUrl(
       brand,
+      businessId,
+      manageToken,
       { slug: biz?.slug as string, address: biz?.address as string, phone: biz?.phone as string },
       booking,
     );
