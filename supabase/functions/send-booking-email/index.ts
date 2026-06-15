@@ -57,6 +57,7 @@ function buildManageUrl(
   brand: BrandTheme,
   businessId: string,
   token: string | null,
+  employeeId: string | null,
   biz: { slug?: string | null; address?: string | null; phone?: string | null },
   booking: Payload["booking"],
 ): string {
@@ -64,6 +65,7 @@ function buildManageUrl(
   q.set("b", brand.name);
   q.set("bid", businessId);
   if (token) q.set("tk", token);
+  if (employeeId) q.set("emp", employeeId);
   if (biz.slug) q.set("slug", biz.slug);
   q.set("svc", booking?.services ?? "");
   q.set("prof", booking?.professional ?? "");
@@ -150,10 +152,11 @@ Deno.serve(async (req: Request) => {
     // Lectura con service role sobre la tabla real; si no se encuentra, el link
     // igual funciona en modo solo-lectura (sin acciones).
     let manageToken: string | null = null;
+    let employeeId: string | null = null;
     if (booking.startIso && booking.clientPhone) {
       const { data: appt } = await supabase
         .from("appointments")
-        .select("manage_token")
+        .select("manage_token, employee_id")
         .eq("business_id", businessId)
         .eq("starts_at", booking.startIso)
         .eq("client_phone", booking.clientPhone)
@@ -161,12 +164,14 @@ Deno.serve(async (req: Request) => {
         .limit(1)
         .maybeSingle();
       manageToken = (appt?.manage_token as string) ?? null;
+      employeeId = (appt?.employee_id as string) ?? null;
     }
 
     const manageUrl = buildManageUrl(
       brand,
       businessId,
       manageToken,
+      employeeId,
       { slug: biz?.slug as string, address: biz?.address as string, phone: biz?.phone as string },
       booking,
     );
