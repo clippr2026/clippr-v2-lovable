@@ -1,18 +1,14 @@
 // ───────────────────────────────────────────────────────────────────────────
 // Edge Function: send-booking-email
 //
-// Envía correos transaccionales de Clippr vía Resend. Enrutada por `type`
-// (confirmation | reminder | reschedule | cancellation) para soportar todos
-// los correos actuales y futuros con una sola función.
+// Envía correos transaccionales de Clippr vía Resend, heredando el BRANDING
+// del negocio (modo claro/oscuro + colores + logo + nombre) configurado en su
+// página pública. Enrutada por `type` (confirmation | reminder | reschedule |
+// cancellation) para soportar todos los correos con una sola función.
 //
-// Remitente: `Nombre del negocio <hola@myclippr.com>` — el nombre se toma
-// SIEMPRE desde la base (businesses.name), nunca del input del cliente, para
-// evitar spoofing del remitente.
-//
-// Variables de entorno requeridas (Supabase → Edge Functions → Secrets):
-//   - RESEND_API_KEY            (secreto de Resend)
-//   - SUPABASE_URL              (inyectada automáticamente)
-//   - SUPABASE_SERVICE_ROLE_KEY (inyectada automáticamente)
+// Env requeridas (Supabase → Edge Functions → Secrets):
+//   - RESEND_API_KEY
+//   - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (inyectadas por Supabase)
 // ───────────────────────────────────────────────────────────────────────────
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.106.2";
@@ -22,7 +18,10 @@ import {
   clipprSender,
   CLIPPR_FROM_EMAIL,
   type BookingEmailData,
+  type BrandTheme,
 } from "../_shared/email-templates.ts";
+
+const APP_ORIGIN = "https://myclippr.com";
 
 type Payload = {
   type?: string;
@@ -36,6 +35,9 @@ type Payload = {
     date?: string;
     time?: string;
     total?: number;
+    startIso?: string | null;
+    durationMin?: number | null;
+    notes?: string | null;
   };
 };
 
@@ -44,6 +46,36 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+const hex = (s: unknown, fb: string) =>
+  typeof s === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) ? s : fb;
+
+/** Construye el link a la página de gestión del turno con el branding embebido. */
+function buildManageUrl(
+  brand: BrandTheme,
+  biz: { slug?: string | null; address?: string | null; phone?: string | null },
+  booking: Payload["booking"],
+): string {
+  const q = new URLSearchParams();
+  q.set("b", brand.name);
+  if (biz.slug) q.set("slug", biz.slug);
+  q.set("svc", booking?.services ?? "");
+  q.set("prof", booking?.professional ?? "");
+  q.set("d", booking?.date ?? "");
+  q.set("t", booking?.time ?? "");
+  if (booking?.startIso) q.set("s", booking.startIso);
+  if (booking?.durationMin) q.set("dur", String(booking.durationMin));
+  if (biz.address) q.set("addr", biz.address);
+  if (biz.phone) q.set("ph", biz.phone);
+  if (booking?.notes) q.set("n", booking.notes);
+  // branding
+  q.set("pc", brand.primary);
+  q.set("ac", brand.accent);
+  q.set("bt", brand.buttonText);
+  q.set("m", brand.mode);
+  if (brand.logoUrl) q.set("logo", brand.logoUrl);
+  return `${APP_ORIGIN}/gestion?${q.toString()}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -58,7 +90,7 @@ Deno.serve(async (req: Request) => {
     const booking = payload.booking ?? {};
 
     if (!businessId) return json({ error: "businessId requerido" }, 400);
-    if (!to) return json({ ok: true, skipped: "sin email del cliente" }); // no es error: turno válido sin email
+    if (!to) return json({ ok: true, skipped: "sin email del cliente" });
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) return json({ error: "RESEND_API_KEY no configurada" }, 500);
@@ -68,27 +100,43 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Nombre/slug/email autoritativos del negocio (Branding > Nombre del negocio).
+    // Datos del negocio (nombre, dirección, logo, color de acento).
     const { data: biz } = await supabase
       .from("businesses")
-      .select("name, slug, email")
+      .select("name, slug, email, address, phone, logo_url, avatar_url, accent_color")
       .eq("id", businessId)
       .maybeSingle();
 
-    // Color de marca opcional (business_settings.schedule._branding.colors.primary).
-    let accent: string | null = null;
+    // Branding configurado en la página pública.
     const { data: settings } = await supabase
       .from("business_settings")
       .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle();
-    const colors = (settings?.schedule as Record<string, any> | null)?._branding?.colors;
-    if (colors && typeof colors.primary === "string") accent = colors.primary;
+    const branding = ((settings?.schedule as Record<string, any> | null)?._branding ?? {}) as Record<string, any>;
+    const colors = (branding.colors ?? {}) as Record<string, string>;
+
+    // Misma derivación que la página pública de reservas.
+    const accentColor = (biz?.accent_color as string) ?? null;
+    const primary = hex(colors.primary, hex(colors.secondary, hex(accentColor, "#7c3aed")));
+    const brand: BrandTheme = {
+      mode: branding.theme === "light" ? "light" : "dark",
+      primary,
+      secondary: hex(colors.secondary, primary),
+      accent: hex(colors.accent, hex(accentColor, "#d6b66a")),
+      buttonText: hex(colors.buttonText, "#ffffff"),
+      name: (biz?.name as string) || "Clippr",
+      logoUrl: (biz?.avatar_url as string) || (biz?.logo_url as string) || null,
+    };
+
+    const manageUrl = buildManageUrl(
+      brand,
+      { slug: biz?.slug as string, address: biz?.address as string, phone: biz?.phone as string },
+      booking,
+    );
 
     const data: BookingEmailData = {
-      businessName: (biz?.name as string) || "Clippr",
-      businessSlug: (biz?.slug as string) ?? null,
-      accent,
+      brand,
       services: booking.services || "-",
       professional: booking.professional || "Sin preferencia",
       clientName: booking.clientName || "-",
@@ -96,6 +144,8 @@ Deno.serve(async (req: Request) => {
       date: booking.date || "-",
       time: booking.time || "-",
       total: Number(booking.total ?? 0),
+      manageUrl,
+      calendarUrl: `${manageUrl}#calendario`,
     };
 
     const email = buildBookingEmail(type, data);
@@ -103,12 +153,9 @@ Deno.serve(async (req: Request) => {
 
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: clipprSender(data.businessName),
+        from: clipprSender(brand.name),
         to: [to],
         reply_to: biz?.email ? [biz.email as string] : [CLIPPR_FROM_EMAIL],
         subject: email.subject,
