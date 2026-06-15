@@ -97,31 +97,26 @@ function buttonsHtml(buttons: Btn[], brand: BrandTheme, p: ReturnType<typeof pal
   const visible = buttons.filter((b) => b.url);
   if (!visible.length) return "";
   const accent = hex(brand.accent, brand.primary);
-  const cells = visible
+  const nowrap = "white-space:nowrap;word-break:keep-all;overflow-wrap:normal;";
+  const rows = visible
     .map((b) => {
-      if (b.variant === "primary") {
-        return `
-        <td style="padding:6px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" style="border-radius:12px;background:${accent};" bgcolor="${accent}">
-            <tr><td align="center" style="border-radius:12px;">
-              <a href="${esc(b.url)}" target="_blank" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:700;color:${esc(brand.buttonText)};text-decoration:none;border-radius:12px;">${esc(b.label)}</a>
-            </td></tr>
-          </table>
-        </td>`;
-      }
+      const isPrimary = b.variant === "primary";
+      const bg = isPrimary ? accent : p.cardBg;
+      const color = isPrimary ? brand.buttonText : p.text;
+      const borderStyle = isPrimary ? "" : `border:1px solid ${p.border};`;
       return `
-        <td style="padding:6px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" style="border-radius:12px;border:1px solid ${p.border};background:${p.cardBg};" bgcolor="${p.cardBg}">
+        <tr><td align="center" style="padding:5px 0;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="border-radius:12px;background:${bg};${borderStyle}" bgcolor="${bg}">
             <tr><td align="center" style="border-radius:12px;">
-              <a href="${esc(b.url)}" target="_blank" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:700;color:${p.text};text-decoration:none;border-radius:12px;">${esc(b.label)}</a>
+              <a href="${esc(b.url)}" target="_blank" style="display:inline-block;padding:13px 30px;font-size:14px;font-weight:700;color:${color};text-decoration:none;border-radius:12px;${nowrap}">${esc(b.label)}</a>
             </td></tr>
           </table>
-        </td>`;
+        </td></tr>`;
     })
     .join("");
   return `
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto 0;">
-        <tr>${cells}</tr>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;">
+        ${rows}
       </table>`;
 }
 
