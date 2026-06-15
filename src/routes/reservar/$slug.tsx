@@ -9,7 +9,9 @@ import {
   ChevronRight,
   Clock3,
   Loader2,
+  Mail,
   MapPin,
+  Phone,
   Scissors,
   UserRound,
   UsersRound,
@@ -20,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import clipprLogo from "@/assets/clippr-logo.jpeg";
+import clipprMark from "@/assets/clippr-mark.png";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -617,19 +619,20 @@ function PublicBookingPage() {
         <div className="space-y-6">
           <Card className="booking-card booking-shell border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white/50">Paso {stepIndex} de 4</p>
-                  <h2 className="text-2xl font-semibold">
-                    {step === "services" && "Elegí tus servicios"}
-                    {step === "professional" && "Elegí profesional"}
-                    {step === "datetime" && "Elegí día y horario"}
-                    {step === "details" && "Tus datos"}
-                    {step === "done" && "Reserva confirmada"}
-                  </h2>
+              {step !== "done" ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-white/50">Paso {stepIndex} de 4</p>
+                    <h2 className="text-2xl font-semibold">
+                      {step === "services" && "Elegí tus servicios"}
+                      {step === "professional" && "Elegí profesional"}
+                      {step === "datetime" && "Elegí día y horario"}
+                      {step === "details" && "Tus datos"}
+                    </h2>
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/4</div>
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/4</div>
-              </div>
+              ) : null}
 
               {step !== "services" && step !== "done" ? (
                 <button
@@ -814,113 +817,122 @@ function PublicBookingPage() {
               {step === "done" ? (
                 <div
                   className={cn(
-                    "relative mt-6 overflow-hidden rounded-[2rem] border p-5 shadow-2xl sm:p-8",
+                    "relative mt-6 overflow-hidden rounded-[2rem] border p-6 shadow-2xl sm:p-10",
                     isLight
-                      ? "border-slate-200 bg-white text-slate-950 shadow-slate-200/70"
+                      ? "border-slate-200 bg-white text-slate-950 shadow-slate-200/60"
                       : "border-white/10 bg-[#070711] text-white shadow-black/50",
                   )}
                 >
                   <div
-                    className="pointer-events-none absolute inset-0 opacity-90"
+                    className="pointer-events-none absolute inset-x-0 top-0 h-64"
                     style={{
                       background: isLight
-                        ? "radial-gradient(circle at 12% 20%, color-mix(in oklch, var(--c-primary) 20%, transparent), transparent 34%), radial-gradient(circle at 88% 88%, color-mix(in oklch, var(--c-secondary) 18%, transparent), transparent 38%)"
-                        : "radial-gradient(circle at 10% 18%, rgba(56,189,248,.20), transparent 34%), radial-gradient(circle at 88% 86%, rgba(217,70,239,.24), transparent 40%)",
+                        ? "radial-gradient(60% 100% at 50% 0%, color-mix(in oklch, var(--c-primary) 12%, transparent), transparent 70%)"
+                        : "radial-gradient(60% 100% at 50% 0%, rgba(124,58,237,.18), transparent 70%)",
                     }}
                   />
 
-                  <div className="relative mx-auto max-w-4xl">
-                    <div className="mb-7 text-center">
+                  <div className="relative mx-auto max-w-2xl">
+                    {/* Encabezado */}
+                    <div className="text-center">
                       <div
                         className={cn(
-                          "mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold",
-                          isLight ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+                          "mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold",
+                          isLight ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-emerald-400/25 bg-emerald-400/10 text-emerald-300",
                         )}
                       >
                         <CheckCircle2 className="h-4 w-4" /> Reserva confirmada
                       </div>
-                      <h3 className={cn("mt-4 text-3xl font-bold tracking-tight sm:text-5xl", isLight ? "text-slate-950" : "text-white")}>
+                      <h3 className={cn("mt-5 text-4xl font-bold tracking-tight sm:text-5xl", isLight ? "text-slate-950" : "text-white")}>
                         ¡Turno confirmado!
                       </h3>
-                      <p className={cn("mx-auto mt-3 max-w-2xl text-sm sm:text-base", isLight ? "text-slate-600" : "text-white/70")}>
-                        Tu reserva ya quedó registrada en la agenda de {business.name}. Ese horario quedó bloqueado para nuevas reservas.
+                      <p className={cn("mx-auto mt-3 max-w-md text-sm leading-relaxed sm:text-base", isLight ? "text-slate-500" : "text-white/60")}>
+                        Tu reserva fue registrada correctamente. Revisá los detalles de tu turno a continuación.
                       </p>
                     </div>
 
-                    <div className="grid gap-5 lg:grid-cols-[260px_1fr] lg:items-stretch">
-                      <div className={cn("relative overflow-hidden rounded-[1.75rem] border p-5", isLight ? "border-slate-200 bg-[#050718]" : "border-white/10 bg-black/35")}>
-                        <div className="pointer-events-none absolute -left-12 -top-12 h-40 w-40 rounded-full bg-sky-400/35 blur-3xl" />
-                        <div className="pointer-events-none absolute -bottom-14 -right-12 h-44 w-44 rounded-full bg-fuchsia-500/35 blur-3xl" />
-                        <div className="relative flex h-full min-h-[230px] flex-col items-center justify-center text-center">
-                          <img
-                            src={clipprLogo}
-                            alt="Clippr"
-                            className="aspect-square w-full max-w-[190px] rounded-[1.5rem] object-cover shadow-[0_0_70px_rgba(168,85,247,.45)] ring-1 ring-white/10"
-                          />
-                          <p className="mt-4 text-[0.7rem] font-medium tracking-wide text-white/40">Reservá con Clippr</p>
-                        </div>
-                      </div>
-
-                      <div className={cn("rounded-[1.75rem] border p-5 backdrop-blur-xl sm:p-6", isLight ? "border-slate-200 bg-white/85" : "border-white/10 bg-white/[0.07]")}>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          {[
-                            { label: "Servicio", value: confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + "), icon: Scissors },
-                            { label: "Profesional", value: confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia", icon: UserRound },
-                            { label: "Cliente", value: confirmedBooking?.clientName || clientName, icon: UsersRound },
-                            { label: "Teléfono", value: confirmedBooking?.clientPhone || clientPhone, icon: Clock3 },
-                            { label: "Fecha", value: confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-"), icon: CalendarDays },
-                            { label: "Horario", value: confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-"), icon: Clock3 },
-                          ].map((item) => (
-                            <div key={item.label} className={cn("rounded-2xl border p-4", isLight ? "border-slate-200 bg-slate-50/90" : "border-white/10 bg-black/20")}>
-                              <div className="flex items-start gap-3">
-                                <span
-                                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
-                                  style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
-                                >
-                                  {React.createElement(item.icon, { className: "h-5 w-5" })}
-                                </span>
-                                <div className="min-w-0">
-                                  <p className={cn("text-xs font-medium", isLight ? "text-slate-500" : "text-white/50")}>{item.label}</p>
-                                  <p className={cn("mt-1 break-words text-sm font-bold", isLight ? "text-slate-950" : "text-white")}>{item.value}</p>
-                                </div>
+                    {/* Datos del turno */}
+                    <div className={cn("mt-8 rounded-[1.5rem] border p-4 sm:p-5", isLight ? "border-slate-200 bg-slate-50/70" : "border-white/[0.08] bg-white/[0.03]")}>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {[
+                          { label: "Servicio", value: confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + "), icon: Scissors },
+                          { label: "Profesional", value: confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia", icon: UserRound },
+                          { label: "Cliente", value: confirmedBooking?.clientName || clientName, icon: UsersRound },
+                          { label: "Teléfono", value: confirmedBooking?.clientPhone || clientPhone, icon: Phone },
+                          { label: "Fecha", value: confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-"), icon: CalendarDays },
+                          { label: "Horario", value: confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-"), icon: Clock3 },
+                        ].map((item) => (
+                          <div key={item.label} className={cn("rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
+                            <div className="flex items-center gap-3">
+                              <span
+                                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white"
+                                style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                              >
+                                {React.createElement(item.icon, { className: "h-[18px] w-[18px]" })}
+                              </span>
+                              <div className="min-w-0">
+                                <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>{item.label}</p>
+                                <p className={cn("mt-0.5 break-words text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{item.value}</p>
                               </div>
                             </div>
-                          ))}
-                        </div>
-
-                        {(confirmedBooking?.clientEmail || clientEmail) ? (
-                          <div className={cn("mt-4 rounded-2xl border p-4", isLight ? "border-slate-200 bg-slate-50/90" : "border-white/10 bg-black/20")}>
-                            <p className={cn("text-xs font-medium", isLight ? "text-slate-500" : "text-white/50")}>Email</p>
-                            <p className={cn("mt-1 break-words text-sm font-bold", isLight ? "text-slate-950" : "text-white")}>{confirmedBooking?.clientEmail || clientEmail}</p>
                           </div>
-                        ) : null}
+                        ))}
+                      </div>
 
-                        <div
-                          className={cn(
-                            "mt-5 flex items-center justify-between rounded-3xl border px-5 py-4",
-                            isLight
-                              ? "border-slate-200 bg-white text-slate-950 shadow-lg shadow-slate-200/70"
-                              : "border-white/10 bg-white/[0.08] text-white",
-                          )}
-                          style={{ boxShadow: `0 0 35px color-mix(in oklch, ${cPrimary} 22%, transparent)` }}
-                        >
-                          <span className={cn("text-sm font-medium", isLight ? "text-slate-500" : "text-white/60")}>Total</span>
-                          <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
+                      {(confirmedBooking?.clientEmail || clientEmail) ? (
+                        <div className={cn("mt-3 rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white"
+                              style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                            >
+                              <Mail className="h-[18px] w-[18px]" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Email</p>
+                              <p className={cn("mt-0.5 break-words text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{confirmedBooking?.clientEmail || clientEmail}</p>
+                            </div>
+                          </div>
                         </div>
+                      ) : null}
+
+                      <div
+                        className={cn(
+                          "mt-3 flex items-center justify-between rounded-2xl px-5 py-4",
+                          isLight ? "text-slate-950" : "text-white",
+                        )}
+                        style={{ background: `linear-gradient(135deg, color-mix(in oklch, ${cPrimary} 14%, transparent), color-mix(in oklch, ${cSecondary} 14%, transparent))` }}
+                      >
+                        <span className={cn("text-sm font-medium", isLight ? "text-slate-600" : "text-white/70")}>Total</span>
+                        <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
                       </div>
                     </div>
 
+                    {business.email ? (
+                      <p className={cn("mt-5 flex items-center justify-center gap-2 px-4 text-center text-xs", isLight ? "text-slate-400" : "text-white/40")}>
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        <span>Enviamos la información de tu reserva a <span className="font-medium">{business.email}</span></span>
+                      </p>
+                    ) : null}
+
+                    {/* Acción */}
                     <div className="mt-7 flex justify-center">
                       <Link
                         to="/negocio/$slug"
                         params={{ slug }}
                         className={cn(
-                          "inline-flex rounded-2xl border px-6 py-3 text-sm font-bold transition hover:scale-[1.01]",
-                          isLight ? "border-slate-200 bg-white text-slate-950 shadow-lg shadow-slate-200/70 hover:bg-slate-50" : "border-white/10 bg-white/[0.08] text-white hover:bg-white/10",
+                          "inline-flex rounded-2xl border px-7 py-3 text-sm font-bold transition hover:scale-[1.01]",
+                          isLight ? "border-slate-200 bg-white text-slate-950 shadow-lg shadow-slate-200/60 hover:bg-slate-50" : "border-white/10 bg-white/[0.08] text-white hover:bg-white/[0.12]",
                         )}
                       >
                         Volver al perfil
                       </Link>
+                    </div>
+
+                    {/* Firma Clippr */}
+                    <div className={cn("mt-9 flex items-center justify-center gap-2 border-t pt-6", isLight ? "border-slate-200" : "border-white/[0.08]")}>
+                      <img src={clipprMark} alt="" className="h-4 w-4 object-contain opacity-90" />
+                      <span className={cn("text-xs font-medium tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Reservá fácil con Clippr</span>
                     </div>
                   </div>
                 </div>
