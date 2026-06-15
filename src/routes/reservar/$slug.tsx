@@ -208,6 +208,24 @@ function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
   return aStart < bEnd && aEnd > bStart;
 }
 
+function getPublicBookingErrorMessage(error: unknown) {
+  const raw = String((error as any)?.message || (error as Error)?.message || "").trim();
+  const lower = raw.toLowerCase();
+  if (lower.includes("horario") || lower.includes("ocupado") || lower.includes("overlap")) {
+    return "Ese horario ya no está disponible. Elegí otro turno.";
+  }
+  if (lower.includes("service") || lower.includes("servicio")) {
+    return "El servicio seleccionado no está disponible para reservar online.";
+  }
+  if (lower.includes("employee") || lower.includes("profesional")) {
+    return "Ese profesional no está disponible para este horario.";
+  }
+  if (lower.includes("permission denied") || lower.includes("permission") || lower.includes("rls")) {
+    return "No se pudo guardar por permisos de Supabase. Aplicá la migración de reserva pública incluida en este ZIP.";
+  }
+  return raw || "No se pudo crear la reserva. Probá nuevamente.";
+}
+
 function buildSlots(
   schedule: ScheduleMap,
   appointments: Appointment[],
@@ -306,6 +324,7 @@ function PublicBookingPage() {
   const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
   const [showDatePicker, setShowDatePicker] = React.useState(false);
+  const calendarInputRef = React.useRef<HTMLInputElement | null>(null);
   const selectedDay = availableDays[selectedDayIndex] ?? availableDays[0] ?? null;
 
   React.useEffect(() => {
@@ -469,8 +488,20 @@ function PublicBookingPage() {
     try {
       const start = selectedSlot.time;
       const end = addMinutes(start, totalDuration);
+      const dayStart = startOfDay(start).toISOString();
+      const dayEnd = addMinutes(startOfDay(start), 24 * 60).toISOString();
+      const freshAppointmentsRes = await supabase
+        .from("public_booking_appointments")
+        .select("id,employee_id,starts_at,ends_at,duration_min,status")
+        .eq("business_id", business.id)
+        .eq("employee_id", selectedSlot.employeeId)
+        .gte("starts_at", dayStart)
+        .lt("starts_at", dayEnd);
+      const appointmentsToValidate = freshAppointmentsRes.error
+        ? appointments
+        : ((freshAppointmentsRes.data ?? []) as Appointment[]);
 
-      const alreadyTaken = appointments.some((appt) => {
+      const alreadyTaken = appointmentsToValidate.some((appt) => {
         if (appt.status === "cancelled") return false;
         if (appt.employee_id !== selectedSlot.employeeId) return false;
         const apptStart = new Date(appt.starts_at);
@@ -513,8 +544,7 @@ function PublicBookingPage() {
           else fallbackError = fallback.error;
         }
         if (fallbackError) {
-          const rpcMessage = (fallbackError as any)?.message;
-          throw new Error(rpcMessage || "No se pudo crear la reserva. Revisá la función create_public_booking_v2 en Supabase.");
+          throw new Error(getPublicBookingErrorMessage(fallbackError));
         }
       }
 
@@ -533,7 +563,7 @@ function PublicBookingPage() {
       setStep("done");
       toast.success("Turno reservado correctamente");
     } catch (error) {
-      toast.error((error as Error).message);
+      toast.error(getPublicBookingErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -724,36 +754,51 @@ function PublicBookingPage() {
                     <div className="relative">
                       <button
                         type="button"
-                        onClick={() => setShowDatePicker((value) => !value)}
-                        className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] transition hover:border-white/25 hover:bg-white/[0.08]"
+                        onClick={() => {
+                          setShowDatePicker(true);
+                          requestAnimationFrame(() => {
+                            const input = calendarInputRef.current;
+                            if (!input) return;
+                            if (typeof input.showPicker === "function") input.showPicker();
+                            else input.focus();
+                          });
+                        }}
+                        className="inline-flex h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold transition hover:border-white/25 hover:bg-white/[0.08]"
                         title="Abrir calendario"
                       >
                         <CalendarDays className="h-5 w-5" />
+                        Calendario
                       </button>
-                      {showDatePicker ? (
-                        <input
-                          type="date"
-                          className="absolute right-0 top-12 z-20 rounded-2xl border border-white/10 bg-white p-3 text-sm text-zinc-950 shadow-2xl"
-                          min={formatInputDate(new Date())}
-                          value={selectedDay ? formatInputDate(selectedDay.date) : ""}
-                          onChange={(event) => {
-                            const index = availableDays.findIndex((day) => formatInputDate(day.date) === event.target.value);
-                            if (index >= 0) {
-                              setSelectedDayIndex(index);
-                              setSelectedSlot(null);
-                              setShowDatePicker(false);
-                            } else {
-                              toast.error("Ese día no tiene horarios disponibles.");
-                            }
-                          }}
-                        />
-                      ) : null}
+                      <input
+                        ref={calendarInputRef}
+                        type="date"
+                        className={cn(
+                          "absolute right-0 top-12 z-20 w-[1px] opacity-0",
+                          showDatePicker ? "pointer-events-auto" : "pointer-events-none",
+                        )}
+                        min={formatInputDate(new Date())}
+                        value={selectedDay ? formatInputDate(selectedDay.date) : ""}
+                        onBlur={() => setShowDatePicker(false)}
+                        onChange={(event) => {
+                          const index = availableDays.findIndex((day) => formatInputDate(day.date) === event.target.value);
+                          if (index >= 0) {
+                            setSelectedDayIndex(index);
+                            setSelectedSlot(null);
+                            setShowDatePicker(false);
+                          } else {
+                            toast.error("Ese día no tiene horarios disponibles.");
+                          }
+                        }}
+                      />
                     </div>
                   </div>
 
                   <div>
                     <div className="mb-4 flex items-center justify-between gap-3">
-                      <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">Seleccioná una fecha</h3>
+                      <div>
+                        <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">Agenda disponible</h3>
+                        <p className="mt-1 text-sm text-white/50">Elegí día y después tocá un horario libre.</p>
+                      </div>
                       <div className="hidden items-center gap-2 sm:flex">
                         <button type="button" onClick={() => setSelectedDayIndex((index) => Math.max(0, index - 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha anterior"><ChevronLeft className="h-5 w-5" /></button>
                         <button type="button" onClick={() => setSelectedDayIndex((index) => Math.min(Math.max(availableDays.length - 1, 0), index + 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha siguiente"><ChevronRight className="h-5 w-5" /></button>
@@ -774,10 +819,10 @@ function PublicBookingPage() {
                               type="button"
                               onClick={() => setSelectedDayIndex(index)}
                               className={cn(
-                                "flex min-w-[72px] flex-col items-center rounded-2xl border px-4 py-3 text-center transition",
-                                active ? "border-transparent text-white shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
+                                "flex min-w-[86px] flex-col items-center rounded-[1.4rem] border px-4 py-3 text-center transition",
+                                active ? "border-transparent text-white shadow-[0_14px_36px_rgba(0,0,0,.20)]" : "border-white/10 bg-white/[0.04] text-white/60 hover:-translate-y-0.5 hover:bg-white/[0.08]",
                               )}
-                              style={active ? { background: accent } : undefined}
+                              style={active ? { background: `linear-gradient(135deg, ${accent}, var(--c-primary))` } : undefined}
                             >
                               <span className="text-sm capitalize leading-none">{weekday}</span>
                               <span className="mt-1.5 text-2xl font-bold leading-none">{day.date.getDate()}</span>
@@ -798,9 +843,10 @@ function PublicBookingPage() {
                             key={`${slot.employeeId}-${slot.time.toISOString()}`}
                             type="button"
                             onClick={() => { setSelectedSlot(slot); setStep("details"); }}
-                            className="slot-button flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
+                            className="slot-button flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
                           >
-                            {formatTime(slot.time)}
+                            <span>{formatTime(slot.time)}</span>
+                            <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs text-white/55">Libre</span>
                           </button>
                         ))}
                       </div>
