@@ -15,7 +15,6 @@ import {
   Phone,
   Sparkles,
   Star,
-  Trophy,
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -596,11 +595,10 @@ function PublicProfilePage() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-center gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
-                      <Trophy className="h-5 w-5" />
+                      <Star className="h-5 w-5" />
                     </span>
                     <div>
                       <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
-                      <p className="mt-1 text-sm text-white/55">Marcas, artistas, futbolistas, equipos y empresas que eligieron nuestro trabajo.</p>
                     </div>
                   </div>
 
@@ -617,17 +615,23 @@ function PublicProfilePage() {
 
                 <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
                   {featuredClients.slice(0, 5).map((item, index) => (
-                    <div key={item.id || `${item.name}-${index}`} className="min-w-[145px] rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07]">
-                      <div className="mx-auto grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                    <div
+                      key={item.id || `${item.name}-${index}`}
+                      className={(isLight
+                        ? "border-violet-400/35 bg-zinc-950 text-white shadow-[0_0_24px_rgba(168,85,247,0.28),0_10px_34px_rgba(168,85,247,0.18)] hover:shadow-[0_0_34px_rgba(168,85,247,0.38),0_14px_44px_rgba(168,85,247,0.24)]"
+                        : "border-violet-300/45 bg-white text-zinc-950 shadow-[0_0_28px_rgba(168,85,247,0.36),0_10px_42px_rgba(168,85,247,0.22)] hover:shadow-[0_0_42px_rgba(168,85,247,0.46),0_16px_56px_rgba(168,85,247,0.28)]") +
+                        " min-w-[145px] rounded-2xl border p-3 transition duration-300 hover:-translate-y-1"}
+                    >
+                      <div className={(isLight ? "bg-zinc-900 ring-white/10" : "bg-zinc-100 ring-zinc-200") + " mx-auto grid h-14 w-14 place-items-center overflow-hidden rounded-2xl ring-1"}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                         ) : (
-                          <span className="text-lg font-bold text-white/80">{item.name.slice(0, 1)}</span>
+                          <span className={(isLight ? "text-white" : "text-zinc-900") + " text-lg font-bold"}>{item.name.slice(0, 1)}</span>
                         )}
                       </div>
                       <div className="mt-3 min-w-0 text-center">
-                        <p className="truncate font-semibold text-white">{item.name}</p>
-                        <p className="mt-0.5 truncate text-xs text-white/50">{item.category}</p>
+                        <p className="truncate font-semibold">{item.name}</p>
+                        <p className={(isLight ? "text-white/65" : "text-zinc-600") + " mt-0.5 truncate text-xs"}>{item.category}</p>
                       </div>
                     </div>
                   ))}
@@ -907,7 +911,7 @@ function PublicProfilePage() {
             <div className={(isLight ? "border-zinc-200" : "border-white/10") + " flex items-start justify-between gap-4 border-b p-5 sm:p-6"}>
               <div className="flex items-center gap-3">
                 <span className={(isLight ? "border-zinc-200 bg-zinc-50" : "border-white/10 bg-white/5") + " grid h-11 w-11 place-items-center rounded-2xl border"} style={{ color: cAccent }}>
-                  <Trophy className="h-5 w-5" />
+                  <Star className="h-5 w-5" />
                 </span>
                 <div>
                   <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
@@ -935,17 +939,20 @@ function PublicProfilePage() {
                       {items.map((item, index) => (
                         <div
                           key={item.id || `featured-modal-${category}-${item.name}-${index}`}
-                          className={(isLight ? "border-zinc-200 bg-zinc-50" : "border-white/10 bg-white/[0.05]") + " rounded-3xl border p-4 text-center"}
+                          className={(isLight
+                            ? "border-violet-400/35 bg-zinc-950 text-white shadow-[0_0_26px_rgba(168,85,247,0.24),0_12px_36px_rgba(168,85,247,0.16)] hover:shadow-[0_0_38px_rgba(168,85,247,0.34),0_16px_48px_rgba(168,85,247,0.22)]"
+                            : "border-violet-300/45 bg-white text-zinc-950 shadow-[0_0_30px_rgba(168,85,247,0.34),0_12px_44px_rgba(168,85,247,0.22)] hover:shadow-[0_0_44px_rgba(168,85,247,0.44),0_18px_58px_rgba(168,85,247,0.28)]") +
+                            " rounded-3xl border p-4 text-center transition duration-300 hover:-translate-y-1"}
                         >
-                          <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/5 ring-white/10") + " mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl ring-1 sm:h-28 sm:w-28"}>
+                          <div className={(isLight ? "bg-zinc-900 ring-white/10" : "bg-zinc-100 ring-zinc-200") + " mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl ring-1 sm:h-28 sm:w-28"}>
                             {item.image_url ? (
                               <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                             ) : (
-                              <span className={(isLight ? "text-zinc-800" : "text-white/80") + " text-3xl font-bold"}>{item.name.slice(0, 1)}</span>
+                              <span className={(isLight ? "text-white" : "text-zinc-900") + " text-3xl font-bold"}>{item.name.slice(0, 1)}</span>
                             )}
                           </div>
                           <p className="mt-4 truncate font-semibold">{item.name}</p>
-                          <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-1 truncate text-sm"}>{item.category}</p>
+                          <p className={(isLight ? "text-white/65" : "text-zinc-600") + " mt-1 truncate text-sm"}>{item.category}</p>
                         </div>
                       ))}
                     </div>
