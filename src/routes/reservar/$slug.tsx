@@ -484,9 +484,10 @@ function PublicBookingPage() {
         return;
       }
 
-      const safeResult = await supabase.rpc("create_public_booking_safe", {
+      const bookingResult = await supabase.rpc("create_public_booking_public_v3", {
         p_business_id: business.id,
-        p_service_ids: selectedServiceIds,
+        // Se envía como texto para evitar el 400 que PostgREST daba con arrays uuid[].
+        p_service_ids: selectedServiceIds.join(","),
         p_employee_id: selectedSlot.employeeId,
         p_starts_at: start.toISOString(),
         p_client_name: clientName.trim(),
@@ -496,39 +497,10 @@ function PublicBookingPage() {
         p_notes: publicNotes || null,
       } as any);
 
-      if (safeResult.error) {
-        // Fallback para bases que todavía no tienen la migración nueva aplicada.
-        const v2Result = await supabase.rpc("create_public_booking_v2", {
-          p_business_id: business.id,
-          p_service_ids: selectedServiceIds,
-          p_employee_id: selectedSlot.employeeId,
-          p_starts_at: start.toISOString(),
-          p_client_name: clientName.trim(),
-          p_client_phone: clientPhone.trim(),
-          p_client_email: clientEmail.trim() || null,
-          p_client_birth_date: clientBirthDate || null,
-          p_notes: publicNotes || null,
-        } as any);
-
-        let fallbackError = v2Result.error || safeResult.error;
-        if (v2Result.error && selectedServices.length === 1) {
-          const fallback = await supabase.rpc("create_public_booking", {
-            p_business_id: business.id,
-            p_service_id: selectedServiceIds[0],
-            p_employee_id: selectedSlot.employeeId,
-            p_starts_at: start.toISOString(),
-            p_client_name: clientName.trim(),
-            p_client_phone: clientPhone.trim(),
-            p_client_email: clientEmail.trim() || null,
-            p_notes: publicNotes || null,
-          } as any);
-          if (!fallback.error) fallbackError = null as any;
-          else fallbackError = fallback.error;
-        }
-        if (fallbackError) {
-          const rpcMessage = (fallbackError as any)?.message;
-          throw new Error(rpcMessage || "No se pudo crear la reserva. Aplicá la migración create_public_booking_safe en Supabase.");
-        }
+      if (bookingResult.error) {
+        console.error("Public booking RPC error", bookingResult.error);
+        const rpcMessage = (bookingResult.error as any)?.message;
+        throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v3 en Supabase.");
       }
 
       setAppointments((current) => [
