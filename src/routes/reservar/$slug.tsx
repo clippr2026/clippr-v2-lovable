@@ -847,14 +847,14 @@ function PublicBookingPage() {
                     </div>
 
                     <div className="grid gap-5 lg:grid-cols-[260px_1fr] lg:items-stretch">
-                      <div className={cn("relative overflow-hidden rounded-[1.75rem] border p-5", isLight ? "border-slate-200 bg-slate-950" : "border-white/10 bg-black/35")}>
+                      <div className={cn("relative overflow-hidden rounded-[1.75rem] border p-5", isLight ? "border-slate-200 bg-[#050718]" : "border-white/10 bg-black/35")}>
                         <div className="pointer-events-none absolute -left-12 -top-12 h-40 w-40 rounded-full bg-sky-400/35 blur-3xl" />
                         <div className="pointer-events-none absolute -bottom-14 -right-12 h-44 w-44 rounded-full bg-fuchsia-500/35 blur-3xl" />
                         <div className="relative flex h-full min-h-[230px] flex-col items-center justify-center text-center">
                           <img
                             src="/clippr-confirmation-logo.jpeg"
                             alt="Clippr"
-                            className="h-36 w-36 rounded-[2rem] object-cover shadow-[0_0_70px_rgba(168,85,247,.45)]"
+                            className="h-40 w-48 rounded-[1.5rem] object-contain p-3 shadow-[0_0_70px_rgba(168,85,247,.45)]"
                           />
                           <p className="mt-4 text-xs font-semibold uppercase tracking-[0.55em] text-white/60">Clippr</p>
                         </div>
@@ -895,11 +895,16 @@ function PublicBookingPage() {
                         ) : null}
 
                         <div
-                          className={cn("mt-5 flex items-center justify-between rounded-3xl border px-5 py-4", isLight ? "border-slate-200 bg-slate-950 text-white" : "border-white/10 bg-white/[0.08]")}
+                          className={cn(
+                            "mt-5 flex items-center justify-between rounded-3xl border px-5 py-4",
+                            isLight
+                              ? "border-slate-200 bg-white text-slate-950 shadow-lg shadow-slate-200/70"
+                              : "border-white/10 bg-white/[0.08] text-white",
+                          )}
                           style={{ boxShadow: `0 0 35px color-mix(in oklch, ${cPrimary} 22%, transparent)` }}
                         >
-                          <span className={cn("text-sm font-medium", isLight ? "text-white/70" : "text-white/60")}>Total</span>
-                          <span className="text-3xl font-black tracking-tight text-white">{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
+                          <span className={cn("text-sm font-medium", isLight ? "text-slate-500" : "text-white/60")}>Total</span>
+                          <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
                         </div>
                       </div>
                     </div>
