@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import clipprLogo from "@/assets/clippr-logo.jpeg";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -852,11 +853,11 @@ function PublicBookingPage() {
                         <div className="pointer-events-none absolute -bottom-14 -right-12 h-44 w-44 rounded-full bg-fuchsia-500/35 blur-3xl" />
                         <div className="relative flex h-full min-h-[230px] flex-col items-center justify-center text-center">
                           <img
-                            src="/clippr-confirmation-logo.jpeg"
+                            src={clipprLogo}
                             alt="Clippr"
-                            className="h-40 w-48 rounded-[1.5rem] object-contain p-3 shadow-[0_0_70px_rgba(168,85,247,.45)]"
+                            className="aspect-square w-full max-w-[190px] rounded-[1.5rem] object-cover shadow-[0_0_70px_rgba(168,85,247,.45)] ring-1 ring-white/10"
                           />
-                          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.55em] text-white/60">Clippr</p>
+                          <p className="mt-4 text-[0.7rem] font-medium tracking-wide text-white/40">Reservá con Clippr</p>
                         </div>
                       </div>
 
