@@ -666,6 +666,32 @@ function LandingSection() {
   );
 }
 
+function normalizeWhatsAppArgentina(phone: string): string {
+  let raw = String(phone ?? "").replace(/\D/g, "");
+  if (!raw) return "";
+  if (raw.startsWith("00")) raw = raw.slice(2);
+
+  // WhatsApp Argentina para celulares: 549 + código de área + número.
+  if (raw.startsWith("549")) return raw;
+  if (raw.startsWith("54")) {
+    const rest = raw.slice(2).replace(/^0+/, "").replace(/^15/, "");
+    return `549${rest}`;
+  }
+
+  raw = raw.replace(/^0+/, "");
+  // Si lo cargan como 15 2790 0829, asumimos AMBA y lo convertimos a 11.
+  if (raw.startsWith("15")) raw = `11${raw.slice(2)}`;
+  return `549${raw}`;
+}
+
+function formatWhatsAppArgentinaPreview(normalized: string): string {
+  if (!normalized) return "";
+  if (normalized.startsWith("549") && normalized.length >= 12) {
+    return `+54 9 ${normalized.slice(3, 5)} ${normalized.slice(5, 9)} ${normalized.slice(9)}`;
+  }
+  return `+${normalized}`;
+}
+
 function BrandingSection() {
   const { businessId } = useAuth();
   const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
@@ -951,6 +977,8 @@ function BrandingSection() {
       return toast.error("Esa URL pública ya está en uso. Probá otra.");
     }
 
+    const normalizedPhone = normalizeWhatsAppArgentina(data.phone);
+
     // Save name + slug to businesses. Pedimos la fila de vuelta para detectar
     // el caso RLS: un UPDATE que no matchea filas devuelve éxito con 0 filas.
     const nameResult = await supabase
@@ -961,7 +989,7 @@ function BrandingSection() {
         avatar_url: avatar_url || null,
         cover_url: cover_url || null,
         address: data.address || null,
-        phone: data.phone || null,
+        phone: normalizedPhone || null,
         email: data.email || null,
         instagram: data.instagram || null,
       })
@@ -978,7 +1006,7 @@ function BrandingSection() {
       _branding: {
         ...((existingSchedule._branding ?? {}) as Record<string, unknown>),
         address: data.address,
-        phone: data.phone,
+        phone: normalizedPhone,
         email: data.email,
         instagram: data.instagram,
         website: data.website,
@@ -1002,7 +1030,7 @@ function BrandingSection() {
       return toast.error("No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.");
     }
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
-    setData(d => ({ ...d, logo_url, slug: finalSlug, avatar_url, cover_url }));
+    setData(d => ({ ...d, phone: normalizedPhone, logo_url, slug: finalSlug, avatar_url, cover_url }));
     setLogoFile(null);
     // Avisar al header (botón 🌐) para que actualice el link al instante.
     window.dispatchEvent(new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }));
@@ -1794,6 +1822,11 @@ function HorariosSection() {
               </div>
             );
           })}
+          {data.phone ? (
+            <div className="rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20 px-4 py-3 text-xs text-emerald-200">
+              WhatsApp detectado: {formatWhatsAppArgentinaPreview(normalizeWhatsAppArgentina(data.phone))}
+            </div>
+          ) : null}
         </div>
       </SectionCard>
     </>

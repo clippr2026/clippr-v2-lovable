@@ -89,8 +89,8 @@ function GestionPage() {
   const phone = normalizePhone(p.ph);
   const cancelMsg = buildWhatsAppMessage("cancelar", businessName, service, p.prof, dateLabel, timeLabel);
   const rescheduleMsg = buildWhatsAppMessage("reprogramar", businessName, service, p.prof, dateLabel, timeLabel);
-  const cancelUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(cancelMsg)}` : `https://wa.me/?text=${encodeURIComponent(cancelMsg)}`;
-  const rescheduleUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(rescheduleMsg)}` : `https://wa.me/?text=${encodeURIComponent(rescheduleMsg)}`;
+  const cancelUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(cancelMsg)}` : null;
+  const rescheduleUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(rescheduleMsg)}` : null;
 
   const mode = p.mode === "calendar" ? "calendar" : "manage";
 
@@ -128,12 +128,20 @@ function GestionPage() {
             <>
               <h1 style={{ margin: "0 0 18px", fontSize: 24, fontWeight: 800, textAlign: "center" }}>Gestionar turno</h1>
               <div style={{ display: "grid", gap: 12 }}>
-                <a href={cancelUrl} target="_blank" rel="noreferrer" style={solid(accent, buttonText)}>
-                  <X size={18} /> Cancelar turno
-                </a>
-                <a href={rescheduleUrl} target="_blank" rel="noreferrer" style={button(c.innerBg, c.border, c.text)}>
-                  <RefreshCw size={18} /> Reprogramar
-                </a>
+                {cancelUrl && rescheduleUrl ? (
+                  <>
+                    <a href={cancelUrl} target="_blank" rel="noreferrer" style={solid(accent, buttonText)}>
+                      <X size={18} /> Cancelar turno
+                    </a>
+                    <a href={rescheduleUrl} target="_blank" rel="noreferrer" style={button(c.innerBg, c.border, c.text)}>
+                      <RefreshCw size={18} /> Reprogramar
+                    </a>
+                  </>
+                ) : (
+                  <div style={{ padding: 14, borderRadius: 14, border: `1px solid ${c.border}`, background: c.innerBg, color: c.muted, textAlign: "center", fontSize: 14, fontWeight: 700 }}>
+                    El negocio no configuró un número de WhatsApp.
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -144,10 +152,21 @@ function GestionPage() {
 }
 
 function normalizePhone(phone?: string): string {
-  const raw = String(phone ?? "").replace(/\D/g, "");
+  let raw = String(phone ?? "").replace(/\D/g, "");
   if (!raw) return "";
-  if (raw.startsWith("54")) return raw;
-  return `54${raw}`;
+  if (raw.startsWith("00")) raw = raw.slice(2);
+
+  // Argentina: WhatsApp móvil necesita 549 + código de área + número.
+  if (raw.startsWith("549")) return raw;
+  if (raw.startsWith("54")) {
+    const rest = raw.slice(2).replace(/^0+/, "").replace(/^15/, "");
+    return `549${rest}`;
+  }
+
+  raw = raw.replace(/^0+/, "");
+  // Si lo cargan como 15 2790 0829, asumimos AMBA y lo convertimos a 11.
+  if (raw.startsWith("15")) raw = `11${raw.slice(2)}`;
+  return `549${raw}`;
 }
 
 function buildWhatsAppMessage(action: "cancelar" | "reprogramar", business: string, service: string, professional?: string, date?: string, time?: string): string {
