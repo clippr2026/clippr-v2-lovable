@@ -33,6 +33,9 @@ type Payload = {
     professional?: string;
     clientName?: string;
     clientPhone?: string | null;
+    clientEmail?: string | null;
+    appointmentId?: string | null;
+    manageToken?: string | null;
     date?: string;
     time?: string;
     total?: number;
@@ -53,6 +56,39 @@ const hex = (s: unknown, fb: string) =>
   typeof s === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) ? s : fb;
 
 /** Construye el link a la página de gestión del turno con el branding embebido. */
+
+function icsStamp(dt: Date): string {
+  return dt.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+}
+
+/** Link directo a Google Calendar para que el botón del email NO abra /gestion. */
+function buildDirectCalendarUrl(
+  brand: BrandTheme,
+  biz: { address?: string | null },
+  booking: Payload["booking"],
+): string | null {
+  if (!booking?.startIso) return null;
+  const start = new Date(booking.startIso);
+  if (Number.isNaN(start.getTime())) return null;
+  const duration = Number(booking.durationMin ?? 60);
+  const end = new Date(start.getTime() + (Number.isFinite(duration) ? duration : 60) * 60_000);
+  const title = `${booking.services || "Turno"} · ${brand.name}`;
+  const details = [
+    booking.professional ? `Profesional: ${booking.professional}` : null,
+    `Negocio: ${brand.name}`,
+    booking.notes ? `Notas: ${booking.notes}` : null,
+    "Reservado con Clippr",
+  ].filter(Boolean).join("\n");
+
+  const q = new URLSearchParams();
+  q.set("action", "TEMPLATE");
+  q.set("text", title);
+  q.set("dates", `${icsStamp(start)}/${icsStamp(end)}`);
+  q.set("details", details);
+  if (biz.address) q.set("location", biz.address);
+  return `https://calendar.google.com/calendar/render?${q.toString()}`;
+}
+
 function buildManageUrl(
   brand: BrandTheme,
   businessId: string,
@@ -149,22 +185,53 @@ Deno.serve(async (req: Request) => {
     };
 
     // Token de gestión del turno recién creado (para self-service en /gestion).
-    // Lectura con service role sobre la tabla real; si no se encuentra, el link
-    // igual funciona en modo solo-lectura (sin acciones).
-    let manageToken: string | null = null;
+    // Primero usamos valores que pueda devolver/pasar el frontend; si no existen,
+    // hacemos una búsqueda robusta en la tabla real.
+    let manageToken: string | null = booking.manageToken ?? null;
     let employeeId: string | null = null;
-    if (booking.startIso && booking.clientPhone) {
-      const { data: appt } = await supabase
+
+    if (booking.appointmentId) {
+      const { data: apptById } = await supabase
         .from("appointments")
         .select("manage_token, employee_id")
+        .eq("id", booking.appointmentId)
+        .maybeSingle();
+      manageToken = (apptById?.manage_token as string) ?? manageToken;
+      employeeId = (apptById?.employee_id as string) ?? employeeId;
+    }
+
+    if (!manageToken && booking.startIso) {
+      let query = supabase
+        .from("appointments")
+        .select("manage_token, employee_id, created_at")
+        .eq("business_id", businessId)
+        .eq("starts_at", booking.startIso)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (booking.clientEmail) {
+        query = query.eq("client_email", booking.clientEmail);
+      } else if (booking.clientPhone) {
+        query = query.eq("client_phone", booking.clientPhone);
+      }
+
+      const { data: appt } = await query.maybeSingle();
+      manageToken = (appt?.manage_token as string) ?? null;
+      employeeId = (appt?.employee_id as string) ?? null;
+    }
+
+    if (!manageToken && booking.startIso && booking.clientPhone && booking.clientEmail) {
+      const { data: apptFallback } = await supabase
+        .from("appointments")
+        .select("manage_token, employee_id, created_at")
         .eq("business_id", businessId)
         .eq("starts_at", booking.startIso)
         .eq("client_phone", booking.clientPhone)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      manageToken = (appt?.manage_token as string) ?? null;
-      employeeId = (appt?.employee_id as string) ?? null;
+      manageToken = (apptFallback?.manage_token as string) ?? null;
+      employeeId = (apptFallback?.employee_id as string) ?? employeeId;
     }
 
     const manageUrl = buildManageUrl(
@@ -186,7 +253,7 @@ Deno.serve(async (req: Request) => {
       time: booking.time || "-",
       total: Number(booking.total ?? 0),
       manageUrl,
-      calendarUrl: `${manageUrl}#calendario`,
+      calendarUrl: buildDirectCalendarUrl(brand, { address: biz?.address as string }, booking),
     };
 
     const email = buildBookingEmail(type, data);
