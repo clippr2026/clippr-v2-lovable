@@ -38,7 +38,7 @@ export type BookingEmailData = {
   total: number;
   /** Link a la página de gestión del turno (/gestion?...). */
   manageUrl?: string | null;
-  /** Link a "Agregar al calendario" (misma página, sección calendario). */
+  /** Link directo a calendario; no debe abrir /gestion. */
   calendarUrl?: string | null;
 };
 
