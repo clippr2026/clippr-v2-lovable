@@ -176,7 +176,6 @@ Deno.serve(async (req: Request) => {
     // Fallback: columna businesses.phone para instalaciones viejas.
     const businessWhatsApp =
       ((branding.phone as string | undefined)?.trim() || (biz?.phone as string | undefined)?.trim() || null);
-
     // Misma derivación que la página pública de reservas.
     const accentColor = (biz?.accent_color as string) ?? null;
     const primary = hex(colors.primary, hex(colors.secondary, hex(accentColor, "#7c3aed")));
