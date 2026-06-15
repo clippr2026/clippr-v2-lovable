@@ -1,18 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as React from "react";
-import { CalendarDays, Clock3, MapPin, Scissors, UserRound, CalendarPlus, RefreshCw, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, Scissors, UserRound, CalendarPlus, RefreshCw, X, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { buildSlots, normalizeSchedule, addMinutes, startOfDay, type Appointment } from "@/lib/availability";
 
-// Página pública del turno. Datos + branding por query params (los arma la Edge
-// Function send-booking-email). Por ahora no permite cancelar/reprogramar desde
-// la web: esos cambios se piden por WhatsApp. Esta pantalla muestra el detalle
-// del turno y permite elegir calendario: Apple, Google u Outlook.
+// Página pública de gestión de turno. Datos + branding por query params (los
+// arma la Edge Function send-booking-email). Muestra los datos del turno y permite iniciar
+// cambios por WhatsApp con mensaje automático. También deja elegir calendario.
+// Si llega token (tk), solo se usa para validar estado cancelado cuando exista.
 
 type Search = {
   b?: string; bid?: string; tk?: string; emp?: string; slug?: string; svc?: string; prof?: string;
   d?: string; t?: string; s?: string; dur?: string; tot?: string;
-  addr?: string; ph?: string; n?: string;
+  addr?: string; ph?: string; n?: string; calendar?: string;
   pc?: string; ac?: string; bt?: string; m?: string; logo?: string;
 };
 
@@ -23,7 +22,7 @@ export const Route = createFileRoute("/gestion")({
     b: str(search.b), bid: str(search.bid), tk: str(search.tk), emp: str(search.emp), slug: str(search.slug),
     svc: str(search.svc), prof: str(search.prof), d: str(search.d), t: str(search.t),
     s: str(search.s), dur: str(search.dur), tot: str(search.tot),
-    addr: str(search.addr), ph: str(search.ph), n: str(search.n),
+    addr: str(search.addr), ph: str(search.ph), n: str(search.n), calendar: str(search.calendar),
     pc: str(search.pc), ac: str(search.ac), bt: str(search.bt), m: str(search.m), logo: str(search.logo),
   }),
   component: GestionPage,
@@ -32,19 +31,7 @@ export const Route = createFileRoute("/gestion")({
 const isHex = (s?: string) => !!s && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s);
 const icsStamp = (dt: Date) => dt.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 const fmtDay = (dt: Date) => dt.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
-const fmtDayShort = (dt: Date) => dt.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" });
 const fmtTime = (dt: Date) => dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) + " hs";
-const fmtClock = (dt: Date) => dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-
-function detectPlatform(): "apple" | "google" | "unknown" {
-  if (typeof navigator === "undefined") return "unknown";
-  const ua = navigator.userAgent || "";
-  const plat = (navigator as any).platform || "";
-  if (/iPhone|iPad|iPod|Macintosh|Mac OS X/i.test(ua) || /Mac|iPhone|iPad/i.test(plat)) return "apple";
-  if (/Android/i.test(ua)) return "google";
-  return "unknown";
-}
-
 function GestionPage() {
   const p = Route.useSearch();
 
@@ -67,18 +54,10 @@ function GestionPage() {
 
   const [start, setStart] = React.useState<Date | null>(p.s ? new Date(p.s) : null);
   const [status, setStatus] = React.useState<"active" | "cancelled" | "loading" | "invalid">(hasToken ? "loading" : "invalid");
-  const [busy, setBusy] = React.useState(false);
   const [feedback, setFeedback] = React.useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
-  // Reprogramación
-  const [rescheduleMode, setRescheduleMode] = React.useState(false);
-  const [loadingSlots, setLoadingSlots] = React.useState(false);
-  const [days, setDays] = React.useState<Array<{ date: Date; slots: Array<{ time: Date; employeeId: string }> }>>([]);
-  const [dayIdx, setDayIdx] = React.useState(0);
-  const [chosen, setChosen] = React.useState<Date | null>(null);
-
   // Calendario
-  const [showCalChooser, setShowCalChooser] = React.useState(false);
+  const [showCalChooser, setShowCalChooser] = React.useState(p.calendar === "1");
 
   // Estado real del turno por token
   React.useEffect(() => {
@@ -129,71 +108,38 @@ function GestionPage() {
     URL.revokeObjectURL(url);
   }, [start, end, eventTitle, eventDetails, p.addr, businessName]);
 
-  // El cliente elige manualmente entre Apple, Google u Outlook.
+  // En Clippr dejamos que el cliente elija el calendario: Apple, Google u Outlook.
   function smartCalendar() {
+    if (!start) return;
     setShowCalChooser((v) => !v);
   }
 
-  const fireEmail = React.useCallback((type: "cancellation" | "reschedule", dLabel?: string, tLabel?: string) => {
-    if (!p.bid || !p.tk) return;
-    void supabase.functions.invoke("send-booking-email", {
-      body: { type, businessId: p.bid, token: p.tk, booking: { services: p.svc, professional: p.prof, date: dLabel ?? dateLabel, time: tLabel ?? timeLabel, total } },
-    }).catch(() => {});
-  }, [p.bid, p.tk, p.svc, p.prof, dateLabel, timeLabel, total]);
-
-  async function handleCancel() {
-    if (!hasToken) return;
-    if (!confirm("¿Seguro que querés cancelar este turno?")) return;
-    setBusy(true); setFeedback(null);
-    try {
-      const { data, error } = await supabase.rpc("cancel_public_booking_v1", { p_token: p.tk });
-      if (error || !data?.ok) throw new Error(data?.error || error?.message || "No se pudo cancelar");
-      setStatus("cancelled");
-      setFeedback({ kind: "ok", text: "Tu turno fue cancelado." });
-      fireEmail("cancellation");
-    } catch (e) {
-      setFeedback({ kind: "err", text: (e as Error).message });
-    } finally { setBusy(false); }
+  function cleanWhatsappPhone(value?: string) {
+    const digits = String(value ?? "").replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.startsWith("549") || digits.startsWith("54")) return digits;
+    return `54${digits}`;
   }
 
-  // Carga disponibilidad real con el MISMO motor que la reserva pública.
-  async function openReschedule() {
-    setRescheduleMode(true); setChosen(null); setDayIdx(0); setLoadingSlots(true); setFeedback(null);
-    try {
-      const from = startOfDay(new Date()).toISOString();
-      const to = addMinutes(startOfDay(new Date()), 14 * 24 * 60).toISOString();
-      const [settingsRes, apptsRes] = await Promise.all([
-        supabase.from("public_booking_settings").select("schedule").eq("business_id", p.bid).maybeSingle(),
-        supabase.from("public_booking_appointments").select("id,employee_id,starts_at,ends_at,duration_min,status").eq("business_id", p.bid).gte("starts_at", from).lte("starts_at", to),
-      ]);
-      const schedule = normalizeSchedule((settingsRes.data as any)?.schedule ?? null);
-      const appts = ((apptsRes.data ?? []) as Appointment[]);
-      const emp = p.emp || "any";
-      const built = buildSlots(schedule, appts, emp !== "any" ? [{ id: emp }] : [], emp, Number.isFinite(durMin) ? durMin : 60, 14)
-        .filter((d) => d.slots.length > 0);
-      setDays(built);
-      if (built.length === 0) setFeedback({ kind: "err", text: "No hay horarios disponibles en los próximos días." });
-    } catch (e) {
-      setFeedback({ kind: "err", text: "No se pudo cargar la disponibilidad." });
-    } finally { setLoadingSlots(false); }
+  function whatsappUrl(action: "reprogramar" | "cancelar") {
+    const phone = cleanWhatsappPhone(p.ph);
+    const actionText = action === "reprogramar" ? "reprogramar" : "cancelar";
+    const msg = [
+      `Hola ${businessName}, quiero ${actionText} mi reserva.`,
+      "",
+      `Servicio: ${service}`,
+      p.prof ? `Profesional: ${p.prof}` : null,
+      dateLabel ? `Fecha: ${dateLabel}` : null,
+      timeLabel ? `Horario: ${timeLabel}` : null,
+      p.addr ? `Dirección: ${p.addr}` : null,
+    ].filter(Boolean).join("\n");
+    return phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
   }
 
-  async function confirmReschedule() {
-    if (!chosen || !hasToken) return;
-    setBusy(true); setFeedback(null);
-    try {
-      const { data, error } = await supabase.rpc("reschedule_public_booking_v1", { p_token: p.tk, p_starts_at: chosen.toISOString() });
-      if (error || !data?.ok) throw new Error(data?.error || error?.message || "No se pudo reprogramar");
-      setStart(chosen); setRescheduleMode(false);
-      setFeedback({ kind: "ok", text: `Reprogramado para el ${fmtDay(chosen)} a las ${fmtClock(chosen)} hs.` });
-      fireEmail("reschedule", fmtDay(chosen), fmtTime(chosen));
-    } catch (e) {
-      setFeedback({ kind: "err", text: (e as Error).message });
-    } finally { setBusy(false); }
-  }
+  const reprogramarWhatsAppUrl = whatsappUrl("reprogramar");
+  const cancelarWhatsAppUrl = whatsappUrl("cancelar");
 
   const cancelled = status === "cancelled";
-  const validToken = hasToken && status !== "invalid" && status !== "loading";
   const rows = [
     { icon: Scissors, label: "Servicio", value: p.svc },
     { icon: UserRound, label: "Profesional", value: p.prof },
@@ -204,8 +150,6 @@ function GestionPage() {
 
   const cardStyle: React.CSSProperties = { background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 24 };
   const noWrap: React.CSSProperties = { whiteSpace: "nowrap" };
-  const currentDay = days[dayIdx];
-
   return (
     <div style={{ minHeight: "100vh", background: c.pageBg, color: c.text, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif", padding: "40px 16px" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -220,8 +164,8 @@ function GestionPage() {
 
         <div style={{ ...cardStyle, padding: 24, overflow: "hidden" }}>
           <div style={{ height: 4, margin: "-24px -24px 20px", background: `linear-gradient(90deg, ${primary}, ${accent})` }} />
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-.02em" }}>Detalle de tu turno</h1>
-          <p style={{ margin: "8px 0 20px", fontSize: 14, color: c.muted }}>Revisá los detalles y agregalo al calendario que prefieras.</p>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-.02em" }}>Gestión de tu turno</h1>
+          <p style={{ margin: "8px 0 20px", fontSize: 14, color: c.muted }}>Revisá los detalles, reprogramá o cancelá tu turno.</p>
 
           {cancelled ? (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: dark ? "rgba(239,68,68,.12)" : "#fef2f2", color: "#ef4444", fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
@@ -251,18 +195,29 @@ function GestionPage() {
 
         {!cancelled ? (
           <div style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
-            <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700 }}>Agregar al calendario</h2>
-            <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Elegí dónde querés guardar el turno.</p>
-            <button onClick={smartCalendar} disabled={!start} style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: start ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 8, opacity: start ? 1 : 0.55 }}>
-              <CalendarPlus size={16} /> Elegir calendario
-            </button>
-            {showCalChooser || start ? (
-              <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-                <button onClick={downloadIcs} style={{ ...calBtn(c), ...noWrap, cursor: "pointer", width: "100%" }}>Apple Calendar</button>
-                <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Google Calendar</a>
-                <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Outlook</a>
+            <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700 }}>¿Necesitás un cambio?</h2>
+
+            <>
+              <p style={{ margin: "0 0 16px", fontSize: 13, color: c.muted }}>Para reprogramar o cancelar, te abrimos WhatsApp con el mensaje listo para enviar.</p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <a href={reprogramarWhatsAppUrl} target="_blank" rel="noreferrer" style={{ ...solidBtn(accent, buttonText), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <RefreshCw size={16} /> Reprogramar
+                </a>
+                <a href={cancelarWhatsAppUrl} target="_blank" rel="noreferrer" style={{ ...outlineBtn(c), ...noWrap, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <X size={16} /> Cancelar
+                </a>
+                <button onClick={smartCalendar} disabled={!start} style={{ ...outlineBtn(c), ...noWrap, cursor: start ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 8, opacity: start ? 1 : 0.55 }}>
+                  <CalendarPlus size={16} /> Agregar al calendario
+                </button>
               </div>
-            ) : null}
+              {showCalChooser ? (
+                <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+                  <button onClick={downloadIcs} style={{ ...calBtn(c), ...noWrap, cursor: "pointer", width: "100%" }}>Apple Calendar</button>
+                  <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Google Calendar</a>
+                  <a href={outlookUrl ?? "#"} target="_blank" rel="noreferrer" style={{ ...calBtn(c), ...noWrap }}>Outlook</a>
+                </div>
+              ) : null}
+            </>
           </div>
         ) : null}
 
