@@ -96,8 +96,10 @@ function buildManageUrl(
   employeeId: string | null,
   biz: { slug?: string | null; address?: string | null; phone?: string | null },
   booking: Payload["booking"],
+  mode: "calendar" | "manage" = "manage",
 ): string {
   const q = new URLSearchParams();
+  q.set("mode", mode);
   q.set("b", brand.name);
   q.set("bid", businessId);
   if (token) q.set("tk", token);
@@ -234,14 +236,17 @@ Deno.serve(async (req: Request) => {
       employeeId = (apptFallback?.employee_id as string) ?? employeeId;
     }
 
-    const manageUrl = buildManageUrl(
+    const baseUrlArgs = [
       brand,
       businessId,
       manageToken,
       employeeId,
       { slug: biz?.slug as string, address: biz?.address as string, phone: biz?.phone as string },
       booking,
-    );
+    ] as const;
+
+    const calendarUrl = buildManageUrl(...baseUrlArgs, "calendar");
+    const manageUrl = buildManageUrl(...baseUrlArgs, "manage");
 
     const data: BookingEmailData = {
       brand,
@@ -253,7 +258,7 @@ Deno.serve(async (req: Request) => {
       time: booking.time || "-",
       total: Number(booking.total ?? 0),
       manageUrl,
-      calendarUrl: `${manageUrl}&calendar=1`,
+      calendarUrl,
     };
 
     const email = buildBookingEmail(type, data);
