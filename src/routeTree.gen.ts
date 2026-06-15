@@ -23,6 +23,7 @@ import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AdvisorlRouteImport } from './routes/advisorl'
 import { Route as AdvisorRouteImport } from './routes/advisor'
+import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservarSlugRouteImport } from './routes/reservar/$slug'
 import { Route as NegocioSlugRouteImport } from './routes/negocio/$slug'
@@ -97,6 +98,11 @@ const AdvisorRoute = AdvisorRouteImport.update({
   path: '/advisor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SlugRoute = SlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -115,6 +121,7 @@ const NegocioSlugRoute = NegocioSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRoute
   '/advisor': typeof AdvisorRoute
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRoute
   '/advisor': typeof AdvisorRoute
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
@@ -154,6 +162,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRoute
   '/advisor': typeof AdvisorRoute
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$slug'
     | '/advisor'
     | '/advisorl'
     | '/agenda'
@@ -194,6 +204,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$slug'
     | '/advisor'
     | '/advisorl'
     | '/agenda'
@@ -213,6 +224,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$slug'
     | '/advisor'
     | '/advisorl'
     | '/agenda'
@@ -233,6 +245,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SlugRoute: typeof SlugRoute
   AdvisorRoute: typeof AdvisorRoute
   AdvisorlRoute: typeof AdvisorlRoute
   AgendaRoute: typeof AgendaRoute
@@ -351,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdvisorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$slug': {
+      id: '/$slug'
+      path: '/$slug'
+      fullPath: '/$slug'
+      preLoaderRoute: typeof SlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -377,6 +397,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SlugRoute: SlugRoute,
   AdvisorRoute: AdvisorRoute,
   AdvisorlRoute: AdvisorlRoute,
   AgendaRoute: AgendaRoute,
