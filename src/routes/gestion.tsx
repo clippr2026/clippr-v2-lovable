@@ -139,7 +139,7 @@ function GestionPage() {
                   </>
                 ) : (
                   <div style={{ padding: 14, borderRadius: 14, border: `1px solid ${c.border}`, background: c.innerBg, color: c.muted, textAlign: "center", fontSize: 14, fontWeight: 700 }}>
-                    El negocio no configuró un número de WhatsApp.
+                    Para hacer cambios en tu turno, contactá al negocio por sus canales habituales.
                   </div>
                 )}
               </div>

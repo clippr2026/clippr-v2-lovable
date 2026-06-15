@@ -1117,12 +1117,19 @@ function BrandingSection() {
                   <div className="font-medium text-sm">{f.label}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{f.hint}</div>
                 </div>
-                <input
-                  type={f.type ?? "text"}
-                  value={(data[f.key] as string) ?? ""}
-                  onChange={set(f.key)}
-                  className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                />
+                <div className="w-72 max-w-[55%]">
+                  <input
+                    type={f.type ?? "text"}
+                    value={(data[f.key] as string) ?? ""}
+                    onChange={set(f.key)}
+                    className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                  />
+                  {f.key === "phone" && data.phone ? (
+                    <div className="mt-2 rounded-lg bg-emerald-500/10 ring-1 ring-emerald-500/20 px-3 py-2 text-xs text-emerald-200">
+                      WhatsApp detectado: {formatWhatsAppArgentinaPreview(normalizeWhatsAppArgentina(data.phone))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             );
           })}
@@ -1822,11 +1829,6 @@ function HorariosSection() {
               </div>
             );
           })}
-          {data.phone ? (
-            <div className="rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20 px-4 py-3 text-xs text-emerald-200">
-              WhatsApp detectado: {formatWhatsAppArgentinaPreview(normalizeWhatsAppArgentina(data.phone))}
-            </div>
-          ) : null}
         </div>
       </SectionCard>
     </>
