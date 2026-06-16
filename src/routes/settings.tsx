@@ -336,11 +336,16 @@ type BrandingData = {
   cover_url: string;
   portfolio_urls: string[];
   featured_clients: FeaturedClient[];
+  avatar_position: string;
+  cover_position: string;
+  portfolio_positions: string[];
+  featured_positions: Record<string, string>;
 };
 const EMPTY_BRANDING: BrandingData = {
   name: "", slug: "", address: "", phone: "", email: "",
   instagram: "", website: "", description: "", profile_note: "", logo_url: "",
   avatar_url: "", cover_url: "", portfolio_urls: [], featured_clients: [],
+  avatar_position: "50% 50%", cover_position: "50% 50%", portfolio_positions: [], featured_positions: {},
 };
 
 // Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
@@ -705,6 +710,7 @@ function BrandingSection() {
   const [colors, setColors] = useState(LANDING_DEFAULTS);
   const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
   const [additionalInfo, setAdditionalInfo] = useState<string[]>([]);
+  const [customAdditionalInfo, setCustomAdditionalInfo] = useState("");
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -731,6 +737,10 @@ function BrandingSection() {
         cover_url: (biz?.cover_url as string) ?? "",
         portfolio_urls: Array.isArray(cfg.portfolio_urls) ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3) : [],
         featured_clients: normalizeFeaturedClients(cfg.featured_clients),
+        avatar_position: (cfg.avatar_position as string) ?? "50% 50%",
+        cover_position: (cfg.cover_position as string) ?? "50% 50%",
+        portfolio_positions: Array.isArray(cfg.portfolio_positions) ? (cfg.portfolio_positions as string[]) : [],
+        featured_positions: (cfg.featured_positions && typeof cfg.featured_positions === "object" ? cfg.featured_positions : {}) as Record<string, string>,
       });
       const cc = (cfg.colors ?? {}) as Record<string, string>;
       setColors({
@@ -907,6 +917,22 @@ function BrandingSection() {
     });
   }
 
+
+  function addCustomAdditionalInfo() {
+    const value = customAdditionalInfo.trim();
+    if (!value) return;
+    if (additionalInfo.includes(value)) {
+      setCustomAdditionalInfo("");
+      return;
+    }
+    if (additionalInfo.length >= 12) {
+      toast.error("Podés seleccionar hasta 12 opciones");
+      return;
+    }
+    setAdditionalInfo((current) => [...current, value]);
+    setCustomAdditionalInfo("");
+  }
+
   function addFeaturedClient() {
     setData(d => ({
       ...d,
@@ -940,6 +966,27 @@ function BrandingSection() {
       [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
       return { ...d, featured_clients: list.map((item, order) => ({ ...item, order })) };
     });
+  }
+
+
+  function nudgePosition(value: string | undefined, dx: number, dy: number): string {
+    const [xRaw, yRaw] = String(value || "50% 50%").split(" ");
+    const x = Math.min(100, Math.max(0, parseFloat(xRaw) || 50));
+    const y = Math.min(100, Math.max(0, parseFloat(yRaw) || 50));
+    return `${Math.min(100, Math.max(0, x + dx))}% ${Math.min(100, Math.max(0, y + dy))}%`;
+  }
+
+  function PositionControls({ value, onChange }: { value?: string; onChange: (next: string) => void }) {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-white/55">
+        <span className="mr-1">Ajustar:</span>
+        <button type="button" onClick={() => onChange(nudgePosition(value, 0, -8))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Arriba</button>
+        <button type="button" onClick={() => onChange(nudgePosition(value, 0, 8))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Abajo</button>
+        <button type="button" onClick={() => onChange(nudgePosition(value, -8, 0))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Izquierda</button>
+        <button type="button" onClick={() => onChange(nudgePosition(value, 8, 0))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Derecha</button>
+        <button type="button" onClick={() => onChange("50% 50%")} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Centrar</button>
+      </div>
+    );
   }
 
   async function handleFeaturedImageSelect(id: string, file: File | null) {
@@ -1043,6 +1090,10 @@ function BrandingSection() {
         },
         theme,
         additional_info: additionalInfo.filter((item) => item.trim().length > 0).slice(0, 12),
+        avatar_position: data.avatar_position,
+        cover_position: data.cover_position,
+        portfolio_positions: data.portfolio_positions,
+        featured_positions: data.featured_positions,
       },
     };
     const cfgResult = await supabase.from("business_settings").upsert(
@@ -1247,70 +1298,23 @@ function BrandingSection() {
             );
           })}
         </div>
+        <div className="mt-4 flex gap-2">
+          <input
+            value={customAdditionalInfo}
+            onChange={(e) => setCustomAdditionalInfo(e.target.value)}
+            placeholder="Agregar otro beneficio..."
+            className="flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+          />
+          <button type="button" onClick={addCustomAdditionalInfo} className="rounded-lg bg-white/8 px-3 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12">
+            Agregar
+          </button>
+        </div>
       </SectionCard>
       </>
       )}
 
       {activeTab === "imagenes" && (
       <>
-
-      <SectionCard label="Confían en nosotros">
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-sm font-medium">Clientes destacados</div>
-              <p className="mt-1 text-xs text-muted-foreground">Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta sección no aparece.</p>
-            </div>
-            <button type="button" onClick={addFeaturedClient} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10">
-              <Plus className="h-4 w-4" /> Agregar
-            </button>
-          </div>
-
-          {data.featured_clients.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-muted-foreground">
-              Todavía no cargaste clientes destacados.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {data.featured_clients.map((item, index) => {
-                const uploading = uploadingFeaturedId === item.id;
-                return (
-                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="grid gap-3 lg:grid-cols-[72px_1fr_180px_120px_auto] lg:items-center">
-                      <div className="h-16 w-16 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
-                        {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
-                      </div>
-                      <input
-                        value={item.name}
-                        onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
-                        placeholder="Nombre: Nike, Duki, Boca Juniors..."
-                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                      />
-                      <select
-                        value={item.category}
-                        onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
-                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                      >
-                        {FEATURED_CLIENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-                      </select>
-                      <label className={cn("inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
-                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : "Imagen"}
-                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleFeaturedImageSelect(item.id, f); }} />
-                      </label>
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={() => updateFeaturedClient(item.id, { active: !item.active })} className={cn("rounded-lg px-2.5 py-2 text-xs ring-1", item.active ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" : "bg-white/5 text-muted-foreground ring-white/10")}>{item.active ? "Activo" : "Inactivo"}</button>
-                        <button type="button" onClick={() => moveFeaturedClient(item.id, -1)} disabled={index === 0} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
-                        <button type="button" onClick={() => moveFeaturedClient(item.id, 1)} disabled={index === data.featured_clients.length - 1} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
-                        <button type="button" onClick={() => removeFeaturedClient(item.id)} className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"><Trash2 className="h-4 w-4" /></button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </SectionCard>
 
       <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
         <div className="space-y-5">
@@ -1326,7 +1330,7 @@ function BrandingSection() {
             <div className="flex flex-col items-end gap-2">
               <div className="h-16 w-16 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
                 {avatarPreview ? (
-                  <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.avatar_position }} />
                 ) : (
                   <span className="text-[10px] text-muted-foreground">vacío</span>
                 )}
@@ -1347,6 +1351,7 @@ function BrandingSection() {
                 ) : null}
               </div>
             </div>
+            {avatarPreview ? <PositionControls value={data.avatar_position} onChange={(next) => setData(d => ({ ...d, avatar_position: next }))} /> : null}
           </div>
 
           {/* Portada (sitio web público) */}
@@ -1377,11 +1382,12 @@ function BrandingSection() {
             </div>
             <div className="mt-3 h-32 w-full rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
               {coverPreview ? (
-                <img src={coverPreview} alt="" className="h-full w-full object-cover" />
+                <img src={coverPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.cover_position }} />
               ) : (
                 <span className="text-xs text-muted-foreground">Sin portada</span>
               )}
             </div>
+            {coverPreview ? <PositionControls value={data.cover_position} onChange={(next) => setData(d => ({ ...d, cover_position: next }))} /> : null}
           </div>
 
           {/* Portafolio (sitio web público) */}
@@ -1404,11 +1410,12 @@ function BrandingSection() {
                   <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="aspect-[4/3] overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
                       {url ? (
-                        <img src={url} alt={`Portafolio ${index + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                        <img src={url} alt={`Portafolio ${index + 1}`} className="h-full w-full object-cover" style={{ objectPosition: data.portfolio_positions[index] || "50% 50%" }} loading="lazy" decoding="async" />
                       ) : (
                         <span className="text-xs text-muted-foreground">Imagen {index + 1}</span>
                       )}
                     </div>
+                    {url ? <PositionControls value={data.portfolio_positions[index] || "50% 50%"} onChange={(next) => setData(d => { const p = [...d.portfolio_positions]; p[index] = next; return { ...d, portfolio_positions: p }; })} /> : null}
                     <div className="mt-3 flex items-center justify-between gap-2">
                       <label className={cn("inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
                         <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : (url ? "Cambiar" : "Subir")}
@@ -1425,6 +1432,66 @@ function BrandingSection() {
               })}
             </div>
           </div>
+        </div>
+      </SectionCard>
+
+
+      <SectionCard label="Confían en nosotros">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-medium">Clientes destacados</div>
+              <p className="mt-1 text-xs text-muted-foreground">Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta sección no aparece.</p>
+            </div>
+            <button type="button" onClick={addFeaturedClient} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10">
+              <Plus className="h-4 w-4" /> Agregar
+            </button>
+          </div>
+
+          {data.featured_clients.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-muted-foreground">
+              Todavía no cargaste clientes destacados.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.featured_clients.map((item, index) => {
+                const uploading = uploadingFeaturedId === item.id;
+                return (
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="grid gap-3 lg:grid-cols-[72px_1fr_180px_120px_auto] lg:items-center">
+                      <div className="h-16 w-16 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                        {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.featured_positions[item.id] || "50% 50%" }} /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
+                      </div>
+                      {item.image_url ? <PositionControls value={data.featured_positions[item.id] || "50% 50%"} onChange={(next) => setData(d => ({ ...d, featured_positions: { ...d.featured_positions, [item.id]: next } }))} /> : null}
+                      <input
+                        value={item.name}
+                        onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                        placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      />
+                      <select
+                        value={item.category}
+                        onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      >
+                        {FEATURED_CLIENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      <label className={cn("inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : "Imagen"}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleFeaturedImageSelect(item.id, f); }} />
+                      </label>
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => updateFeaturedClient(item.id, { active: !item.active })} className={cn("rounded-lg px-2.5 py-2 text-xs ring-1", item.active ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" : "bg-white/5 text-muted-foreground ring-white/10")}>{item.active ? "Activo" : "Inactivo"}</button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, -1)} disabled={index === 0} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, 1)} disabled={index === data.featured_clients.length - 1} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => removeFeaturedClient(item.id)} className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </SectionCard>
       </>
@@ -1461,6 +1528,33 @@ function BrandingSection() {
                 {mode === "dark" ? "Modo oscuro" : "Modo claro"}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+          <p className="text-sm font-medium text-white/70">Vista previa</p>
+          <div
+            className="mt-3 overflow-hidden rounded-2xl border p-6"
+            style={{
+              borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+              color: theme === "light" ? "#0f172a" : "#fff",
+              background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#080512"}`,
+            }}
+          >
+            <div className="relative rounded-3xl border p-5 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)" }}>
+              <h3 className="text-base font-semibold">Reservá tu turno</h3>
+              <button
+                type="button"
+                className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold"
+                style={{ background: colors.accent, color: colors.buttonText, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)` }}
+              >
+                Reservar turno
+              </button>
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} />
+                <span style={{ color: colors.accent, fontWeight: 600 }}>Abierto ahora</span>
+              </div>
+            </div>
           </div>
         </div>
       </SectionCard>
