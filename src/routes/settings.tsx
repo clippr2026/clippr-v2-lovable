@@ -919,18 +919,28 @@ function BrandingSection() {
 
 
   function addCustomAdditionalInfo() {
-    const value = customAdditionalInfo.trim();
+    const value = customAdditionalInfo.trim().slice(0, 35);
     if (!value) return;
+    if (additionalInfo.length >= 12) {
+      toast.error("Podés agregar hasta 12 informaciones adicionales.");
+      return;
+    }
     if (additionalInfo.includes(value)) {
       setCustomAdditionalInfo("");
       return;
     }
-    if (additionalInfo.length >= 12) {
-      toast.error("Podés seleccionar hasta 12 opciones");
-      return;
-    }
-    setAdditionalInfo((current) => [...current, value]);
+    setAdditionalInfo((current) => [...current, value].slice(0, 12));
     setCustomAdditionalInfo("");
+  }
+
+  function updateAdditionalInfo(oldValue: string, nextValue: string) {
+    const clean = nextValue.trim().slice(0, 35);
+    if (!clean) return;
+    setAdditionalInfo((current) => current.map((item) => item === oldValue ? clean : item).slice(0, 12));
+  }
+
+  function removeAdditionalInfo(value: string) {
+    setAdditionalInfo((current) => current.filter((item) => item !== value));
   }
 
   function addFeaturedClient() {
@@ -977,16 +987,7 @@ function BrandingSection() {
   }
 
   function PositionControls({ value, onChange }: { value?: string; onChange: (next: string) => void }) {
-    return (
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-white/55">
-        <span className="mr-1">Ajustar:</span>
-        <button type="button" onClick={() => onChange(nudgePosition(value, 0, -8))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Arriba</button>
-        <button type="button" onClick={() => onChange(nudgePosition(value, 0, 8))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Abajo</button>
-        <button type="button" onClick={() => onChange(nudgePosition(value, -8, 0))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Izquierda</button>
-        <button type="button" onClick={() => onChange(nudgePosition(value, 8, 0))} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Derecha</button>
-        <button type="button" onClick={() => onChange("50% 50%")} className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-white/10 hover:bg-white/10">Centrar</button>
-      </div>
-    );
+    return null;
   }
 
   async function handleFeaturedImageSelect(id: string, file: File | null) {
@@ -1297,12 +1298,25 @@ function BrandingSection() {
               </button>
             );
           })}
+          {additionalInfo.filter((item) => !ADDITIONAL_INFO_OPTIONS.includes(item)).map((item) => (
+            <span key={item} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-sm">
+              <input
+                value={item}
+                maxLength={35}
+                onChange={(e) => updateAdditionalInfo(item, e.target.value)}
+                className="w-44 bg-transparent text-sm outline-none"
+              />
+              <button type="button" onClick={() => removeAdditionalInfo(item)} className="text-red-300 hover:text-red-200">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ))}
         </div>
         <div className="mt-4 flex gap-2">
           <input
             value={customAdditionalInfo}
             onChange={(e) => setCustomAdditionalInfo(e.target.value)}
-            placeholder="Agregar otro beneficio..."
+            placeholder="Agregar información adicional..." maxLength={35}
             className="flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
           />
           <button type="button" onClick={addCustomAdditionalInfo} className="rounded-lg bg-white/8 px-3 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12">
@@ -1328,7 +1342,7 @@ function BrandingSection() {
               <div className="text-xs text-muted-foreground mt-0.5">Se muestra en tu sitio web público. Se optimiza a WebP 512px.</div>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <div className="h-16 w-16 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+              <div className="h-28 w-28 rounded-3xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden shadow-xl">
                 {avatarPreview ? (
                   <img src={avatarPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.avatar_position }} />
                 ) : (
@@ -1380,7 +1394,7 @@ function BrandingSection() {
                 ) : null}
               </div>
             </div>
-            <div className="mt-3 h-32 w-full rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+            <div className="mt-3 aspect-[16/5] w-full rounded-3xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden shadow-xl">
               {coverPreview ? (
                 <img src={coverPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.cover_position }} />
               ) : (
@@ -1408,7 +1422,7 @@ function BrandingSection() {
                 const uploading = uploadingPortfolioIndex === index;
                 return (
                   <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <div className="aspect-[4/3] overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                    <div className="aspect-[16/10] overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center shadow-lg">
                       {url ? (
                         <img src={url} alt={`Portafolio ${index + 1}`} className="h-full w-full object-cover" style={{ objectPosition: data.portfolio_positions[index] || "50% 50%" }} loading="lazy" decoding="async" />
                       ) : (
@@ -1458,8 +1472,8 @@ function BrandingSection() {
                 const uploading = uploadingFeaturedId === item.id;
                 return (
                   <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="grid gap-3 lg:grid-cols-[72px_1fr_180px_120px_auto] lg:items-center">
-                      <div className="h-16 w-16 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                    <div className="grid gap-3 lg:grid-cols-[110px_1fr_180px_120px_auto] lg:items-center">
+                      <div className="mx-auto h-24 w-24 overflow-hidden rounded-3xl bg-white/5 ring-1 ring-white/10 grid place-items-center shadow-lg">
                         {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.featured_positions[item.id] || "50% 50%" }} /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
                       </div>
                       {item.image_url ? <PositionControls value={data.featured_positions[item.id] || "50% 50%"} onChange={(next) => setData(d => ({ ...d, featured_positions: { ...d.featured_positions, [item.id]: next } }))} /> : null}
