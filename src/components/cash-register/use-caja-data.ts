@@ -42,6 +42,7 @@ export type Employee = {
   id: string;
   name: string;
   commission_pct: number | null;
+  avatar_url?: string | null;
 };
 
 export type ClientLite = {
@@ -173,7 +174,7 @@ export function useCajaData() {
         .order("name"),
       supabase
         .from("employees")
-        .select("id,full_name,is_active,commission_pct")
+        .select("id,full_name,avatar_url,is_active,commission_pct")
         .eq("business_id", businessId)
         .eq("is_active", true)
         .order("full_name", { ascending: true }),
