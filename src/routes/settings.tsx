@@ -463,28 +463,20 @@ function normalizeHex(value: string, fallback: string): string {
 }
 
 const ADDITIONAL_INFO_OPTIONS = [
-  "✅ Confirmación instantánea",
-  "📱 Reserva online 24/7",
+  "⚡ Confirmación instantánea",
+  "📅 Reserva online 24/7",
   "💳 Acepta tarjetas",
   "📶 Wi-Fi gratuito",
-  "🅿️ Estacionamiento cercano",
+  "🚗 Estacionamiento cercano",
   "♿ Accesible para silla de ruedas",
-  "🚇 Cerca del transporte público",
   "☕ Café de cortesía",
-  "🥤 Bebidas",
-  "🥤 Bebidas incluidas",
   "❄️ Ambiente climatizado",
-  "👶 Apto para niños",
-  "🐶 Pet friendly",
   "💎 Atención premium",
   "🎵 Música ambiente",
   "🧴 Productos profesionales",
-  "🎮 PlayStation disponible",
-  "💆 Masajes",
-  "🧖 Mascarilla facial",
-  "💈 Atención por orden de llegada",
-  "🇺🇸 Atención en inglés",
+  "🐶 Pet friendly",
 ];
+const MAX_ADDITIONAL_INFO = 12;
 
 function LandingSection() {
   const { businessId } = useAuth();
@@ -493,6 +485,7 @@ function LandingSection() {
   const [colors, setColors] = React.useState(LANDING_DEFAULTS);
   const [theme, setTheme] = React.useState<LandingTheme>(LANDING_THEME_DEFAULT);
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
+  const [newAdditionalInfo, setNewAdditionalInfo] = React.useState("");
 
   React.useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -502,14 +495,15 @@ function LandingSection() {
         const c = (schedule._branding?.colors ?? {}) as Record<string, string>;
         setColors({
           primary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.primary)),
-          secondary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.secondary)),
+          secondary: normalizeHex(c.secondary, LANDING_DEFAULTS.secondary),
           accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
           buttonText: normalizeHex(c.buttonText, LANDING_DEFAULTS.buttonText),
         });
         const savedTheme = schedule._branding?.theme;
         setTheme(savedTheme === "light" ? "light" : "dark");
         const savedAdditional = Array.isArray(schedule._branding?.additional_info) ? schedule._branding.additional_info : [];
-        setAdditionalInfo(savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 12));
+        const cleanAdditional = savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, MAX_ADDITIONAL_INFO);
+        setAdditionalInfo(cleanAdditional.length > 0 ? cleanAdditional : ADDITIONAL_INFO_OPTIONS);
         setLoading(false);
       });
   }, [businessId]);
@@ -517,10 +511,9 @@ function LandingSection() {
   async function save() {
     if (!businessId) return;
     setSaving(true);
-    const gradientGlow = normalizeHex(colors.primary, LANDING_DEFAULTS.primary);
     const next = {
-      primary: gradientGlow,
-      secondary: gradientGlow,
+      primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+      secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
       accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
       buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
     };
@@ -542,15 +535,23 @@ function LandingSection() {
     toast.success("Landing guardada");
   }
 
-  function toggleAdditionalInfo(item: string) {
-    setAdditionalInfo((current) => {
-      if (current.includes(item)) return current.filter((value) => value !== item);
-      if (current.length >= 12) {
-        toast.error("Podés seleccionar hasta 12 opciones");
-        return current;
-      }
-      return [...current, item];
-    });
+  function updateAdditionalInfo(index: number, value: string) {
+    setAdditionalInfo((current) => current.map((item, i) => i === index ? value.slice(0, 35) : item).slice(0, MAX_ADDITIONAL_INFO));
+  }
+
+  function removeAdditionalInfo(index: number) {
+    setAdditionalInfo((current) => current.filter((_, i) => i !== index));
+  }
+
+  function addAdditionalInfo() {
+    const value = newAdditionalInfo.trim().slice(0, 35);
+    if (!value) return;
+    if (additionalInfo.length >= MAX_ADDITIONAL_INFO) {
+      toast.error("Máximo 12 informaciones adicionales.");
+      return;
+    }
+    setAdditionalInfo((current) => [...current, value].slice(0, MAX_ADDITIONAL_INFO));
+    setNewAdditionalInfo("");
   }
 
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
@@ -622,32 +623,48 @@ function LandingSection() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-sm font-semibold">Información adicional</h3>
-              <p className="mt-1 text-xs text-white/50">Elegí hasta 12 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección.</p>
+              <p className="mt-1 text-xs text-white/50">Máximo 12. Se muestran como intereses/beneficios con emoji en la página pública.</p>
             </div>
-            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
+            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/{MAX_ADDITIONAL_INFO}</span>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {ADDITIONAL_INFO_OPTIONS.map((item) => {
-              const active = additionalInfo.includes(item);
-              const disabled = !active && additionalInfo.length >= 12;
-              return (
-                <button
-                  key={item}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => toggleAdditionalInfo(item)}
-                  className={
-                    "rounded-full border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35 " +
-                    (active ? "border-white/25 bg-white text-zinc-950 shadow-lg" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white")
-                  }
-                >
-                  {item}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            {additionalInfo.slice(0, MAX_ADDITIONAL_INFO).map((item, index) => (
+              <span key={`${index}-${item}`} className="inline-flex items-center gap-2 rounded-full bg-white/[0.075] px-3 py-2 ring-1 ring-white/10">
+                <input
+                  value={item}
+                  maxLength={35}
+                  onChange={(e) => updateAdditionalInfo(index, e.target.value)}
+                  className="w-48 max-w-[50vw] bg-transparent text-sm font-medium outline-none"
+                />
+                <button type="button" onClick={() => removeAdditionalInfo(index)} className="text-red-300 transition hover:text-red-200" aria-label="Eliminar">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-3 flex gap-2">
+            <input
+              value={newAdditionalInfo}
+              maxLength={35}
+              onChange={(e) => setNewAdditionalInfo(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAdditionalInfo(); } }}
+              placeholder="Agregar información adicional..."
+              disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
+              className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 outline-none focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-45"
+            />
+            <button
+              type="button"
+              onClick={addAdditionalInfo}
+              disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
+              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Agregar
+            </button>
+          </div>
+          {additionalInfo.length >= MAX_ADDITIONAL_INFO ? <p className="mt-2 text-xs text-white/45">Llegaste al máximo de 12.</p> : null}
+        </div>
         <div className="mt-5 flex items-center gap-3">
           <button
             type="button"
