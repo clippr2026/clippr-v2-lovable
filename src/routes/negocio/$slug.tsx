@@ -609,13 +609,13 @@ function PublicProfilePage() {
                 " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
               style={{
                 background: isLight
-                  ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 30%, white) 0%, color-mix(in oklch, var(--c-secondary) 28%, white) 100%)"
-                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 56%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 56%, #07030f) 100%)",
-                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 32px -26px color-mix(in oklch, var(--c-primary) 50%, transparent), 0 0 48px -36px color-mix(in oklch, var(--c-secondary) 50%, transparent)",
+                  ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 46%, white) 0%, color-mix(in oklch, var(--c-secondary) 44%, white) 100%)"
+                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 70%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 70%, #07030f) 100%)",
+                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 72px -22px color-mix(in oklch, var(--c-primary) 74%, transparent), 0 0 115px -32px color-mix(in oklch, var(--c-secondary) 70%, transparent)",
               }}
             >
               <div className="pointer-events-none absolute inset-0">
-                <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 34%, transparent)" }} />
+                <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 48%, transparent)" }} />
                 <div className="absolute -right-24 -bottom-28 h-96 w-96 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 22%, transparent)" }} />
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
@@ -635,9 +635,9 @@ function PublicProfilePage() {
                       <Star className="h-6 w-6 fill-current drop-shadow-[0_0_8px_currentColor]" />
                     </span>
                     <h2
-                      className="text-[1.55rem] font-extrabold leading-none tracking-[-0.02em] sm:text-[1.85rem]"
+                      className="text-[1.95rem] font-extrabold leading-none tracking-[-0.035em] sm:text-[2.25rem]"
                       style={{
-                        textShadow: "0 0 8px color-mix(in oklch, var(--c-primary) 25%, transparent), 0 0 12px color-mix(in oklch, var(--c-secondary) 20%, transparent)",
+                        textShadow: "0 0 16px color-mix(in oklch, var(--c-primary) 48%, transparent), 0 0 28px color-mix(in oklch, var(--c-secondary) 42%, transparent)",
                       }}
                     >
                       Confían en nosotros
