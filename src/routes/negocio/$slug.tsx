@@ -609,21 +609,19 @@ function PublicProfilePage() {
                 " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
               style={{
                 background: isLight
-                  ? "radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--c-accent) 24%, transparent), transparent 34%), radial-gradient(circle at 82% 20%, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 35%), linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,255,255,.86))"
-                  : "radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--c-accent) 30%, transparent), transparent 36%), radial-gradient(circle at 84% 12%, color-mix(in oklch, var(--c-primary) 34%, transparent), transparent 38%), linear-gradient(135deg, rgba(14,8,26,.98), rgba(6,3,15,.94))",
-                boxShadow: "0 32px 110px -24px color-mix(in oklch, var(--c-primary) 58%, transparent)",
+                  ? "linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,255,255,.92))"
+                  : "linear-gradient(135deg, rgba(18,15,26,.96), rgba(16,12,22,.92))",
+                boxShadow: "0 18px 70px -34px color-mix(in oklch, var(--c-primary) 42%, transparent)",
               }}
             >
-              <div className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[color-mix(in_oklch,var(--c-accent)_28%,transparent)] blur-3xl" />
-              <div className="pointer-events-none absolute -right-24 top-6 h-80 w-80 rounded-full bg-[color-mix(in_oklch,var(--c-primary)_30%,transparent)] blur-3xl" />
               <div className="pointer-events-none absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-[color-mix(in_oklch,var(--c-accent)_65%,transparent)] to-transparent" />
 
               <div className="relative">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-center gap-4">
                     <span
-                      className={(isLight ? "border-zinc-200 bg-white shadow-[0_0_30px_rgba(168,85,247,0.24)]" : "border-white/15 bg-white/8 shadow-[0_0_32px_rgba(168,85,247,0.35)]") +
-                        " grid h-14 w-14 place-items-center rounded-2xl border"}
+                      className={(isLight ? "border-zinc-200 bg-white" : "border-white/15 bg-white/8") +
+                        " grid h-14 w-14 place-items-center rounded-2xl border shadow-lg"}
                       style={{ color: cAccent }}
                     >
                       <Star className="h-7 w-7 fill-current drop-shadow-[0_0_10px_currentColor]" />
@@ -654,7 +652,7 @@ function PublicProfilePage() {
                         : "border-white/12 bg-white/[0.075] text-white") +
                         (index === 4 ? " hidden lg:block" : "") +
                         " group relative min-w-[170px] overflow-hidden rounded-[1.65rem] border p-4 text-center backdrop-blur-xl transition duration-300 before:absolute before:inset-x-5 before:-top-10 before:h-24 before:rounded-full before:bg-[radial-gradient(circle,color-mix(in_oklch,var(--c-accent)_55%,transparent),transparent_68%)] before:blur-2xl hover:-translate-y-1"}
-                      style={{ boxShadow: "0 18px 58px -16px color-mix(in oklch, var(--c-primary) 62%, transparent)" }}
+                      style={{ boxShadow: "0 14px 42px -24px color-mix(in oklch, var(--c-primary) 48%, transparent)" }}
                     >
                       <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/7 ring-white/12") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.03]"}>
                         {item.image_url ? (
