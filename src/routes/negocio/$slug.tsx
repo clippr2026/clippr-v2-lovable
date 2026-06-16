@@ -437,7 +437,7 @@ function PublicProfilePage() {
   }, [slug]);
 
   const cPrimary = colors.primary || colors.secondary || business?.accent_color || "#7c3aed";
-  const cSecondary = cPrimary;
+  const cSecondary = colors.secondary || cPrimary;
   const cAccent = colors.accent || business?.accent_color || "#d6b66a";
   const accent = cAccent; // acciones principales: botones, estados e indicadores
   const isLight = theme === "light";
@@ -609,22 +609,23 @@ function PublicProfilePage() {
                 " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
               style={{
                 background: isLight
-                  ? "radial-gradient(ellipse at 12% 0%, color-mix(in oklch, var(--c-primary) 42%, transparent), transparent 58%), radial-gradient(ellipse at 95% 100%, color-mix(in oklch, var(--c-accent) 38%, transparent), transparent 62%), linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 18%, white), color-mix(in oklch, var(--c-accent) 16%, white))"
-                  : "radial-gradient(ellipse at 12% 0%, color-mix(in oklch, var(--c-primary) 70%, transparent), transparent 58%), radial-gradient(ellipse at 95% 100%, color-mix(in oklch, var(--c-accent) 62%, transparent), transparent 62%), linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 58%, #0a0612), color-mix(in oklch, var(--c-accent) 56%, #05030c))",
-                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 42%, transparent), 0 0 70px -18px color-mix(in oklch, var(--c-primary) 95%, transparent), 0 0 120px -26px color-mix(in oklch, var(--c-accent) 88%, transparent)",
+                  ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 45%, white) 0%, color-mix(in oklch, var(--c-secondary) 42%, white) 100%)"
+                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 72%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 72%, #07030f) 100%)",
+                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 42%, transparent), 0 0 90px -18px color-mix(in oklch, var(--c-primary) 95%, transparent), 0 0 140px -28px color-mix(in oklch, var(--c-secondary) 95%, transparent)",
               }}
             >
-              <div className="pointer-events-none absolute inset-0 opacity-80">
-                <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 52%, transparent)" }} />
-                <div className="absolute -right-24 -bottom-28 h-96 w-96 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-accent) 58%, transparent)" }} />
-                <div className="absolute inset-x-0 bottom-0 h-32" style={{ background: "linear-gradient(to top, color-mix(in oklch, var(--c-primary) 30%, transparent), transparent)" }} />
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 58%, transparent)" }} />
+                <div className="absolute -right-24 -bottom-28 h-96 w-96 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 58%, transparent)" }} />
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
               </div>
 
               <div className="relative">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-5">
                     <span
-                      className={(isLight ? "border-white/80 bg-white/65" : "border-white/25 bg-white/16") +
+                      className={(isLight ? "border-white/80 bg-white/55" : "border-white/25 bg-white/14") +
                         " grid h-16 w-16 place-items-center rounded-2xl border shadow-2xl backdrop-blur-xl"}
                       style={{
                         color: cAccent,
@@ -634,9 +635,9 @@ function PublicProfilePage() {
                       <Star className="h-8 w-8 fill-current drop-shadow-[0_0_14px_currentColor]" />
                     </span>
                     <h2
-                      className="text-[2.25rem] font-extrabold uppercase leading-none tracking-[-0.045em] sm:text-[2.75rem]"
+                      className="text-[2.1rem] font-extrabold leading-none tracking-[-0.045em] sm:text-[2.65rem]"
                       style={{
-                        textShadow: "0 0 22px color-mix(in oklch, var(--c-primary) 70%, transparent)",
+                        textShadow: "0 0 24px color-mix(in oklch, var(--c-primary) 70%, transparent), 0 0 34px color-mix(in oklch, var(--c-secondary) 55%, transparent)",
                       }}
                     >
                       Confían en nosotros
@@ -647,10 +648,12 @@ function PublicProfilePage() {
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
-                      className={(isLight
-                        ? "border-white/80 bg-white/75 text-zinc-950 hover:bg-white"
-                        : "border-white/25 bg-white/16 text-white hover:bg-white/22") +
-                        " inline-flex shrink-0 items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-bold shadow-2xl backdrop-blur-xl transition"}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-white/20 px-5 py-3 text-sm font-bold shadow-2xl backdrop-blur-xl transition hover:brightness-110"
+                      style={{
+                        background: cAccent,
+                        color: accentButtonText,
+                        boxShadow: "0 16px 46px -14px color-mix(in oklch, var(--c-accent) 95%, transparent)",
+                      }}
                     >
                       Ver todos <ChevronRight className="h-4 w-4" />
                     </button>
@@ -662,7 +665,7 @@ function PublicProfilePage() {
                     <div
                       key={item.id || `${item.name}-${index}`}
                       className={(isLight
-                        ? "border-white/75 bg-white/55 text-zinc-950"
+                        ? "border-white/70 bg-white/45 text-zinc-950"
                         : "border-white/18 bg-white/[0.12] text-white") +
                         (index === 4 ? " hidden lg:block" : "") +
                         " group relative min-w-[150px] overflow-hidden rounded-[1.35rem] border p-4 text-center backdrop-blur-xl transition duration-300 hover:-translate-y-1"}
@@ -670,7 +673,7 @@ function PublicProfilePage() {
                         boxShadow: "0 18px 55px -24px color-mix(in oklch, var(--c-primary) 80%, transparent), inset 0 1px 0 rgba(255,255,255,.20)",
                       }}
                     >
-                      <div className="pointer-events-none absolute inset-x-4 -top-10 h-20 rounded-full blur-2xl" style={{ background: "color-mix(in oklch, var(--c-accent) 34%, transparent)" }} />
+                      <div className="pointer-events-none absolute inset-x-4 -top-10 h-20 rounded-full blur-2xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 34%, transparent)" }} />
                       <div className={(isLight ? "bg-white/75 ring-white/75" : "bg-white/10 ring-white/15") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.04]"}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
