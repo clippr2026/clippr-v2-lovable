@@ -580,11 +580,11 @@ function PublicProfilePage() {
           className="absolute inset-0"
           style={{
             background:
-              isLight ? "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 36%, transparent), transparent 42%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 32%, transparent), transparent 42%)" : "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 36%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 36%)",
+              isLight ? "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 32%, transparent), color-mix(in oklch, var(--c-secondary) 32%, transparent))" : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent), color-mix(in oklch, var(--c-secondary) 26%, transparent))",
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
-          <div className="h-44 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-60">
+          <div className="h-44 overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl sm:h-60" style={{ background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))" }}>
             {business.cover_url ? (
               <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition }} decoding="async" />
             ) : null}
@@ -880,7 +880,7 @@ function PublicProfilePage() {
                 <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
                   <Sparkles className="h-5 w-5" />
                 </span>
-                <h2 className="text-2xl font-semibold">Información adicional</h2>
+                <h2 className="text-2xl font-semibold">Beneficios</h2>
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 {additionalInfo.map((item) => (
