@@ -585,7 +585,7 @@ function PublicProfilePage() {
                 {[
                   { value: "+16,2 mil", label: <>Clientes<br />atendidos</> },
                   { value: "+27,5 mil", label: <>Servicios<br />realizados</> },
-                  { value: String(publicBranding?.business_start_date ? Math.max(0,new Date().getFullYear()-new Date(publicBranding.business_start_date).getFullYear()) : 7), label: <>Años de<br />experiencia</> },
+                  { value: "7", label: <>Años de<br />experiencia</> },
                 ].map((item) => (
                   <div key={item.value} className="px-3 sm:px-5">
                     <div className="whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{item.value}</div>
