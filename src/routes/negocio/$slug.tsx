@@ -570,6 +570,7 @@ function PublicProfilePage() {
         ["--c-primary" as any]: cPrimary,
         ["--c-secondary" as any]: cSecondary,
         ["--c-accent" as any]: cAccent,
+        ["--c-button-text" as any]: accentButtonText,
         ["--page-bg" as any]: isLight ? "#f6f7fb" : "#08070c",
         ["--card-bg" as any]: isLight ? "rgba(255,255,255,0.86)" : "rgba(255,255,255,0.04)",
         ["--text" as any]: isLight ? "#111827" : "#ffffff",
@@ -725,8 +726,8 @@ function PublicProfilePage() {
                       </div>
                       <a
                         href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
-                        style={{ background: cAccent, color: accentButtonText, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold transition hover:brightness-110"
+                        style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
                       >
                         Reservar
                       </a>
@@ -834,8 +835,8 @@ function PublicProfilePage() {
           <GlowCard className="p-5 sm:p-6">
             <Link
               {...reservarTo}
-              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white transition hover:brightness-110"
-              style={{ background: cAccent, color: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold transition hover:brightness-110"
+              style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
             >
               Reservar turno
             </Link>
@@ -1068,7 +1069,7 @@ function PublicProfilePage() {
         <Link
           {...reservarTo}
           className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white"
-          style={{ background: cAccent, color: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+          style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
         >
           Reservar turno
         </Link>
