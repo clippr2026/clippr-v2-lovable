@@ -671,25 +671,31 @@ function normalizeWhatsAppArgentina(phone: string): string {
   if (!raw) return "";
   if (raw.startsWith("00")) raw = raw.slice(2);
 
-  // WhatsApp Argentina para celulares: 549 + código de área + número.
+  // Si ya viene internacional, lo dejamos en formato WhatsApp Argentina móvil.
   if (raw.startsWith("549")) return raw;
   if (raw.startsWith("54")) {
-    const rest = raw.slice(2).replace(/^0+/, "").replace(/^15/, "");
-    return `549${rest}`;
+    let rest = raw.slice(2).replace(/^0+/, "");
+    if (!rest.startsWith("9")) rest = `9${rest}`;
+    return `54${rest}`;
   }
 
   raw = raw.replace(/^0+/, "");
-  // Si lo cargan como 15 2790 0829, asumimos AMBA y lo convertimos a 11.
-  if (raw.startsWith("15")) raw = `11${raw.slice(2)}`;
+
+  // AMBA: muchas personas escriben 15 + 8 dígitos. WhatsApp necesita 54911 + 8 dígitos.
+  if (raw.startsWith("15") && raw.length === 10) return `54911${raw.slice(2)}`;
+
+  // Si escriben 11 + 8 dígitos: 1127900829 => 5491127900829.
   return `549${raw}`;
 }
 
 function formatWhatsAppArgentinaPreview(normalized: string): string {
   if (!normalized) return "";
-  if (normalized.startsWith("549") && normalized.length >= 12) {
-    return `+54 9 ${normalized.slice(3, 5)} ${normalized.slice(5, 9)} ${normalized.slice(9)}`;
-  }
-  return `+${normalized}`;
+  if (!normalized.startsWith("549") || normalized.length < 12) return "";
+  const national = normalized.slice(3);
+  const area = national.slice(0, 2);
+  const first = national.slice(2, 6);
+  const last = national.slice(6);
+  return `+54 9 ${area} ${first}${last ? ` ${last}` : ""}`;
 }
 
 function BrandingSection() {
@@ -1129,7 +1135,7 @@ function BrandingSection() {
                     onChange={set(f.key)}
                     className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
                   />
-                  {f.key === "phone" && data.phone ? (
+                  {f.key === "phone" && formatWhatsAppArgentinaPreview(normalizeWhatsAppArgentina(data.phone)) ? (
                     <div className="mt-2 rounded-lg bg-emerald-500/10 ring-1 ring-emerald-500/20 px-3 py-2 text-xs text-emerald-200">
                       WhatsApp detectado: {formatWhatsAppArgentinaPreview(normalizeWhatsAppArgentina(data.phone))}
                     </div>
