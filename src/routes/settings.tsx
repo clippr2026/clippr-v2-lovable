@@ -112,17 +112,10 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       {
         id: "branding",
-        label: "Branding",
+        label: "Página de reservas",
         icon: Sparkles,
         tint: "text-[oklch(0.82_0.18_300)]",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
-      },
-      {
-        id: "landing",
-        label: "Landing",
-        icon: Palette,
-        tint: "text-[oklch(0.80_0.18_330)]",
-        glow: "from-[oklch(0.80_0.18_330/0.25)] to-[oklch(0.68_0.22_310/0.05)]",
       },
       {
         id: "horarios",
@@ -527,8 +520,8 @@ function LandingSection() {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Colores de la landing</h2>
-        <p className="mt-1 text-sm text-white/55">Personalizá la identidad visual de tu página pública. Se aplican a botones, resaltados, gradientes y luces.</p>
+        <h2 id="pagina-reservas-colores" className="scroll-mt-28 text-lg font-semibold">Colores</h2>
+        <p className="mt-1 text-sm text-white/55">Personalizá modo claro/oscuro, gradientes, glows, color de resaltado, texto de botones y beneficios del local.</p>
 
         <div className="mt-5 space-y-4">
           {fields.map(({ key, label, desc }) => (
@@ -1109,13 +1102,19 @@ function BrandingSection() {
   return (
     <>
       <div>
-        <h2 className="text-xl font-display font-semibold">Branding</h2>
+        <h2 className="text-xl font-display font-semibold">Página de reservas</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Información del negocio
+          Configuración de la página pública de reservas
         </p>
       </div>
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+        <a href="#pagina-reservas-info" className="rounded-xl bg-white/[0.08] px-4 py-2 text-sm font-semibold text-foreground ring-1 ring-white/10">Información</a>
+        <a href="#pagina-reservas-imagenes" className="rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-white/[0.06] hover:text-foreground">Imágenes</a>
+        <a href="#pagina-reservas-colores" className="rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-white/[0.06] hover:text-foreground">Colores</a>
+      </div>
 
-      <SectionCard label="Información del negocio">
+
+      <SectionCard label="Información del negocio" id="pagina-reservas-info">
         <div className="divide-y divide-white/5">
           {infoRows.map((f) => {
             const Icon = f.icon;
@@ -1135,11 +1134,6 @@ function BrandingSection() {
                     onChange={set(f.key)}
                     className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
                   />
-                  {f.key === "phone" && formatWhatsAppArgentinaPreview(normalizeWhatsAppArgentina(data.phone)) ? (
-                    <div className="mt-2 rounded-lg bg-emerald-500/10 ring-1 ring-emerald-500/20 px-3 py-2 text-xs text-emerald-200">
-                      WhatsApp detectado: {formatWhatsAppArgentinaPreview(normalizeWhatsAppArgentina(data.phone))}
-                    </div>
-                  ) : null}
                 </div>
               </div>
             );
@@ -1346,7 +1340,7 @@ function BrandingSection() {
         </div>
       </SectionCard>
 
-      <SectionCard label="Imágenes">
+      <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
         <div className="space-y-5">
           {/* Foto de perfil (sitio web público) */}
           <div className="flex items-start gap-4">
@@ -2108,7 +2102,7 @@ const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }
 ];
 
 const CONFIG_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
-  { key: "branding", label: "Branding", desc: "Identidad visual y datos del negocio." },
+  { key: "branding", label: "Página de reservas", desc: "Identidad visual y datos del negocio." },
   { key: "horarios", label: "Horarios", desc: "Disponibilidad y reglas de agenda." },
   { key: "equipo", label: "Equipo", desc: "Profesionales, usuarios y permisos." },
   { key: "servicios", label: "Servicios", desc: "Servicios, precios y categorías." },
@@ -5508,8 +5502,7 @@ function SettingsPage() {
 
           {/* Content */}
           <section className="space-y-6">
-            {active === "branding" && <BrandingSection />}
-            {active === "landing" && <LandingSection />}
+            {active === "branding" && <><BrandingSection /><LandingSection /></>}
 
             {active === "horarios" && <HorariosSection />}
             {active === "equipo" && <EquipoSection />}
