@@ -84,6 +84,10 @@ type PublicBranding = {
   additional_info?: string[] | null;
   portfolio_urls?: string[] | null;
   featured_clients?: FeaturedClient[] | null;
+  avatar_position?: string | null;
+  cover_position?: string | null;
+  portfolio_positions?: string[] | null;
+  featured_positions?: Record<string, string> | null;
   colors?: LandingColors | null;
   theme?: LandingTheme | null;
 };
@@ -298,6 +302,10 @@ function PublicProfilePage() {
   const [services, setServices] = React.useState<Service[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
   const [portfolioUrls, setPortfolioUrls] = React.useState<string[]>([]);
+  const [portfolioPositions, setPortfolioPositions] = React.useState<string[]>([]);
+  const [avatarPosition, setAvatarPosition] = React.useState("50% 50%");
+  const [coverPosition, setCoverPosition] = React.useState("50% 50%");
+  const [featuredPositions, setFeaturedPositions] = React.useState<Record<string, string>>({});
   const [featuredClients, setFeaturedClients] = React.useState<FeaturedClient[]>([]);
   const [showAllFeaturedClients, setShowAllFeaturedClients] = React.useState(false);
   const [description, setDescription] = React.useState<string>("");
@@ -405,6 +413,10 @@ function PublicProfilePage() {
           );
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
+          setPortfolioPositions(Array.isArray(branding.portfolio_positions) ? branding.portfolio_positions : []);
+          setAvatarPosition(typeof branding.avatar_position === "string" ? branding.avatar_position : "50% 50%");
+          setCoverPosition(typeof branding.cover_position === "string" ? branding.cover_position : "50% 50%");
+          setFeaturedPositions((branding.featured_positions && typeof branding.featured_positions === "object" ? branding.featured_positions : {}) as Record<string, string>);
           setFeaturedClients(normalizeFeaturedClients(branding.featured_clients));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
           setProfileNote(typeof branding.profile_note === "string" ? branding.profile_note.trim().slice(0, 80) : "");
@@ -530,7 +542,7 @@ function PublicProfilePage() {
         <div className="relative mx-auto max-w-6xl px-4 py-6 sm:py-10">
           <div className="h-44 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900 shadow-2xl sm:h-60">
             {business.cover_url ? (
-              <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" decoding="async" />
+              <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition }} decoding="async" />
             ) : null}
           </div>
           <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
@@ -543,7 +555,7 @@ function PublicProfilePage() {
               ) : null}
               <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
                 {business.avatar_url || business.logo_url ? (
-                  <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" decoding="async" />
+                  <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />
                 ) : (
                   business.name.slice(0, 1)
                 )}
@@ -646,7 +658,7 @@ function PublicProfilePage() {
                     >
                       <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/7 ring-white/12") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.03]"}>
                         {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                          <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
                         ) : (
                           <span className={(isLight ? "text-zinc-800" : "text-white/80") + " text-2xl font-bold"}>{item.name.slice(0, 1)}</span>
                         )}
@@ -755,7 +767,7 @@ function PublicProfilePage() {
                         onClick={() => openPortfolio(i)}
                         className="group aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:scale-[1.015] hover:border-white/20"
                       >
-                        <img src={src} alt={`Imagen ${i + 1} de ${business.name}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" decoding="async" />
+                        <img src={src} alt={`Imagen ${i + 1} de ${business.name}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" style={{ objectPosition: portfolioPositions[i] || "50% 50%" }} loading="lazy" decoding="async" />
                       </button>
                     ))}
                   </div>
@@ -884,9 +896,9 @@ function PublicProfilePage() {
                   target="_blank"
                   rel="noreferrer"
                   aria-label="WhatsApp"
-                  className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 transition hover:bg-white/10"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold transition hover:bg-white/10"
                 >
-                  <Phone className="h-5 w-5" />
+                  <Phone className="h-5 w-5" /> WhatsApp
                 </a>
               ) : null}
               {instagram ? (
@@ -895,18 +907,18 @@ function PublicProfilePage() {
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Instagram"
-                  className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 transition hover:bg-white/10"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold transition hover:bg-white/10"
                 >
-                  <Instagram className="h-5 w-5" />
+                  <Instagram className="h-5 w-5" /> Instagram
                 </a>
               ) : null}
               {business.email ? (
                 <a
                   href={`mailto:${business.email}`}
                   aria-label="Email"
-                  className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 transition hover:bg-white/10"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold transition hover:bg-white/10"
                 >
-                  <Mail className="h-5 w-5" />
+                  <Mail className="h-5 w-5" /> Mail
                 </a>
               ) : null}
             </div>
@@ -965,7 +977,7 @@ function PublicProfilePage() {
                         >
                           <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/5 ring-white/10") + " mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl ring-1 sm:h-28 sm:w-28"}>
                             {item.image_url ? (
-                              <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                              <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
                             ) : (
                               <span className={(isLight ? "text-zinc-800" : "text-white/80") + " text-3xl font-bold"}>{item.name.slice(0, 1)}</span>
                             )}
