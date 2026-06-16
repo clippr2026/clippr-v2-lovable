@@ -707,7 +707,7 @@ function BrandingSection() {
     if (!businessId) { setLoading(false); return; }
     // Load name/slug + assets públicos desde businesses; el resto desde _branding.
     Promise.all([
-      supabase.from("businesses").select("name,slug,avatar_url,cover_url").eq("id", businessId).maybeSingle(),
+      supabase.from("businesses").select("name,slug,address,phone,email,instagram,avatar_url,cover_url").eq("id", businessId).maybeSingle(),
       supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
@@ -716,10 +716,10 @@ function BrandingSection() {
       setData({
         name: (biz?.name as string) ?? "",
         slug: (biz?.slug as string) ?? "",
-        address: (cfg.address as string) ?? "",
-        phone: (cfg.phone as string) ?? "",
-        email: (cfg.email as string) ?? "",
-        instagram: (cfg.instagram as string) ?? "",
+        address: (cfg.address as string) ?? (biz?.address as string) ?? "",
+        phone: (cfg.phone as string) ?? (biz?.phone as string) ?? "",
+        email: (cfg.email as string) ?? (biz?.email as string) ?? "",
+        instagram: (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
         profile_note: (cfg.profile_note as string) ?? "",
@@ -997,21 +997,17 @@ function BrandingSection() {
       .select("id,name,slug")
       .maybeSingle();
 
-    // Save branding fields inside schedule._branding (schedule column exists)
+    // Save branding fields inside schedule._branding (schedule column exists).
+    // Importante: siempre hacemos merge y preservamos imágenes/clientes destacados
+    // si el estado llega vacío por una carga incompleta, para no pisar datos existentes.
     const { data: existingRow } = await supabase.from("business_settings")
       .select("schedule").eq("business_id", businessId).maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const existingBranding = ((existingSchedule._branding ?? {}) as Record<string, unknown>);
-    const existingFeaturedClients = normalizeFeaturedClients(existingBranding.featured_clients);
+    const existingBranding = (existingSchedule._branding ?? {}) as Record<string, unknown>;
+    const nextPortfolioUrls = data.portfolio_urls.filter(Boolean).slice(0, 3);
     const nextFeaturedClients = data.featured_clients
       .map((item, index) => ({ ...item, order: index, name: item.name.trim(), image_url: item.image_url.trim() }))
       .filter((item) => item.name || item.image_url);
-
-    // Protección: si por una carga incompleta el estado local queda vacío,
-    // no pisamos los clientes destacados ya guardados. Esto evita que
-    // "Confían en nosotros" desaparezca al guardar otros cambios de Branding.
-    const featuredClientsToSave = nextFeaturedClients.length > 0 ? nextFeaturedClients : existingFeaturedClients;
-
     const newSchedule = {
       ...existingSchedule,
       _branding: {
@@ -1023,9 +1019,9 @@ function BrandingSection() {
         website: data.website,
         description: data.description,
         profile_note: data.profile_note,
-        logo_url,
-        portfolio_urls: data.portfolio_urls.filter(Boolean).slice(0, 3),
-        featured_clients: featuredClientsToSave,
+        logo_url: logo_url || (existingBranding.logo_url as string | undefined) || "",
+        portfolio_urls: nextPortfolioUrls.length > 0 ? nextPortfolioUrls : (existingBranding.portfolio_urls ?? []),
+        featured_clients: nextFeaturedClients.length > 0 ? nextFeaturedClients : (existingBranding.featured_clients ?? []),
       },
     };
     const cfgResult = await supabase.from("business_settings").upsert(
@@ -1113,7 +1109,7 @@ function BrandingSection() {
         </p>
       </div>
 
-      <SectionCard label="Información de la barbería">
+      <SectionCard label="Información del negocio">
         <div className="divide-y divide-white/5">
           {infoRows.map((f) => {
             const Icon = f.icon;
@@ -5499,6 +5495,9 @@ function SettingsPage() {
                 </div>
               </div>
             ))}
+            <div className="px-3 pt-3 text-[11px] text-muted-foreground/60">
+              Clippr v1.0.0
+            </div>
           </aside>
 
           {/* Content */}
