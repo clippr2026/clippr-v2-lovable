@@ -302,6 +302,45 @@ type FeaturedClient = {
 
 const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = ["Marca", "Artista", "Futbolista", "Equipo de fútbol", "Influencer", "Empresa", "Celebridad", "Otro"];
 
+// ─────────── Beneficios del local (lista editable, máx. 12) ───────────
+type Benefit = { id: string; label: string; active: boolean };
+
+const DEFAULT_BENEFITS: string[] = [
+  "⚡ Confirmación instantánea",
+  "📅 Reserva online 24/7",
+  "💳 Acepta tarjetas",
+  "📶 Wi-Fi gratuito",
+  "🚗 Estacionamiento cercano",
+  "♿ Accesible para silla de ruedas",
+  "☕ Café de cortesía",
+  "❄️ Ambiente climatizado",
+  "💎 Atención premium",
+  "🎵 Música ambiente",
+  "🧴 Productos profesionales",
+  "🐶 Pet friendly",
+];
+
+function makeBenefitId(): string {
+  return `benefit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function buildDefaultBenefits(): Benefit[] {
+  return DEFAULT_BENEFITS.map((label) => ({ id: makeBenefitId(), label, active: true }));
+}
+
+function normalizeBenefits(value: unknown): Benefit[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((b): b is Record<string, unknown> => !!b && typeof b === "object")
+    .map((b) => ({
+      id: typeof b.id === "string" && b.id ? b.id : makeBenefitId(),
+      label: typeof b.label === "string" ? b.label.slice(0, 35) : "",
+      active: b.active !== false,
+    }))
+    .filter((b) => b.label.trim().length > 0)
+    .slice(0, 12);
+}
+
 function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -413,7 +452,7 @@ function slugifyLive(value: string): string {
 }
 
 // ─────────── Landing (colores de la página pública) ───────────
-const LANDING_DEFAULTS = { primary: "#7c3aed", secondary: "#7c3aed", accent: "#d6b66a", buttonText: "#ffffff" };
+const LANDING_DEFAULTS = { primary: "#7c3aed", secondary: "#d946ef", accent: "#d6b66a", buttonText: "#ffffff" };
 const LANDING_THEME_DEFAULT = "dark" as const;
 type LandingTheme = "dark" | "light";
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
@@ -711,8 +750,8 @@ function BrandingSection() {
   const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">("info");
   const [colors, setColors] = useState(LANDING_DEFAULTS);
   const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
-  const [additionalInfo, setAdditionalInfo] = useState<string[]>([]);
-  const [customAdditionalInfo, setCustomAdditionalInfo] = useState("");
+  const [benefits, setBenefits] = useState<Benefit[]>([]);
+  const [customBenefit, setCustomBenefit] = useState("");
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -748,13 +787,24 @@ function BrandingSection() {
       const cc = (cfg.colors ?? {}) as Record<string, string>;
       setColors({
         primary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.primary)),
-        secondary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.secondary)),
+        secondary: normalizeHex(cc.secondary, normalizeHex(cc.primary, LANDING_DEFAULTS.secondary)),
         accent: normalizeHex(cc.accent, LANDING_DEFAULTS.accent),
         buttonText: normalizeHex(cc.buttonText, LANDING_DEFAULTS.buttonText),
       });
       setTheme((cfg.theme as string) === "light" ? "light" : "dark");
-      const sa = Array.isArray(cfg.additional_info) ? (cfg.additional_info as unknown[]) : [];
-      setAdditionalInfo(sa.filter((x): x is string => typeof x === "string" && x.trim().length > 0).slice(0, 12));
+      const rawBenefits = normalizeBenefits(cfg.benefits);
+      if (rawBenefits.length > 0) {
+        setBenefits(rawBenefits);
+      } else {
+        const legacy = Array.isArray(cfg.additional_info)
+          ? (cfg.additional_info as unknown[]).filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+          : [];
+        setBenefits(
+          legacy.length > 0
+            ? legacy.slice(0, 12).map((label) => ({ id: makeBenefitId(), label: label.slice(0, 35), active: true }))
+            : buildDefaultBenefits(),
+        );
+      }
       setLoading(false);
     });
   }, [businessId]);
@@ -912,38 +962,43 @@ function BrandingSection() {
   }
 
 
-  function toggleAdditionalInfo(item: string) {
-    setAdditionalInfo((current) => {
-      if (current.includes(item)) return current.filter((value) => value !== item);
-      if (current.length >= 12) { toast.error("Podés seleccionar hasta 12 opciones"); return current; }
-      return [...current, item];
-    });
-  }
-
-
-  function addCustomAdditionalInfo() {
-    const value = customAdditionalInfo.trim().slice(0, 35);
+  function addBenefit() {
+    const value = customBenefit.trim().slice(0, 35);
     if (!value) return;
-    if (additionalInfo.length >= 12) {
-      toast.error("Podés agregar hasta 12 informaciones adicionales.");
+    if (benefits.length >= 12) {
+      toast.error("Has alcanzado el máximo de 12 beneficios.");
       return;
     }
-    if (additionalInfo.includes(value)) {
-      setCustomAdditionalInfo("");
+    if (benefits.some((b) => b.label.toLowerCase() === value.toLowerCase())) {
+      setCustomBenefit("");
       return;
     }
-    setAdditionalInfo((current) => [...current, value].slice(0, 12));
-    setCustomAdditionalInfo("");
+    setBenefits((current) => [...current, { id: makeBenefitId(), label: value, active: true }].slice(0, 12));
+    setCustomBenefit("");
   }
 
-  function updateAdditionalInfo(oldValue: string, nextValue: string) {
-    const clean = nextValue.trim().slice(0, 35);
-    if (!clean) return;
-    setAdditionalInfo((current) => current.map((item) => item === oldValue ? clean : item).slice(0, 12));
+  function updateBenefit(id: string, label: string) {
+    setBenefits((current) => current.map((b) => (b.id === id ? { ...b, label: label.slice(0, 35) } : b)));
   }
 
-  function removeAdditionalInfo(value: string) {
-    setAdditionalInfo((current) => current.filter((item) => item !== value));
+  function toggleBenefit(id: string) {
+    setBenefits((current) => current.map((b) => (b.id === id ? { ...b, active: !b.active } : b)));
+  }
+
+  function removeBenefit(id: string) {
+    setBenefits((current) => current.filter((b) => b.id !== id));
+  }
+
+  function moveBenefit(id: string, dir: -1 | 1) {
+    setBenefits((current) => {
+      const index = current.findIndex((b) => b.id === id);
+      if (index < 0) return current;
+      const target = index + dir;
+      if (target < 0 || target >= current.length) return current;
+      const list = [...current];
+      [list[index], list[target]] = [list[target], list[index]];
+      return list;
+    });
   }
 
   function addFeaturedClient() {
@@ -1089,12 +1144,19 @@ function BrandingSection() {
         featured_clients: nextFeaturedClients.length > 0 ? nextFeaturedClients : (existingBranding.featured_clients ?? []),
         colors: {
           primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
-          secondary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+          secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
           accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
           buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
         },
         theme,
-        additional_info: additionalInfo.filter((item) => item.trim().length > 0).slice(0, 12),
+        benefits: benefits
+          .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
+          .filter((b) => b.label.length > 0)
+          .slice(0, 12),
+        additional_info: benefits
+          .filter((b) => b.active && b.label.trim().length > 0)
+          .map((b) => b.label.trim())
+          .slice(0, 12),
         avatar_position: data.avatar_position,
         cover_position: data.cover_position,
         portfolio_positions: data.portfolio_positions,
@@ -1120,7 +1182,7 @@ function BrandingSection() {
   }
 
   const saveRef = React.useRef(save);
-  React.useEffect(() => { saveRef.current = save; }, [businessId, data, logoFile, colors, theme, additionalInfo]);
+  React.useEffect(() => { saveRef.current = save; }, [businessId, data, logoFile, colors, theme, benefits]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1301,47 +1363,72 @@ function BrandingSection() {
         </div>
       </SectionCard>
 
-      <SectionCard label="Información adicional">
-        <div className="space-y-3">
+      <SectionCard label="Beneficios del local">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-white/50">Máximo 12 informaciones adicionales. Cada una puede tener hasta 35 caracteres.</p>
-            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
+            <p className="text-xs text-white/50">Lista de beneficios que se muestran en tu perfil público. Editá, reordená, activá/desactivá. Máximo 12.</p>
+            <span className={cn("shrink-0 text-xs font-semibold", benefits.length >= 12 ? "text-amber-300" : "text-white/45")}>{benefits.length}/12</span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {additionalInfo.slice(0, 12).map((item, index) => (
-              <span key={`${item}-${index}`} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-sm">
-                <input
-                  value={item}
-                  maxLength={35}
-                  onChange={(e) => setAdditionalInfo((current) => current.map((value, i) => i === index ? e.target.value.slice(0, 35) : value).slice(0, 12))}
-                  className="w-44 max-w-[42vw] bg-transparent text-sm outline-none"
-                />
-                <button type="button" onClick={() => setAdditionalInfo((current) => current.filter((_, i) => i !== index))} className="text-red-300 hover:text-red-200">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </span>
-            ))}
-          </div>
+          {benefits.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-xs text-muted-foreground">
+              Todavía no cargaste beneficios.
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {benefits.map((b, index) => (
+                <div key={b.id} className={cn("flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5", !b.active && "opacity-50")}>
+                  <div className="flex flex-col leading-none">
+                    <button type="button" onClick={() => moveBenefit(b.id, -1)} disabled={index === 0} className="text-white/40 hover:text-white disabled:opacity-20" aria-label="Subir">
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => moveBenefit(b.id, 1)} disabled={index === benefits.length - 1} className="text-white/40 hover:text-white disabled:opacity-20" aria-label="Bajar">
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <input
+                    value={b.label}
+                    maxLength={35}
+                    onChange={(e) => updateBenefit(b.id, e.target.value)}
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleBenefit(b.id)}
+                    className={cn("shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold ring-1", b.active ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" : "bg-white/5 text-muted-foreground ring-white/10")}
+                  >
+                    {b.active ? "Activo" : "Inactivo"}
+                  </button>
+                  <button type="button" onClick={() => removeBenefit(b.id)} className="shrink-0 text-red-300 hover:text-red-200" aria-label="Eliminar">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="flex gap-2">
             <input
-              value={customAdditionalInfo}
-              onChange={(e) => setCustomAdditionalInfo(e.target.value.slice(0, 35))}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAdditionalInfo(); } }}
+              value={customBenefit}
+              onChange={(e) => setCustomBenefit(e.target.value.slice(0, 35))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBenefit(); } }}
               maxLength={35}
-              placeholder="Agregar información adicional..."
-              className="flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+              disabled={benefits.length >= 12}
+              placeholder={benefits.length >= 12 ? "Has alcanzado el máximo de 12 beneficios." : "Agregar beneficio (ej: ⚡ Confirmación instantánea)"}
+              className="flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
             />
             <button
               type="button"
-              onClick={addCustomAdditionalInfo}
-              disabled={additionalInfo.length >= 12}
+              onClick={addBenefit}
+              disabled={benefits.length >= 12}
               className="rounded-lg bg-white/8 px-3 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Agregar
             </button>
           </div>
+          {benefits.length >= 12 ? (
+            <p className="text-xs font-medium text-amber-300">Has alcanzado el máximo de 12 beneficios.</p>
+          ) : null}
         </div>
       </SectionCard>
       </>
@@ -1363,7 +1450,7 @@ function BrandingSection() {
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
-                {avatarPreview ? "Imagen cargada" : "Sin imagen"}
+                {avatarPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
               </div>
               <div className="flex items-center gap-2">
                 <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
@@ -1394,30 +1481,27 @@ function BrandingSection() {
                 <div className="font-medium text-sm">Portada</div>
                 <div className="text-xs text-muted-foreground mt-0.5">Banner superior de tu sitio web. Se optimiza a WebP 1600×600.</div>
               </div>
-              <div className="flex items-center gap-2">
-                <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
-                  <Upload className="h-3.5 w-3.5" /> {uploadingCover ? "Subiendo…" : (coverPreview ? "Cambiar portada" : "Subir portada")}
-                  <input type="file" accept="image/*" className="hidden" disabled={uploadingCover} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleCoverSelect(f); }} />
-                </label>
-                {coverPreview ? (
-                  <button
-                    type="button"
-                    onClick={removeCover}
-                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                  >
-                    <X className="h-3.5 w-3.5" /> Eliminar
-                  </button>
-                ) : null}
+              <div className="flex flex-col items-end gap-2">
+                <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
+                  {coverPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                    <Upload className="h-3.5 w-3.5" /> {uploadingCover ? "Subiendo…" : (coverPreview ? "Cambiar imagen" : "Subir portada")}
+                    <input type="file" accept="image/*" className="hidden" disabled={uploadingCover} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleCoverSelect(f); }} />
+                  </label>
+                  {coverPreview ? (
+                    <button
+                      type="button"
+                      onClick={removeCover}
+                      className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                    >
+                      <X className="h-3.5 w-3.5" /> Eliminar
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
-            <div className="mt-3 aspect-[16/5] w-full rounded-3xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden shadow-xl">
-              {coverPreview ? (
-                <img src={coverPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.cover_position }} />
-              ) : (
-                <span className="text-xs text-muted-foreground">Sin portada</span>
-              )}
-            </div>
-            {coverPreview ? <PositionControls value={data.cover_position} onChange={(next) => setData(d => ({ ...d, cover_position: next }))} /> : null}
           </div>
 
           {/* Portafolio (sitio web público) */}
@@ -1438,7 +1522,7 @@ function BrandingSection() {
                 const uploading = uploadingPortfolioIndex === index;
                 return (
                   <div key={index} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                    <div className="mb-2 text-xs text-muted-foreground">{url ? `Imagen ${index + 1} cargada` : `Imagen ${index + 1} sin cargar`}</div>
+                    <div className="mb-2 text-xs text-muted-foreground">{url ? `✅ Imagen ${index + 1} cargada` : `📷 Imagen ${index + 1} sin cargar`}</div>
                     <div className="flex items-center gap-2">
                       <label className={cn("inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
                         <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : (url ? "Cambiar" : "Subir")}
@@ -1481,11 +1565,7 @@ function BrandingSection() {
                 const uploading = uploadingFeaturedId === item.id;
                 return (
                   <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="grid gap-3 lg:grid-cols-[130px_1fr_180px_120px_auto] lg:items-center">
-                      <div className="mx-auto h-24 w-24 overflow-hidden rounded-3xl bg-white/5 ring-1 ring-white/10 grid place-items-center shadow-lg">
-                        {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.featured_positions[item.id] || "50% 50%" }} /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
-                      </div>
-                      {item.image_url ? <PositionControls value={data.featured_positions[item.id] || "50% 50%"} onChange={(next) => setData(d => ({ ...d, featured_positions: { ...d.featured_positions, [item.id]: next } }))} /> : null}
+                    <div className="grid gap-3 lg:grid-cols-[1fr_180px_150px_auto] lg:items-center">
                       <input
                         value={item.name}
                         onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
@@ -1500,7 +1580,7 @@ function BrandingSection() {
                         {FEATURED_CLIENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
                       </select>
                       <label className={cn("inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
-                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : "Imagen"}
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : (item.image_url ? "✅ Cambiar" : "📷 Imagen")}
                         <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleFeaturedImageSelect(item.id, f); }} />
                       </label>
                       <div className="flex items-center justify-end gap-1">
@@ -1526,7 +1606,8 @@ function BrandingSection() {
         <p className="text-sm text-white/55">Personalizá modo claro/oscuro, gradientes, glows, color de resaltado y texto de botones.</p>
         <div className="mt-5 space-y-4">
           {([
-            { key: "primary", label: "Gradientes y glows", desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales." },
+            { key: "primary", label: "Color 1 (izquierda)", desc: "Extremo izquierdo del gradiente de la cabecera, glows y fondo ambiental." },
+            { key: "secondary", label: "Color 2 (derecha)", desc: "Extremo derecho del gradiente de la cabecera, glows y fondo ambiental." },
             { key: "accent", label: "Color de resaltado", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
             { key: "buttonText", label: "Texto de botones", desc: "Color de la letra dentro de los botones principales." },
           ] as const).map(({ key, label, desc }) => (
@@ -1561,7 +1642,7 @@ function BrandingSection() {
             style={{
               borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
               color: theme === "light" ? "#0f172a" : "#fff",
-              background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#080512"}`,
+              background: `linear-gradient(90deg, color-mix(in oklch, ${colors.primary} 42%, transparent), color-mix(in oklch, ${colors.secondary} 42%, transparent)), ${theme === "light" ? "#f8fafc" : "#080512"}`,
             }}
           >
             <div className="relative rounded-3xl border p-4 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)" }}>
