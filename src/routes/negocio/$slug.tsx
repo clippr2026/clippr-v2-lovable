@@ -585,12 +585,13 @@ function PublicProfilePage() {
         .public-landing[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
         .public-landing[data-theme="light"] [class*="bg-white/"] { background-color: rgba(255,255,255,0.72) !important; }
       `}</style>
-      <section className="relative overflow-hidden border-b border-white/10">
+      <section className="relative overflow-hidden border-b border-white/[0.06]">
         <div
           className="absolute inset-0"
           style={{
-            background:
-              isLight ? "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 32%, transparent), color-mix(in oklch, var(--c-secondary) 32%, transparent))" : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent), color-mix(in oklch, var(--c-secondary) 26%, transparent))",
+            background: isLight
+              ? "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 32%, #ffffff) 0%, #ffffff 48%, color-mix(in oklch, var(--c-secondary) 32%, #ffffff) 100%)"
+              : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 28%, #08070c) 0%, #08070c 48%, color-mix(in oklch, var(--c-secondary) 28%, #08070c) 100%)",
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
@@ -863,7 +864,7 @@ function PublicProfilePage() {
             )}
 
             {business.address ? (
-              <div className="mt-auto border-t border-white/10 pt-5">
+              <div className="mt-auto border-t border-white/[0.06] pt-5">
                 <div className="flex items-start gap-2 text-sm">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cAccent }} />
                   <div className="min-w-0">
@@ -1063,7 +1064,7 @@ function PublicProfilePage() {
         </div>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08070c]/95 p-3 backdrop-blur sm:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-[#08070c]/95 p-3 backdrop-blur sm:hidden">
         <Link
           {...reservarTo}
           className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white"
