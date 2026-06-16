@@ -701,6 +701,10 @@ function BrandingSection() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<number | null>(null);
   const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">("info");
+  const [colors, setColors] = useState(LANDING_DEFAULTS);
+  const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
+  const [additionalInfo, setAdditionalInfo] = useState<string[]>([]);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -728,6 +732,16 @@ function BrandingSection() {
         portfolio_urls: Array.isArray(cfg.portfolio_urls) ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3) : [],
         featured_clients: normalizeFeaturedClients(cfg.featured_clients),
       });
+      const cc = (cfg.colors ?? {}) as Record<string, string>;
+      setColors({
+        primary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.primary)),
+        secondary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.secondary)),
+        accent: normalizeHex(cc.accent, LANDING_DEFAULTS.accent),
+        buttonText: normalizeHex(cc.buttonText, LANDING_DEFAULTS.buttonText),
+      });
+      setTheme((cfg.theme as string) === "light" ? "light" : "dark");
+      const sa = Array.isArray(cfg.additional_info) ? (cfg.additional_info as unknown[]) : [];
+      setAdditionalInfo(sa.filter((x): x is string => typeof x === "string" && x.trim().length > 0).slice(0, 12));
       setLoading(false);
     });
   }, [businessId]);
@@ -825,10 +839,8 @@ function BrandingSection() {
       const { blob, ext, type } = await processImage(file, 512, 512, 0.8);
       const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
       if (!url) return;
-      const ok = await persistAsset({ avatar_url: url });
-      if (!ok) return;
       setData(d => ({ ...d, avatar_url: url }));
-      toast.success("Foto de perfil actualizada");
+      toast.success("Foto cargada. Tocá Guardar para confirmar.");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -843,10 +855,8 @@ function BrandingSection() {
       const { blob, ext, type } = await processImage(file, 1600, 600, 0.8);
       const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
       if (!url) return;
-      const ok = await persistAsset({ cover_url: url });
-      if (!ok) return;
       setData(d => ({ ...d, cover_url: url }));
-      toast.success("Portada actualizada");
+      toast.success("Portada cargada. Tocá Guardar para confirmar.");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -855,12 +865,12 @@ function BrandingSection() {
   }
 
   async function removeAvatar() {
-    const ok = await persistAsset({ avatar_url: null });
-    if (ok) { setData(d => ({ ...d, avatar_url: "" })); toast.success("Foto eliminada"); }
+    setData(d => ({ ...d, avatar_url: "" }));
+    toast.success("Foto quitada. Tocá Guardar para confirmar.");
   }
   async function removeCover() {
-    const ok = await persistAsset({ cover_url: null });
-    if (ok) { setData(d => ({ ...d, cover_url: "" })); toast.success("Portada eliminada"); }
+    setData(d => ({ ...d, cover_url: "" }));
+    toast.success("Portada quitada. Tocá Guardar para confirmar.");
   }
 
   async function handlePortfolioSelect(index: number, file: File | null) {
@@ -873,10 +883,8 @@ function BrandingSection() {
       const next = [...data.portfolio_urls];
       next[index] = url;
       const clean = next.filter(Boolean).slice(0, 3);
-      const ok = await persistBrandingPatch({ portfolio_urls: clean });
-      if (!ok) return;
       setData(d => ({ ...d, portfolio_urls: clean }));
-      toast.success("Imagen de portafolio actualizada");
+      toast.success("Imagen cargada. Tocá Guardar para confirmar.");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -886,12 +894,18 @@ function BrandingSection() {
 
   async function removePortfolioImage(index: number) {
     const next = data.portfolio_urls.filter((_, i) => i !== index).slice(0, 3);
-    const ok = await persistBrandingPatch({ portfolio_urls: next });
-    if (!ok) return;
     setData(d => ({ ...d, portfolio_urls: next }));
-    toast.success("Imagen eliminada del portafolio");
+    toast.success("Imagen quitada. Tocá Guardar para confirmar.");
   }
 
+
+  function toggleAdditionalInfo(item: string) {
+    setAdditionalInfo((current) => {
+      if (current.includes(item)) return current.filter((value) => value !== item);
+      if (current.length >= 12) { toast.error("Podés seleccionar hasta 12 opciones"); return current; }
+      return [...current, item];
+    });
+  }
 
   function addFeaturedClient() {
     setData(d => ({
@@ -1021,6 +1035,14 @@ function BrandingSection() {
         logo_url: logo_url || (existingBranding.logo_url as string | undefined) || "",
         portfolio_urls: nextPortfolioUrls.length > 0 ? nextPortfolioUrls : (existingBranding.portfolio_urls ?? []),
         featured_clients: nextFeaturedClients.length > 0 ? nextFeaturedClients : (existingBranding.featured_clients ?? []),
+        colors: {
+          primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+          secondary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+          accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
+          buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
+        },
+        theme,
+        additional_info: additionalInfo.filter((item) => item.trim().length > 0).slice(0, 12),
       },
     };
     const cfgResult = await supabase.from("business_settings").upsert(
@@ -1042,7 +1064,7 @@ function BrandingSection() {
   }
 
   const saveRef = React.useRef(save);
-  React.useEffect(() => { saveRef.current = save; }, [businessId, data, logoFile]);
+  React.useEffect(() => { saveRef.current = save; }, [businessId, data, logoFile, colors, theme, additionalInfo]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1108,13 +1130,24 @@ function BrandingSection() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-        <a href="#pagina-reservas-info" className="rounded-xl bg-white/[0.08] px-4 py-2 text-sm font-semibold text-foreground ring-1 ring-white/10">Información</a>
-        <a href="#pagina-reservas-imagenes" className="rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-white/[0.06] hover:text-foreground">Imágenes</a>
-        <a href="#pagina-reservas-colores" className="rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-white/[0.06] hover:text-foreground">Colores</a>
+        {(([["info", "Información"], ["imagenes", "Imágenes"], ["colores", "Colores"]] as const)).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={
+              "rounded-xl px-4 py-2 text-sm font-semibold transition " +
+              (activeTab === id ? "bg-white/[0.08] text-foreground ring-1 ring-white/10" : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")
+            }
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-
-      <SectionCard label="Información del negocio" id="pagina-reservas-info">
+      {activeTab === "info" && (
+      <>
+      <SectionCard label="Información del negocio">
         <div className="divide-y divide-white/5">
           {infoRows.map((f) => {
             const Icon = f.icon;
@@ -1195,92 +1228,31 @@ function BrandingSection() {
         </div>
       </SectionCard>
 
-      <SectionCard label="Sitio web público">
-        <div className="space-y-5">
-          <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="h-9 w-9 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <Globe className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="font-medium text-sm">Sitio Web Público</div>
-              </div>
-              {publicSlug ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/30">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Activo
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-muted-foreground ring-1 ring-white/10">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/30" /> Sin configurar
-                </span>
-              )}
-            </div>
-
-            <p className="mt-3 text-sm text-muted-foreground break-all">
-              {publicSlug ? publicUrlShort : "Definí una URL pública arriba para activar tu sitio."}
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
+      <SectionCard label="Información adicional">
+        <p className="text-xs text-white/50">Elegí hasta 12 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección. <span className="font-medium text-white/45">{additionalInfo.length}/12</span></p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {ADDITIONAL_INFO_OPTIONS.map((item) => {
+            const act = additionalInfo.includes(item);
+            const dis = !act && additionalInfo.length >= 12;
+            return (
               <button
+                key={item}
                 type="button"
-                onClick={copyPublicLink}
-                disabled={!publicSlug}
-                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={dis}
+                onClick={() => toggleAdditionalInfo(item)}
+                className={"rounded-full border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35 " + (act ? "border-white/25 bg-white text-zinc-950 shadow-lg" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white")}
               >
-                <Copy className="h-4 w-4" /> Copiar link
+                {item}
               </button>
-              <button
-                type="button"
-                onClick={openPublicSite}
-                disabled={!publicSlug}
-                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ExternalLink className="h-4 w-4" /> Abrir sitio
-              </button>
-              <button
-                type="button"
-                onClick={sharePublicLink}
-                disabled={!publicSlug}
-                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Share2 className="h-4 w-4" /> Compartir
-              </button>
-            </div>
-          </div>
-
-          {/* Vista previa */}
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Vista previa</div>
-            <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-[#09090f]">
-              <div className="h-24 w-full overflow-hidden bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900">
-                {coverPreview ? (
-                  <img src={coverPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                ) : null}
-              </div>
-              <div className="px-4 pb-4 -mt-7">
-                <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border-4 border-[#09090f] bg-white text-xl font-bold text-zinc-950">
-                  {avatarPreview ? (
-                    <img src={avatarPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                  ) : (
-                    (data.name || "C").slice(0, 1)
-                  )}
-                </div>
-                <div className="mt-2 text-base font-semibold text-white">
-                  {data.name || "Nombre del negocio"}
-                </div>
-                {data.address ? (
-                  <div className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
-                    <MapPin className="h-3.5 w-3.5" /> {data.address}
-                  </div>
-                ) : null}
-                <div className="mt-1 text-xs text-white/40 break-all">
-                  {publicSlug ? publicUrlShort : "myclippr.com/negocio/tu-negocio"}
-                </div>
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
       </SectionCard>
+      </>
+      )}
+
+      {activeTab === "imagenes" && (
+      <>
 
       <SectionCard label="Confían en nosotros">
         <div className="space-y-4">
@@ -1455,6 +1427,45 @@ function BrandingSection() {
           </div>
         </div>
       </SectionCard>
+      </>
+      )}
+
+      {activeTab === "colores" && (
+      <>
+      <SectionCard label="Colores">
+        <p className="text-sm text-white/55">Personalizá modo claro/oscuro, gradientes, glows, color de resaltado y texto de botones.</p>
+        <div className="mt-5 space-y-4">
+          {([
+            { key: "primary", label: "Gradientes y glows", desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales." },
+            { key: "accent", label: "Color de resaltado", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
+            { key: "buttonText", label: "Texto de botones", desc: "Color de la letra dentro de los botones principales." },
+          ] as const).map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center gap-4">
+              <label className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15" style={{ background: colors[key] }}>
+                <input type="color" value={normalizeHex(colors[key], LANDING_DEFAULTS[key])} onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+              </label>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium">{label}</div>
+                <div className="text-xs text-white/50">{desc}</div>
+              </div>
+              <input type="text" value={colors[key]} onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))} spellCheck={false} className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25" placeholder="#000000" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <h3 className="text-sm font-semibold">Modo de la página pública</h3>
+          <p className="mt-1 text-xs text-white/50">Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.</p>
+          <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
+            {(["dark", "light"] as LandingTheme[]).map((mode) => (
+              <button key={mode} type="button" onClick={() => setTheme(mode)} className={"rounded-xl px-4 py-2 text-sm font-semibold transition " + (theme === mode ? "bg-white text-zinc-950" : "text-white/60 hover:bg-white/10 hover:text-white")}>
+                {mode === "dark" ? "Modo oscuro" : "Modo claro"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </SectionCard>
+      </>
+      )}
     </>
   );
 }
@@ -5440,7 +5451,7 @@ function SettingsPage() {
         action={
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: { section: active } }))}
-            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition"
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
           >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />
           </button>
@@ -5502,7 +5513,7 @@ function SettingsPage() {
 
           {/* Content */}
           <section className="space-y-6">
-            {active === "branding" && <><BrandingSection /><LandingSection /></>}
+            {active === "branding" && <BrandingSection />}
 
             {active === "horarios" && <HorariosSection />}
             {active === "equipo" && <EquipoSection />}
