@@ -604,77 +604,74 @@ function PublicProfilePage() {
           {featuredClients.length > 0 ? (
             <section
               className={(isLight
-                ? "border-zinc-200/80 bg-white/90 text-zinc-950"
-                : "border-white/10 bg-[#0d0718]/90 text-white") +
-                " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6 shadow-2xl"}
+                ? "border-white/70 text-zinc-950"
+                : "border-white/20 text-white") +
+                " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
               style={{
                 background: isLight
-                  ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 18%, white), color-mix(in oklch, var(--c-accent) 16%, white))"
-                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 38%, #0b0714), color-mix(in oklch, var(--c-accent) 38%, #12081a))",
-                boxShadow: "0 30px 120px -28px color-mix(in oklch, var(--c-primary) 75%, transparent)",
+                  ? "radial-gradient(ellipse at 12% 0%, color-mix(in oklch, var(--c-primary) 42%, transparent), transparent 58%), radial-gradient(ellipse at 95% 100%, color-mix(in oklch, var(--c-accent) 38%, transparent), transparent 62%), linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 18%, white), color-mix(in oklch, var(--c-accent) 16%, white))"
+                  : "radial-gradient(ellipse at 12% 0%, color-mix(in oklch, var(--c-primary) 70%, transparent), transparent 58%), radial-gradient(ellipse at 95% 100%, color-mix(in oklch, var(--c-accent) 62%, transparent), transparent 62%), linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 58%, #0a0612), color-mix(in oklch, var(--c-accent) 56%, #05030c))",
+                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 42%, transparent), 0 0 70px -18px color-mix(in oklch, var(--c-primary) 95%, transparent), 0 0 120px -26px color-mix(in oklch, var(--c-accent) 88%, transparent)",
               }}
             >
-              <div className="pointer-events-none absolute -left-24 -top-20 h-72 w-72 rounded-full blur-3xl" style={{background:"color-mix(in oklch, var(--c-primary) 45%, transparent)"}} />
-              <div className="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full blur-3xl" style={{background:"color-mix(in oklch, var(--c-accent) 45%, transparent)"}} />
-              <div className="pointer-events-none absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-[color-mix(in_oklch,var(--c-accent)_65%,transparent)] to-transparent" />
+              <div className="pointer-events-none absolute inset-0 opacity-80">
+                <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 52%, transparent)" }} />
+                <div className="absolute -right-24 -bottom-28 h-96 w-96 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-accent) 58%, transparent)" }} />
+                <div className="absolute inset-x-0 bottom-0 h-32" style={{ background: "linear-gradient(to top, color-mix(in oklch, var(--c-primary) 30%, transparent), transparent)" }} />
+              </div>
 
               <div className="relative">
-                <div
-                  className={(isLight
-                    ? "border-white/70 bg-white/35 text-zinc-950"
-                    : "border-white/20 bg-white/[0.10] text-white") +
-                    " relative overflow-hidden rounded-[1.6rem] border px-4 py-4 shadow-2xl backdrop-blur-xl sm:px-5"}
-                  style={{
-                    boxShadow: "0 18px 70px -22px color-mix(in oklch, var(--c-primary) 82%, transparent)",
-                  }}
-                >
-                  <div className="pointer-events-none absolute -left-10 -top-16 h-36 w-56 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 50%, transparent)" }} />
-                  <div className="pointer-events-none absolute -right-10 -top-16 h-36 w-56 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-accent) 46%, transparent)" }} />
-
-                  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-4">
-                      <span
-                        className={(isLight ? "border-white/70 bg-white/70" : "border-white/25 bg-white/15") +
-                          " grid h-16 w-16 place-items-center rounded-2xl border shadow-xl backdrop-blur"}
-                        style={{
-                          color: cAccent,
-                          boxShadow: "0 0 34px -8px color-mix(in oklch, var(--c-accent) 90%, transparent)",
-                        }}
-                      >
-                        <Star className="h-8 w-8 fill-current drop-shadow-[0_0_12px_currentColor]" />
-                      </span>
-                      <h2 className="text-[2.15rem] font-extrabold leading-none tracking-[-0.04em] sm:text-[2.7rem]">
-                        Confían en nosotros
-                      </h2>
-                    </div>
-
-                    {featuredClients.length > 4 ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllFeaturedClients(true)}
-                        className={(isLight
-                          ? "border-white/70 bg-white/75 text-zinc-950 hover:bg-white"
-                          : "border-white/25 bg-white/15 text-white hover:bg-white/20") +
-                          " shrink-0 rounded-full border px-5 py-2.5 text-sm font-bold shadow-xl backdrop-blur transition"}
-                      >
-                        Ver todos
-                      </button>
-                    ) : null}
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-5">
+                    <span
+                      className={(isLight ? "border-white/80 bg-white/65" : "border-white/25 bg-white/16") +
+                        " grid h-16 w-16 place-items-center rounded-2xl border shadow-2xl backdrop-blur-xl"}
+                      style={{
+                        color: cAccent,
+                        boxShadow: "0 0 34px -6px color-mix(in oklch, var(--c-accent) 95%, transparent), inset 0 1px 0 rgba(255,255,255,.22)",
+                      }}
+                    >
+                      <Star className="h-8 w-8 fill-current drop-shadow-[0_0_14px_currentColor]" />
+                    </span>
+                    <h2
+                      className="text-[2.25rem] font-extrabold uppercase leading-none tracking-[-0.045em] sm:text-[2.75rem]"
+                      style={{
+                        textShadow: "0 0 22px color-mix(in oklch, var(--c-primary) 70%, transparent)",
+                      }}
+                    >
+                      Confían en nosotros
+                    </h2>
                   </div>
+
+                  {featuredClients.length > 4 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllFeaturedClients(true)}
+                      className={(isLight
+                        ? "border-white/80 bg-white/75 text-zinc-950 hover:bg-white"
+                        : "border-white/25 bg-white/16 text-white hover:bg-white/22") +
+                        " inline-flex shrink-0 items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-bold shadow-2xl backdrop-blur-xl transition"}
+                    >
+                      Ver todos <ChevronRight className="h-4 w-4" />
+                    </button>
+                  ) : null}
                 </div>
 
-                <div className="mt-5 flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+                <div className="mt-6 flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
                   {featuredClients.slice(0, 5).map((item, index) => (
                     <div
                       key={item.id || `${item.name}-${index}`}
                       className={(isLight
-                        ? "border-zinc-200/80 bg-white/88 text-zinc-950"
-                        : "border-white/20 bg-white/[0.12] text-white") +
+                        ? "border-white/75 bg-white/55 text-zinc-950"
+                        : "border-white/18 bg-white/[0.12] text-white") +
                         (index === 4 ? " hidden lg:block" : "") +
-                        " group relative min-w-[170px] overflow-hidden rounded-[1.65rem] border p-4 text-center backdrop-blur-xl transition duration-300 before:absolute before:inset-x-5 before:-top-10 before:h-24 before:rounded-full before:bg-[radial-gradient(circle,color-mix(in_oklch,var(--c-accent)_55%,transparent),transparent_68%)] before:blur-2xl hover:-translate-y-1"}
-                      style={{ boxShadow: "0 22px 60px -18px color-mix(in oklch, var(--c-primary) 70%, transparent)" }}
+                        " group relative min-w-[150px] overflow-hidden rounded-[1.35rem] border p-4 text-center backdrop-blur-xl transition duration-300 hover:-translate-y-1"}
+                      style={{
+                        boxShadow: "0 18px 55px -24px color-mix(in oklch, var(--c-primary) 80%, transparent), inset 0 1px 0 rgba(255,255,255,.20)",
+                      }}
                     >
-                      <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/7 ring-white/12") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.03]"}>
+                      <div className="pointer-events-none absolute inset-x-4 -top-10 h-20 rounded-full blur-2xl" style={{ background: "color-mix(in oklch, var(--c-accent) 34%, transparent)" }} />
+                      <div className={(isLight ? "bg-white/75 ring-white/75" : "bg-white/10 ring-white/15") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.04]"}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
                         ) : (
@@ -682,8 +679,8 @@ function PublicProfilePage() {
                         )}
                       </div>
                       <div className="relative mt-4 min-w-0">
-                        <p className="truncate text-lg font-bold">{item.name}</p>
-                        <p className={(isLight ? "text-zinc-500" : "text-white/55") + " mt-1 truncate text-sm"}>{item.category}</p>
+                        <p className="truncate text-lg font-extrabold">{item.name}</p>
+                        <p className={(isLight ? "text-zinc-600" : "text-white/62") + " mt-1 truncate text-sm"}>{item.category}</p>
                       </div>
                     </div>
                   ))}
