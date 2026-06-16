@@ -17,9 +17,6 @@ import {
   DollarSign,
   ArrowDownCircle,
   Wallet,
-  Users,
-  Receipt,
-  Activity,
   XCircle,
 } from "lucide-react";
 import {
@@ -186,38 +183,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           spark={data.revByDay.map((v, i) => v - (data.revByDay[i] || 0) * 0.25)}
         />
       </section>
-
-      {/* Second row */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        <Stat
-          active={activeMetric === "clientes"}
-          onClick={() => setActiveMetric("clientes")}
-          label="Clientes atendidos"
-          value={String(data.clientsCount)}
-          icon={Users}
-          tone="neutral"
-          spark={data.doneByDay}
-        />
-        <Stat
-          active={activeMetric === "ticket"}
-          onClick={() => setActiveMetric("ticket")}
-          label="Ticket promedio"
-          value={fmtAR(data.ticket)}
-          icon={Receipt}
-          tone="neutral"
-          spark={data.tickByDay}
-        />
-        <Stat
-          active={activeMetric === "ocupacion"}
-          onClick={() => setActiveMetric("ocupacion")}
-          label="Ocupación"
-          value={`${data.occ}%`}
-          icon={Activity}
-          tone="neutral"
-          spark={data.occByDay}
-        />
-      </section>
-
       {/* Revenue chart + breakdown */}
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)] gap-4 items-stretch">
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
@@ -344,12 +309,9 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
   const isSingleDay = fromStr === toStr;
 
   const metricConfig: Record<string, { label: string; values: number[]; fmt: (v: number) => string; total?: number }> = {
-    ingresos:  { label: "Ingresos",        values: isSingleDay ? data.hoursValues : data.revByDay,    fmt: fmtAR,                          total: data.revHoy },
-    gastos:    { label: "Gastos",          values: isSingleDay ? data.hoursValues.map(() => 0) : (data.gastosByDay ?? data.revByDay.map(() => 0)), fmt: fmtAR, total: data.totalGastos },
-    utilidad:  { label: "Utilidad",        values: isSingleDay ? data.hoursValues.map((v) => Math.max(0, v)) : data.revByDay.map((v, i) => Math.max(0, v - (data.gastosByDay?.[i] ?? 0))), fmt: fmtAR, total: Math.max(0, data.utilidad) },
-    clientes:  { label: "Clientes",        values: isSingleDay ? data.hoursValues.map(() => 0) : data.doneByDay, fmt: (v) => String(Math.round(v)), total: data.clientsCount },
-    ticket:    { label: "Ticket promedio", values: isSingleDay ? data.hoursValues.map(() => 0) : data.tickByDay, fmt: fmtAR,                        total: data.ticket },
-    ocupacion: { label: "Ocupación",       values: isSingleDay ? data.hoursValues.map(() => 0) : data.occByDay,  fmt: (v) => `${Math.round(v)}%`,    total: data.occ },
+    ingresos:  { label: "Ingresos", values: isSingleDay ? data.hoursValues : data.revByDay, fmt: fmtAR, total: data.revHoy },
+    gastos:    { label: "Gastos", values: isSingleDay ? data.hoursValues.map(() => 0) : (data.gastosByDay ?? data.revByDay.map(() => 0)), fmt: fmtAR, total: data.totalGastos },
+    utilidad:  { label: "Utilidad", values: isSingleDay ? data.hoursValues.map((v) => Math.max(0, v)) : data.revByDay.map((v, i) => Math.max(0, v - (data.gastosByDay?.[i] ?? 0))), fmt: fmtAR, total: Math.max(0, data.utilidad) },
   };
   const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
 

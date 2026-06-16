@@ -5566,40 +5566,7 @@ function SenasSection() {
             )}
           </div>
         </SenasBlock>
-
-        {/* Bloque 3: Monto */}
-        <SenasBlock title="Monto de la seña">
-          <div className="flex gap-3">
-            <SenasToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
-            <SenasToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
-          </div>
-          <div className="flex items-center gap-3 mt-1">
-            {amountType === "fixed" && (
-              <span className="text-lg font-light text-muted-foreground">$</span>
-            )}
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amountValue}
-              onChange={(e) => setAmountValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
-              placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
-              className="w-44 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-white/30 transition"
-            />
-            {amountType === "percent" && (
-              <span className="text-lg font-light text-muted-foreground">%</span>
-            )}
-            {amountValue && (
-              <span className="text-xs text-muted-foreground">
-                {amountType==="fixed"
-                  ? `$${parseInt(amountValue||"0").toLocaleString("es-AR")} fijos`
-                  : `${amountValue}% del precio del servicio`}
-              </span>
-            )}
-          </div>
-        </SenasBlock>
-
-        {/* Bloque 4: Distribución si se pierde */}
+{/* Bloque 4: Distribución si se pierde */}
         <SenasBlock title="Si el cliente pierde la seña">
           <div className="flex flex-wrap gap-3">
             {([
@@ -5763,7 +5730,7 @@ type ClientField = {
 const ALL_CLIENT_FIELDS: ClientField[] = [
   { key: "nombre",           label: "Nombre",              required: true  },
   { key: "telefono",         label: "Teléfono",            required: true  },
-  { key: "email",            label: "Email",               required: false },
+  { key: "email",            label: "Email",               required: true },
   { key: "fecha_nacimiento", label: "Fecha de nacimiento", required: false },
   { key: "notas",            label: "Notas",               required: false },
 ];
