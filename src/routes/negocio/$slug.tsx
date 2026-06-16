@@ -606,12 +606,12 @@ function PublicProfilePage() {
               className={(isLight
                 ? "border-white/70 text-zinc-950"
                 : "border-white/20 text-white") +
-                " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
+                " relative isolate overflow-hidden rounded-[2rem] border p-4 sm:p-5"}
               style={{
                 background: isLight
                   ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 46%, white) 0%, color-mix(in oklch, var(--c-secondary) 44%, white) 100%)"
-                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 28%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 24%, #07030f) 100%)",
-                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 72px -22px color-mix(in oklch, var(--c-primary) 74%, transparent), 0 0 115px -32px color-mix(in oklch, var(--c-secondary) 70%, transparent)",
+                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 22%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 20%, #07030f) 100%)",
+                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 26%, transparent), 0 0 42px -26px color-mix(in oklch, var(--c-primary) 46%, transparent), 0 0 70px -36px color-mix(in oklch, var(--c-secondary) 42%, transparent)",
               }}
             >
               <div className="pointer-events-none absolute inset-0">
@@ -622,7 +622,7 @@ function PublicProfilePage() {
               </div>
 
               <div className="relative">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-5">
                     <span
                       className={(isLight ? "border-white/80 bg-white/55" : "border-white/25 bg-white/14") +
@@ -648,19 +648,15 @@ function PublicProfilePage() {
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-white/20 px-4 py-2 text-sm font-bold shadow-lg backdrop-blur-xl transition hover:brightness-110"
-                      style={{
-                        background: cAccent,
-                        color: accentButtonText,
-                        boxShadow: "0 10px 28px -18px color-mix(in oklch, var(--c-accent) 55%, transparent)",
-                      }}
+                      className="inline-flex shrink-0 items-center gap-1.5 text-sm font-bold underline-offset-4 transition hover:underline"
+                      style={{ color: cAccent }}
                     >
                       Ver todos <ChevronRight className="h-4 w-4" />
                     </button>
                   ) : null}
                 </div>
 
-                <div className="mt-6 flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+                <div className="mt-4 flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
                   {featuredClients.slice(0, 5).map((item, index) => (
                     <div
                       key={item.id || `${item.name}-${index}`}
@@ -668,20 +664,20 @@ function PublicProfilePage() {
                         ? "border-white/50 bg-white/32 text-zinc-950"
                         : "border-white/12 bg-white/[0.075] text-white") +
                         (index === 4 ? " hidden lg:block" : "") +
-                        " group relative min-w-[150px] overflow-hidden rounded-[1.35rem] border p-4 text-center backdrop-blur-xl transition duration-300 hover:-translate-y-1"}
+                        " group relative min-w-[150px] overflow-hidden rounded-[1.35rem] border p-3 text-center backdrop-blur-xl transition duration-300 hover:-translate-y-1"}
                       style={{
                         boxShadow: "0 10px 30px -26px color-mix(in oklch, var(--c-primary) 32%, transparent), inset 0 1px 0 rgba(255,255,255,.12)",
                       }}
                     >
                       <div className="pointer-events-none absolute inset-x-4 -top-10 h-20 rounded-full blur-2xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 12%, transparent)" }} />
-                      <div className={(isLight ? "bg-white/75 ring-white/75" : "bg-white/10 ring-white/15") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.04]"}>
+                      <div className={(isLight ? "bg-white/75 ring-white/75" : "bg-white/10 ring-white/15") + " relative mx-auto grid h-18 w-18 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.04]"}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
                         ) : (
                           <span className={(isLight ? "text-zinc-800" : "text-white/80") + " text-2xl font-bold"}>{item.name.slice(0, 1)}</span>
                         )}
                       </div>
-                      <div className="relative mt-4 min-w-0">
+                      <div className="relative mt-3 min-w-0">
                         <p className="truncate text-lg font-extrabold">{item.name}</p>
                         <p className={(isLight ? "text-zinc-600" : "text-white/62") + " mt-1 truncate text-sm"}>{item.category}</p>
                       </div>
