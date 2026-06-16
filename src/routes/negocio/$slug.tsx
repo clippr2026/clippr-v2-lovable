@@ -609,14 +609,14 @@ function PublicProfilePage() {
                 " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
               style={{
                 background: isLight
-                  ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 45%, white) 0%, color-mix(in oklch, var(--c-secondary) 42%, white) 100%)"
-                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 72%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 72%, #07030f) 100%)",
-                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 42%, transparent), 0 0 90px -18px color-mix(in oklch, var(--c-primary) 95%, transparent), 0 0 140px -28px color-mix(in oklch, var(--c-secondary) 95%, transparent)",
+                  ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 30%, white) 0%, color-mix(in oklch, var(--c-secondary) 28%, white) 100%)"
+                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 56%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 56%, #07030f) 100%)",
+                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 56px -24px color-mix(in oklch, var(--c-primary) 72%, transparent), 0 0 88px -34px color-mix(in oklch, var(--c-secondary) 70%, transparent)",
               }}
             >
               <div className="pointer-events-none absolute inset-0">
-                <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 58%, transparent)" }} />
-                <div className="absolute -right-24 -bottom-28 h-96 w-96 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 58%, transparent)" }} />
+                <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 34%, transparent)" }} />
+                <div className="absolute -right-24 -bottom-28 h-96 w-96 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 22%, transparent)" }} />
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
               </div>
@@ -626,18 +626,18 @@ function PublicProfilePage() {
                   <div className="flex items-center gap-5">
                     <span
                       className={(isLight ? "border-white/80 bg-white/55" : "border-white/25 bg-white/14") +
-                        " grid h-16 w-16 place-items-center rounded-2xl border shadow-2xl backdrop-blur-xl"}
+                        " grid h-13 w-13 place-items-center rounded-2xl border shadow-xl backdrop-blur-xl"}
                       style={{
                         color: cAccent,
-                        boxShadow: "0 0 34px -6px color-mix(in oklch, var(--c-accent) 95%, transparent), inset 0 1px 0 rgba(255,255,255,.22)",
+                        boxShadow: "0 0 22px -8px color-mix(in oklch, var(--c-accent) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.18)",
                       }}
                     >
-                      <Star className="h-8 w-8 fill-current drop-shadow-[0_0_14px_currentColor]" />
+                      <Star className="h-6 w-6 fill-current drop-shadow-[0_0_8px_currentColor]" />
                     </span>
                     <h2
-                      className="text-[2.1rem] font-extrabold leading-none tracking-[-0.045em] sm:text-[2.65rem]"
+                      className="text-[1.75rem] font-extrabold leading-none tracking-[-0.035em] sm:text-[2.15rem]"
                       style={{
-                        textShadow: "0 0 24px color-mix(in oklch, var(--c-primary) 70%, transparent), 0 0 34px color-mix(in oklch, var(--c-secondary) 55%, transparent)",
+                        textShadow: "0 0 14px color-mix(in oklch, var(--c-primary) 45%, transparent), 0 0 22px color-mix(in oklch, var(--c-secondary) 38%, transparent)",
                       }}
                     >
                       Confían en nosotros
@@ -670,10 +670,10 @@ function PublicProfilePage() {
                         (index === 4 ? " hidden lg:block" : "") +
                         " group relative min-w-[150px] overflow-hidden rounded-[1.35rem] border p-4 text-center backdrop-blur-xl transition duration-300 hover:-translate-y-1"}
                       style={{
-                        boxShadow: "0 18px 55px -24px color-mix(in oklch, var(--c-primary) 80%, transparent), inset 0 1px 0 rgba(255,255,255,.20)",
+                        boxShadow: "0 14px 42px -28px color-mix(in oklch, var(--c-primary) 58%, transparent), inset 0 1px 0 rgba(255,255,255,.16)",
                       }}
                     >
-                      <div className="pointer-events-none absolute inset-x-4 -top-10 h-20 rounded-full blur-2xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 34%, transparent)" }} />
+                      <div className="pointer-events-none absolute inset-x-4 -top-10 h-20 rounded-full blur-2xl" style={{ background: "color-mix(in oklch, var(--c-secondary) 22%, transparent)" }} />
                       <div className={(isLight ? "bg-white/75 ring-white/75" : "bg-white/10 ring-white/15") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.04]"}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
