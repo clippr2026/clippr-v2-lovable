@@ -592,13 +592,14 @@ function PublicProfilePage() {
           {featuredClients.length > 0 ? (
             <section
               className={(isLight
-                ? "border-zinc-200/80 bg-white/90 text-zinc-950 shadow-[0_32px_90px_rgba(168,85,247,0.24)]"
-                : "border-white/10 bg-[#0d0718]/90 text-white shadow-[0_32px_110px_rgba(168,85,247,0.34)]") +
+                ? "border-zinc-200/80 bg-white/90 text-zinc-950"
+                : "border-white/10 bg-[#0d0718]/90 text-white") +
                 " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
               style={{
                 background: isLight
                   ? "radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--c-accent) 24%, transparent), transparent 34%), radial-gradient(circle at 82% 20%, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 35%), linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,255,255,.86))"
                   : "radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--c-accent) 30%, transparent), transparent 36%), radial-gradient(circle at 84% 12%, color-mix(in oklch, var(--c-primary) 34%, transparent), transparent 38%), linear-gradient(135deg, rgba(14,8,26,.98), rgba(6,3,15,.94))",
+                boxShadow: "0 32px 110px -24px color-mix(in oklch, var(--c-primary) 58%, transparent)",
               }}
             >
               <div className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[color-mix(in_oklch,var(--c-accent)_28%,transparent)] blur-3xl" />
@@ -618,14 +619,14 @@ function PublicProfilePage() {
                     <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Confían en nosotros</h2>
                   </div>
 
-                  {featuredClients.length > 5 ? (
+                  {featuredClients.length > 4 ? (
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
                       className={(isLight
                         ? "border-zinc-200 bg-white/80 text-zinc-950 hover:bg-white"
                         : "border-white/15 bg-white/10 text-white hover:bg-white/15") +
-                        " shrink-0 rounded-full border px-5 py-2.5 text-sm font-bold shadow-[0_12px_34px_rgba(168,85,247,0.18)] transition"}
+                        " shrink-0 rounded-full border px-5 py-2.5 text-sm font-bold transition"}
                     >
                       Ver todos
                     </button>
@@ -637,9 +638,11 @@ function PublicProfilePage() {
                     <div
                       key={item.id || `${item.name}-${index}`}
                       className={(isLight
-                        ? "border-zinc-200/80 bg-white/88 text-zinc-950 shadow-[0_18px_54px_rgba(168,85,247,0.20)]"
-                        : "border-white/12 bg-white/[0.075] text-white shadow-[0_18px_58px_rgba(168,85,247,0.24)]") +
-                        " group relative min-w-[170px] overflow-hidden rounded-[1.65rem] border p-4 text-center backdrop-blur-xl transition duration-300 before:absolute before:inset-x-5 before:-top-10 before:h-24 before:rounded-full before:bg-[radial-gradient(circle,color-mix(in_oklch,var(--c-accent)_55%,transparent),transparent_68%)] before:blur-2xl hover:-translate-y-1 hover:shadow-[0_24px_72px_rgba(168,85,247,0.34)]"}
+                        ? "border-zinc-200/80 bg-white/88 text-zinc-950"
+                        : "border-white/12 bg-white/[0.075] text-white") +
+                        (index === 4 ? " hidden lg:block" : "") +
+                        " group relative min-w-[170px] overflow-hidden rounded-[1.65rem] border p-4 text-center backdrop-blur-xl transition duration-300 before:absolute before:inset-x-5 before:-top-10 before:h-24 before:rounded-full before:bg-[radial-gradient(circle,color-mix(in_oklch,var(--c-accent)_55%,transparent),transparent_68%)] before:blur-2xl hover:-translate-y-1"}
+                      style={{ boxShadow: "0 18px 58px -16px color-mix(in oklch, var(--c-primary) 62%, transparent)" }}
                     >
                       <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/7 ring-white/12") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.03]"}>
                         {item.image_url ? (
