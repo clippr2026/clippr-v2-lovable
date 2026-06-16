@@ -1001,10 +1001,21 @@ function BrandingSection() {
     const { data: existingRow } = await supabase.from("business_settings")
       .select("schedule").eq("business_id", businessId).maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingBranding = ((existingSchedule._branding ?? {}) as Record<string, unknown>);
+    const existingFeaturedClients = normalizeFeaturedClients(existingBranding.featured_clients);
+    const nextFeaturedClients = data.featured_clients
+      .map((item, index) => ({ ...item, order: index, name: item.name.trim(), image_url: item.image_url.trim() }))
+      .filter((item) => item.name || item.image_url);
+
+    // Protección: si por una carga incompleta el estado local queda vacío,
+    // no pisamos los clientes destacados ya guardados. Esto evita que
+    // "Confían en nosotros" desaparezca al guardar otros cambios de Branding.
+    const featuredClientsToSave = nextFeaturedClients.length > 0 ? nextFeaturedClients : existingFeaturedClients;
+
     const newSchedule = {
       ...existingSchedule,
       _branding: {
-        ...((existingSchedule._branding ?? {}) as Record<string, unknown>),
+        ...existingBranding,
         address: data.address,
         phone: normalizedPhone,
         email: data.email,
@@ -1014,9 +1025,7 @@ function BrandingSection() {
         profile_note: data.profile_note,
         logo_url,
         portfolio_urls: data.portfolio_urls.filter(Boolean).slice(0, 3),
-        featured_clients: data.featured_clients
-          .map((item, index) => ({ ...item, order: index, name: item.name.trim(), image_url: item.image_url.trim() }))
-          .filter((item) => item.name || item.image_url),
+        featured_clients: featuredClientsToSave,
       },
     };
     const cfgResult = await supabase.from("business_settings").upsert(
