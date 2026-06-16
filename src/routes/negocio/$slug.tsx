@@ -590,48 +590,73 @@ function PublicProfilePage() {
         <div className="space-y-6">
 
           {featuredClients.length > 0 ? (
-            <GlowCard>
-              <div className="p-5 sm:p-6">
+            <section
+              className={(isLight
+                ? "border-zinc-200/80 bg-white/90 text-zinc-950 shadow-[0_32px_90px_rgba(168,85,247,0.24)]"
+                : "border-white/10 bg-[#0d0718]/90 text-white shadow-[0_32px_110px_rgba(168,85,247,0.34)]") +
+                " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
+              style={{
+                background: isLight
+                  ? "radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--c-accent) 24%, transparent), transparent 34%), radial-gradient(circle at 82% 20%, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 35%), linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,255,255,.86))"
+                  : "radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--c-accent) 30%, transparent), transparent 36%), radial-gradient(circle at 84% 12%, color-mix(in oklch, var(--c-primary) 34%, transparent), transparent 38%), linear-gradient(135deg, rgba(14,8,26,.98), rgba(6,3,15,.94))",
+              }}
+            >
+              <div className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[color-mix(in_oklch,var(--c-accent)_28%,transparent)] blur-3xl" />
+              <div className="pointer-events-none absolute -right-24 top-6 h-80 w-80 rounded-full bg-[color-mix(in_oklch,var(--c-primary)_30%,transparent)] blur-3xl" />
+              <div className="pointer-events-none absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-[color-mix(in_oklch,var(--c-accent)_65%,transparent)] to-transparent" />
+
+              <div className="relative">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
-                      <Star className="h-5 w-5 fill-current" />
+                  <div className="flex items-center gap-4">
+                    <span
+                      className={(isLight ? "border-zinc-200 bg-white shadow-[0_0_30px_rgba(168,85,247,0.24)]" : "border-white/15 bg-white/8 shadow-[0_0_32px_rgba(168,85,247,0.35)]") +
+                        " grid h-14 w-14 place-items-center rounded-2xl border"}
+                      style={{ color: cAccent }}
+                    >
+                      <Star className="h-7 w-7 fill-current drop-shadow-[0_0_10px_currentColor]" />
                     </span>
-                    <div>
-                      <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
-                                          </div>
+                    <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Confían en nosotros</h2>
                   </div>
 
                   {featuredClients.length > 5 ? (
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
-                      className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.10]"
+                      className={(isLight
+                        ? "border-zinc-200 bg-white/80 text-zinc-950 hover:bg-white"
+                        : "border-white/15 bg-white/10 text-white hover:bg-white/15") +
+                        " shrink-0 rounded-full border px-5 py-2.5 text-sm font-bold shadow-[0_12px_34px_rgba(168,85,247,0.18)] transition"}
                     >
                       Ver todos
                     </button>
                   ) : null}
                 </div>
 
-                <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+                <div className="mt-7 flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
                   {featuredClients.slice(0, 5).map((item, index) => (
-                    <div key={item.id || `${item.name}-${index}`} className="relative min-w-[145px] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.055] p-3 shadow-[0_0_34px_rgba(168,85,247,0.18)] transition before:absolute before:inset-x-4 before:-top-8 before:h-16 before:rounded-full before:bg-[radial-gradient(circle,rgba(217,70,239,0.42),transparent_68%)] before:blur-xl hover:bg-white/[0.08] hover:shadow-[0_0_44px_rgba(168,85,247,0.28)]">
-                      <div className="mx-auto grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                    <div
+                      key={item.id || `${item.name}-${index}`}
+                      className={(isLight
+                        ? "border-zinc-200/80 bg-white/88 text-zinc-950 shadow-[0_18px_54px_rgba(168,85,247,0.20)]"
+                        : "border-white/12 bg-white/[0.075] text-white shadow-[0_18px_58px_rgba(168,85,247,0.24)]") +
+                        " group relative min-w-[170px] overflow-hidden rounded-[1.65rem] border p-4 text-center backdrop-blur-xl transition duration-300 before:absolute before:inset-x-5 before:-top-10 before:h-24 before:rounded-full before:bg-[radial-gradient(circle,color-mix(in_oklch,var(--c-accent)_55%,transparent),transparent_68%)] before:blur-2xl hover:-translate-y-1 hover:shadow-[0_24px_72px_rgba(168,85,247,0.34)]"}
+                    >
+                      <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/7 ring-white/12") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.03]"}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                         ) : (
-                          <span className="text-lg font-bold text-white/80">{item.name.slice(0, 1)}</span>
+                          <span className={(isLight ? "text-zinc-800" : "text-white/80") + " text-2xl font-bold"}>{item.name.slice(0, 1)}</span>
                         )}
                       </div>
-                      <div className="mt-3 min-w-0 text-center">
-                        <p className="truncate font-semibold text-white">{item.name}</p>
-                        <p className="mt-0.5 truncate text-xs text-white/50">{item.category}</p>
+                      <div className="relative mt-4 min-w-0">
+                        <p className="truncate text-lg font-bold">{item.name}</p>
+                        <p className={(isLight ? "text-zinc-500" : "text-white/55") + " mt-1 truncate text-sm"}>{item.category}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </GlowCard>
+            </section>
           ) : null}
           <GlowCard>
             <div className="p-5 sm:p-6">
