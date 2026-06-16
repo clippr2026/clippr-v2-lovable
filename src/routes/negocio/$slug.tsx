@@ -610,8 +610,8 @@ function PublicProfilePage() {
               style={{
                 background: isLight
                   ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 46%, white) 0%, color-mix(in oklch, var(--c-secondary) 44%, white) 100%)"
-                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 14%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 12%, #07030f) 100%)",
-                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 32px -24px color-mix(in oklch, var(--c-primary) 35%, transparent), 0 0 48px -32px color-mix(in oklch, var(--c-secondary) 30%, transparent)",
+                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 28%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 24%, #07030f) 100%)",
+                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 72px -22px color-mix(in oklch, var(--c-primary) 74%, transparent), 0 0 115px -32px color-mix(in oklch, var(--c-secondary) 70%, transparent)",
               }}
             >
               <div className="pointer-events-none absolute inset-0">
