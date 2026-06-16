@@ -515,7 +515,7 @@ function LandingSection() {
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
     { key: "primary", label: "Gradientes y glows", desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales." },
     { key: "accent", label: "Color de resaltado", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
-    { key: "buttonText", label: "Texto de botones", desc: "Color de la letra dentro de los botones principales." },
+    { key: "buttonText", label: "Color 4", desc: "Color de la letra dentro de los botones principales." },
   ];
 
   if (loading) {
@@ -745,7 +745,7 @@ function BrandingSection() {
       const cc = (cfg.colors ?? {}) as Record<string, string>;
       setColors({
         primary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.primary)),
-        secondary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.secondary)),
+        secondary: normalizeHex(cc.secondary, LANDING_DEFAULTS.secondary),
         accent: normalizeHex(cc.accent, LANDING_DEFAULTS.accent),
         buttonText: normalizeHex(cc.buttonText, LANDING_DEFAULTS.buttonText),
       });
@@ -1085,7 +1085,7 @@ function BrandingSection() {
         featured_clients: nextFeaturedClients.length > 0 ? nextFeaturedClients : (existingBranding.featured_clients ?? []),
         colors: {
           primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
-          secondary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+          secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
           accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
           buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
         },
@@ -1505,9 +1505,10 @@ function BrandingSection() {
         <p className="text-sm text-white/55">Personalizá modo claro/oscuro, gradientes, glows, color de resaltado y texto de botones.</p>
         <div className="mt-5 space-y-4">
           {([
-            { key: "primary", label: "Gradientes y glows", desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales." },
-            { key: "accent", label: "Color de resaltado", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
-            { key: "buttonText", label: "Texto de botones", desc: "Color de la letra dentro de los botones principales." },
+            { key: "primary", label: "Color 1", desc: "Inicio del degradado, luces principales y glow superior." },
+            { key: "secondary", label: "Color 2", desc: "Final del degradado, luces secundarias y glow inferior." },
+            { key: "accent", label: "Color 3", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
+            { key: "buttonText", label: "Color 4", desc: "Color de la letra dentro de los botones principales." },
           ] as const).map(({ key, label, desc }) => (
             <div key={key} className="flex items-center gap-4">
               <label className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15" style={{ background: colors[key] }}>
