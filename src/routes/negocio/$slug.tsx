@@ -611,7 +611,7 @@ function PublicProfilePage() {
                 background: isLight
                   ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 30%, white) 0%, color-mix(in oklch, var(--c-secondary) 28%, white) 100%)"
                   : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 56%, #07030f) 0%, color-mix(in oklch, var(--c-secondary) 56%, #07030f) 100%)",
-                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 56px -24px color-mix(in oklch, var(--c-primary) 72%, transparent), 0 0 88px -34px color-mix(in oklch, var(--c-secondary) 70%, transparent)",
+                boxShadow: "0 0 0 1px color-mix(in oklch, var(--c-primary) 34%, transparent), 0 0 32px -26px color-mix(in oklch, var(--c-primary) 50%, transparent), 0 0 48px -36px color-mix(in oklch, var(--c-secondary) 50%, transparent)",
               }}
             >
               <div className="pointer-events-none absolute inset-0">
@@ -635,9 +635,9 @@ function PublicProfilePage() {
                       <Star className="h-6 w-6 fill-current drop-shadow-[0_0_8px_currentColor]" />
                     </span>
                     <h2
-                      className="text-[1.75rem] font-extrabold leading-none tracking-[-0.035em] sm:text-[2.15rem]"
+                      className="text-[1.55rem] font-extrabold leading-none tracking-[-0.02em] sm:text-[1.85rem]"
                       style={{
-                        textShadow: "0 0 14px color-mix(in oklch, var(--c-primary) 45%, transparent), 0 0 22px color-mix(in oklch, var(--c-secondary) 38%, transparent)",
+                        textShadow: "0 0 8px color-mix(in oklch, var(--c-primary) 25%, transparent), 0 0 12px color-mix(in oklch, var(--c-secondary) 20%, transparent)",
                       }}
                     >
                       Confían en nosotros
