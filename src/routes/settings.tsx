@@ -503,7 +503,7 @@ function LandingSection() {
         setTheme(savedTheme === "light" ? "light" : "dark");
         const savedAdditional = Array.isArray(schedule._branding?.additional_info) ? schedule._branding.additional_info : [];
         const cleanAdditional = savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, MAX_ADDITIONAL_INFO);
-        setAdditionalInfo(cleanAdditional.length > 0 ? cleanAdditional : ADDITIONAL_INFO_OPTIONS);
+        setAdditionalInfo(cleanAdditional.length ? cleanAdditional : ADDITIONAL_INFO_OPTIONS);
         setLoading(false);
       });
   }, [businessId]);
@@ -536,7 +536,9 @@ function LandingSection() {
   }
 
   function updateAdditionalInfo(index: number, value: string) {
-    setAdditionalInfo((current) => current.map((item, i) => i === index ? value.slice(0, 35) : item).slice(0, MAX_ADDITIONAL_INFO));
+    setAdditionalInfo((current) =>
+      current.map((item, i) => (i === index ? value.slice(0, 35) : item)).slice(0, MAX_ADDITIONAL_INFO)
+    );
   }
 
   function removeAdditionalInfo(index: number) {
@@ -623,19 +625,22 @@ function LandingSection() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-sm font-semibold">Información adicional</h3>
-              <p className="mt-1 text-xs text-white/50">Máximo 12. Se muestran como intereses/beneficios con emoji en la página pública.</p>
+              <p className="mt-1 text-xs text-white/50">Se muestra como intereses/beneficios en el perfil público. Máximo 12.</p>
             </div>
             <span className="text-xs font-medium text-white/45">{additionalInfo.length}/{MAX_ADDITIONAL_INFO}</span>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-3">
             {additionalInfo.slice(0, MAX_ADDITIONAL_INFO).map((item, index) => (
-              <span key={`${index}-${item}`} className="inline-flex items-center gap-2 rounded-full bg-white/[0.075] px-3 py-2 ring-1 ring-white/10">
+              <span
+                key={`${index}-${item}`}
+                className="inline-flex items-center gap-2 rounded-full bg-white/[0.08] px-4 py-2 text-sm font-semibold ring-1 ring-white/10"
+              >
                 <input
                   value={item}
                   maxLength={35}
                   onChange={(e) => updateAdditionalInfo(index, e.target.value)}
-                  className="w-48 max-w-[50vw] bg-transparent text-sm font-medium outline-none"
+                  className="w-[210px] max-w-[52vw] bg-transparent outline-none"
                 />
                 <button type="button" onClick={() => removeAdditionalInfo(index)} className="text-red-300 transition hover:text-red-200" aria-label="Eliminar">
                   <X className="h-3.5 w-3.5" />
@@ -644,7 +649,7 @@ function LandingSection() {
             ))}
           </div>
 
-          <div className="mt-3 flex gap-2">
+          <div className="mt-4 flex gap-2">
             <input
               value={newAdditionalInfo}
               maxLength={35}
@@ -652,13 +657,13 @@ function LandingSection() {
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAdditionalInfo(); } }}
               placeholder="Agregar información adicional..."
               disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
-              className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 outline-none focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex-1 rounded-full bg-white/5 px-4 py-2 text-sm ring-1 ring-white/10 outline-none focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-45"
             />
             <button
               type="button"
               onClick={addAdditionalInfo}
               disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
             >
               Agregar
             </button>
@@ -1380,72 +1385,48 @@ function BrandingSection() {
         </div>
       </SectionCard>
 
-      <SectionCard label="Beneficios del local">
-        <div className="space-y-2.5">
+      <SectionCard label="Información adicional">
+        <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-white/50">Lista de beneficios que se muestran en tu perfil público. Editá, reordená, activá/desactivá. Máximo 12.</p>
-            <span className={cn("shrink-0 text-xs font-semibold", benefits.length >= 12 ? "text-amber-300" : "text-white/45")}>{benefits.length}/12</span>
+            <p className="text-xs text-muted-foreground">Se muestra como intereses/beneficios en el perfil público. Máximo 12.</p>
+            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
           </div>
 
-          {benefits.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-xs text-muted-foreground">
-              Todavía no cargaste beneficios.
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {benefits.map((b, index) => (
-                <div key={b.id} className={cn("flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5", !b.active && "opacity-50")}>
-                  <div className="flex flex-col leading-none">
-                    <button type="button" onClick={() => moveBenefit(b.id, -1)} disabled={index === 0} className="text-white/40 hover:text-white disabled:opacity-20" aria-label="Subir">
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" onClick={() => moveBenefit(b.id, 1)} disabled={index === benefits.length - 1} className="text-white/40 hover:text-white disabled:opacity-20" aria-label="Bajar">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <input
-                    value={b.label}
-                    maxLength={35}
-                    onChange={(e) => updateBenefit(b.id, e.target.value)}
-                    className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleBenefit(b.id)}
-                    className={cn("shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold ring-1", b.active ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" : "bg-white/5 text-muted-foreground ring-white/10")}
-                  >
-                    {b.active ? "Activo" : "Inactivo"}
-                  </button>
-                  <button type="button" onClick={() => removeBenefit(b.id)} className="shrink-0 text-red-300 hover:text-red-200" aria-label="Eliminar">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-3">
+            {additionalInfo.slice(0, 12).map((item, index) => (
+              <span key={`${item}-${index}`} className="inline-flex items-center gap-2 rounded-full bg-white/[0.08] px-4 py-2 text-sm font-semibold ring-1 ring-white/10">
+                <input
+                  value={item}
+                  maxLength={35}
+                  onChange={(e) => setAdditionalInfo((current) => current.map((value, i) => i === index ? e.target.value.slice(0, 35) : value).slice(0, 12))}
+                  className="w-[210px] max-w-[52vw] bg-transparent outline-none"
+                />
+                <button type="button" onClick={() => setAdditionalInfo((current) => current.filter((_, i) => i !== index))} className="text-red-300 hover:text-red-200">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
 
           <div className="flex gap-2">
             <input
-              value={customBenefit}
-              onChange={(e) => setCustomBenefit(e.target.value.slice(0, 35))}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBenefit(); } }}
+              value={customAdditionalInfo}
+              onChange={(e) => setCustomAdditionalInfo(e.target.value.slice(0, 35))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAdditionalInfo(); } }}
               maxLength={35}
-              disabled={benefits.length >= 12}
-              placeholder={benefits.length >= 12 ? "Has alcanzado el máximo de 12 beneficios." : "Agregar beneficio (ej: ⚡ Confirmación instantánea)"}
-              className="flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
+              placeholder="Agregar información adicional..."
+              disabled={additionalInfo.length >= 12}
+              className="flex-1 rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:opacity-45"
             />
             <button
               type="button"
-              onClick={addBenefit}
-              disabled={benefits.length >= 12}
-              className="rounded-lg bg-white/8 px-3 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={addCustomAdditionalInfo}
+              disabled={additionalInfo.length >= 12}
+              className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Agregar
             </button>
           </div>
-          {benefits.length >= 12 ? (
-            <p className="text-xs font-medium text-amber-300">Has alcanzado el máximo de 12 beneficios.</p>
-          ) : null}
         </div>
       </SectionCard>
       </>
