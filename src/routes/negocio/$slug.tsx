@@ -130,9 +130,19 @@ function normalizePortfolio(value: unknown): string[] {
 
 
 function normalizeAdditionalInfo(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 12)
-    : [];
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        const row = item as Record<string, unknown>;
+        if (row.active === false) return "";
+        return typeof row.label === "string" ? row.label : "";
+      }
+      return "";
+    })
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .slice(0, 12);
 }
 
 
@@ -554,7 +564,7 @@ function PublicProfilePage() {
   return (
     <main
       data-theme={theme}
-      className="public-landing relative min-h-dvh overflow-hidden pb-24 sm:pb-10"
+      className="public-landing min-h-dvh pb-24 sm:pb-10"
       style={{
         ["--accent" as any]: accent,
         ["--c-primary" as any]: cPrimary,
@@ -579,9 +589,8 @@ function PublicProfilePage() {
         <div
           className="absolute inset-0"
           style={{
-            background: isLight
-              ? "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 34%, #ffffff) 0%, #ffffff 48%, color-mix(in oklch, var(--c-secondary) 34%, #ffffff) 100%)"
-              : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 30%, #08070c) 0%, #08070c 48%, color-mix(in oklch, var(--c-secondary) 30%, #08070c) 100%)",
+            background:
+              isLight ? "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 32%, transparent), color-mix(in oklch, var(--c-secondary) 32%, transparent))" : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent), color-mix(in oklch, var(--c-secondary) 26%, transparent))",
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
@@ -715,7 +724,7 @@ function PublicProfilePage() {
                       </div>
                       <a
                         href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold transition hover:brightness-110"
+                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
                         style={{ background: cAccent, color: accentButtonText, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
                       >
                         Reservar
@@ -824,7 +833,7 @@ function PublicProfilePage() {
           <GlowCard className="p-5 sm:p-6">
             <Link
               {...reservarTo}
-              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold transition hover:brightness-110"
+              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white transition hover:brightness-110"
               style={{ background: cAccent, color: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
             >
               Reservar turno
