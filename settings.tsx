@@ -35,6 +35,9 @@ import {
   MapPin,
   Phone,
   Globe,
+  X,
+  ExternalLink,
+  Share2,
   FileText,
   Image as ImageIcon,
   Building2,
@@ -75,17 +78,24 @@ import {
   ShieldCheck,
   Handshake,
   HandCoins,
+  Palette,
+  Moon,
+  Sun,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SectionId =
   | "branding"
+  | "landing"
   | "horarios"
   | "equipo"
   | "servicios"
   | "catalogo"
+  | "clientes"
   | "caja"
   | "senas"
+  | "apariencia"
   | "plan";
 
 type NavItem = {
@@ -102,7 +112,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       {
         id: "branding",
-        label: "Branding",
+        label: "Página de reservas",
         icon: Sparkles,
         tint: "text-[oklch(0.82_0.18_300)]",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
@@ -140,24 +150,31 @@ const groups: { label: string; items: NavItem[] }[] = [
         tint: "text-[oklch(0.82_0.14_75)]",
         glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]",
       },
+      {
+        id: "clientes",
+        label: "Clientes",
+        icon: Users,
+        tint: "text-[oklch(0.78_0.18_240)]",
+        glow: "from-[oklch(0.78_0.18_240/0.25)] to-[oklch(0.65_0.2_255/0.05)]",
+      },
     ],
   },
   {
     label: "Sistema",
     items: [
       {
-        id: "caja",
+        id: "caja" as const,
         label: "Caja",
         icon: Banknote,
         tint: "text-[oklch(0.80_0.18_45)]",
         glow: "from-[oklch(0.80_0.18_45/0.25)] to-[oklch(0.75_0.2_35/0.05)]",
       },
       {
-        id: "senas",
-        label: "Señas",
-        icon: HandCoins,
-        tint: "text-[oklch(0.82_0.18_50)]",
-        glow: "from-[oklch(0.82_0.18_50/0.25)] to-[oklch(0.78_0.2_40/0.05)]",
+        id: "apariencia" as const,
+        label: "Apariencia",
+        icon: Palette,
+        tint: "text-[oklch(0.78_0.18_310)]",
+        glow: "from-[oklch(0.78_0.18_310/0.25)] to-[oklch(0.65_0.22_295/0.05)]",
       },
     ],
   },
@@ -175,21 +192,516 @@ const groups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
+// ─────────── Apariencia ───────────
+const THEME_KEY = "clippr_theme";
+
+function AparienciaSection() {
+  const [theme, setThemeState] = React.useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark";
+    return (localStorage.getItem(THEME_KEY) as "dark" | "light") ?? "dark";
+  });
+
+  function applyTheme(t: "dark" | "light") {
+    setThemeState(t);
+    localStorage.setItem(THEME_KEY, t);
+    const root = document.documentElement;
+    if (t === "light") {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    } else {
+      root.classList.remove("light");
+      root.classList.add("dark");
+    }
+  }
+
+  // Apply saved theme on mount
+  React.useEffect(() => {
+    applyTheme(theme);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const options = [
+    {
+      id: "dark" as const,
+      label: "Oscuro",
+      desc: "Fondo negro, ideal para trabajar de noche o en ambientes con poca luz.",
+      Icon: Moon,
+      preview: "bg-[oklch(0.09_0.03_275)]",
+      ring: "ring-white/10",
+    },
+    {
+      id: "light" as const,
+      label: "Claro",
+      desc: "Fondo blanco, ideal para trabajar con luz natural o durante el día.",
+      Icon: Sun,
+      preview: "bg-[oklch(0.97_0.01_270)]",
+      ring: "ring-black/10",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-display font-semibold">Apariencia</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Elegí el tema visual de la aplicación.</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {options.map((opt) => {
+          const isActive = theme === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => applyTheme(opt.id)}
+              className={cn(
+                "relative rounded-2xl p-5 text-left transition-all ring-1",
+                isActive
+                  ? "ring-primary bg-primary/10"
+                  : "ring-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+              )}
+            >
+              {/* Preview swatch */}
+              <div className={cn("rounded-xl h-20 mb-4 flex items-center justify-center ring-1", opt.preview, opt.ring)}>
+                <opt.Icon className={cn("size-7", opt.id === "dark" ? "text-white/60" : "text-black/50")} />
+              </div>
+
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-sm">{opt.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{opt.desc}</div>
+                </div>
+                {isActive && (
+                  <div className="shrink-0 h-5 w-5 rounded-full bg-primary grid place-items-center mt-0.5">
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        El tema elegido se guarda localmente en este dispositivo.
+      </p>
+    </div>
+  );
+}
+
 // ─────────── Branding ───────────
+type FeaturedClientCategory = "Marca" | "Artista" | "Futbolista" | "Equipo de fútbol" | "Influencer" | "Empresa" | "Celebridad" | "Otro";
+
+type FeaturedClient = {
+  id: string;
+  name: string;
+  category: FeaturedClientCategory;
+  image_url: string;
+  active: boolean;
+  order: number;
+};
+
+const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = ["Marca", "Artista", "Futbolista", "Equipo de fútbol", "Influencer", "Empresa", "Celebridad", "Otro"];
+
+function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+      const category = FEATURED_CLIENT_CATEGORIES.includes(row.category as FeaturedClientCategory) ? row.category as FeaturedClientCategory : "Otro";
+      return {
+        id: typeof row.id === "string" && row.id ? row.id : `featured-${Date.now()}-${index}`,
+        name: typeof row.name === "string" ? row.name : "",
+        category,
+        image_url: typeof row.image_url === "string" ? row.image_url : "",
+        active: row.active !== false,
+        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
+      };
+    })
+    .filter((item) => item.name.trim() || item.image_url.trim())
+    .sort((a, b) => a.order - b.order);
+}
+
 type BrandingData = {
   name: string;
+  slug: string;
   address: string;
   phone: string;
   email: string;
   instagram: string;
   website: string;
   description: string;
+  profile_note: string;
   logo_url: string;
+  avatar_url: string;
+  cover_url: string;
+  portfolio_urls: string[];
+  featured_clients: FeaturedClient[];
 };
 const EMPTY_BRANDING: BrandingData = {
-  name: "", address: "", phone: "", email: "",
-  instagram: "", website: "", description: "", logo_url: "",
+  name: "", slug: "", address: "", phone: "", email: "",
+  instagram: "", website: "", description: "", profile_note: "", logo_url: "",
+  avatar_url: "", cover_url: "", portfolio_urls: [], featured_clients: [],
 };
+
+// Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
+// maxW x maxH y la convierte a WebP (cae a JPEG si el navegador no soporta WebP).
+async function processImage(
+  file: File,
+  maxW: number,
+  maxH: number,
+  quality = 0.8,
+): Promise<{ blob: Blob; ext: string; type: string }> {
+  const dataUrl = await new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result as string);
+    r.onerror = () => rej(new Error("No se pudo leer la imagen"));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("No se pudo cargar la imagen"));
+    i.src = dataUrl;
+  });
+  const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+  const w = Math.max(1, Math.round(img.width * ratio));
+  const h = Math.max(1, Math.round(img.height * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No se pudo procesar la imagen");
+  ctx.drawImage(img, 0, 0, w, h);
+  const toBlob = (type: string) =>
+    new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), type, quality));
+  let blob = await toBlob("image/webp");
+  let ext = "webp";
+  let type = "image/webp";
+  if (!blob) {
+    blob = await toBlob("image/jpeg");
+    ext = "jpg";
+    type = "image/jpeg";
+  }
+  if (!blob) throw new Error("No se pudo procesar la imagen");
+  return { blob, ext, type };
+}
+
+// Normaliza un slug para URLs públicas: minúsculas, sin acentos, sin espacios,
+// solo a-z 0-9 y guiones, sin guiones colgando.
+function slugify(value: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+// Versión suave para mientras el usuario escribe (no recorta guiones del final).
+function slugifyLive(value: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9-]+/g, "-");
+}
+
+// ─────────── Landing (colores de la página pública) ───────────
+const LANDING_DEFAULTS = { primary: "#7c3aed", secondary: "#7c3aed", accent: "#d6b66a", buttonText: "#ffffff" };
+const LANDING_THEME_DEFAULT = "dark" as const;
+type LandingTheme = "dark" | "light";
+const HEX_RE = /^#([0-9a-fA-F]{6})$/;
+
+function normalizeHex(value: string, fallback: string): string {
+  const v = (value || "").trim();
+  return HEX_RE.test(v) ? v.toLowerCase() : fallback;
+}
+
+const ADDITIONAL_INFO_OPTIONS = [
+  "✅ Confirmación instantánea",
+  "📱 Reserva online 24/7",
+  "💳 Acepta tarjetas",
+  "📶 Wi-Fi gratuito",
+  "🅿️ Estacionamiento cercano",
+  "♿ Accesible para silla de ruedas",
+  "🚇 Cerca del transporte público",
+  "☕ Café de cortesía",
+  "🥤 Bebidas",
+  "🥤 Bebidas incluidas",
+  "❄️ Ambiente climatizado",
+  "👶 Apto para niños",
+  "🐶 Pet friendly",
+  "💎 Atención premium",
+  "🎵 Música ambiente",
+  "🧴 Productos profesionales",
+  "🎮 PlayStation disponible",
+  "💆 Masajes",
+  "🧖 Mascarilla facial",
+  "💈 Atención por orden de llegada",
+  "🇺🇸 Atención en inglés",
+];
+
+function LandingSection() {
+  const { businessId } = useAuth();
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [colors, setColors] = React.useState(LANDING_DEFAULTS);
+  const [theme, setTheme] = React.useState<LandingTheme>(LANDING_THEME_DEFAULT);
+  const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (!businessId) { setLoading(false); return; }
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, any>;
+        const c = (schedule._branding?.colors ?? {}) as Record<string, string>;
+        setColors({
+          primary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.primary)),
+          secondary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.secondary)),
+          accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
+          buttonText: normalizeHex(c.buttonText, LANDING_DEFAULTS.buttonText),
+        });
+        const savedTheme = schedule._branding?.theme;
+        setTheme(savedTheme === "light" ? "light" : "dark");
+        const savedAdditional = Array.isArray(schedule._branding?.additional_info) ? schedule._branding.additional_info : [];
+        setAdditionalInfo(savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 12));
+        setLoading(false);
+      });
+  }, [businessId]);
+
+  async function save() {
+    if (!businessId) return;
+    setSaving(true);
+    const gradientGlow = normalizeHex(colors.primary, LANDING_DEFAULTS.primary);
+    const next = {
+      primary: gradientGlow,
+      secondary: gradientGlow,
+      accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
+      buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
+    };
+    // Merge sin pisar el resto de _branding.
+    const { data: row, error: loadErr } = await supabase
+      .from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+    if (loadErr) { setSaving(false); return toast.error("No se pudo leer la configuración: " + loadErr.message); }
+    const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
+    const branding = (schedule._branding ?? {}) as Record<string, unknown>;
+    const nextAdditionalInfo = additionalInfo.filter((item) => item.trim().length > 0).slice(0, 12);
+    const nextSchedule = { ...schedule, _branding: { ...branding, colors: next, theme, additional_info: nextAdditionalInfo } };
+    const { error } = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: nextSchedule },
+      { onConflict: "business_id" },
+    );
+    setSaving(false);
+    if (error) return toast.error("No se pudo guardar: " + error.message);
+    setColors(next);
+    toast.success("Landing guardada");
+  }
+
+  function toggleAdditionalInfo(item: string) {
+    setAdditionalInfo((current) => {
+      if (current.includes(item)) return current.filter((value) => value !== item);
+      if (current.length >= 12) {
+        toast.error("Podés seleccionar hasta 12 opciones");
+        return current;
+      }
+      return [...current, item];
+    });
+  }
+
+  const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
+    { key: "primary", label: "Gradientes y glows", desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales." },
+    { key: "accent", label: "Color de resaltado", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
+    { key: "buttonText", label: "Texto de botones", desc: "Color de la letra dentro de los botones principales." },
+  ];
+
+
+  const saveRef = React.useRef(save);
+  React.useEffect(() => { saveRef.current = save; }, [businessId, colors, theme, additionalInfo]);
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "branding") void saveRef.current();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, []);
+
+  if (loading) {
+    return <div className="grid place-items-center py-20"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+        <h2 id="pagina-reservas-colores" className="scroll-mt-28 text-lg font-semibold">Colores</h2>
+        <p className="mt-1 text-sm text-white/55">Personalizá modo claro/oscuro, gradientes, glows, color de resaltado, texto de botones y beneficios del local.</p>
+
+        <div className="mt-5 space-y-4">
+          {fields.map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center gap-4">
+              <label className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15" style={{ background: colors[key] }}>
+                <input
+                  type="color"
+                  value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
+                  onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium">{label}</div>
+                <div className="text-xs text-white/50">{desc}</div>
+              </div>
+              <input
+                type="text"
+                value={colors[key]}
+                onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))}
+                spellCheck={false}
+                className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25"
+                placeholder="#000000"
+              />
+            </div>
+          ))}
+        </div>
+
+
+
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <h3 className="text-sm font-semibold">Modo de la página pública</h3>
+          <p className="mt-1 text-xs text-white/50">Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.</p>
+          <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
+            {(["dark", "light"] as LandingTheme[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setTheme(mode)}
+                className={
+                  "rounded-xl px-4 py-2 text-sm font-semibold transition " +
+                  (theme === mode ? "bg-white text-zinc-950" : "text-white/60 hover:bg-white/10 hover:text-white")
+                }
+              >
+                {mode === "dark" ? "Modo oscuro" : "Modo claro"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">Información adicional</h3>
+              <p className="mt-1 text-xs text-white/50">Elegí hasta 12 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección.</p>
+            </div>
+            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {ADDITIONAL_INFO_OPTIONS.map((item) => {
+              const active = additionalInfo.includes(item);
+              const disabled = !active && additionalInfo.length >= 12;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => toggleAdditionalInfo(item)}
+                  className={
+                    "rounded-full border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35 " +
+                    (active ? "border-white/25 bg-white text-zinc-950 shadow-lg" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white")
+                  }
+                >
+                  {item}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:opacity-50"
+          >
+            {saving ? "Guardando…" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setColors(LANDING_DEFAULTS)}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10"
+          >
+            Restaurar predeterminados
+          </button>
+        </div>
+      </div>
+
+      {/* Vista previa */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+        <p className="text-sm font-medium text-white/70">Vista previa</p>
+        <div
+          className="mt-3 overflow-hidden rounded-2xl border p-6"
+          style={{
+            borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+            color: theme === "light" ? "#0f172a" : "#fff",
+            background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`
+          }}
+        >
+          <div className="relative">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.14] blur-2xl"
+              style={{ background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.primary}, transparent 70%)` }}
+            />
+            <div className="relative rounded-3xl border p-5 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)", color: theme === "light" ? "#0f172a" : "#fff" }}>
+              <h3 className="text-base font-semibold">Reservá tu turno</h3>
+              <button
+                type="button"
+                className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold"
+                style={{ background: colors.accent, color: colors.buttonText, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)` }}
+              >
+                Reservar turno
+              </button>
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} />
+                <span style={{ color: colors.accent, fontWeight: 600 }}>Abierto ahora</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function normalizeWhatsAppArgentina(phone: string): string {
+  let raw = String(phone ?? "").replace(/\D/g, "");
+  if (!raw) return "";
+  if (raw.startsWith("00")) raw = raw.slice(2);
+
+  // Si ya viene internacional, lo dejamos en formato WhatsApp Argentina móvil.
+  if (raw.startsWith("549")) return raw;
+  if (raw.startsWith("54")) {
+    let rest = raw.slice(2).replace(/^0+/, "");
+    if (!rest.startsWith("9")) rest = `9${rest}`;
+    return `54${rest}`;
+  }
+
+  raw = raw.replace(/^0+/, "");
+
+  // AMBA: muchas personas escriben 15 + 8 dígitos. WhatsApp necesita 54911 + 8 dígitos.
+  if (raw.startsWith("15") && raw.length === 10) return `54911${raw.slice(2)}`;
+
+  // Si escriben 11 + 8 dígitos: 1127900829 => 5491127900829.
+  return `549${raw}`;
+}
+
+function formatWhatsAppArgentinaPreview(normalized: string): string {
+  if (!normalized) return "";
+  if (!normalized.startsWith("549") || normalized.length < 12) return "";
+  const national = normalized.slice(3);
+  const area = national.slice(0, 2);
+  const first = national.slice(2, 6);
+  const last = national.slice(6);
+  return `+54 9 ${area} ${first}${last ? ` ${last}` : ""}`;
+}
 
 function BrandingSection() {
   const { businessId } = useAuth();
@@ -197,12 +709,17 @@ function BrandingSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<number | null>(null);
+  const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(null);
+  const [pageTab, setPageTab] = useState<"info" | "images" | "colors">("info");
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
-    // Load name from businesses, rest from business_settings.schedule._branding
+    // Load name/slug + assets públicos desde businesses; el resto desde _branding.
     Promise.all([
-      supabase.from("businesses").select("name").eq("id", businessId).maybeSingle(),
+      supabase.from("businesses").select("name,slug,address,phone,email,instagram,avatar_url,cover_url").eq("id", businessId).maybeSingle(),
       supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
@@ -210,17 +727,28 @@ function BrandingSection() {
       const cfg = (schedule._branding ?? {}) as Record<string, unknown>;
       setData({
         name: (biz?.name as string) ?? "",
-        address: (cfg.address as string) ?? "",
-        phone: (cfg.phone as string) ?? "",
-        email: (cfg.email as string) ?? "",
-        instagram: (cfg.instagram as string) ?? "",
+        slug: (biz?.slug as string) ?? "",
+        address: (cfg.address as string) ?? (biz?.address as string) ?? "",
+        phone: (cfg.phone as string) ?? (biz?.phone as string) ?? "",
+        email: (cfg.email as string) ?? (biz?.email as string) ?? "",
+        instagram: (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
+        profile_note: (cfg.profile_note as string) ?? "",
         logo_url: (cfg.logo_url as string) ?? "",
+        avatar_url: (biz?.avatar_url as string) ?? "",
+        cover_url: (biz?.cover_url as string) ?? "",
+        portfolio_urls: Array.isArray(cfg.portfolio_urls) ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3) : [],
+        featured_clients: normalizeFeaturedClients(cfg.featured_clients),
       });
       setLoading(false);
     });
   }, [businessId]);
+
+  // El preview sale de la URL real ya persistida (nada de object URLs locales,
+  // que se pierden en re-renders / scroll / cambios de sección).
+  const avatarPreview = data.avatar_url;
+  const coverPreview = data.cover_url;
 
   const set = (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setData(d => ({ ...d, [k]: e.target.value }));
@@ -232,6 +760,203 @@ function BrandingSection() {
     return urlData.publicUrl;
   }
 
+  async function uploadBlob(blob: Blob, path: string, contentType: string): Promise<string | null> {
+    const { error } = await supabase.storage
+      .from("business-assets")
+      .upload(path, blob, { upsert: true, contentType });
+    if (error) {
+      console.error("[storage] upload failed", { path, contentType, size: blob.size, error });
+      toast.error("No se pudo subir la imagen: " + error.message);
+      return null;
+    }
+    const { data: urlData } = supabase.storage.from("business-assets").getPublicUrl(path);
+    // Cache-bust: el path se sobrescribe (upsert), así forzamos refrescar el CDN.
+    return `${urlData.publicUrl}?v=${Date.now()}`;
+  }
+
+  // Persiste una columna de imagen directo en businesses (sin esperar a "Guardar").
+  async function persistBrandingPatch(patch: Partial<Pick<BrandingData, "address" | "phone" | "email" | "instagram" | "website" | "description" | "profile_note" | "logo_url" | "portfolio_urls" | "featured_clients">>): Promise<boolean> {
+    if (!businessId) return false;
+    const { data: existingRow, error: loadError } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    if (loadError) {
+      console.error("[branding] load settings error", loadError);
+      toast.error("No se pudo leer la configuración: " + loadError.message);
+      return false;
+    }
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingBranding = (existingSchedule._branding ?? {}) as Record<string, unknown>;
+    const nextSchedule = {
+      ...existingSchedule,
+      _branding: {
+        ...existingBranding,
+        ...patch,
+      },
+    };
+
+    const { error } = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: nextSchedule },
+      { onConflict: "business_id" },
+    );
+    if (error) {
+      console.error("[branding] persistBrandingPatch error", { patch, error });
+      toast.error("No se pudo guardar la configuración: " + error.message);
+      return false;
+    }
+    return true;
+  }
+
+  async function persistAsset(fields: { avatar_url?: string | null; cover_url?: string | null }): Promise<boolean> {
+    if (!businessId) return false;
+    const { data: row, error } = await supabase
+      .from("businesses")
+      .update(fields)
+      .eq("id", businessId)
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      console.error("[branding] persistAsset error", { fields, error });
+      toast.error("No se pudo guardar la imagen: " + error.message);
+      return false;
+    }
+    if (!row) {
+      toast.error("No se pudo guardar la imagen. Revisá los permisos del negocio.");
+      return false;
+    }
+    return true;
+  }
+
+  // Subida inmediata: optimiza → sube a Storage → persiste la URL en businesses.
+  async function handleAvatarSelect(file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingAvatar(true);
+    try {
+      const { blob, ext, type } = await processImage(file, 512, 512, 0.8);
+      const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
+      if (!url) return;
+      const ok = await persistAsset({ avatar_url: url });
+      if (!ok) return;
+      setData(d => ({ ...d, avatar_url: url }));
+      toast.success("Foto de perfil actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function handleCoverSelect(file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingCover(true);
+    try {
+      const { blob, ext, type } = await processImage(file, 1600, 600, 0.8);
+      const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
+      if (!url) return;
+      const ok = await persistAsset({ cover_url: url });
+      if (!ok) return;
+      setData(d => ({ ...d, cover_url: url }));
+      toast.success("Portada actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  async function removeAvatar() {
+    const ok = await persistAsset({ avatar_url: null });
+    if (ok) { setData(d => ({ ...d, avatar_url: "" })); toast.success("Foto eliminada"); }
+  }
+  async function removeCover() {
+    const ok = await persistAsset({ cover_url: null });
+    if (ok) { setData(d => ({ ...d, cover_url: "" })); toast.success("Portada eliminada"); }
+  }
+
+  async function handlePortfolioSelect(index: number, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingPortfolioIndex(index);
+    try {
+      const { blob, ext, type } = await processImage(file, 1200, 900, 0.78);
+      const url = await uploadBlob(blob, `${businessId}/portfolio-${index + 1}.${ext}`, type);
+      if (!url) return;
+      const next = [...data.portfolio_urls];
+      next[index] = url;
+      const clean = next.filter(Boolean).slice(0, 3);
+      const ok = await persistBrandingPatch({ portfolio_urls: clean });
+      if (!ok) return;
+      setData(d => ({ ...d, portfolio_urls: clean }));
+      toast.success("Imagen de portafolio actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingPortfolioIndex(null);
+    }
+  }
+
+  async function removePortfolioImage(index: number) {
+    const next = data.portfolio_urls.filter((_, i) => i !== index).slice(0, 3);
+    const ok = await persistBrandingPatch({ portfolio_urls: next });
+    if (!ok) return;
+    setData(d => ({ ...d, portfolio_urls: next }));
+    toast.success("Imagen eliminada del portafolio");
+  }
+
+
+  function addFeaturedClient() {
+    setData(d => ({
+      ...d,
+      featured_clients: [
+        ...d.featured_clients,
+        { id: `featured-${Date.now()}`, name: "", category: "Marca", image_url: "", active: true, order: d.featured_clients.length },
+      ],
+    }));
+  }
+
+  function updateFeaturedClient(id: string, patch: Partial<FeaturedClient>) {
+    setData(d => ({
+      ...d,
+      featured_clients: d.featured_clients.map((item) => item.id === id ? { ...item, ...patch } : item),
+    }));
+  }
+
+  function removeFeaturedClient(id: string) {
+    setData(d => ({
+      ...d,
+      featured_clients: d.featured_clients.filter((item) => item.id !== id).map((item, index) => ({ ...item, order: index })),
+    }));
+  }
+
+  function moveFeaturedClient(id: string, direction: -1 | 1) {
+    setData(d => {
+      const list = [...d.featured_clients];
+      const index = list.findIndex((item) => item.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return d;
+      [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
+      return { ...d, featured_clients: list.map((item, order) => ({ ...item, order })) };
+    });
+  }
+
+  async function handleFeaturedImageSelect(id: string, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingFeaturedId(id);
+    try {
+      const { blob, ext, type } = await processImage(file, 512, 512, 0.82);
+      const url = await uploadBlob(blob, `${businessId}/featured-${id}.${ext}`, type);
+      if (!url) return;
+      updateFeaturedClient(id, { image_url: url });
+      toast.success("Imagen actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingFeaturedId(null);
+    }
+  }
+
   async function save() {
     if (!businessId) return;
     setSaving(true);
@@ -241,23 +966,74 @@ function BrandingSection() {
       if (url) logo_url = url;
     }
 
-    // Save name to businesses
-    const nameResult = await supabase.from("businesses").update({ name: data.name }).eq("id", businessId);
+    // Foto de perfil y portada ya se suben y persisten al seleccionarlas.
+    // Acá solo reusamos lo que ya está en data (se reescribe igual, es idempotente).
+    const avatar_url = data.avatar_url;
+    const cover_url = data.cover_url;
 
-    // Save branding fields inside schedule._branding (schedule column exists)
+    // Resolver slug final: usa el escrito o lo deriva del nombre.
+    const finalSlug = slugify(data.slug) || slugify(data.name);
+    if (!finalSlug) {
+      setSaving(false);
+      return toast.error("Definí una URL pública (slug) o un nombre.");
+    }
+    // Validar que no esté usado por otro negocio.
+    const { data: clash } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("slug", finalSlug)
+      .neq("id", businessId)
+      .maybeSingle();
+    if (clash) {
+      setSaving(false);
+      return toast.error("Esa URL pública ya está en uso. Probá otra.");
+    }
+
+    const normalizedPhone = normalizeWhatsAppArgentina(data.phone);
+
+    // Save name + slug to businesses. Pedimos la fila de vuelta para detectar
+    // el caso RLS: un UPDATE que no matchea filas devuelve éxito con 0 filas.
+    const nameResult = await supabase
+      .from("businesses")
+      .update({
+        name: data.name,
+        slug: finalSlug,
+        avatar_url: avatar_url || null,
+        cover_url: cover_url || null,
+        address: data.address || null,
+        phone: normalizedPhone || null,
+        email: data.email || null,
+        instagram: data.instagram || null,
+      })
+      .eq("id", businessId)
+      .select("id,name,slug")
+      .maybeSingle();
+
+    // Save branding fields inside schedule._branding (schedule column exists).
+    // Importante: siempre hacemos merge y preservamos imágenes/clientes destacados
+    // si el estado llega vacío por una carga incompleta, para no pisar datos existentes.
     const { data: existingRow } = await supabase.from("business_settings")
       .select("schedule").eq("business_id", businessId).maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingBranding = (existingSchedule._branding ?? {}) as Record<string, unknown>;
+    const nextPortfolioUrls = data.portfolio_urls.filter(Boolean).slice(0, 3);
+    const nextFeaturedClients = data.featured_clients
+      .map((item, index) => ({ ...item, order: index, name: item.name.trim(), image_url: item.image_url.trim() }))
+      .filter((item) => item.name || item.image_url);
     const newSchedule = {
       ...existingSchedule,
       _branding: {
+        ...existingBranding,
         address: data.address,
-        phone: data.phone,
+        phone: normalizedPhone,
         email: data.email,
         instagram: data.instagram,
         website: data.website,
         description: data.description,
-        logo_url,
+        profile_note: data.profile_note,
+        logo_url: logo_url || (existingBranding.logo_url as string | undefined) || "",
+        portfolio_urls: nextPortfolioUrls.length > 0 ? nextPortfolioUrls : (existingBranding.portfolio_urls ?? []),
+        featured_clients: nextFeaturedClients.length > 0 ? nextFeaturedClients : (existingBranding.featured_clients ?? []),
       },
     };
     const cfgResult = await supabase.from("business_settings").upsert(
@@ -267,9 +1043,14 @@ function BrandingSection() {
 
     setSaving(false);
     if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
+    if (!nameResult.data) {
+      return toast.error("No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.");
+    }
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
-    setData(d => ({ ...d, logo_url }));
+    setData(d => ({ ...d, phone: normalizedPhone, logo_url, slug: finalSlug, avatar_url, cover_url }));
     setLogoFile(null);
+    // Avisar al header (botón 🌐) para que actualice el link al instante.
+    window.dispatchEvent(new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }));
     toast.success("Branding guardado correctamente");
   }
 
@@ -287,24 +1068,83 @@ function BrandingSection() {
 
   if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
+  const publicSlug = slugify(data.slug) || slugify(data.name);
+  const publicUrl = `https://myclippr.com/negocio/${publicSlug}`;
+  const publicUrlShort = `myclippr.com/negocio/${publicSlug}`;
+
+  async function copyPublicLink() {
+    if (!publicSlug) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Link copiado correctamente");
+    } catch {
+      toast.error("No se pudo copiar el link");
+    }
+  }
+  function openPublicSite() {
+    if (!publicSlug) return;
+    window.open(publicUrl, "_blank", "noopener,noreferrer");
+  }
+  async function sharePublicLink() {
+    if (!publicSlug) return;
+    const nav = navigator as Navigator & { share?: (d: { title?: string; url?: string }) => Promise<void> };
+    if (typeof nav.share === "function") {
+      try {
+        await nav.share({ title: data.name || "Reservá tu turno", url: publicUrl });
+      } catch {
+        /* usuario canceló el share */
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(publicUrl);
+        toast.success("Link copiado correctamente");
+      } catch {
+        toast.error("No se pudo copiar el link");
+      }
+    }
+  }
+
   const infoRows: { icon: React.ComponentType<{className?:string}>; label: string; hint: string; key: keyof BrandingData; type?: string }[] = [
-    { icon: Building2, label: "Nombre",    hint: "", key: "name" },
-    { icon: MapPin,    label: "Dirección", hint: "", key: "address" },
-    { icon: Phone,     label: "WhatsApp",  hint: "", key: "phone" },
-    { icon: Mail,      label: "Email",     hint: "", key: "email", type: "email" },
+    { icon: Building2, label: "Nombre", hint: "", key: "name" },
+    { icon: MapPin, label: "Dirección", hint: "", key: "address" },
+    { icon: Phone, label: "WhatsApp", hint: "", key: "phone" },
+    { icon: Mail, label: "Email", hint: "", key: "email", type: "email" },
     { icon: Instagram, label: "Instagram", hint: "", key: "instagram" },
   ];
 
   return (
     <>
       <div>
-        <h2 className="text-xl font-display font-semibold">Branding</h2>
+        <h2 className="text-xl font-display font-semibold">Página de reservas</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Información del negocio.
+          Configuración de la página pública de reservas
         </p>
       </div>
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+        {[
+          ["info", "Información"],
+          ["images", "Imágenes"],
+          ["colors", "Colores"],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setPageTab(id as "info" | "images" | "colors")}
+            className={cn(
+              "rounded-xl px-4 py-2 text-sm font-semibold transition",
+              pageTab === id
+                ? "bg-white/[0.08] text-foreground ring-1 ring-white/10"
+                : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <SectionCard label="Información de la barbería">
+
+      {pageTab === "info" ? (
+      <SectionCard label="Información del negocio">
         <div className="divide-y divide-white/5">
           {infoRows.map((f) => {
             const Icon = f.icon;
@@ -317,21 +1157,43 @@ function BrandingSection() {
                   <div className="font-medium text-sm">{f.label}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{f.hint}</div>
                 </div>
-                <input
-                  type={f.type ?? "text"}
-                  value={(data[f.key] as string) ?? ""}
-                  onChange={set(f.key)}
-                  className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                />
+                <div className="w-72 max-w-[55%]">
+                  <input
+                    type={f.type ?? "text"}
+                    value={(data[f.key] as string) ?? ""}
+                    onChange={set(f.key)}
+                    className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                  />
+                </div>
               </div>
             );
           })}
+          <div className="flex items-start gap-4 py-4">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <Globe className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">URL pública</div>
+              <div className="text-xs text-muted-foreground mt-0.5 break-all">
+                myclippr.com/negocio/<span className="text-foreground">{slugify(data.slug) || slugify(data.name) || "tu-negocio"}</span>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={data.slug}
+              onChange={(e) => setData(d => ({ ...d, slug: slugifyLive(e.target.value) }))}
+              onBlur={() => setData(d => ({ ...d, slug: slugify(d.slug) }))}
+              placeholder="auro-styloff"
+              className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+            />
+          </div>
           <div className="flex items-start gap-4 py-4 last:pb-0">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
               <FileText className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm">Descripción</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Cuéntale a tus clientes sobre tu empresa</div>
             </div>
             <textarea
               value={data.description}
@@ -340,47 +1202,289 @@ function BrandingSection() {
               className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
             />
           </div>
-        </div>
-      </SectionCard>
-
-      <SectionCard label="Imágenes">
-        <div className="space-y-5">
-          <div className="flex items-center gap-4">
+          <div className="flex items-start gap-4 py-4 last:pb-0">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-              <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
+              <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
-            <div className="flex-1">
-              <div className="font-medium text-sm">Logo</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Se muestra en el sidebar y en los tickets</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Nota destacada</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Mensaje fijo arriba del perfil. Máximo 80 caracteres. Acepta emojis, números y letras.</div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="h-16 w-24 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
-                {logoFile ? (
-                  <img src={URL.createObjectURL(logoFile)} alt="" className="h-full w-full object-cover" />
-                ) : data.logo_url ? (
-                  <img src={data.logo_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">vacío</span>
-                )}
-              </div>
-              <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs cursor-pointer">
-                <Upload className="h-3.5 w-3.5" /> Subir logo
-                <input type="file" accept="image/*" className="hidden" onChange={e => setLogoFile(e.target.files?.[0] ?? null)} />
-              </label>
+            <div className="w-72 max-w-[55%]">
+              <input
+                type="text"
+                value={data.profile_note}
+                onChange={(e) => setData(d => ({ ...d, profile_note: e.target.value.slice(0, 80) }))}
+                maxLength={80}
+                placeholder="Ej: 🔥 10% OFF pagando en efectivo"
+                className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+              />
+              <div className="mt-1 text-right text-[10px] text-muted-foreground">{data.profile_note.length}/80</div>
             </div>
           </div>
         </div>
       </SectionCard>
 
-      <div className="flex justify-end">
-        <button
-          onClick={save}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition disabled:opacity-50"
-        >
-          {saving ? "Guardando…" : <><Check className="h-4 w-4" strokeWidth={3} /> Guardar branding</>}
-        </button>
-      </div>
+      <SectionCard label="Sitio web público">
+        <div className="space-y-5">
+          <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="h-9 w-9 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                  <Globe className="h-4.5 w-4.5 text-muted-foreground" />
+                </div>
+                <div className="font-medium text-sm">Sitio Web Público</div>
+              </div>
+              {publicSlug ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Activo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-muted-foreground ring-1 ring-white/10">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/30" /> Sin configurar
+                </span>
+              )}
+            </div>
+
+            <p className="mt-3 text-sm text-muted-foreground break-all">
+              {publicSlug ? publicUrlShort : "Definí una URL pública arriba para activar tu sitio."}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={copyPublicLink}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Copy className="h-4 w-4" /> Copiar link
+              </button>
+              <button
+                type="button"
+                onClick={openPublicSite}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ExternalLink className="h-4 w-4" /> Abrir sitio
+              </button>
+              <button
+                type="button"
+                onClick={sharePublicLink}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Share2 className="h-4 w-4" /> Compartir
+              </button>
+            </div>
+          </div>
+
+          {/* Vista previa */}
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Vista previa</div>
+            <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-[#09090f]">
+              <div className="h-24 w-full overflow-hidden bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900">
+                {coverPreview ? (
+                  <img src={coverPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                ) : null}
+              </div>
+              <div className="px-4 pb-4 -mt-7">
+                <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border-4 border-[#09090f] bg-white text-xl font-bold text-zinc-950">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                  ) : (
+                    (data.name || "C").slice(0, 1)
+                  )}
+                </div>
+                <div className="mt-2 text-base font-semibold text-white">
+                  {data.name || "Nombre del negocio"}
+                </div>
+                {data.address ? (
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
+                    <MapPin className="h-3.5 w-3.5" /> {data.address}
+                  </div>
+                ) : null}
+                <div className="mt-1 text-xs text-white/40 break-all">
+                  {publicSlug ? publicUrlShort : "myclippr.com/negocio/tu-negocio"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard label="Confían en nosotros">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-medium">Clientes destacados</div>
+              <p className="mt-1 text-xs text-muted-foreground">Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta sección no aparece.</p>
+            </div>
+            <button type="button" onClick={addFeaturedClient} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10">
+              <Plus className="h-4 w-4" /> Agregar
+            </button>
+          </div>
+
+          {data.featured_clients.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-muted-foreground">
+              Todavía no cargaste clientes destacados.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.featured_clients.map((item, index) => {
+                const uploading = uploadingFeaturedId === item.id;
+                return (
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="grid gap-3 lg:grid-cols-[72px_1fr_180px_120px_auto] lg:items-center">
+                      <div className="h-16 w-16 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                        {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
+                      </div>
+                      <input
+                        value={item.name}
+                        onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                        placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      />
+                      <select
+                        value={item.category}
+                        onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      >
+                        {FEATURED_CLIENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      <label className={cn("inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : "Imagen"}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleFeaturedImageSelect(item.id, f); }} />
+                      </label>
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => updateFeaturedClient(item.id, { active: !item.active })} className={cn("rounded-lg px-2.5 py-2 text-xs ring-1", item.active ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" : "bg-white/5 text-muted-foreground ring-white/10")}>{item.active ? "Activo" : "Inactivo"}</button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, -1)} disabled={index === 0} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, 1)} disabled={index === data.featured_clients.length - 1} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => removeFeaturedClient(item.id)} className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
+        <div className="space-y-5">
+          {/* Foto de perfil (sitio web público) */}
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <UserIcon className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Foto de perfil</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Se muestra en tu sitio web público. Se optimiza a WebP 512px.</div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="h-16 w-16 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">vacío</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                  <Upload className="h-3.5 w-3.5" /> {uploadingAvatar ? "Subiendo…" : (avatarPreview ? "Cambiar foto" : "Subir foto")}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleAvatarSelect(f); }} />
+                </label>
+                {avatarPreview ? (
+                  <button
+                    type="button"
+                    onClick={removeAvatar}
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                  >
+                    <X className="h-3.5 w-3.5" /> Eliminar
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Portada (sitio web público) */}
+          <div className="border-t border-white/5 pt-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">Portada</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Banner superior de tu sitio web. Se optimiza a WebP 1600×600.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                  <Upload className="h-3.5 w-3.5" /> {uploadingCover ? "Subiendo…" : (coverPreview ? "Cambiar portada" : "Subir portada")}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploadingCover} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleCoverSelect(f); }} />
+                </label>
+                {coverPreview ? (
+                  <button
+                    type="button"
+                    onClick={removeCover}
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                  >
+                    <X className="h-3.5 w-3.5" /> Eliminar
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <div className="mt-3 h-32 w-full rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+              {coverPreview ? (
+                <img src={coverPreview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-muted-foreground">Sin portada</span>
+              )}
+            </div>
+          </div>
+
+          {/* Portafolio (sitio web público) */}
+          <div className="border-t border-white/5 pt-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">Portafolio</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Hasta 3 imágenes del local, trabajos o instalaciones. Se optimizan para cargar rápido.</div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {[0, 1, 2].map((index) => {
+                const url = data.portfolio_urls[index];
+                const uploading = uploadingPortfolioIndex === index;
+                return (
+                  <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                    <div className="aspect-[4/3] overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                      {url ? (
+                        <img src={url} alt={`Portafolio ${index + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Imagen {index + 1}</span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <label className={cn("inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : (url ? "Cambiar" : "Subir")}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handlePortfolioSelect(index, f); }} />
+                      </label>
+                      {url ? (
+                        <button type="button" onClick={() => removePortfolioImage(index)} className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </SectionCard>
     </>
   );
 }
@@ -762,6 +1866,9 @@ function HorariosSection() {
           })}
         </div>
       </SectionCard>
+      ) : null}
+
+      {pageTab === "colors" ? <LandingSection /> : null}
     </>
   );
 }
@@ -864,6 +1971,7 @@ type EmployeeRow = {
   avatar_url?: string | null;
   is_active?: boolean | null;
   commission_pct?: number | null;
+  role?: string | null;
 };
 
 type PendingProfessional = {
@@ -874,6 +1982,8 @@ type PendingProfessional = {
     is_active: boolean;
     commission_pct: number | null;
     avatar_url?: string | null;
+    role?: string | null;
+    acceptsOnline?: boolean;
     commissions?: Record<string, CommissionConfig>;
   };
   isNew: boolean;
@@ -968,20 +2078,33 @@ type PermissionKey =
   | "catalogo"
   | "caja"
   | "senas"
+  | "asesor_ia"
   | "plan_facturacion";
 
 type PermissionMap = Record<PermissionKey, boolean>;
 type RolePermissions = Record<RolePermissionId, PermissionMap>;
 
-type AccessStatus = "active" | "inactive";
+type AccessStatus = "invited" | "active" | "suspended";
 
 type AccessUser = {
   id: string;
+  auth_user_id?: string | null;
   name: string;
   email: string;
   role: RolePermissionId;
   status: AccessStatus;
   employee_id?: string | null;
+  branch_id?: string | null;
+  created_at?: string | null;
+};
+
+type AccessFormState = {
+  name: string;
+  email: string;
+  role: RolePermissionId;
+  status: "active" | "inactive";
+  employee_id: string | null;
+  branch_id: string | null;
 };
 
 const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
@@ -992,26 +2115,27 @@ const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
   profesional: "Profesional",
 };
 
-const EMPTY_ACCESS_FORM: Omit<AccessUser, "id"> & { password: string } = {
+const EMPTY_ACCESS_FORM: AccessFormState = {
   name: "",
   email: "",
-  password: "",
   role: "profesional",
   status: "active",
   employee_id: null,
+  branch_id: null,
 };
 
 const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
   { key: "dashboard", label: "Dashboard", desc: "Métricas generales del negocio." },
   { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },
-  { key: "caja_cobro", label: "Caja & Cobro", desc: "Ventas, cobros y movimientos de caja." },
+  { key: "caja_cobro", label: "Caja", desc: "Cobros y medios de pago." },
   { key: "panel_profesionales", label: "Panel Profesionales", desc: "Vista operativa para profesionales." },
   { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
   { key: "configuracion", label: "Configuración", desc: "Acceso a ajustes del negocio." },
+  { key: "asesor_ia", label: "Asesor IA", desc: "Análisis, recomendaciones, simuladores y métricas con IA." },
 ];
 
 const CONFIG_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
-  { key: "branding", label: "Branding", desc: "Identidad visual y datos del negocio." },
+  { key: "branding", label: "Página de reservas", desc: "Identidad visual y datos del negocio." },
   { key: "horarios", label: "Horarios", desc: "Disponibilidad y reglas de agenda." },
   { key: "equipo", label: "Equipo", desc: "Profesionales, usuarios y permisos." },
   { key: "servicios", label: "Servicios", desc: "Servicios, precios y categorías." },
@@ -1026,6 +2150,18 @@ const ALL_PERMISSION_KEYS: PermissionKey[] = [
   ...CONFIG_PERMISSION_ITEMS.map((item) => item.key),
 ];
 
+// Subsecciones internas que dependen del único permiso "Configuración".
+// (Plan & Facturación queda aparte, no se incluye acá.)
+const CONFIG_SUB_KEYS: PermissionKey[] = [
+  "branding",
+  "horarios",
+  "equipo",
+  "servicios",
+  "catalogo",
+  "caja",
+  "senas",
+];
+
 const allOnPermissions = (): PermissionMap =>
   ALL_PERMISSION_KEYS.reduce((acc, key) => ({ ...acc, [key]: true }), {} as PermissionMap);
 
@@ -1037,7 +2173,22 @@ const buildPermissions = (enabled: PermissionKey[]): PermissionMap =>
 
 const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
   admin_general: allOnPermissions(),
-  socio: allOnPermissions(),
+  socio: buildPermissions([
+    "dashboard",
+    "agenda",
+    "caja_cobro",
+    "panel_profesionales",
+    "clientes",
+    "configuracion",
+    "asesor_ia",
+    "branding",
+    "horarios",
+    "equipo",
+    "servicios",
+    "catalogo",
+    "caja",
+    "senas",
+  ]),
   admin_local: buildPermissions([
     "dashboard",
     "agenda",
@@ -1114,38 +2265,26 @@ function normalizeRolePermissions(value: unknown): RolePermissions {
     return acc;
   }, {} as RolePermissions);
 }
-function normalizeAccessUsers(value: unknown): AccessUser[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      const row = (item && typeof item === "object" ? item : {}) as Partial<AccessUser>;
-      const role = ROLE_PERMISSION_OPTIONS.some((r) => r.id === row.role)
-        ? (row.role as RolePermissionId)
-        : "profesional";
-      return {
-        id: String(row.id ?? crypto.randomUUID()),
-        name: String(row.name ?? "").trim(),
-        email: String(row.email ?? "").trim(),
-        role,
-        status: row.status === "inactive" ? "inactive" : "active",
-        employee_id: typeof row.employee_id === "string" ? row.employee_id : null,
-      };
-    })
-    .filter((item) => item.name || item.email);
+
+function normalizePermissionMap(value: unknown): PermissionMap {
+  const src = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: src[key] === true }),
+    {} as PermissionMap,
+  );
 }
 
-function normalizeUserPermissions(value: unknown): Record<string, PermissionMap> {
-  const saved = (value && typeof value === "object" ? value : {}) as Record<string, Partial<PermissionMap>>;
-  return Object.entries(saved).reduce((acc, [id, perms]) => {
-    acc[id] = ALL_PERMISSION_KEYS.reduce(
-      (roleAcc, key) => ({
-        ...roleAcc,
-        [key]: typeof perms?.[key] === "boolean" ? Boolean(perms[key]) : false,
-      }),
-      {} as PermissionMap,
-    );
-    return acc;
-  }, {} as Record<string, PermissionMap>);
+function normalizePublicBooleanMap(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key.trim().length > 0)
+      .map(([key, next]) => [key, next !== false]),
+  );
+}
+
+function getPublicVisibility(schedule: Record<string, unknown>) {
+  return ((schedule._publicVisibility ?? {}) as Record<string, unknown>);
 }
 
 function EquipoSection() {
@@ -1158,6 +2297,8 @@ function EquipoSection() {
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
   const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<AccessUser | null>(null);
+  const [deletingAccess, setDeletingAccess] = useState(false);
   const [accessTouched, setAccessTouched] = useState(false);
   const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
   const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
@@ -1165,6 +2306,7 @@ function EquipoSection() {
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
   const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
   const [rows, setRows] = useState<EmployeeRow[]>([]);
+  const [employeeOnlineMap, setEmployeeOnlineMap] = useState<Record<string, boolean>>({});
   const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1183,7 +2325,7 @@ function EquipoSection() {
       return;
     }
     setLoading(true);
-    const [{ data, error }, catalogResult] = await Promise.all([
+    const [{ data, error }, catalogResult, settingsResult] = await Promise.all([
       supabase
         .from("employees")
         .select("id,full_name,avatar_url,is_active,commission_pct")
@@ -1195,10 +2337,17 @@ function EquipoSection() {
         .eq("business_id", businessId)
         .order("category")
         .order("name"),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
     ]);
     if (error) toast.error("Error cargando profesionales: " + error.message);
     if (catalogResult.error) toast.error("Error cargando servicios y catálogo: " + catalogResult.error.message);
-    setRows((data ?? []) as EmployeeRow[]);
+    const schedule = (settingsResult.data?.schedule ?? {}) as Record<string, unknown>;
+    const employeeRoles = (schedule._employeeRoles && typeof schedule._employeeRoles === "object" ? schedule._employeeRoles : {}) as Record<string, string>;
+    setRows(((data ?? []) as EmployeeRow[]).map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })));
     setCommissionItems((catalogResult.data ?? []) as PriceRow[]);
     setLoading(false);
   }, [businessId]);
@@ -1206,6 +2355,50 @@ function EquipoSection() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadTeamMembers = useCallback(async () => {
+    if (!businessId) return;
+    const { data, error } = await supabase
+      .from("team_members")
+      .select("id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at")
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error("Error cargando accesos: " + error.message);
+      return;
+    }
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const users: AccessUser[] = rows.map((r) => {
+      const rawStatus = String(r.status ?? "invited");
+      const status: AccessStatus =
+        rawStatus === "active" ? "active" : rawStatus === "suspended" ? "suspended" : "invited";
+      const role: RolePermissionId = ROLE_PERMISSION_OPTIONS.some((o) => o.id === r.role)
+        ? (r.role as RolePermissionId)
+        : "profesional";
+      return {
+        id: String(r.id),
+        auth_user_id: (r.auth_user_id as string | null) ?? null,
+        name: String(r.full_name ?? "").trim(),
+        email: String(r.email ?? "").trim(),
+        role,
+        status,
+        employee_id: (r.professional_id as string | null) ?? null,
+        branch_id: (r.branch_id as string | null) ?? null,
+        created_at: (r.created_at as string | null) ?? null,
+      };
+    });
+    const perms: Record<string, PermissionMap> = {};
+    rows.forEach((r) => {
+      perms[String(r.id)] = normalizePermissionMap(r.permissions);
+    });
+    setAccessUsers(users);
+    setUserPermissions(perms);
+    setSelectedAccessUserId((current) => current || users[0]?.id || "");
+  }, [businessId]);
+
+  useEffect(() => {
+    loadTeamMembers();
+  }, [loadTeamMembers]);
 
   useEffect(() => {
     if (!businessId) return;
@@ -1217,13 +2410,13 @@ function EquipoSection() {
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
-        const loadedUsers = normalizeAccessUsers(schedule._accessUsers);
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
-        setAccessUsers(loadedUsers);
-        setUserPermissions(normalizeUserPermissions(schedule._userPermissions));
+        const visibility = getPublicVisibility(schedule);
+        setEmployeeOnlineMap(normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline));
+        const employeeRoles = (schedule._employeeRoles && typeof schedule._employeeRoles === "object" ? schedule._employeeRoles : {}) as Record<string, string>;
+        setRows((current) => current.map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })));
         setApprovalEnabled(caja.approvalModeEnabled === true);
         setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
-        setSelectedAccessUserId((current) => current || loadedUsers[0]?.id || "");
       });
   }, [businessId]);
 
@@ -1249,7 +2442,7 @@ function EquipoSection() {
           return toast.error("Error guardando profesional: " + (error?.message ?? "no se pudo crear"));
         }
 
-        if (payload.commissions) {
+        {
           const { data: existingRow } = await supabase
             .from("business_settings")
             .select("schedule")
@@ -1257,15 +2450,25 @@ function EquipoSection() {
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
           const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
+          const visibility = getPublicVisibility(existingSchedule);
+          const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
           await supabase.from("business_settings").upsert(
             {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
-                _employeeCommissions: {
-                  ...existingCommissions,
-                  [inserted.id]: payload.commissions,
+                _employeeCommissions: payload.commissions
+                  ? {
+                      ...existingCommissions,
+                      [inserted.id]: payload.commissions,
+                    }
+                  : existingCommissions,
+                _employeeRoles: { ...existingRoles, [inserted.id]: payload.role ?? "Profesional" },
+                _publicVisibility: {
+                  ...visibility,
+                  employees: { ...employeesVisibility, [inserted.id]: payload.acceptsOnline !== false },
                 },
               },
             },
@@ -1285,7 +2488,7 @@ function EquipoSection() {
 
         if (error) return toast.error("Error guardando profesional: " + error.message);
 
-        if (payload.commissions) {
+        {
           const { data: existingRow } = await supabase
             .from("business_settings")
             .select("schedule")
@@ -1293,15 +2496,25 @@ function EquipoSection() {
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
           const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
+          const visibility = getPublicVisibility(existingSchedule);
+          const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
           await supabase.from("business_settings").upsert(
             {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
-                _employeeCommissions: {
-                  ...existingCommissions,
-                  [payload.id]: payload.commissions,
+                _employeeCommissions: payload.commissions
+                  ? {
+                      ...existingCommissions,
+                      [payload.id]: payload.commissions,
+                    }
+                  : existingCommissions,
+                _employeeRoles: { ...existingRoles, [payload.id]: payload.role ?? "Profesional" },
+                _publicVisibility: {
+                  ...visibility,
+                  employees: { ...employeesVisibility, [payload.id]: payload.acceptsOnline !== false },
                 },
               },
             },
@@ -1327,8 +2540,6 @@ function EquipoSection() {
         schedule: {
           ...existingSchedule,
           _rolePermissions: cleaned,
-          _accessUsers: accessUsers.map(({ id, name, email, role, status, employee_id }) => ({ id, name, email, role, status, employee_id: employee_id ?? null })),
-          _userPermissions: userPermissions,
           _caja: {
             ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
             approvalModeEnabled: approvalEnabled,
@@ -1489,6 +2700,8 @@ function EquipoSection() {
       is_active: editingEmp ? editingEmp.is_active !== false : true,
       commission_pct: commission,
       avatar_url: form.avatarUrl || null,
+      role: form.role.trim() || "Profesional",
+      acceptsOnline: form.acceptsOnline,
       commissions: form.commissions,
     };
 
@@ -1501,11 +2714,13 @@ function EquipoSection() {
                 full_name: name,
                 commission_pct: commission,
                 avatar_url: form.avatarUrl || null,
+                role: form.role.trim() || "Profesional",
               }
             : emp,
         ),
       );
 
+      setEmployeeOnlineMap((current) => ({ ...current, [editingEmp.id]: form.acceptsOnline }));
       setPendingProfessionals((current) => [
         ...current.filter((item) => item.payload.id !== editingEmp.id),
         { tempId: editingEmp.id, payload, isNew: false },
@@ -1524,11 +2739,13 @@ function EquipoSection() {
         id: tempId,
         full_name: name,
         avatar_url: form.avatarUrl || null,
+        role: form.role.trim() || "Profesional",
         is_active: true,
         commission_pct: commission,
       },
     ]);
 
+    setEmployeeOnlineMap((current) => ({ ...current, [tempId]: form.acceptsOnline }));
     setPendingProfessionals((current) => [
       ...current,
       { tempId, payload: { ...payload, id: undefined }, isNew: true },
@@ -1588,71 +2805,50 @@ function EquipoSection() {
     });
   }
 
-  function saveAccessUser() {
+  async function saveAccessUser() {
     setAccessTouched(true);
     const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
-    const name =
+    const fallbackName =
       accessForm.role === "profesional"
-        ? (selectedEmployee?.full_name || selectedEmployee?.name || "").trim()
+        ? (selectedEmployee?.full_name || selectedEmployee?.name || "")
         : ROLE_LABEL_BY_ID[accessForm.role];
+    const name = (accessForm.name.trim() || fallbackName).trim();
     const email = accessForm.email.trim();
 
     if (accessForm.role === "profesional" && !selectedEmployee) {
-      return toast.error("Elegí el profesional para este acceso");
+      setAccessTouched(true);
+      return toast.error("Debés seleccionar un profesional para este acceso.");
     }
     if (!email) return toast.error("Ingresá el correo electrónico");
-    if (!editingAccessUserId && !accessForm.password.trim()) return toast.error("Ingresá la contraseña");
+    if (!businessId) return toast.error("No se pudo determinar el negocio");
 
-    if (editingAccessUserId) {
-      setAccessUsers((current) =>
-        current.map((user) =>
-          user.id === editingAccessUserId
-            ? {
-                ...user,
-                name,
-                email,
-                role: accessForm.role,
-                status: accessForm.status,
-                employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
-              }
-            : user,
-        ),
-      );
-      setUserPermissions((current) => ({
-        ...current,
-        [editingAccessUserId]: { ...accessPermissionsForm },
-      }));
-      setSelectedPermRole(accessForm.role);
-      setSelectedAccessUserId(editingAccessUserId);
-      setEditingAccessUserId(null);
-      setAccessForm(EMPTY_ACCESS_FORM);
-      setAccessTouched(false);
-      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
-      toast.success("Acceso actualizado correctamente");
-      return;
-    }
-
-    const id = crypto.randomUUID();
-    const newUser: AccessUser = {
-      id,
-      name,
+    setSaving(true);
+    const payload = {
+      action: editingAccessUserId ? "update" : "create",
+      member_id: editingAccessUserId ?? undefined,
+      business_id: businessId,
       email,
+      full_name: name,
       role: accessForm.role,
-      status: accessForm.status,
-      employee_id: accessForm.role === "profesional" ? selectedEmployee?.id ?? null : null,
+      status: accessForm.status === "inactive" ? "suspended" : "active",
+      professional_id: accessForm.role === "profesional" ? (selectedEmployee?.id ?? null) : null,
+      branch_id: accessForm.branch_id ?? null,
+      permissions: accessPermissionsForm,
     };
 
-    setAccessUsers((current) => [...current, newUser]);
-    setUserPermissions((current) => ({
-      ...current,
-      [id]: { ...accessPermissionsForm },
-    }));
+    const { data, error } = await supabase.functions.invoke("invite-team-member", { body: payload });
+    setSaving(false);
+
+    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    if (errMsg) return toast.error("Error: " + errMsg);
+
+    toast.success(editingAccessUserId ? "Acceso actualizado correctamente" : "Invitación enviada por email");
+    setEditingAccessUserId(null);
     setAccessForm(EMPTY_ACCESS_FORM);
     setAccessTouched(false);
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
     setSelectedPermRole(accessForm.role);
-    setSelectedAccessUserId(id);
-    toast.success("Acceso agregado correctamente");
+    await loadTeamMembers();
   }
 
   function editAccessUser(user: AccessUser) {
@@ -1660,10 +2856,10 @@ function EquipoSection() {
     setAccessForm({
       name: user.name,
       email: user.email,
-      password: "",
       role: user.role,
-      status: user.status,
+      status: user.status === "suspended" ? "inactive" : "active",
       employee_id: user.employee_id ?? null,
+      branch_id: user.branch_id ?? null,
     });
     setAccessPermissionsForm(userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role]);
     setSelectedPermRole(user.role);
@@ -1679,16 +2875,49 @@ function EquipoSection() {
   }
 
 
-  function removeAccessUser(id: string) {
-    setAccessUsers((current) => current.filter((user) => user.id !== id));
-    setUserPermissions((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
+  async function removeAccessUser(id: string) {
+    if (!businessId) return;
+    setDeletingAccess(true);
+    const { data, error } = await supabase.functions.invoke("invite-team-member", {
+      body: { action: "delete", member_id: id, business_id: businessId },
     });
+    setDeletingAccess(false);
+
+    let errMsg = (data as { error?: string } | null)?.error ?? null;
+    if (error) {
+      // FunctionsHttpError: el mensaje específico viene en error.context (Response)
+      try {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          const body = await ctx.json();
+          errMsg = body?.error ?? errMsg ?? error.message;
+        } else {
+          errMsg = errMsg ?? error.message;
+        }
+      } catch {
+        errMsg = errMsg ?? error.message;
+      }
+    }
+
+    setPendingDeleteUser(null);
+    if (errMsg) return toast.error(errMsg);
+
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
     if (editingAccessUserId === id) cancelEditAccessUser();
+    toast.success("Acceso eliminado");
+    await loadTeamMembers();
   }
+
+  // Admin principal = el admin_general más antiguo del negocio (no se puede eliminar).
+  const principalAdminId = (() => {
+    const admins = accessUsers
+      .filter((u) => u.role === "admin_general")
+      .slice()
+      .sort((a, b) =>
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+      );
+    return admins[0]?.id ?? null;
+  })();
 
   function toggleUserPermission(userId: string, key: PermissionKey) {
     const user = accessUsers.find((item) => item.id === userId);
@@ -1714,11 +2943,15 @@ function EquipoSection() {
   }
 
   function getRecommendedPermissionKeys(role: RolePermissionId) {
-    return ALL_PERMISSION_KEYS.filter((key) => DEFAULT_ROLE_PERMISSIONS[role][key]);
+    return MAIN_PERMISSION_ITEMS
+      .map((i) => i.key)
+      .filter((key) => DEFAULT_ROLE_PERMISSIONS[role][key]);
   }
 
   function getAdditionalPermissionKeys(role: RolePermissionId) {
-    return ALL_PERMISSION_KEYS.filter((key) => !DEFAULT_ROLE_PERMISSIONS[role][key]);
+    return MAIN_PERMISSION_ITEMS
+      .map((i) => i.key)
+      .filter((key) => !DEFAULT_ROLE_PERMISSIONS[role][key]);
   }
 
   function getPermissionItem(key: PermissionKey) {
@@ -1731,13 +2964,14 @@ function EquipoSection() {
   function toggleAccessFormPermission(key: PermissionKey) {
     setAccessPermissionsForm((current) => {
       const next = { ...current, [key]: !current[key] };
-      if (key === "configuracion" && !next[key]) {
-        CONFIG_PERMISSION_ITEMS.forEach((item) => {
-          next[item.key] = false;
+      // "Configuración" es un único permiso que habilita/inhabilita todas las
+      // subsecciones internas (Branding, Horarios, Equipo, Servicios, Catálogo,
+      // Caja, Señas) de una vez.
+      if (key === "configuracion") {
+        const v = next.configuracion;
+        CONFIG_SUB_KEYS.forEach((sub) => {
+          next[sub] = v;
         });
-      }
-      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && next[key]) {
-        next.configuracion = true;
       }
       return next;
     });
@@ -1883,7 +3117,7 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? "") }); setDlgTab("perfil"); setOpen(true); }}
+                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? ""), role: emp.role ?? "Barbero", acceptsOnline: employeeOnlineMap[emp.id] !== false }); setDlgTab("perfil"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
                         Editar
@@ -1999,7 +3233,7 @@ function EquipoSection() {
             <div className="mb-5">
               <h3 className="font-semibold">Accesos</h3>
               {editingAccessUserId && (
-                <div className="mt-3 rounded-xl bg-amber-500/10 ring-1 ring-amber-400/20 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-3">
+                <div className="mt-3 rounded-xl bg-cyan-500/10 ring-1 ring-cyan-400/20 px-3 py-2 text-xs text-cyan-200 flex items-center justify-between gap-3">
                   <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
                   <button
                     type="button"
@@ -2026,7 +3260,6 @@ function EquipoSection() {
                           name: "",
                           employee_id: null,
                           email: "",
-                          password: "",
                         }));
                         setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[role]);
                         setAccessTouched(false);
@@ -2044,7 +3277,7 @@ function EquipoSection() {
                   <Field label="Estado">
                     <select
                       value={accessForm.status}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, status: e.target.value as AccessStatus }))}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, status: e.target.value as "active" | "inactive" }))}
                       className={inputCls}
                     >
                       <option value="active">Activo</option>
@@ -2073,7 +3306,7 @@ function EquipoSection() {
                       </select>
                     </Field>
                     {accessTouched && !accessForm.employee_id && (
-                      <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                      <div className="text-xs text-red-400 mt-1">Debés seleccionar un profesional para este acceso.</div>
                     )}
                   </div>
                 )}
@@ -2089,6 +3322,20 @@ function EquipoSection() {
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <Field label="Nombre" hint={accessForm.role === "profesional" ? "Si lo dejás vacío se toma del profesional." : undefined}>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      name="clippr-access-name"
+                      value={accessForm.name}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Nombre del usuario"
+                    />
+                  </Field>
+                </div>
 
                 <div>
                   <Field label="Correo electrónico">
@@ -2110,27 +3357,94 @@ function EquipoSection() {
                   )}
                 </div>
 
-                <div>
-                  <Field label="Contraseña" hint={editingAccessUserId ? "Dejala vacía para mantener la contraseña actual." : "Se usa para crear el acceso. No se muestra en el listado."}>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      name="clippr-access-password"
-                      value={accessForm.password}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
-                      className={cn(
-                        inputCls,
-                        accessTouched && !editingAccessUserId && !accessForm.password.trim() && "ring-red-500/70 focus:ring-red-500/70",
-                      )}
-                      placeholder="********"
-                    />
-                  </Field>
-                  {accessTouched && !accessForm.password.trim() && (
-                    <div className="text-xs text-red-400 mt-1">Campo requerido</div>
-                  )}
+                <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
+                  <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                  <span>
+                    No se asignan contraseñas. Al confirmar, se envía una invitación por email para que la persona cree su propia contraseña.
+                  </span>
                 </div>
 
-                <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={saveAccessUser}
+                  disabled={saving}
+                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)] disabled:opacity-60"
+                >
+                  {saving
+                    ? "Procesando…"
+                    : editingAccessUserId
+                      ? "Guardar cambios"
+                      : "Confirmar e invitar"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+                <div className="text-sm font-semibold mb-3">Accesos creados</div>
+                {accessUsers.length === 0 ? (
+                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
+                    Todavía no hay accesos creados.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {accessUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
+                      >
+                        <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                          {(user.name[0] || "A").toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{user.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {user.email} · {ROLE_LABEL_BY_ID[user.role]}
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-1 text-[10px] ring-1",
+                            user.status === "active"
+                              ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
+                              : user.status === "invited"
+                                ? "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
+                                : "bg-white/5 text-muted-foreground ring-white/10",
+                          )}
+                        >
+                          {user.status === "active"
+                            ? "Activo"
+                            : user.status === "invited"
+                              ? "Pendiente"
+                              : "Inactivo"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => editAccessUser(user)}
+                          className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                        >
+                          Editar
+                        </button>
+                        {user.id === principalAdminId ? (
+                          <span
+                            className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
+                            title="El administrador principal no se puede eliminar"
+                          >
+                            Principal
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteUser(user)}
+                            className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/5">
                     <div className="font-semibold text-sm">Permisos</div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -2214,66 +3528,54 @@ function EquipoSection() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {pendingDeleteUser && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-xl grid place-items-center bg-red-500/15 ring-1 ring-red-500/30">
+                  <Trash2 className="h-5 w-5 text-red-300" />
+                </div>
+                <h3 className="text-lg font-semibold">¿Eliminar acceso?</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Esta acción eliminará de{" "}
+                <span className="text-foreground font-medium">
+                  {pendingDeleteUser.name || pendingDeleteUser.email}
+                </span>
+                :
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 mb-4 list-disc pl-5">
+                <li>Usuario</li>
+                <li>Permisos</li>
+                <li>Historial de acceso</li>
+              </ul>
+              <p className="text-sm text-red-300/90 mb-5">
+                El usuario ya no podrá iniciar sesión.
+              </p>
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={saveAccessUser}
-                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)]"
+                  onClick={() => setPendingDeleteUser(null)}
+                  disabled={deletingAccess}
+                  className="rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-4 py-2 text-sm disabled:opacity-60"
                 >
-                  {editingAccessUserId ? "Guardar cambios" : "Confirmar"}
+                  Cancelar
                 </button>
-              </div>
-
-              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-                <div className="text-sm font-semibold mb-3">Accesos creados</div>
-                {accessUsers.length === 0 ? (
-                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
-                    Todavía no hay accesos creados.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {accessUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
-                      >
-                        <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
-                          {(user.name[0] || "A").toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{user.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {user.email} · {ROLE_LABEL_BY_ID[user.role]}
-                          </div>
-                        </div>
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-1 text-[10px] ring-1",
-                            user.status === "active"
-                              ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
-                              : "bg-white/5 text-muted-foreground ring-white/10",
-                          )}
-                        >
-                          {user.status === "active" ? "Activo" : "Inactivo"}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => editAccessUser(user)}
-                          className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeAccessUser(user.id)}
-                          className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => removeAccessUser(pendingDeleteUser.id)}
+                  disabled={deletingAccess}
+                  className="rounded-xl bg-red-500/90 hover:bg-red-500 text-white font-semibold px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  {deletingAccess ? "Eliminando…" : "Eliminar acceso"}
+                </button>
               </div>
             </div>
           </div>
@@ -2429,7 +3731,7 @@ function EquipoSection() {
                       </div>
                       <div className="flex-1">
                         <div className="text-sm font-semibold">Foto del profesional</div>
-                        <div className="text-xs text-muted-foreground mt-1">JPG, PNG o WEBP. La app la recorta a 200x200, la convierte a WebP y la comprime antes de subirla.</div>
+                        <div className="text-xs text-muted-foreground mt-1">JPG, PNG o WEBP. Se muestra como en la página pública; usá una imagen centrada para que el recorte quede bien. La app la recorta a 200x200, la convierte a WebP y la comprime antes de subirla.</div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-3 py-2 text-xs font-medium">
                             Subir imagen
@@ -3077,6 +4379,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const isService = kind === "servicios";
   const { businessId } = useAuth();
   const [rows, setRows] = useState<PriceRow[]>([]);
+  const [serviceReservableMap, setServiceReservableMap] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
   const [editing, setEditing] = useState<PriceRow | null>(null);
@@ -3101,7 +4404,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const cats = (schedule._categories ?? {}) as Record<string, unknown>;
-        if (isService && Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
+        const visibility = getPublicVisibility(schedule);
+        if (isService) {
+          setServiceReservableMap(normalizePublicBooleanMap(visibility.services ?? schedule._serviceReservable));
+          if (Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
+        }
         if (!isService && Array.isArray(cats.catalog)) setCustomCatalogCategories(cats.catalog as string[]);
       });
   }, [businessId, isService]);
@@ -3153,13 +4460,55 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!businessId) return;
+
+    const onCatalogStockSaved = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { productId?: string; stock?: number } | undefined;
+
+      if (detail?.productId && typeof detail.stock === "number") {
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === detail.productId ? { ...row, stock: detail.stock } : row,
+          ),
+        );
+        return;
+      }
+
+      load();
+    };
+
+    window.addEventListener("clippr:catalog-stock-saved", onCatalogStockSaved);
+
+    const channel = supabase
+      .channel(`settings_price_catalog_${businessId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "price_catalog",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("clippr:catalog-stock-saved", onCatalogStockSaved);
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, load]);
+
   // Global Save: persist pending + categories + show toast
   const persistCategoriesRef = useRef(persistCategories);
   useEffect(() => { persistCategoriesRef.current = persistCategories; }, [persistCategories]);
   const pendingItemsRef = useRef(pendingItems);
   const pendingDeletesRef = useRef(pendingDeletes);
+  const serviceReservableMapRef = useRef(serviceReservableMap);
   useEffect(() => { pendingItemsRef.current = pendingItems; }, [pendingItems]);
   useEffect(() => { pendingDeletesRef.current = pendingDeletes; }, [pendingDeletes]);
+  useEffect(() => { serviceReservableMapRef.current = serviceReservableMap; }, [serviceReservableMap]);
 
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -3170,21 +4519,55 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const deletes = pendingDeletesRef.current;
         const errors: string[] = [];
 
+        let nextServiceReservableMap = { ...serviceReservableMapRef.current };
+
         // Flush deletes
         for (const id of deletes) {
           const { error } = await supabase.from("price_catalog").delete().eq("id", id);
           if (error) errors.push(error.message);
+          if (isService) delete nextServiceReservableMap[id];
         }
 
         // Flush upserts
         for (const { tempId, payload, isNew } of items) {
           if (isNew) {
-            const { error } = await supabase.from("price_catalog").insert(payload);
-            if (error) errors.push(error.message);
+            const { data: inserted, error } = await supabase.from("price_catalog").insert(payload).select("id").single();
+            if (error || !inserted) {
+              errors.push(error?.message ?? "No se pudo crear el servicio");
+            } else if (isService) {
+              const reservable = nextServiceReservableMap[tempId] !== false;
+              delete nextServiceReservableMap[tempId];
+              nextServiceReservableMap[String(inserted.id)] = reservable;
+            }
           } else {
             const { error } = await supabase.from("price_catalog").update(payload).eq("id", tempId);
             if (error) errors.push(error.message);
           }
+        }
+
+        if (isService && businessId) {
+          serviceReservableMapRef.current = nextServiceReservableMap;
+          setServiceReservableMap(nextServiceReservableMap);
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+          const visibility = getPublicVisibility(existingSchedule);
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _publicVisibility: {
+                  ...visibility,
+                  services: nextServiceReservableMap,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
         }
 
         await persistCategoriesRef.current();
@@ -3194,6 +4577,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         } else {
           setPendingItems([]);
           setPendingDeletes(new Set());
+          window.dispatchEvent(new CustomEvent("clippr:catalog-stock-saved"));
           toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
           load();
         }
@@ -3221,7 +4605,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   function openEdit(row: PriceRow) {
     setEditing(row);
-    setForm(rowToForm(row, isService));
+    setForm({
+      ...rowToForm(row, isService),
+      reservable: isService ? serviceReservableMap[row.id] !== false : true,
+    });
     setModalOpen(true);
   }
 
@@ -3240,6 +4627,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!isService) payload.stock = Number(form.stock) || 0;
 
     if (editing) {
+      if (isService) setServiceReservableMap((current) => ({ ...current, [editing.id]: form.reservable }));
       // Update existing row locally
       setRows(prev => prev.map(r => r.id === editing.id ? { ...r, ...payload } as PriceRow : r));
       setPendingItems(prev => {
@@ -3249,6 +4637,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     } else {
       // New row — temp negative id until saved
       const tempId = `new_${Date.now()}`;
+      if (isService) setServiceReservableMap((current) => ({ ...current, [tempId]: form.reservable }));
       setRows(prev => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems(prev => [...prev, { tempId, payload: { ...payload }, isNew: true }]);
     }
@@ -3274,6 +4663,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const row = confirmDelItem;
     setConfirmDelItem(null);
     setRows(prev => prev.filter(r => r.id !== row.id));
+    if (isService) setServiceReservableMap((current) => { const next = { ...current }; delete next[row.id]; return next; });
     // If it was a new (unsaved) item, just remove from pending
     if (row.id.startsWith("new_")) {
       setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
@@ -3854,6 +5244,7 @@ function SenasSection() {
     if (!businessId) return;
     const localPct = parseFloat(lostLocal) || 0;
     const typedProfPct = parseFloat(lostProf) || 0;
+    const parsedAmount = parseFloat(amountValue) || 0;
 
     if (lostDist === "custom") {
       const totalPct = Math.round((localPct + typedProfPct) * 10) / 10;
@@ -3882,7 +5273,7 @@ function SenasSection() {
   React.useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "senas") saveRef.current();
+      if (!section || section === "senas" || section === "servicios") saveRef.current();
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
@@ -4081,8 +5472,8 @@ function SettingsPage() {
         subtitle="Tu negocio"
         action={
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings"))}
-            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.5)] hover:opacity-95 transition"
+            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: { section: active } }))}
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-cyan-300 text-slate-950 shadow-[0_8px_30px_-8px_rgba(34,211,238,0.65)] hover:opacity-95 transition"
           >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />
           </button>
@@ -4137,6 +5528,9 @@ function SettingsPage() {
                 </div>
               </div>
             ))}
+            <div className="px-3 pt-3 text-[11px] text-muted-foreground/60">
+              Clippr v1.0.0
+            </div>
           </aside>
 
           {/* Content */}
@@ -4146,15 +5540,320 @@ function SettingsPage() {
             {active === "horarios" && <HorariosSection />}
             {active === "equipo" && <EquipoSection />}
             {active === "servicios" && <ServiciosSection />}
+            {active === "servicios" && <SenasSection />}
             {active === "catalogo" && <CatalogoSection />}
+            {active === "clientes" && <ClientesSection />}
             {active === "caja" && <CajaSection />}
-            {active === "senas" && <SenasSection />}
+            {active === "apariencia" && <AparienciaSection />}
 
             {active === "plan" && <PlanSection />}
           </section>
         </div>
       </div>
     </AppShell>
+  );
+}
+
+// ─────────── Clientes ───────────
+
+type ClientField = {
+  key: string;
+  label: string;
+  required: boolean;
+};
+
+const ALL_CLIENT_FIELDS: ClientField[] = [
+  { key: "nombre",           label: "Nombre",              required: true  },
+  { key: "telefono",         label: "Teléfono",            required: true  },
+  { key: "email",            label: "Email",               required: false },
+  { key: "fecha_nacimiento", label: "Fecha de nacimiento", required: false },
+  { key: "notas",            label: "Notas",               required: false },
+];
+
+type ClientesConfig = {
+  fields: Record<string, boolean>;
+  diasInactivo: number;
+  diasPerdido: number;
+  vipVisitasEnabled: boolean;
+  vipVisitasMin: number;
+  vipGastoEnabled: boolean;
+  vipGastoMin: number;
+};
+
+const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
+  fields: {
+    nombre: true, telefono: true, email: true,
+    fecha_nacimiento: true, notas: false,
+  },
+  diasInactivo: 30,
+  diasPerdido: 90,
+  vipVisitasEnabled: true,
+  vipVisitasMin: 4,
+  vipGastoEnabled: true,
+  vipGastoMin: 100000,
+};
+
+// ── Helpers outside component — prevents focus loss on re-render ─────────────
+
+function CfgCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 space-y-4", className)}>
+      {children}
+    </div>
+  );
+}
+
+function CfgSectionTitle({ label, sub }: { label: string; sub?: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function CfgNumInput({
+  label, value, onChange, min = 1, step = 1, prefix,
+}: {
+  label: string; value: number; onChange: (n: number) => void;
+  min?: number; step?: number; prefix?: string;
+}) {
+  const [local, setLocal] = React.useState(String(value));
+  React.useEffect(() => { setLocal(String(value)); }, [value]);
+  const commit = () => {
+    const n = Math.max(min, Number(local) || min);
+    setLocal(String(n));
+    onChange(n);
+  };
+  return (
+    <label className="flex items-center justify-between gap-4">
+      <span className="text-sm text-foreground/80">{label}</span>
+      <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+        {prefix && <span className="text-sm text-muted-foreground">{prefix}</span>}
+        <input
+          type="number"
+          min={min}
+          step={step}
+          value={local}
+          onChange={e => setLocal(e.target.value)}
+          onBlur={commit}
+          className="w-24 bg-transparent text-sm text-right tabular-nums outline-none text-foreground"
+        />
+      </div>
+    </label>
+  );
+}
+
+function CfgToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        "relative h-6 w-11 rounded-full transition-all shrink-0",
+        enabled ? "bg-primary/70" : "bg-white/10",
+      )}
+    >
+      <span className={cn(
+        "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+        enabled ? "translate-x-5" : "translate-x-0.5",
+      )} />
+    </button>
+  );
+}
+
+function ClientesSection() {
+  const { businessId } = useAuth();
+  const [cfg, setCfg] = useState<ClientesConfig>(DEFAULT_CLIENTES_CONFIG);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        if (schedule._clientes) {
+          setCfg({ ...DEFAULT_CLIENTES_CONFIG, ...(schedule._clientes as Partial<ClientesConfig>) });
+        }
+        setLoaded(true);
+      });
+  }, [businessId]);
+
+  const save = useCallback(async () => {
+    if (!businessId) return;
+    try {
+      const { data: existingRow } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const result = await supabase
+        .from("business_settings")
+        .upsert(
+          { business_id: businessId, schedule: { ...existingSchedule, _clientes: cfg } },
+          { onConflict: "business_id" },
+        );
+      if (result.error) throw new Error(result.error.message);
+      toast.success("Configuración de clientes guardada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }, [businessId, cfg]);
+
+  // Wire up global save button
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; }, [save]);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "clientes") void saveRef.current();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, []);
+
+  const setField = (key: string, val: boolean) =>
+    setCfg(prev => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
+
+  if (!loaded) return (
+    <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
+  );
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-xl font-display font-semibold">Clientes</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Campos del formulario, segmentación automática y criterios VIP.
+        </p>
+      </div>
+
+      {/* ── Campos ── */}
+      <CfgCard>
+        <CfgSectionTitle
+          label="Campos visibles"
+          sub="Los campos activos aparecen al crear o editar clientes y al agendar turnos."
+        />
+        <div className="space-y-2.5 pt-1">
+          {ALL_CLIENT_FIELDS.map(f => {
+            const enabled = cfg.fields[f.key] ?? false;
+            return (
+              <div key={f.key} className="flex items-center justify-between gap-4 py-1">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    disabled={f.required}
+                    onClick={() => !f.required && setField(f.key, !enabled)}
+                    className={cn(
+                      "h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition-all",
+                      enabled ? "bg-primary/80 border-primary/60" : "bg-white/[0.03] border-white/15",
+                      f.required && "opacity-60 cursor-not-allowed",
+                    )}
+                  >
+                    {enabled && <Check className="h-3 w-3 text-black" strokeWidth={3} />}
+                  </button>
+                  <span className="text-sm text-foreground/90">{f.label}</span>
+                </div>
+                {f.required && (
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-white/10 rounded-full px-2 py-0.5">
+                    Obligatorio
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CfgCard>
+
+      {/* ── Estado ── */}
+      <CfgCard>
+        <CfgSectionTitle
+          label="Estado de clientes"
+          sub="El sistema calcula automáticamente el estado según la fecha de la última visita."
+        />
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[
+            { label: "Activo",   color: "text-emerald-300", ring: "ring-emerald-400/25 bg-emerald-400/8",  range: `0 – ${cfg.diasInactivo - 1} días` },
+            { label: "Inactivo", color: "text-cyan-300",   ring: "ring-cyan-400/25 bg-cyan-400/8",      range: `${cfg.diasInactivo} – ${cfg.diasPerdido - 1} días` },
+            { label: "Perdido",  color: "text-rose-300",    ring: "ring-rose-400/25 bg-rose-400/8",        range: `${cfg.diasPerdido}+ días` },
+          ].map(s => (
+            <div key={s.label} className={cn("rounded-xl ring-1 p-3", s.ring)}>
+              <div className={cn("text-xs font-semibold", s.color)}>{s.label}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">{s.range}</div>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-3 pt-1">
+          <CfgNumInput
+            label="Días para considerar cliente inactivo"
+            value={cfg.diasInactivo}
+            min={1}
+            onChange={n => setCfg(p => ({ ...p, diasInactivo: Math.min(n, p.diasPerdido - 1) }))}
+          />
+          <CfgNumInput
+            label="Días para considerar cliente perdido"
+            value={cfg.diasPerdido}
+            min={2}
+            onChange={n => setCfg(p => ({ ...p, diasPerdido: Math.max(n, p.diasInactivo + 1) }))}
+          />
+        </div>
+      </CfgCard>
+
+      {/* ── VIP ── */}
+      <CfgCard>
+        <CfgSectionTitle
+          label="Cliente VIP"
+          sub="Se calcula mes a mes. Si el cliente deja de cumplir las condiciones, pierde la etiqueta automáticamente."
+        />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-foreground">VIP por visitas mensuales</div>
+              <div className="text-xs text-muted-foreground">Cantidad mínima de visitas en el mes actual</div>
+            </div>
+            <CfgToggle enabled={cfg.vipVisitasEnabled} onToggle={() => setCfg(p => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))} />
+          </div>
+          {cfg.vipVisitasEnabled && (
+            <CfgNumInput
+              label="Visitas mínimas por mes"
+              value={cfg.vipVisitasMin}
+              min={1}
+              onChange={n => setCfg(p => ({ ...p, vipVisitasMin: n }))}
+            />
+          )}
+        </div>
+        <div className="h-px bg-white/5" />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-foreground">VIP por gasto mensual</div>
+              <div className="text-xs text-muted-foreground">Gasto mínimo acumulado en el mes actual</div>
+            </div>
+            <CfgToggle enabled={cfg.vipGastoEnabled} onToggle={() => setCfg(p => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))} />
+          </div>
+          {cfg.vipGastoEnabled && (
+            <CfgNumInput
+              label="Gasto mínimo mensual"
+              value={cfg.vipGastoMin}
+              min={0}
+              step={1000}
+              prefix="$"
+              onChange={n => setCfg(p => ({ ...p, vipGastoMin: n }))}
+            />
+          )}
+        </div>
+        {(cfg.vipVisitasEnabled || cfg.vipGastoEnabled) && (
+          <p className="text-[11px] text-muted-foreground rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-3 py-2">
+            Un cliente se marca VIP si cumple <strong className="text-foreground">cualquiera</strong> de las condiciones activas durante el mes en curso.
+          </p>
+        )}
+      </CfgCard>
+    </div>
   );
 }
 
