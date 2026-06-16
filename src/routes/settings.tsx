@@ -340,12 +340,14 @@ type BrandingData = {
   cover_position: string;
   portfolio_positions: string[];
   featured_positions: Record<string, string>;
+  business_start_date: string;
 };
 const EMPTY_BRANDING: BrandingData = {
   name: "", slug: "", address: "", phone: "", email: "",
   instagram: "", website: "", description: "", profile_note: "", logo_url: "",
   avatar_url: "", cover_url: "", portfolio_urls: [], featured_clients: [],
   avatar_position: "50% 50%", cover_position: "50% 50%", portfolio_positions: [], featured_positions: {},
+  business_start_date: "",
 };
 
 // Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
@@ -716,7 +718,7 @@ function BrandingSection() {
     if (!businessId) { setLoading(false); return; }
     // Load name/slug + assets públicos desde businesses; el resto desde _branding.
     Promise.all([
-      supabase.from("businesses").select("name,slug,address,phone,email,instagram,avatar_url,cover_url").eq("id", businessId).maybeSingle(),
+      supabase.from("businesses").select("name,slug,address,phone,email,instagram,avatar_url,cover_url,business_start_date").eq("id", businessId).maybeSingle(),
       supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
@@ -741,6 +743,7 @@ function BrandingSection() {
         cover_position: (cfg.cover_position as string) ?? "50% 50%",
         portfolio_positions: Array.isArray(cfg.portfolio_positions) ? (cfg.portfolio_positions as string[]) : [],
         featured_positions: (cfg.featured_positions && typeof cfg.featured_positions === "object" ? cfg.featured_positions : {}) as Record<string, string>,
+        business_start_date: (biz?.business_start_date as string) ?? "",
       });
       const cc = (cfg.colors ?? {}) as Record<string, string>;
       setColors({
@@ -1053,6 +1056,7 @@ function BrandingSection() {
         phone: normalizedPhone || null,
         email: data.email || null,
         instagram: data.instagram || null,
+        business_start_date: data.business_start_date || null,
       })
       .eq("id", businessId)
       .select("id,name,slug")
@@ -1223,6 +1227,23 @@ function BrandingSection() {
               </div>
             );
           })}
+          <div className="flex items-center gap-4 py-3">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <CalendarDays className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Fecha de inicio del negocio</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Se usa para calcular los años de experiencia en el perfil público.</div>
+            </div>
+            <div className="w-72 max-w-[55%]">
+              <input
+                type="date"
+                value={data.business_start_date}
+                onChange={(e) => setData((d) => ({ ...d, business_start_date: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 [color-scheme:dark]"
+              />
+            </div>
+          </div>
           <div className="flex items-start gap-4 py-3">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
               <Globe className="h-4.5 w-4.5 text-muted-foreground" />
