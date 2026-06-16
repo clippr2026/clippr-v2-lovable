@@ -254,7 +254,7 @@ function AparienciaSection() {
               type="button"
               onClick={() => applyTheme(opt.id)}
               className={cn(
-                "relative rounded-2xl p-5 text-left transition-all ring-1",
+                "relative rounded-2xl p-4 text-left transition-all ring-1",
                 isActive
                   ? "ring-primary bg-primary/10"
                   : "ring-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
@@ -523,8 +523,8 @@ function LandingSection() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
         <h2 id="pagina-reservas-colores" className="scroll-mt-28 text-lg font-semibold">Colores</h2>
         <p className="mt-1 text-sm text-white/55">Personalizá modo claro/oscuro, gradientes, glows, color de resaltado, texto de botones y beneficios del local.</p>
 
@@ -585,7 +585,7 @@ function LandingSection() {
             </div>
             <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {ADDITIONAL_INFO_OPTIONS.map((item) => {
               const active = additionalInfo.includes(item);
               const disabled = !active && additionalInfo.length >= 12;
@@ -627,7 +627,7 @@ function LandingSection() {
       </div>
 
       {/* Vista previa */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
         <p className="text-sm font-medium text-white/70">Vista previa</p>
         <div
           className="mt-3 overflow-hidden rounded-2xl border p-6"
@@ -643,7 +643,7 @@ function LandingSection() {
               className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.14] blur-2xl"
               style={{ background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.primary}, transparent 70%)` }}
             />
-            <div className="relative rounded-3xl border p-5 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)", color: theme === "light" ? "#0f172a" : "#fff" }}>
+            <div className="relative rounded-3xl border p-4 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)", color: theme === "light" ? "#0f172a" : "#fff" }}>
               <h3 className="text-base font-semibold">Reservá tu turno</h3>
               <button
                 type="button"
@@ -1204,7 +1204,7 @@ function BrandingSection() {
           {infoRows.map((f) => {
             const Icon = f.icon;
             return (
-              <div key={f.key} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+              <div key={f.key} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
                 <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
                   <Icon className="h-4.5 w-4.5 text-muted-foreground" />
                 </div>
@@ -1223,7 +1223,7 @@ function BrandingSection() {
               </div>
             );
           })}
-          <div className="flex items-start gap-4 py-4">
+          <div className="flex items-start gap-4 py-3">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
               <Globe className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
@@ -1242,7 +1242,7 @@ function BrandingSection() {
               className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
             />
           </div>
-          <div className="flex items-start gap-4 py-4 last:pb-0">
+          <div className="flex items-start gap-4 py-3 last:pb-0">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
               <FileText className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
@@ -1257,7 +1257,7 @@ function BrandingSection() {
               className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
             />
           </div>
-          <div className="flex items-start gap-4 py-4 last:pb-0">
+          <div className="flex items-start gap-4 py-3 last:pb-0">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
               <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
@@ -1281,47 +1281,46 @@ function BrandingSection() {
       </SectionCard>
 
       <SectionCard label="Información adicional">
-        <p className="text-xs text-white/50">Elegí hasta 12 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección. <span className="font-medium text-white/45">{additionalInfo.length}/12</span></p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {ADDITIONAL_INFO_OPTIONS.map((item) => {
-            const act = additionalInfo.includes(item);
-            const dis = !act && additionalInfo.length >= 12;
-            return (
-              <button
-                key={item}
-                type="button"
-                disabled={dis}
-                onClick={() => toggleAdditionalInfo(item)}
-                className={"rounded-full border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35 " + (act ? "border-white/25 bg-white text-zinc-950 shadow-lg" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white")}
-              >
-                {item}
-              </button>
-            );
-          })}
-          {additionalInfo.filter((item) => !ADDITIONAL_INFO_OPTIONS.includes(item)).map((item) => (
-            <span key={item} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-sm">
-              <input
-                value={item}
-                maxLength={35}
-                onChange={(e) => updateAdditionalInfo(item, e.target.value)}
-                className="w-44 bg-transparent text-sm outline-none"
-              />
-              <button type="button" onClick={() => removeAdditionalInfo(item)} className="text-red-300 hover:text-red-200">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <input
-            value={customAdditionalInfo}
-            onChange={(e) => setCustomAdditionalInfo(e.target.value)}
-            placeholder="Agregar información adicional..." maxLength={35}
-            className="flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-          />
-          <button type="button" onClick={addCustomAdditionalInfo} className="rounded-lg bg-white/8 px-3 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12">
-            Agregar
-          </button>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-white/50">Máximo 12 informaciones adicionales. Cada una puede tener hasta 35 caracteres.</p>
+            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {additionalInfo.slice(0, 12).map((item, index) => (
+              <span key={`${item}-${index}`} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-sm">
+                <input
+                  value={item}
+                  maxLength={35}
+                  onChange={(e) => setAdditionalInfo((current) => current.map((value, i) => i === index ? e.target.value.slice(0, 35) : value).slice(0, 12))}
+                  className="w-44 max-w-[42vw] bg-transparent text-sm outline-none"
+                />
+                <button type="button" onClick={() => setAdditionalInfo((current) => current.filter((_, i) => i !== index))} className="text-red-300 hover:text-red-200">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              value={customAdditionalInfo}
+              onChange={(e) => setCustomAdditionalInfo(e.target.value.slice(0, 35))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAdditionalInfo(); } }}
+              maxLength={35}
+              placeholder="Agregar información adicional..."
+              className="flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+            />
+            <button
+              type="button"
+              onClick={addCustomAdditionalInfo}
+              disabled={additionalInfo.length >= 12}
+              className="rounded-lg bg-white/8 px-3 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Agregar
+            </button>
+          </div>
         </div>
       </SectionCard>
       </>
@@ -1331,7 +1330,7 @@ function BrandingSection() {
       <>
 
       <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
-        <div className="space-y-5">
+        <div className="space-y-3">
           {/* Foto de perfil (sitio web público) */}
           <div className="flex items-start gap-4">
             <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
@@ -1342,12 +1341,8 @@ function BrandingSection() {
               <div className="text-xs text-muted-foreground mt-0.5">Se muestra en tu sitio web público. Se optimiza a WebP 512px.</div>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <div className="h-28 w-28 rounded-3xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden shadow-xl">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.avatar_position }} />
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">vacío</span>
-                )}
+              <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
+                {avatarPreview ? "Imagen cargada" : "Sin imagen"}
               </div>
               <div className="flex items-center gap-2">
                 <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
@@ -1416,21 +1411,14 @@ function BrandingSection() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {[0, 1, 2].map((index) => {
                 const url = data.portfolio_urls[index];
                 const uploading = uploadingPortfolioIndex === index;
                 return (
-                  <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <div className="aspect-[16/10] overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center shadow-lg">
-                      {url ? (
-                        <img src={url} alt={`Portafolio ${index + 1}`} className="h-full w-full object-cover" style={{ objectPosition: data.portfolio_positions[index] || "50% 50%" }} loading="lazy" decoding="async" />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Imagen {index + 1}</span>
-                      )}
-                    </div>
-                    {url ? <PositionControls value={data.portfolio_positions[index] || "50% 50%"} onChange={(next) => setData(d => { const p = [...d.portfolio_positions]; p[index] = next; return { ...d, portfolio_positions: p }; })} /> : null}
-                    <div className="mt-3 flex items-center justify-between gap-2">
+                  <div key={index} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <div className="mb-2 text-xs text-muted-foreground">{url ? `Imagen ${index + 1} cargada` : `Imagen ${index + 1} sin cargar`}</div>
+                    <div className="flex items-center gap-2">
                       <label className={cn("inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
                         <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : (url ? "Cambiar" : "Subir")}
                         <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handlePortfolioSelect(index, f); }} />
@@ -1451,7 +1439,7 @@ function BrandingSection() {
 
 
       <SectionCard label="Confían en nosotros">
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-medium">Clientes destacados</div>
@@ -1463,7 +1451,7 @@ function BrandingSection() {
           </div>
 
           {data.featured_clients.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-muted-foreground">
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-center text-sm text-muted-foreground">
               Todavía no cargaste clientes destacados.
             </div>
           ) : (
@@ -1472,7 +1460,7 @@ function BrandingSection() {
                 const uploading = uploadingFeaturedId === item.id;
                 return (
                   <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="grid gap-3 lg:grid-cols-[110px_1fr_180px_120px_auto] lg:items-center">
+                    <div className="grid gap-3 lg:grid-cols-[130px_1fr_180px_120px_auto] lg:items-center">
                       <div className="mx-auto h-24 w-24 overflow-hidden rounded-3xl bg-white/5 ring-1 ring-white/10 grid place-items-center shadow-lg">
                         {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" style={{ objectPosition: data.featured_positions[item.id] || "50% 50%" }} /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
                       </div>
@@ -1545,7 +1533,7 @@ function BrandingSection() {
           </div>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
           <p className="text-sm font-medium text-white/70">Vista previa</p>
           <div
             className="mt-3 overflow-hidden rounded-2xl border p-6"
@@ -1555,7 +1543,7 @@ function BrandingSection() {
               background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#080512"}`,
             }}
           >
-            <div className="relative rounded-3xl border p-5 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)" }}>
+            <div className="relative rounded-3xl border p-4 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)" }}>
               <h3 className="text-base font-semibold">Reservá tu turno</h3>
               <button
                 type="button"
@@ -1614,7 +1602,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+    <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-4">
         {label}
       </div>
@@ -1837,7 +1825,7 @@ function HorariosSection() {
         </div>
       </div>
 
-      <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+      <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
         <div className="grid grid-cols-[120px_1fr_1fr_auto_auto] gap-3 px-1 pb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           <div>Día</div>
           <div>Apertura</div>
@@ -1922,7 +1910,7 @@ function HorariosSection() {
             return (
               <div
                 key={r.key}
-                className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
+                className="flex items-center gap-4 py-3 first:pt-0 last:pb-0"
               >
                 <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
                   <Icon className="h-4.5 w-4.5 text-muted-foreground" />
@@ -3129,7 +3117,7 @@ function EquipoSection() {
       </div>
 
       {tab === "pros" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex justify-end">
             <button
               onClick={openNew}
@@ -3254,7 +3242,7 @@ function EquipoSection() {
                   type="button"
                   onClick={() => setApprovalMode("auto")}
                   className={cn(
-                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    "text-left rounded-2xl p-4 ring-1 transition-all",
                     approvalMode === "auto"
                       ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
                       : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
@@ -3273,7 +3261,7 @@ function EquipoSection() {
                     <div>✅ El cobro impacta automáticamente en los ingresos de Caja.</div>
                     <div>✅ No requiere revisión ni aprobación previa.</div>
                   </div>
-                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                  <div className="mt-3 text-xs text-[oklch(0.82_0.14_75)]">
                     Recomendado cuando los profesionales gestionan sus propios cobros.
                   </div>
                 </button>
@@ -3282,7 +3270,7 @@ function EquipoSection() {
                   type="button"
                   onClick={() => setApprovalMode("manual")}
                   className={cn(
-                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    "text-left rounded-2xl p-4 ring-1 transition-all",
                     approvalMode === "manual"
                       ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
                       : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
@@ -3301,7 +3289,7 @@ function EquipoSection() {
                     <div>✅ Caja revisa la información enviada.</div>
                     <div>✅ El cobro se registra únicamente cuando es aprobado y confirmado.</div>
                   </div>
-                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                  <div className="mt-3 text-xs text-[oklch(0.82_0.14_75)]">
                     Recomendado cuando los cobros deben ser revisados antes de registrarse.
                   </div>
                 </button>
@@ -3315,7 +3303,7 @@ function EquipoSection() {
 
             {tab === "users" && (
         <div className="space-y-5">
-          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
+          <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
             <div className="mb-5">
               <h3 className="font-semibold">Accesos</h3>
               {editingAccessUserId && (
@@ -3530,7 +3518,7 @@ function EquipoSection() {
                   </div>
                 )}
 
-                <div className="mt-4 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                <div className="mt-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/5">
                     <div className="font-semibold text-sm">Permisos</div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -3671,7 +3659,7 @@ function EquipoSection() {
       {approvalInfoOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-3xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
               <div>
                 <h3 className="text-lg font-semibold">¿Cómo funciona la aprobación de cobros?</h3>
               </div>
@@ -3684,7 +3672,7 @@ function EquipoSection() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 text-sm text-muted-foreground max-h-[75vh] overflow-y-auto">
+            <div className="p-4 space-y-4 text-sm text-muted-foreground max-h-[75vh] overflow-y-auto">
               <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                 <h4 className="font-semibold text-foreground mb-2">Modo Automático</h4>
                 <p>Cuando un profesional registra un cobro:</p>
@@ -3752,7 +3740,7 @@ function EquipoSection() {
             className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 p-5 border-b border-white/5">
+            <div className="flex items-center gap-3 p-4 border-b border-white/5">
               <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
                 {form.avatarUrl ? (
                   <img src={form.avatarUrl} alt={form.fullName || "Profesional"} className="h-full w-full object-cover" />
@@ -3803,9 +3791,9 @@ function EquipoSection() {
               })}
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-4 space-y-4">
               {dlgTab === "perfil" && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="flex items-center gap-4">
                       <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-zinc-950 font-semibold text-xl ring-1 ring-white/10">
@@ -4141,7 +4129,7 @@ function EquipoSection() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 p-5 border-t border-white/5">
+            <div className="flex items-center gap-2 p-4 border-t border-white/5">
               <button
                 onClick={saveProfessional}
                 disabled={saving}
@@ -4930,7 +4918,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ) : (
           <div className="divide-y divide-white/5">
             {filtered.map((row, rowIdx) => (
-              <div key={row.id} className="flex items-center gap-3 px-5 py-4">
+              <div key={row.id} className="flex items-center gap-3 px-5 py-3">
                 {/* Reorder buttons */}
                 <div className="flex flex-col gap-0.5 shrink-0">
                   <button
@@ -5683,7 +5671,7 @@ const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
 
 function CfgCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 space-y-4", className)}>
+    <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 space-y-4", className)}>
       {children}
     </div>
   );
@@ -6091,7 +6079,7 @@ function PlanSection() {
                 precio fundador congelado de por vida.
               </span>
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
               {founderPerks.map((p) => (
                 <div
                   key={p.label}
@@ -6119,7 +6107,7 @@ function PlanSection() {
       </div>
 
       {/* Current plan banner */}
-      <div className="glass rounded-2xl p-5 ring-1 ring-white/5 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-5 items-center">
+      <div className="glass rounded-2xl p-4 ring-1 ring-white/5 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-4 items-center">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 rounded-xl grid place-items-center bg-gradient-to-br from-[oklch(0.72_0.22_305/0.2)] to-[oklch(0.55_0.27_285/0.1)] ring-1 ring-[oklch(0.62_0.25_295/0.3)]">
             <CalendarDays className="h-5 w-5 text-[oklch(0.82_0.18_300)]" />
@@ -6291,7 +6279,7 @@ function PlanSection() {
       </div>
 
       {/* Trust strip */}
-      <div className="glass rounded-2xl p-5 ring-1 ring-white/5 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="glass rounded-2xl p-4 ring-1 ring-white/5 grid grid-cols-2 md:grid-cols-4 gap-4">
         {trustItems.map((t) => (
           <div key={t.title} className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl grid place-items-center bg-[oklch(0.62_0.25_295/0.12)] ring-1 ring-[oklch(0.62_0.25_295/0.3)]">
