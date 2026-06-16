@@ -606,53 +606,73 @@ function PublicProfilePage() {
               className={(isLight
                 ? "border-zinc-200/80 bg-white/90 text-zinc-950"
                 : "border-white/10 bg-[#0d0718]/90 text-white") +
-                " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6"}
+                " relative isolate overflow-hidden rounded-[2rem] border p-5 sm:p-6 shadow-2xl"}
               style={{
                 background: isLight
-                  ? "linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,255,255,.92))"
-                  : "linear-gradient(135deg, rgba(18,15,26,.96), rgba(16,12,22,.92))",
-                boxShadow: "0 18px 70px -34px color-mix(in oklch, var(--c-primary) 42%, transparent)",
+                  ? "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 18%, white), color-mix(in oklch, var(--c-accent) 16%, white))"
+                  : "linear-gradient(135deg, color-mix(in oklch, var(--c-primary) 38%, #0b0714), color-mix(in oklch, var(--c-accent) 38%, #12081a))",
+                boxShadow: "0 30px 120px -28px color-mix(in oklch, var(--c-primary) 75%, transparent)",
               }}
             >
+              <div className="pointer-events-none absolute -left-24 -top-20 h-72 w-72 rounded-full blur-3xl" style={{background:"color-mix(in oklch, var(--c-primary) 45%, transparent)"}} />
+              <div className="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full blur-3xl" style={{background:"color-mix(in oklch, var(--c-accent) 45%, transparent)"}} />
               <div className="pointer-events-none absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-[color-mix(in_oklch,var(--c-accent)_65%,transparent)] to-transparent" />
 
               <div className="relative">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex items-center gap-4">
-                    <span
-                      className={(isLight ? "border-zinc-200 bg-white" : "border-white/15 bg-white/8") +
-                        " grid h-14 w-14 place-items-center rounded-2xl border shadow-lg"}
-                      style={{ color: cAccent }}
-                    >
-                      <Star className="h-7 w-7 fill-current drop-shadow-[0_0_10px_currentColor]" />
-                    </span>
-                    <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Confían en nosotros</h2>
-                  </div>
+                <div
+                  className={(isLight
+                    ? "border-white/70 bg-white/35 text-zinc-950"
+                    : "border-white/20 bg-white/[0.10] text-white") +
+                    " relative overflow-hidden rounded-[1.6rem] border px-4 py-4 shadow-2xl backdrop-blur-xl sm:px-5"}
+                  style={{
+                    boxShadow: "0 18px 70px -22px color-mix(in oklch, var(--c-primary) 82%, transparent)",
+                  }}
+                >
+                  <div className="pointer-events-none absolute -left-10 -top-16 h-36 w-56 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-primary) 50%, transparent)" }} />
+                  <div className="pointer-events-none absolute -right-10 -top-16 h-36 w-56 rounded-full blur-3xl" style={{ background: "color-mix(in oklch, var(--c-accent) 46%, transparent)" }} />
 
-                  {featuredClients.length > 4 ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllFeaturedClients(true)}
-                      className={(isLight
-                        ? "border-zinc-200 bg-white/80 text-zinc-950 hover:bg-white"
-                        : "border-white/15 bg-white/10 text-white hover:bg-white/15") +
-                        " shrink-0 rounded-full border px-5 py-2.5 text-sm font-bold transition"}
-                    >
-                      Ver todos
-                    </button>
-                  ) : null}
+                  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <span
+                        className={(isLight ? "border-white/70 bg-white/70" : "border-white/25 bg-white/15") +
+                          " grid h-16 w-16 place-items-center rounded-2xl border shadow-xl backdrop-blur"}
+                        style={{
+                          color: cAccent,
+                          boxShadow: "0 0 34px -8px color-mix(in oklch, var(--c-accent) 90%, transparent)",
+                        }}
+                      >
+                        <Star className="h-8 w-8 fill-current drop-shadow-[0_0_12px_currentColor]" />
+                      </span>
+                      <h2 className="text-[2.15rem] font-extrabold leading-none tracking-[-0.04em] sm:text-[2.7rem]">
+                        Confían en nosotros
+                      </h2>
+                    </div>
+
+                    {featuredClients.length > 4 ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllFeaturedClients(true)}
+                        className={(isLight
+                          ? "border-white/70 bg-white/75 text-zinc-950 hover:bg-white"
+                          : "border-white/25 bg-white/15 text-white hover:bg-white/20") +
+                          " shrink-0 rounded-full border px-5 py-2.5 text-sm font-bold shadow-xl backdrop-blur transition"}
+                      >
+                        Ver todos
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div className="mt-7 flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+                <div className="mt-5 flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
                   {featuredClients.slice(0, 5).map((item, index) => (
                     <div
                       key={item.id || `${item.name}-${index}`}
                       className={(isLight
                         ? "border-zinc-200/80 bg-white/88 text-zinc-950"
-                        : "border-white/12 bg-white/[0.075] text-white") +
+                        : "border-white/20 bg-white/[0.12] text-white") +
                         (index === 4 ? " hidden lg:block" : "") +
                         " group relative min-w-[170px] overflow-hidden rounded-[1.65rem] border p-4 text-center backdrop-blur-xl transition duration-300 before:absolute before:inset-x-5 before:-top-10 before:h-24 before:rounded-full before:bg-[radial-gradient(circle,color-mix(in_oklch,var(--c-accent)_55%,transparent),transparent_68%)] before:blur-2xl hover:-translate-y-1"}
-                      style={{ boxShadow: "0 14px 42px -24px color-mix(in oklch, var(--c-primary) 48%, transparent)" }}
+                      style={{ boxShadow: "0 22px 60px -18px color-mix(in oklch, var(--c-primary) 70%, transparent)" }}
                     >
                       <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/7 ring-white/12") + " relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl ring-1 transition group-hover:scale-[1.03]"}>
                         {item.image_url ? (
