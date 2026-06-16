@@ -314,6 +314,11 @@ function PublicProfilePage() {
   const [colors, setColors] = React.useState<LandingColors>({});
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
   const [selectedPortfolioIndex, setSelectedPortfolioIndex] = React.useState<number | null>(null);
+  const [headerStats, setHeaderStats] = React.useState<{
+    clientsAttended: number;
+    servicesCompleted: number;
+    startDate: string | null;
+  } | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -335,6 +340,29 @@ function PublicProfilePage() {
         }
 
         const businessId = businessData.id as string;
+
+        // Métricas reales de cabecera (agregados sin PII vía RPC dedicada).
+        // Aislado en su propio try/catch: si la RPC no existe o falla, la página igual carga.
+        let statsResult: { clientsAttended: number; servicesCompleted: number; startDate: string | null } | null = null;
+        try {
+          const { data: statsData, error: statsError } = await supabase.rpc("get_public_business_stats", {
+            p_business_id: businessId,
+          });
+          if (!statsError && statsData) {
+            const row = (Array.isArray(statsData) ? statsData[0] : statsData) as
+              | { clients_attended?: number | string; services_completed?: number | string; business_start_date?: string | null }
+              | undefined;
+            if (row) {
+              statsResult = {
+                clientsAttended: Number(row.clients_attended ?? 0),
+                servicesCompleted: Number(row.services_completed ?? 0),
+                startDate: (row.business_start_date as string | null) ?? null,
+              };
+            }
+          }
+        } catch {
+          statsResult = null;
+        }
 
         const [employeesWithRoleRes, servicesRes] = await Promise.all([
           supabase
@@ -396,6 +424,7 @@ function PublicProfilePage() {
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
+          setHeaderStats(statsResult);
           const employeeRoles =
             settingsSchedule && typeof settingsSchedule === "object" && (settingsSchedule as Record<string, unknown>)._employeeRoles &&
             typeof (settingsSchedule as Record<string, unknown>)._employeeRoles === "object"
@@ -442,6 +471,21 @@ function PublicProfilePage() {
   const accent = cAccent; // acciones principales: botones, estados e indicadores
   const isLight = theme === "light";
   const accentButtonText = colors.buttonText || "#ffffff";
+
+  // Métricas reales de cabecera. Si no hay datos caen a "—": nunca rompen el render.
+  const statClientsAttended = headerStats ? headerStats.clientsAttended.toLocaleString("es-AR") : "—";
+  const statServicesCompleted = headerStats ? headerStats.servicesCompleted.toLocaleString("es-AR") : "—";
+  const statYearsExperience = (() => {
+    const raw = headerStats?.startDate;
+    if (!raw) return "—";
+    const start = new Date(`${raw}T00:00:00`);
+    if (Number.isNaN(start.getTime())) return "—";
+    const now = new Date();
+    let years = now.getFullYear() - start.getFullYear();
+    const monthDiff = now.getMonth() - start.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < start.getDate())) years -= 1;
+    return years >= 0 ? String(years) : "—";
+  })();
   const portfolio = portfolioUrls;
   const selectedPortfolio = selectedPortfolioIndex !== null ? portfolio[selectedPortfolioIndex] : null;
   const openPortfolio = (index: number) => setSelectedPortfolioIndex(index);
@@ -583,11 +627,11 @@ function PublicProfilePage() {
 
               <div className="grid w-full max-w-lg grid-cols-3 divide-x text-center lg:w-auto lg:min-w-[390px] lg:justify-self-start" style={{ borderColor: isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)" }}>
                 {[
-                  { value: "+16,2 mil", label: <>Clientes<br />atendidos</> },
-                  { value: "+27,5 mil", label: <>Servicios<br />realizados</> },
-                  { value: "7", label: <>Años de<br />experiencia</> },
-                ].map((item) => (
-                  <div key={item.value} className="px-3 sm:px-5">
+                  { value: statClientsAttended, label: <>Clientes<br />atendidos</> },
+                  { value: statServicesCompleted, label: <>Servicios<br />realizados</> },
+                  { value: statYearsExperience, label: <>Años de<br />experiencia</> },
+                ].map((item, index) => (
+                  <div key={index} className="px-3 sm:px-5">
                     <div className="whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{item.value}</div>
                     <div className="mt-2 text-xs leading-4 text-white/55 sm:text-sm">{item.label}</div>
                   </div>
