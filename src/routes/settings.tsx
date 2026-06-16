@@ -1,3 +1,4 @@
+// TODO: business_start_date field added for years of experience
 const DEFAULT_SENA_MESSAGE = `¡Hola! 👋
 
 Para confirmar tu turno es necesario abonar una seña.
