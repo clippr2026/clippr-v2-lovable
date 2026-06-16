@@ -1385,50 +1385,45 @@ function BrandingSection() {
         </div>
       </SectionCard>
 
+      
       <SectionCard label="Información adicional">
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">Se muestra como intereses/beneficios en el perfil público. Máximo 12.</p>
-            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Máximo 12 elementos con emoji. Editables y eliminables.</p>
+            <span className="text-xs text-white/50">{data.additionalInfo.length}/12</span>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {additionalInfo.slice(0, 12).map((item, index) => (
-              <span key={`${item}-${index}`} className="inline-flex items-center gap-2 rounded-full bg-white/[0.08] px-4 py-2 text-sm font-semibold ring-1 ring-white/10">
+            {data.additionalInfo.map((item, index) => (
+              <div key={index} className="inline-flex items-center gap-2 rounded-full bg-white/[0.08] px-4 py-2 ring-1 ring-white/10">
                 <input
                   value={item}
                   maxLength={35}
-                  onChange={(e) => setAdditionalInfo((current) => current.map((value, i) => i === index ? e.target.value.slice(0, 35) : value).slice(0, 12))}
-                  className="w-[210px] max-w-[52vw] bg-transparent outline-none"
+                  onChange={(e) =>
+                    updateData({
+                      additionalInfo: data.additionalInfo.map((v, i) =>
+                        i === index ? e.target.value.slice(0, 35) : v
+                      ),
+                    })
+                  }
+                  className="w-44 bg-transparent text-sm outline-none"
                 />
-                <button type="button" onClick={() => setAdditionalInfo((current) => current.filter((_, i) => i !== index))} className="text-red-300 hover:text-red-200">
-                  <X className="h-3.5 w-3.5" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateData({
+                      additionalInfo: data.additionalInfo.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  <X className="h-3 w-3" />
                 </button>
-              </span>
+              </div>
             ))}
-          </div>
-
-          <div className="flex gap-2">
-            <input
-              value={customAdditionalInfo}
-              onChange={(e) => setCustomAdditionalInfo(e.target.value.slice(0, 35))}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAdditionalInfo(); } }}
-              maxLength={35}
-              placeholder="Agregar información adicional..."
-              disabled={additionalInfo.length >= 12}
-              className="flex-1 rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:opacity-45"
-            />
-            <button
-              type="button"
-              onClick={addCustomAdditionalInfo}
-              disabled={additionalInfo.length >= 12}
-              className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Agregar
-            </button>
           </div>
         </div>
       </SectionCard>
+
       </>
       )}
 
