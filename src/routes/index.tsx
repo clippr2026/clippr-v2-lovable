@@ -169,7 +169,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           active={activeMetric === "gastos"}
           onClick={() => setActiveMetric("gastos")}
           label="Gastos"
-          value={data.totalGastos > 0 ? `-${fmtAR(data.totalGastos)}` : "$0"}
+          value={fmtExpenseAR(data.totalGastos)}
           icon={ArrowDownCircle}
           tone="danger"
           spark={data.gastosByDay}
@@ -301,6 +301,11 @@ function Stat({
 // ---------------------------------------------------------------------------
 // Revenue chart (7d)
 // ---------------------------------------------------------------------------
+function fmtExpenseAR(value: number) {
+  const abs = Math.abs(Math.round(value || 0));
+  return abs > 0 ? `-$${abs.toLocaleString("es-AR")}` : "$0";
+}
+
 function RevenueChart({ data, activeMetric, fromStr, toStr }: {
   data: DashboardData;
   activeMetric: "ingresos" | "gastos" | "utilidad";
@@ -309,8 +314,20 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
 }) {
   const isSingleDay = fromStr === toStr;
 
-  const hourlyGastos = data.hoursGastosValues ?? data.hoursValues.map(() => 0);
-  const dailyGastos = data.gastosByDay ?? data.revByDay.map(() => 0);
+  const rawHourlyGastos = data.hoursGastosValues ?? data.hoursValues.map(() => 0);
+  const rawDailyGastos = data.gastosByDay ?? data.revByDay.map(() => 0);
+
+  // Si el gasto no tiene hora real, no lo dejamos en 0: lo ubicamos al inicio del día.
+  // Así "Gastos" muestra el total real y "Utilidad" resta correctamente.
+  const hourlyGastos =
+    isSingleDay && data.totalGastos > 0 && rawHourlyGastos.every((v) => Number(v || 0) === 0)
+      ? rawHourlyGastos.map((_, i) => (i === 0 ? data.totalGastos : 0))
+      : rawHourlyGastos;
+
+  const dailyGastos =
+    !isSingleDay && data.totalGastos > 0 && rawDailyGastos.every((v) => Number(v || 0) === 0)
+      ? rawDailyGastos.map((_, i) => (i === 0 ? data.totalGastos : 0))
+      : rawDailyGastos;
 
   const metricConfig: Record<"ingresos" | "gastos" | "utilidad", { label: string; values: number[]; fmt: (v: number) => string; total: number }> = {
     ingresos: {
@@ -322,7 +339,7 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
     gastos: {
       label: "Gastos",
       values: isSingleDay ? hourlyGastos : dailyGastos,
-      fmt: (v) => v > 0 ? `-${fmtAR(v)}` : "$0",
+      fmt: fmtExpenseAR,
       total: data.totalGastos,
     },
     utilidad: {
@@ -338,9 +355,9 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
   const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
 
   const chart = isSingleDay
-    ? data.hoursLabels.filter((_, i) => i % 3 === 0).map((h, i) => ({
+    ? data.hoursLabels.map((h, i) => ({
         day: h,
-        value: cfg.values.filter((_, j) => j % 3 === 0)[i] ?? 0,
+        value: cfg.values[i] ?? 0,
       }))
     : data.days7.map((d, i) => ({
         day: new Date(d + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
@@ -383,6 +400,7 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
               dataKey="day"
               tickLine={false}
               axisLine={false}
+              interval={2}
               tick={{ fill: "oklch(0.65 0.025 270)", fontSize: 11 }}
             />
             <YAxis
