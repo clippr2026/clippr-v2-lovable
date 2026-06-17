@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
 import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
@@ -331,7 +332,7 @@ function ProfessionalsPage() {
                 {active.full_name}
               </div>
               <div className="text-sm text-muted-foreground mt-0.5">
-                {active.role?.trim() || "Profesional"} {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
+                Profesional {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
               </div>
               {permissions.equipo && approvalModeEnabled && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
@@ -417,26 +418,25 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      {/* Date filter — hidden on Mi Agenda (it has its own day-strip nav) */}
-      {tab !== "turnos" && (
-        <UniversalDateFilter
-          range={range}
-          fromDate={fromDate}
-          toDate={toDate}
-          onPreset={applyRange}
-          onFromChange={(value) => {
+      {/* Rango de fechas — mismo estilo que Dashboard */}
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Rango</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">Elegí desde / hasta con calendario visual.</div>
+        </div>
+        <DateRangePicker
+          from={fromDate}
+          to={toDate}
+          onChange={({ from, to }) => {
             setRange("custom");
-            setFromDate(value);
-          }}
-          onToChange={(value) => {
-            setRange("custom");
-            setToDate(value);
+            setFromDate(from);
+            setToDate(to);
           }}
         />
-      )}
+      </div>
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} fromDate={fromDate} toDate={toDate} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -1057,18 +1057,18 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
+function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
+  fromDate: string;
+  toDate: string;
   approvalMode: "auto" | "manual" | "disabled";
   approvalModeEnabled: boolean;
   profile: { id: string; email?: string | null } | null;
   canOperate: boolean;
   equipoEnabled: boolean;
 }) {
-  // Own cursor — not driven by parent's date filter
-  const [cursor, setCursor] = useState<Date>(() => startOfDay(new Date()));
-  const from = cursor.toISOString().slice(0, 10);
-  const to = endOfDay(cursor).toISOString().slice(0, 10);
+  const from = fromDate;
+  const to = toDate;
 
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [historialVersion, setHistorialVersion] = React.useState(0);
@@ -1105,7 +1105,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   }, [businessId]);
 
   const formatTime = (value: string) =>
-    new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    `${new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
   const formatDate = (value: string) => {
     const d = new Date(value);
     const day = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
@@ -1225,7 +1225,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
   const DAY_START_HOUR = 11;
   const DAY_END_HOUR = 20;
-  const HOUR_HEIGHT = 92;
+  const HOUR_HEIGHT = 104;
   const timelineHours = React.useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i),
     []
@@ -1243,16 +1243,15 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     const start = new Date(t.starts_at).getTime();
     const end = t.ends_at ? new Date(t.ends_at).getTime() : start + 30 * 60_000;
     const durationMin = Math.max(30, Math.round((end - start) / 60_000));
-    return Math.max(64, (durationMin / 60) * HOUR_HEIGHT - 8);
+    return Math.max(84, (durationMin / 60) * HOUR_HEIGHT - 8);
   };
-  const TIMELINE_TOP_OFFSET = 28;
+  const TIMELINE_TOP_OFFSET = 34;
   const timelineHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
 
-      {/* Day strip navigation */}
-      <DayStripNav cursor={cursor} onSelect={setCursor} />
+      {/* Rango elegido desde el calendario superior */}
 
       {/* Mode banner */}
       {approvalModeEnabled && canOperate && (
@@ -1290,7 +1289,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
       </div>
 
       {/* Agenda visual */}
-      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del período</div>
+      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del rango</div>
 
       {isLoading ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
@@ -1298,7 +1297,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018]">
-          <div className="absolute left-[72px] top-0 bottom-0 w-px bg-white/[0.07]" />
+          <div className="absolute left-[82px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div className="relative" style={{ height: timelineHeight }}>
             {timelineHours.map((hour) => (
               <div
@@ -1306,7 +1305,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                 className="absolute left-0 right-0 border-t border-white/[0.055]"
                 style={{ top: TIMELINE_TOP_OFFSET + (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
               >
-                <div className="absolute left-5 -top-2.5 text-sm text-muted-foreground tabular-nums">
+                <div className="absolute left-4 -top-2.5 text-sm text-muted-foreground tabular-nums">
                   {String(hour).padStart(2, "0")}:00
                 </div>
               </div>
@@ -1324,13 +1323,13 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                 <div
                   key={t.id}
                   className={cn(
-                    "absolute left-[88px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden",
+                    "absolute left-[98px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
                     style.border, style.bg, style.ring
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, minHeight: getBlockHeight(t) }}
                 >
-                  <div className="flex items-start gap-4 h-full">
-                    <div className="shrink-0 min-w-[74px]">
+                  <div className="grid grid-cols-[82px_1fr_auto] gap-4 h-full items-start">
+                    <div className="min-w-0">
                       <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
                         {formatTime(t.starts_at)}
                       </div>
@@ -1359,7 +1358,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                       )}
                     </div>
 
-                    <div className="shrink-0 min-w-[140px] space-y-1.5">
+                    <div className="min-w-[112px] max-w-[180px] space-y-1.5 justify-self-end text-right">
                       {historialDisplay.length > 0 ? (
                         historialDisplay.map((ev, ei) => {
                           const actionColor =
@@ -1370,9 +1369,9 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                             ev.action === "Reembolsó"    ? "text-violet-300" :
                             "text-muted-foreground";
                           return (
-                            <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
+                            <div key={ei} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 leading-none justify-end">
                               <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                              <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                              <span className="hidden sm:inline text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
                               <span className="text-[10px] text-muted-foreground shrink-0">→</span>
                               <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
                             </div>
@@ -1542,7 +1541,7 @@ function StatsView({
       </div>
 
       {/* Servicios Desglose */}
-      <ServiciosDesglose sales={sales} businessId={businessId} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />
+      <ServiciosDesglose sales={sales} businessId={businessId} />
     </div>
   );
 }
@@ -1559,7 +1558,7 @@ const PIE_COLORS = [
   "oklch(0.75 0.14 95)",   // lime
 ];
 
-function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }: { sales: ProfSale[]; businessId: string | null; commissionPct: number; commissionFixed: number }) {
+function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessId: string | null }) {
   const [tab, setTab] = React.useState<"all" | "services" | "catalog">("all");
 
   // Load price_catalog to classify each sale by real origin
@@ -1605,11 +1604,6 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
 
       if (!rawName || saleTotal <= 0) continue;
 
-      // En este desglose mostramos SOLO la comisión del profesional, no el total facturado.
-      const saleCommission = commissionFixed > 0
-        ? Number(commissionFixed)
-        : Math.round(saleTotal * (Number(commissionPct || 0) / 100));
-
       // Find which real catalog items appear in this payment's service_name
       const matched: typeof allReal = [];
       let remaining = rawName;
@@ -1630,13 +1624,13 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
         const key = matched[0].name;
         const existing = map.get(key);
         if (existing) {
-          existing.total += saleCommission;
+          existing.total += saleTotal;
         } else {
-          map.set(key, { displayName: matched[0].displayName, total: saleCommission, isService: matched[0].isService, isCatalog: matched[0].isCatalog });
+          map.set(key, { displayName: matched[0].displayName, total: saleTotal, isService: matched[0].isService, isCatalog: matched[0].isCatalog });
         }
       } else {
         // Multiple items: split total evenly
-        const share = saleCommission / matched.length;
+        const share = saleTotal / matched.length;
         for (const real of matched) {
           const existing = map.get(real.name);
           if (existing) {
@@ -1650,7 +1644,7 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
 
     return Array.from(map.values())
       .sort((a, b) => b.total - a.total);
-  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded, commissionPct, commissionFixed]);
+  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded]);
 
   const filtered = React.useMemo(() => {
     if (tab === "services") return aggregated.filter(i => i.isService);
@@ -1686,7 +1680,7 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
 
       <div className="flex items-start justify-between mb-4">
         <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Comisión por servicio</div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Servicios</div>
           <div className="mt-0.5 text-2xl font-display font-light tracking-tight">Desglose</div>
         </div>
         {/* Tabs */}
@@ -1729,7 +1723,7 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
                   style={{ transform: "rotate(-90deg)", transformOrigin: `${CX}px ${CY}px`, transition: "stroke-dasharray 0.5s" }}
                 />
               ))}
-              <text x={CX} y={CY - 8} textAnchor="middle" fill="white" fontSize="11" opacity="0.5" fontFamily="sans-serif">Comisión</text>
+              <text x={CX} y={CY - 8} textAnchor="middle" fill="white" fontSize="11" opacity="0.5" fontFamily="sans-serif">Total</text>
               <text x={CX} y={CY + 10} textAnchor="middle" fill="white" fontSize="14" fontWeight="600" fontFamily="sans-serif">
                 {fmt(grandTotal)}
               </text>
@@ -2063,7 +2057,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                         return (
                           <div key={ei} className="flex items-baseline gap-1.5 leading-none">
                             <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                            <span className="hidden sm:inline text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
                             <span className="text-[10px] text-muted-foreground shrink-0">→</span>
                             <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
                           </div>
