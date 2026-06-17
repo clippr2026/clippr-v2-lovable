@@ -443,8 +443,8 @@ function AdvisorContent({
               <div className="text-sm text-muted-foreground">Puntaje de salud</div>
               <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>{healthTone.label}</div>
               <p className="mt-2 text-xs text-muted-foreground max-w-[220px] leading-relaxed">{healthTone.message}</p>
-              <div className="mt-4 max-w-[280px] rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.045] px-4 py-3 text-left shadow-[0_0_28px_rgba(45,212,191,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]">
-                <div className="mb-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+              <div className="mt-4 max-w-[260px] text-center">
+                <div className="mb-1 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
                   <Brain className="h-3.5 w-3.5" /> Insight IA
                 </div>
                 <p className="text-xs leading-relaxed text-white/72">
