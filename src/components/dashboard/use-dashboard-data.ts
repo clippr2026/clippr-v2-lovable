@@ -47,6 +47,7 @@ export type DashboardData = {
   totSvc: number;
   hoursLabels: string[];
   hoursValues: number[];
+  hoursGastosValues: number[];
   recentPayments: RecentPayment[];
   recentCancellations: RecentCancellation[];
 };
@@ -108,7 +109,7 @@ async function loadDashboard(
       .maybeSingle(),
     supabase
       .from("expenses")
-      .select("id,amount,category,payment_method")
+      .select("id,amount,category,payment_method,date,created_at")
       .eq("business_id", businessId)
       .gte("date", expenseFrom)
       .lte("date", expenseTo),
@@ -124,7 +125,7 @@ async function loadDashboard(
       };
   type Pay = { id: string; total: number; created_at: string; appointment_id?: string; service_name?: string; client_name?: string };
   type Emp = { id: string };
-  type Exp = { amount: number };
+  type Exp = { amount: number; date?: string | null; created_at?: string | null };
 
   // Log any query errors to console for debugging
   [apptRes, payRes, payYestRes, empRes, sessRes, expRes].forEach((r, i) => {
@@ -225,6 +226,16 @@ async function loadDashboard(
       .reduce((s, p) => s + Number(p.total || 0), 0),
   );
 
+  const hoursGastosValues = Array.from({ length: 24 }, (_, h) =>
+    gastosHoy
+      .filter((g) => {
+        if (!g.created_at) return false;
+        const created = new Date(g.created_at);
+        return created.getHours() === h && localDate(g.created_at) === today.toLocaleDateString("sv-SE");
+      })
+      .reduce((s, g) => s + Number(g.amount || 0), 0),
+  );
+
   // Top servicios
   const svcMap: Record<string, { count: number; rev: number }> = {};
   payments.forEach((p) => {
@@ -262,10 +273,11 @@ async function loadDashboard(
     ).size,
     days7,
     revByDay,
-    gastosByDay: days7.map(() => {
-      // Distribute total gastos evenly across days for chart
-      return spanDays > 0 ? Math.round(totalGastos / spanDays) : 0;
-    }),
+    gastosByDay: days7.map((ds) =>
+      gastosHoy
+        .filter((g) => (g.date ? g.date === ds : g.created_at ? localDate(g.created_at) === ds : false))
+        .reduce((s, g) => s + Number(g.amount || 0), 0),
+    ),
     doneByDay,
     tickByDay,
     occByDay,
@@ -273,6 +285,7 @@ async function loadDashboard(
     totSvc,
     hoursLabels,
     hoursValues,
+    hoursGastosValues,
     recentPayments: payments.slice(0, 6).map((p) => ({
       id: p.id,
       total: Number(p.total || 0),
