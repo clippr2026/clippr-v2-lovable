@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
 import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
@@ -332,7 +331,7 @@ function ProfessionalsPage() {
                 {active.full_name}
               </div>
               <div className="text-sm text-muted-foreground mt-0.5">
-                Profesional {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
+                {active.role?.trim() || "Profesional"} {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
               </div>
               {permissions.equipo && approvalModeEnabled && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
@@ -418,25 +417,26 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      {/* Rango de fechas — mismo estilo que Dashboard */}
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Rango</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">Elegí desde / hasta con calendario visual.</div>
-        </div>
-        <DateRangePicker
-          from={fromDate}
-          to={toDate}
-          onChange={({ from, to }) => {
+      {/* Date filter — hidden on Mi Agenda (it has its own day-strip nav) */}
+      {tab !== "turnos" && (
+        <UniversalDateFilter
+          range={range}
+          fromDate={fromDate}
+          toDate={toDate}
+          onPreset={applyRange}
+          onFromChange={(value) => {
             setRange("custom");
-            setFromDate(from);
-            setToDate(to);
+            setFromDate(value);
+          }}
+          onToChange={(value) => {
+            setRange("custom");
+            setToDate(value);
           }}
         />
-      </div>
+      )}
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} fromDate={fromDate} toDate={toDate} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -1057,18 +1057,18 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
   );
 }
 
-function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
+function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
-  fromDate: string;
-  toDate: string;
   approvalMode: "auto" | "manual" | "disabled";
   approvalModeEnabled: boolean;
   profile: { id: string; email?: string | null } | null;
   canOperate: boolean;
   equipoEnabled: boolean;
 }) {
-  const from = fromDate;
-  const to = toDate;
+  // Own cursor — not driven by parent's date filter
+  const [cursor, setCursor] = useState<Date>(() => startOfDay(new Date()));
+  const from = cursor.toISOString().slice(0, 10);
+  const to = endOfDay(cursor).toISOString().slice(0, 10);
 
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [historialVersion, setHistorialVersion] = React.useState(0);
@@ -1105,7 +1105,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   }, [businessId]);
 
   const formatTime = (value: string) =>
-    `${new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
+    new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
   const formatDate = (value: string) => {
     const d = new Date(value);
     const day = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
@@ -1225,7 +1225,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
   const DAY_START_HOUR = 11;
   const DAY_END_HOUR = 20;
-  const HOUR_HEIGHT = 104;
+  const HOUR_HEIGHT = 92;
   const timelineHours = React.useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i),
     []
@@ -1243,15 +1243,16 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     const start = new Date(t.starts_at).getTime();
     const end = t.ends_at ? new Date(t.ends_at).getTime() : start + 30 * 60_000;
     const durationMin = Math.max(30, Math.round((end - start) / 60_000));
-    return Math.max(84, (durationMin / 60) * HOUR_HEIGHT - 8);
+    return Math.max(64, (durationMin / 60) * HOUR_HEIGHT - 8);
   };
-  const TIMELINE_TOP_OFFSET = 34;
+  const TIMELINE_TOP_OFFSET = 28;
   const timelineHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
 
-      {/* Rango elegido desde el calendario superior */}
+      {/* Day strip navigation */}
+      <DayStripNav cursor={cursor} onSelect={setCursor} />
 
       {/* Mode banner */}
       {approvalModeEnabled && canOperate && (
@@ -1289,7 +1290,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       </div>
 
       {/* Agenda visual */}
-      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del rango</div>
+      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del período</div>
 
       {isLoading ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
@@ -1297,7 +1298,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018]">
-          <div className="absolute left-[82px] top-0 bottom-0 w-px bg-white/[0.07]" />
+          <div className="absolute left-[72px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div className="relative" style={{ height: timelineHeight }}>
             {timelineHours.map((hour) => (
               <div
@@ -1305,7 +1306,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 className="absolute left-0 right-0 border-t border-white/[0.055]"
                 style={{ top: TIMELINE_TOP_OFFSET + (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
               >
-                <div className="absolute left-4 -top-2.5 text-sm text-muted-foreground tabular-nums">
+                <div className="absolute left-5 -top-2.5 text-sm text-muted-foreground tabular-nums">
                   {String(hour).padStart(2, "0")}:00
                 </div>
               </div>
@@ -1323,13 +1324,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 <div
                   key={t.id}
                   className={cn(
-                    "absolute left-[98px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
+                    "absolute left-[88px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden",
                     style.border, style.bg, style.ring
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, minHeight: getBlockHeight(t) }}
                 >
-                  <div className="grid grid-cols-[82px_1fr_auto] gap-4 h-full items-start">
-                    <div className="min-w-0">
+                  <div className="flex items-start gap-4 h-full">
+                    <div className="shrink-0 min-w-[74px]">
                       <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
                         {formatTime(t.starts_at)}
                       </div>
@@ -1358,7 +1359,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       )}
                     </div>
 
-                    <div className="min-w-[112px] max-w-[180px] space-y-1.5 justify-self-end text-right">
+                    <div className="shrink-0 min-w-[140px] space-y-1.5">
                       {historialDisplay.length > 0 ? (
                         historialDisplay.map((ev, ei) => {
                           const actionColor =
@@ -1369,9 +1370,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                             ev.action === "Reembolsó"    ? "text-violet-300" :
                             "text-muted-foreground";
                           return (
-                            <div key={ei} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 leading-none justify-end">
+                            <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
                               <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                              <span className="hidden sm:inline text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                              <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
                               <span className="text-[10px] text-muted-foreground shrink-0">→</span>
                               <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
                             </div>
@@ -2057,7 +2058,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                         return (
                           <div key={ei} className="flex items-baseline gap-1.5 leading-none">
                             <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                            <span className="hidden sm:inline text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
                             <span className="text-[10px] text-muted-foreground shrink-0">→</span>
                             <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
                           </div>
