@@ -213,6 +213,7 @@ function CashRegisterPage() {
 
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
+  const [showClosedHistory, setShowClosedHistory] = useState(false);
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -285,6 +286,7 @@ function CashRegisterPage() {
       toast.error(e?.message ?? "No se pudo registrar la reapertura");
     } finally {
       setCajaCerrada(false);
+      setShowClosedHistory(false);
       await data.refresh();
     }
   }
@@ -319,19 +321,34 @@ function CashRegisterPage() {
               <h2 className="text-base font-semibold text-foreground">Caja cerrada</h2>
               <p className="mt-0.5 text-sm text-muted-foreground">La caja de hoy ya fue cerrada. Podés reabrirla hasta las 00:00.</p>
             </div>
-            <button
-              onClick={handleReabrirCajaDesdeBanner}
-              className="shrink-0 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground"
-            >
-              Reabrir caja
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowClosedHistory((v) => !v)}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.045] border border-white/10 hover:bg-white/[0.09] transition-all text-foreground"
+              >
+                {showClosedHistory ? "Ocultar historial" : "Ver cierre / historial"}
+              </button>
+              <button
+                onClick={handleReabrirCajaDesdeBanner}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground"
+              >
+                Reabrir caja
+              </button>
+            </div>
           </div>
-          {/* Resumen de solo lectura */}
-          <button
-            onClick={() => setTab("cierres")}
-            className="text-sm text-muted-foreground hover:text-foreground transition underline underline-offset-2"
-            style={{ display: "none" }}
-          />
+          {showClosedHistory && (
+            <div className="mt-5">
+              <CierresTab
+                businessId={data.businessId}
+                cajaCerrada={cajaCerrada}
+                onCajaReopened={() => {
+                  setCajaCerrada(false);
+                  setShowClosedHistory(false);
+                  data.refresh();
+                }}
+              />
+            </div>
+          )}
         </div>
       </AppShell>
     );
@@ -347,7 +364,7 @@ function CashRegisterPage() {
         data={data}
         userEmail={session.user.email ?? null}
         onNuevoGasto={() => { setPendingToCharge(null); setTab("nuevo-gasto"); }}
-        onCajaCerrada={() => { setCajaCerrada(true); setPendingToCharge(null); setTab("resumen"); }}
+        onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setTab("resumen"); }}
       />
       <div className="mt-6">
         {tab === "resumen" && (
