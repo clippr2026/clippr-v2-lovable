@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
 import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
@@ -417,26 +418,25 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      {/* Date filter — hidden on Mi Agenda (it has its own day-strip nav) */}
-      {tab !== "turnos" && (
-        <UniversalDateFilter
-          range={range}
-          fromDate={fromDate}
-          toDate={toDate}
-          onPreset={applyRange}
-          onFromChange={(value) => {
+      {/* Rango de fechas — mismo calendario que Dashboard */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Rango</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">Elegí desde / hasta con el mismo calendario del Dashboard.</div>
+        </div>
+        <DateRangePicker
+          from={fromDate}
+          to={toDate}
+          onChange={({ from, to }) => {
             setRange("custom");
-            setFromDate(value);
-          }}
-          onToChange={(value) => {
-            setRange("custom");
-            setToDate(value);
+            setFromDate(from);
+            setToDate(to);
           }}
         />
-      )}
+      </div>
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} fromDate={fromDate} toDate={toDate} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -773,7 +773,7 @@ function CobroModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/75 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/75 -sm" onClick={onClose}>
       <div className="glass-strong rounded-3xl w-full max-w-md flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
 
         {/* ── Scrollable body ── */}
@@ -1057,18 +1057,18 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
   );
 }
 
-function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
+function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
   businessId: string | null; empId: string | null;
+  fromDate: string;
+  toDate: string;
   approvalMode: "auto" | "manual" | "disabled";
   approvalModeEnabled: boolean;
   profile: { id: string; email?: string | null } | null;
   canOperate: boolean;
   equipoEnabled: boolean;
 }) {
-  // Own cursor — not driven by parent's date filter
-  const [cursor, setCursor] = useState<Date>(() => startOfDay(new Date()));
-  const from = cursor.toISOString().slice(0, 10);
-  const to = endOfDay(cursor).toISOString().slice(0, 10);
+  const from = fromDate;
+  const to = toDate;
 
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [historialVersion, setHistorialVersion] = React.useState(0);
@@ -1105,7 +1105,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
   }, [businessId]);
 
   const formatTime = (value: string) =>
-    new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    `${new Date(value).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
   const formatDate = (value: string) => {
     const d = new Date(value);
     const day = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
@@ -1225,7 +1225,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
   const DAY_START_HOUR = 11;
   const DAY_END_HOUR = 20;
-  const HOUR_HEIGHT = 92;
+  const HOUR_HEIGHT = 118;
   const timelineHours = React.useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i),
     []
@@ -1243,16 +1243,15 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
     const start = new Date(t.starts_at).getTime();
     const end = t.ends_at ? new Date(t.ends_at).getTime() : start + 30 * 60_000;
     const durationMin = Math.max(30, Math.round((end - start) / 60_000));
-    return Math.max(64, (durationMin / 60) * HOUR_HEIGHT - 8);
+    return Math.max(92, (durationMin / 60) * HOUR_HEIGHT - 10);
   };
-  const TIMELINE_TOP_OFFSET = 28;
+  const TIMELINE_TOP_OFFSET = 36;
   const timelineHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
 
-      {/* Day strip navigation */}
-      <DayStripNav cursor={cursor} onSelect={setCursor} />
+      {/* El rango se elige arriba con el calendario tipo Dashboard */}
 
       {/* Mode banner */}
       {approvalModeEnabled && canOperate && (
@@ -1290,7 +1289,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
       </div>
 
       {/* Agenda visual */}
-      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del período</div>
+      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del rango</div>
 
       {isLoading ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
@@ -1298,7 +1297,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018]">
-          <div className="absolute left-[72px] top-0 bottom-0 w-px bg-white/[0.07]" />
+          <div className="absolute left-[88px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div className="relative" style={{ height: timelineHeight }}>
             {timelineHours.map((hour) => (
               <div
@@ -1324,13 +1323,13 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                 <div
                   key={t.id}
                   className={cn(
-                    "absolute left-[88px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden",
+                    "absolute left-[108px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden",
                     style.border, style.bg, style.ring
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, minHeight: getBlockHeight(t) }}
                 >
-                  <div className="flex items-start gap-4 h-full">
-                    <div className="shrink-0 min-w-[74px]">
+                  <div className="grid grid-cols-[76px_1fr_auto] gap-4 h-full items-start">
+                    <div className="min-w-0">
                       <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
                         {formatTime(t.starts_at)}
                       </div>
@@ -1359,7 +1358,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
                       )}
                     </div>
 
-                    <div className="shrink-0 min-w-[140px] space-y-1.5">
+                    <div className="min-w-[92px] max-w-[150px] space-y-1.5 justify-self-end text-right">
                       {historialDisplay.length > 0 ? (
                         historialDisplay.map((ev, ei) => {
                           const actionColor =
@@ -1418,7 +1417,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
       )}
 
       {notaTurno && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setNotaTurno(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 -sm" onClick={() => setNotaTurno(null)}>
           <div className="glass-strong rounded-3xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -1441,7 +1440,7 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
       {/* Cancelados modal */}
       {canceladosOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setCanceladosOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 -sm" onClick={() => setCanceladosOpen(false)}>
           <div className="glass-strong rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 shrink-0">
               <div>
