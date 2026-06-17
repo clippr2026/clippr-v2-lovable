@@ -167,12 +167,12 @@ export function InventarioTab({
       </div>
 
       {/* Products in active category */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+      <div className="max-w-3xl rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
         {filtered.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin productos en esta categoría.</div>
         ) : (
           <div className="divide-y divide-white/5">
-            <div className="grid grid-cols-[1fr_64px_76px_82px] px-4 py-2.5 text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">
+            <div className="grid grid-cols-[minmax(220px,1fr)_54px_70px_72px] px-4 py-2.5 text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">
               <div>Producto</div>
               <div className="text-center">Stock</div>
               <div className="text-center">Estado</div>
@@ -189,14 +189,9 @@ export function InventarioTab({
               else if (min > 0 && stock <= min) { badge = { cls: "bg-amber-400/15 text-amber-300 ring-amber-400/20", label: "BAJO" }; stockCls = "text-amber-300"; }
               else { badge = { cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20", label: "OK" }; }
               return (
-                <div key={p.id} className="grid grid-cols-[1fr_64px_76px_82px] px-4 py-2.5 items-center hover:bg-white/[0.02] transition-colors">
+                <div key={p.id} className="grid grid-cols-[minmax(220px,1fr)_54px_70px_72px] px-4 py-2.5 items-center hover:bg-white/[0.02] transition-colors">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{p.name}</div>
-                    {(min > 0 || crit > 0) && (
-                      <div className="text-[11px] text-muted-foreground">
-                        {min > 0 && `Avisar ≤${min}`}{min > 0 && crit > 0 && " · "}{crit > 0 && `Crítico ≤${crit}`}
-                      </div>
-                    )}
+                    <div className="text-sm font-semibold text-foreground truncate">{p.name}</div>
                   </div>
                   <div className={cn("text-center text-base font-bold tabular-nums", stockCls)}>{stock}</div>
                   <div className="flex justify-center">
