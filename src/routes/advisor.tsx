@@ -149,6 +149,42 @@ const DEMO = {
   lowDay: "martes",
 };
 
+// ── Datos del rubro para la pestaña ANÁLISIS (barberías y peluquerías) ──
+// Solo se usan en esta pestaña. No tocan el resto de la app.
+const ANALISIS_BENCHMARK = 78; // mejor que el X% de barberías/peluquerías similares
+
+const RADAR_LOCAL: { tone: "ok" | "warn" | "alert" | "bad"; label: string }[] = [
+  { tone: "ok", label: "Utilidad creciendo (+30% vs mes anterior)" },
+  { tone: "ok", label: "Nuevos clientes creciendo (+16%)" },
+  { tone: "warn", label: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} con baja ocupación` },
+  { tone: "alert", label: `${DEMO.inactiveClients} clientes para recuperar` },
+  { tone: "bad", label: "Venta de productos baja (6%)" },
+];
+
+const RADIOGRAFIA_LOCAL: { icon: string; label: string; value: string; tone?: "good" | "warn" | "bad" }[] = [
+  { icon: "🔁", label: "Clientes para recuperar", value: String(DEMO.inactiveClients), tone: "warn" },
+  { icon: "🪑", label: "Turnos vacíos este mes", value: String(DEMO.freeSlotsMonth), tone: "warn" },
+  { icon: "🏆", label: "Profesional con mayor ocupación", value: "Alan", tone: "good" },
+  { icon: "📉", label: "Profesional con menor ocupación", value: "Juan", tone: "warn" },
+  { icon: "✂️", label: "Servicio más vendido", value: "Corte clásico" },
+  { icon: "💎", label: "Servicio más rentable", value: "Color", tone: "good" },
+  { icon: "🧴", label: "Venta de productos", value: "6%", tone: "bad" },
+  { icon: "👑", label: "Clientes VIP", value: "18", tone: "good" },
+];
+
+const MONTH_INSIGHTS: Record<string, { badge: string; mejora: string; problema: string }> = {
+  "Junio 2026": { badge: "🚀 Mejor mes del trimestre", mejora: "Más clientes nuevos", problema: `${DEMO.inactiveClients} clientes inactivos` },
+  "Mayo 2026": { badge: "📈 Recuperación", mejora: "Mayor ticket promedio", problema: "Baja ocupación" },
+  "Abril 2026": { badge: "⚠️ Ocupación baja", mejora: "Más reservas online", problema: "Poca fidelización" },
+};
+
+const RADAR_STYLES: Record<"ok" | "warn" | "alert" | "bad", { dot: string; ring: string }> = {
+  ok: { dot: "🟢", ring: "border-emerald-400/20 bg-emerald-400/[0.05]" },
+  warn: { dot: "🟡", ring: "border-amber-400/20 bg-amber-400/[0.05]" },
+  alert: { dot: "🟠", ring: "border-orange-400/20 bg-orange-400/[0.05]" },
+  bad: { dot: "🔴", ring: "border-rose-400/20 bg-rose-400/[0.05]" },
+};
+
 function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
@@ -373,6 +409,8 @@ function AdvisorContent({
   });
 
   const healthTone = getHealthTone(DEMO.health);
+  const healthEmoji = DEMO.health >= 80 ? "🟢" : DEMO.health >= 60 ? "🟡" : DEMO.health >= 40 ? "🟠" : "🔴";
+  const healthHeadline = DEMO.health >= 80 ? "Excelente" : DEMO.health >= 65 ? "Muy bien" : DEMO.health >= 50 ? "Aceptable" : "Necesita atención";
   const animatedHealth = Math.round(DEMO.health * animationProgress);
   const animatedProfit = Math.round(DEMO.profit * animationProgress);
 
@@ -508,18 +546,20 @@ function AdvisorContent({
                   <div className="text-center">
                     <div className="text-sm text-muted-foreground">Puntaje de salud</div>
                     <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>
-                      {healthTone.label}
+                      {healthEmoji} {healthHeadline}
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground max-w-[220px] leading-relaxed">
-                      {healthTone.message}
+                    <p className="mt-1.5 text-xs font-semibold text-emerald-300/90">
+                      Mejor que el {ANALISIS_BENCHMARK}% de las barberías y peluquerías similares.
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground max-w-[240px] leading-relaxed">
+                      Tu local está sólido. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios.
                     </p>
                     <div className="mt-4 max-w-[260px] text-center">
                       <div className="mb-1 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
                         <Brain className="h-3.5 w-3.5" /> Insight IA
                       </div>
                       <p className="text-xs leading-relaxed text-white/72">
-                        La rentabilidad está creciendo mejor que la ocupación. Todavía podés mejorar
-                        resultados llenando más horarios disponibles antes de sumar equipo.
+                        Tu barbería está creciendo bien. Pero todavía tenés <span className="font-semibold text-white">{DEMO.freeSlotsMonth} turnos sin ocupar</span> este mes. Si subís la ocupación al 75%, podés generar aproximadamente <span className="font-semibold text-emerald-300">{fmtAR(Math.round(DEMO.freeSlotsMonth * 0.21 * DEMO.ticket))}</span> extra por mes sin contratar a nadie.
                       </p>
                     </div>
                   </div>
@@ -537,45 +577,25 @@ function AdvisorContent({
 
                 {/* Right: impact panel */}
                 <div className="rounded-2xl border border-emerald-300/[0.13] bg-white/[0.035] p-5 h-full shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
-                  <div className="text-base font-semibold mb-4">Factores detectados por la IA</div>
-                  <div className="space-y-4">
-                    {[
-                      { label: "Utilidad", value: "+30%", progress: 82, icon: DollarSign },
-                      { label: "Captación de clientes", value: "+16%", progress: 68, icon: Users },
-                      { label: "Ocupación", value: "62%", progress: 62, icon: ClipboardList },
-                    ].map((item) => {
-                      const Icon = item.icon;
+                  <div className="mb-4 flex items-center gap-2 text-base font-semibold">
+                    <span>💈</span> Radar del local
+                  </div>
+                  <div className="space-y-2">
+                    {RADAR_LOCAL.map((item) => {
+                      const s = RADAR_STYLES[item.tone];
                       return (
                         <div
                           key={item.label}
-                          className="rounded-2xl border border-white/[0.08] bg-white/[0.028] p-3"
+                          className={cn("flex items-center gap-3 rounded-xl border px-3 py-2.5", s.ring)}
                         >
-                          <div className="mb-2 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5">
-                              <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
-                              <span className="text-sm text-muted-foreground">{item.label}</span>
-                            </div>
-                            <span className="text-sm font-bold text-emerald-300">{item.value}</span>
-                          </div>
-                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 shadow-[0_0_18px_rgba(45,212,191,0.45)]"
-                              style={{ width: `${item.progress}%` }}
-                            />
-                          </div>
+                          <span className="text-base leading-none">{s.dot}</span>
+                          <span className="text-sm text-white/85">{item.label}</span>
                         </div>
                       );
                     })}
-                    <div className="grid gap-2 pt-1 text-sm text-muted-foreground sm:grid-cols-2">
-                      <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2">
-                        <AlertTriangle className="h-4 w-4 text-cyan-300" />
-                        {DEMO.inactiveClients} clientes para recuperar
-                      </div>
-                      <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2">
-                        <AlertTriangle className="h-4 w-4 text-cyan-300" />
-                        144 turnos disponibles
-                      </div>
-                    </div>
+                    <p className="pt-1 text-[11px] leading-relaxed text-white/40">
+                      La IA marca en verde lo que va bien y en naranja/rojo lo que te está costando plata. Empezá por lo rojo.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -669,6 +689,10 @@ function AdvisorContent({
                     <div className="text-sm font-bold text-sky-300">+10%</div>
                     <div className="text-xs text-muted-foreground">vs mes anterior</div>
                   </div>
+                  <div className="rounded-xl border border-sky-300/15 bg-sky-300/[0.04] px-3 py-2 text-xs">
+                    <div className="text-white/70">Objetivo: <span className="font-semibold text-sky-200">{fmtAR(Math.round(DEMO.ticket * 1.2))}</span></div>
+                    <div className="mt-0.5 text-white/45">Potencial: +{fmtAR(Math.round(DEMO.ticket * 0.2))} por cliente sumando barba y productos al corte.</div>
+                  </div>
                 </div>
 
                 {/* Ocupación */}
@@ -685,6 +709,10 @@ function AdvisorContent({
                   <div className="rounded-xl bg-orange-400/10 px-3 py-2">
                     <div className="text-sm font-bold text-orange-300">+8%</div>
                     <div className="text-xs text-muted-foreground">vs mes anterior</div>
+                  </div>
+                  <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-3 py-2 text-xs">
+                    <div className="text-white/70">Meta: <span className="font-semibold text-orange-200">75%</span> · {DEMO.freeSlotsMonth} turnos vacíos</div>
+                    <div className="mt-0.5 text-white/45">Potencial: +{fmtAR(Math.round(DEMO.freeSlotsMonth * 0.21 * DEMO.ticket))} por mes si los llenás.</div>
                   </div>
                 </div>
               </div>
@@ -743,6 +771,50 @@ function AdvisorContent({
             </GlassCard>
           </div>
           {/* /Evolución */}
+
+          {/* ── RADIOGRAFÍA DEL LOCAL ─────────────────────────────── */}
+          <div className="relative rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
+            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] blur-3xl" />
+            <div className="flex items-center gap-4 mb-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
+                💈 Radiografía del local
+              </span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+            </div>
+            <GlassCard className="p-5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
+              <h2 className="font-display text-2xl font-bold tracking-tight">Tu negocio de un vistazo</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Los números que un dueño de barbería o peluquería mira todos los días.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {RADIOGRAFIA_LOCAL.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:border-white/20"
+                  >
+                    <div className="text-2xl leading-none">{item.icon}</div>
+                    <div
+                      className={cn(
+                        "mt-2 text-2xl font-bold leading-none",
+                        item.tone === "good"
+                          ? "text-emerald-300"
+                          : item.tone === "warn"
+                            ? "text-amber-300"
+                            : item.tone === "bad"
+                              ? "text-rose-300"
+                              : "text-white",
+                      )}
+                    >
+                      {item.value}
+                    </div>
+                    <div className="mt-1.5 text-xs leading-snug text-muted-foreground">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          </div>
+          {/* /Radiografía */}
 
           {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
           <div className="relative rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
@@ -2154,6 +2226,7 @@ function ReportCard({
 }) {
   const healthTone = getHealthTone(report.health);
   const growthPositive = report.growth >= 0;
+  const insight = MONTH_INSIGHTS[report.month];
   return (
     <div
       className={cn(
@@ -2178,8 +2251,8 @@ function ReportCard({
               {report.month}
             </p>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground uppercase tracking-wider">
-            Informe guardado
+          <p className="mt-1.5 text-[11px] font-bold leading-snug text-white/85">
+            {insight ? insight.badge : "Informe guardado"}
           </p>
         </div>
         <span
@@ -2213,6 +2286,19 @@ function ReportCard({
           </span>
         </div>
       </div>
+
+      {insight ? (
+        <div className="space-y-1.5 rounded-xl border border-white/[0.08] bg-white/[0.025] p-2.5 text-[11px]">
+          <div className="flex items-start gap-1.5">
+            <span className="text-emerald-300">▲</span>
+            <span className="text-white/70"><span className="text-white/45">Mejora:</span> {insight.mejora}</span>
+          </div>
+          <div className="flex items-start gap-1.5">
+            <span className="text-rose-300">▼</span>
+            <span className="text-white/70"><span className="text-white/45">Problema:</span> {insight.problema}</span>
+          </div>
+        </div>
+      ) : null}
 
       <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
         <div
