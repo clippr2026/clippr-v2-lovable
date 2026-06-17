@@ -11,7 +11,7 @@ export type Professional = {
   id: string;
   full_name: string;
   avatar_url?: string | null;
-  role?: string | null;
+  role_label?: string | null;
   commission_pct: number;
   commission_fixed?: number | null;
   is_active: boolean;
@@ -66,7 +66,7 @@ export function useProfessionals(businessId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,avatar_url,commission_pct,commission_fixed,is_active")
+        .select("id,full_name,avatar_url,role_label,commission_pct,commission_fixed,is_active")
         .eq("business_id", businessId!)
         .order("full_name", { ascending: true });
       if (error) throw new Error(error.message);
