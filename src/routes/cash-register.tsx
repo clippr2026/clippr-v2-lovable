@@ -2114,7 +2114,6 @@ function NuevaVentaTab({
         removeLocalManualPendingCharge(pendingCharge.id);
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-        onPendingDone?.();
       } else {
         // ── FLUJO NORMAL: nueva venta desde cero ──
         await registerPayment({
@@ -2138,6 +2137,7 @@ function NuevaVentaTab({
       }
 
       await data.refresh();
+      onPendingDone?.();
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
     } finally {
