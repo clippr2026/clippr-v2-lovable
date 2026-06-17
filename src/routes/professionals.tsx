@@ -331,7 +331,7 @@ function ProfessionalsPage() {
                 {active.full_name}
               </div>
               <div className="text-sm text-muted-foreground mt-0.5">
-                {active.role?.trim() || "Profesional"} {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
+                {active.role_label?.trim() || "Profesional"} {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
               </div>
               {permissions.equipo && approvalModeEnabled && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
