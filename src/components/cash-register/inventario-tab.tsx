@@ -150,13 +150,13 @@ export function InventarioTab({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Horizontal category tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-0">
         {categories.map((c) => (
           <button key={c} onClick={() => setActiveCat(c)}
             className={cn(
-              "rounded-full border px-4 py-1.5 text-xs whitespace-nowrap font-medium transition-colors",
+              "rounded-full border px-3 py-1 text-xs whitespace-nowrap font-medium transition-colors",
               activeCat === c
                 ? "border-amber-300/50 bg-amber-300/10 text-amber-200"
                 : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground"
@@ -172,7 +172,7 @@ export function InventarioTab({
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin productos en esta categoría.</div>
         ) : (
           <div className="divide-y divide-white/5">
-            <div className="grid grid-cols-[1fr_80px_80px_100px] px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">
+            <div className="grid grid-cols-[1fr_64px_76px_82px] px-4 py-2.5 text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">
               <div>Producto</div>
               <div className="text-center">Stock</div>
               <div className="text-center">Estado</div>
@@ -189,7 +189,7 @@ export function InventarioTab({
               else if (min > 0 && stock <= min) { badge = { cls: "bg-amber-400/15 text-amber-300 ring-amber-400/20", label: "BAJO" }; stockCls = "text-amber-300"; }
               else { badge = { cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20", label: "OK" }; }
               return (
-                <div key={p.id} className="grid grid-cols-[1fr_80px_80px_100px] px-5 py-3.5 items-center hover:bg-white/[0.02] transition-colors">
+                <div key={p.id} className="grid grid-cols-[1fr_64px_76px_82px] px-4 py-2.5 items-center hover:bg-white/[0.02] transition-colors">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">{p.name}</div>
                     {(min > 0 || crit > 0) && (
@@ -198,18 +198,18 @@ export function InventarioTab({
                       </div>
                     )}
                   </div>
-                  <div className={cn("text-center text-xl font-bold tabular-nums", stockCls)}>{stock}</div>
+                  <div className={cn("text-center text-base font-bold tabular-nums", stockCls)}>{stock}</div>
                   <div className="flex justify-center">
                     {badge && <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium ring-1", badge.cls)}>{badge.label}</span>}
                   </div>
                   <div className="flex gap-1 justify-end">
                     <button onClick={() => setModal({ product: p, direction: -1 })}
-                      className="size-8 grid place-items-center rounded-md border border-white/10 text-muted-foreground hover:text-foreground transition-colors">
-                      <Minus className="size-4" />
+                      className="size-7 grid place-items-center rounded-md border border-white/10 text-muted-foreground hover:text-foreground transition-colors">
+                      <Minus className="size-3.5" />
                     </button>
                     <button onClick={() => setModal({ product: p, direction: 1 })}
-                      className="size-8 grid place-items-center rounded-md bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950">
-                      <Plus className="size-4" />
+                      className="size-7 grid place-items-center rounded-md bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950">
+                      <Plus className="size-3.5" />
                     </button>
                   </div>
                 </div>

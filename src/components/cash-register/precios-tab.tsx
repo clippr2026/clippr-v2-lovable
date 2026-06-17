@@ -98,7 +98,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
   }
 
   return (
-    <div className="grid md:grid-cols-2 gap-5">
+    <div className="grid md:grid-cols-2 gap-4">
       {/* ── COLUMNA SERVICIOS ── */}
       <div className="space-y-3">
         <div className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/70 px-1">
@@ -108,7 +108,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
           const items = serviceRows.filter((r) => (r.category || "Servicios") === catName);
           if (items.length === 0) return null;
           return (
-            <div key={catName} className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+            <div key={catName} className="rounded-[24px] border border-white/[0.08] bg-white/[0.03] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <div className="px-4 py-2.5 text-[11px] uppercase tracking-[0.16em] font-semibold text-muted-foreground/60 border-b border-white/5">
                 {catName}
               </div>
@@ -116,19 +116,21 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                 {items.map((r) => {
                   const cash = cashPrice(r.price, r.cash_discount);
                   return (
-                    <div key={r.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-white/[0.02] transition-colors">
+                    <div key={r.id} className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-white/[0.025] transition-colors">
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-foreground truncate">{r.name}</div>
+                        <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
                         {r.duration_min && (
                           <div className="text-[11px] text-muted-foreground mt-0.5">{r.duration_min} min</div>
                         )}
                       </div>
-                      <div className="text-right shrink-0 space-y-0.5">
-                        <div className="text-[11px] text-muted-foreground tabular-nums">
-                          Lista ${Number(r.price).toLocaleString("es-AR")}
+                      <div className="shrink-0 min-w-[155px] rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                        <div className="flex items-center justify-between gap-3 text-sm tabular-nums">
+                          <span className="text-white/40">Lista</span>
+                          <span className="font-semibold text-white/70">${Number(r.price).toLocaleString("es-AR")}</span>
                         </div>
-                        <div className="text-sm font-semibold text-amber-200 tabular-nums">
-                          Ef. ${cash.toLocaleString("es-AR")}
+                        <div className="mt-1 flex items-center justify-between gap-3 text-sm tabular-nums">
+                          <span className="text-amber-300/70">Ef.</span>
+                          <span className="font-semibold text-amber-200">${cash.toLocaleString("es-AR")}</span>
                         </div>
                       </div>
                     </div>
@@ -154,7 +156,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
           const items = catalogRows.filter((r) => (r.category || "Productos") === catName);
           if (items.length === 0) return null;
           return (
-            <div key={catName} className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+            <div key={catName} className="rounded-[24px] border border-white/[0.08] bg-white/[0.03] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <div className="px-4 py-2.5 text-[11px] uppercase tracking-[0.16em] font-semibold text-muted-foreground/60 border-b border-white/5">
                 {catName}
               </div>
@@ -162,9 +164,9 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                 {items.map((r) => {
                   const cash = cashPrice(r.price, r.cash_discount);
                   return (
-                    <div key={r.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-white/[0.02] transition-colors">
+                    <div key={r.id} className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-white/[0.025] transition-colors">
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-foreground truncate">{r.name}</div>
+                        <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
                         {typeof r.stock === "number" && (
                           <div className={cn("text-[11px] mt-0.5",
                             r.stock === 0 ? "text-rose-300" : r.stock <= 3 ? "text-amber-300" : "text-muted-foreground")}>
@@ -172,12 +174,14 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                           </div>
                         )}
                       </div>
-                      <div className="text-right shrink-0 space-y-0.5">
-                        <div className="text-[11px] text-muted-foreground tabular-nums">
-                          Lista ${Number(r.price).toLocaleString("es-AR")}
+                      <div className="shrink-0 min-w-[155px] rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                        <div className="flex items-center justify-between gap-3 text-sm tabular-nums">
+                          <span className="text-white/40">Lista</span>
+                          <span className="font-semibold text-white/70">${Number(r.price).toLocaleString("es-AR")}</span>
                         </div>
-                        <div className="text-sm font-semibold text-amber-200 tabular-nums">
-                          Ef. ${cash.toLocaleString("es-AR")}
+                        <div className="mt-1 flex items-center justify-between gap-3 text-sm tabular-nums">
+                          <span className="text-amber-300/70">Ef.</span>
+                          <span className="font-semibold text-amber-200">${cash.toLocaleString("es-AR")}</span>
                         </div>
                       </div>
                     </div>

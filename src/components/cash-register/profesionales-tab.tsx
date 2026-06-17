@@ -125,8 +125,9 @@ export function ProfesionalesTab({
               : "Sin comisión";
 
           return (
-            <div key={emp.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <div key={emp.id} className="relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.028] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="absolute -right-12 -top-16 h-32 w-32 rounded-full bg-amber-300/10 blur-3xl" />
+              <div className="relative flex items-center justify-between flex-wrap gap-3 mb-4">
                 <div>
                   <h3 className="text-base font-semibold text-foreground">{emp.full_name}</h3>
                   <p className="text-xs text-muted-foreground">
@@ -136,35 +137,35 @@ export function ProfesionalesTab({
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDetailModal({ type: "produccion", emp })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs hover:bg-white/5 transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-muted-foreground text-xs hover:bg-white/[0.07] hover:text-foreground transition"
                   >
                     <BarChart3 className="size-3.5" /> Producción
                   </button>
                   <button
                     onClick={() => setDetailModal({ type: "pagos", emp })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/10 text-muted-foreground text-xs hover:bg-white/5 transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-muted-foreground text-xs hover:bg-white/[0.07] hover:text-foreground transition"
                   >
                     Historial de pagos
                   </button>
                   {pendiente > 0 && (
                     <button
                       onClick={() => setPayModal({ emp, pendiente })}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-300/15 border border-amber-300/30 text-amber-200 text-xs hover:bg-amber-300/25 transition"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-300/15 border border-amber-300/30 text-amber-200 text-xs hover:bg-amber-300/25 transition shadow-[0_10px_28px_-18px_rgba(251,191,36,0.8)]"
                     >
                       Pagar comisión
                     </button>
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {[
                   { label: "Comisión",    val: `$${comision.toLocaleString("es-AR")}`,    cls: "text-amber-300"   },
                   { label: "Pagado",      val: `$${pagado.toLocaleString("es-AR")}`,      cls: "text-sky-300"     },
                   { label: "Pendiente",   val: `$${pendiente.toLocaleString("es-AR")}`,   cls: pendiente > 0 ? "text-rose-300" : "text-muted-foreground" },
                 ].map(({ label, val, cls }) => (
-                  <div key={label} className="rounded-lg bg-white/[0.03] border border-white/5 p-3 text-center">
+                  <div key={label} className="rounded-2xl bg-white/[0.035] border border-white/[0.07] p-3.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
                     <div className="text-[10px] text-muted-foreground/80 uppercase tracking-[0.12em]">{label}</div>
-                    <div className={cn("text-base font-bold tabular-nums mt-1", cls)}>{val}</div>
+                    <div className={cn("text-lg font-bold tabular-nums mt-1", cls)}>{val}</div>
                   </div>
                 ))}
               </div>
