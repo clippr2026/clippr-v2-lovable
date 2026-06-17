@@ -188,6 +188,7 @@ export const Route = createFileRoute("/cash-register")({
     finalAmount: (search.finalAmount as string) ?? null,
     depositPaid: (search.depositPaid as string) ?? null,
     totalPrice: (search.totalPrice as string) ?? null,
+    fromAgenda: (search.fromAgenda as string) ?? null,
   }),
   head: () => ({
     meta: [
@@ -209,7 +210,34 @@ function CashRegisterPage() {
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
-  const [resumenPanel, setResumenPanel] = useState<"ingresos" | "pendientes" | "gastos">("ingresos");
+  const routeAppointmentCharge = React.useMemo(() => {
+    if (!search.appointmentId) return null;
+
+    const amount = Number(search.finalAmount ?? search.totalPrice ?? 0);
+    const servicePrice = Number.isFinite(amount) && amount > 0 ? amount : Number(search.totalPrice ?? 0);
+
+    return {
+      id: search.appointmentId,
+      business_id: data.businessId ?? "",
+      client_name: search.clientName ?? "",
+      service_name: search.serviceName ?? "Servicio",
+      service_price: servicePrice,
+      employee_id: search.employeeId ?? "",
+      notes: null,
+      status: "confirmed",
+    } as ReturnType<typeof useCajaData>["pendingCharges"][number];
+  }, [
+    search.appointmentId,
+    search.finalAmount,
+    search.totalPrice,
+    search.clientName,
+    search.serviceName,
+    search.employeeId,
+    data.businessId,
+  ]);
+
+  const activeCharge = pendingToCharge ?? routeAppointmentCharge;
+
 
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
@@ -285,7 +313,7 @@ function CashRegisterPage() {
       <Header data={data} />
       <Tabs
         tab={tab}
-        onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); if (t === "resumen") setResumenPanel("ingresos"); setTab(t); }}
+        onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }}
         data={data}
         userEmail={session.user.email ?? null}
         onNuevoGasto={() => { setPendingToCharge(null); setTab("nuevo-gasto"); }}
@@ -296,7 +324,6 @@ function CashRegisterPage() {
           <ResumenTab
             data={data}
             equipoEnabled={permissions.equipo}
-            initialPanel={resumenPanel}
             onCobrarPendiente={handleCobrarPendiente}
           />
         )}
@@ -305,14 +332,17 @@ function CashRegisterPage() {
             data={data}
             userEmail={session.user.email ?? null}
             onCancel={() => setTab("resumen")}
-            onSaved={async () => { setResumenPanel("gastos"); await data.refresh(); setTab("resumen"); }}
+            onSaved={() => { data.refresh(); setTab("resumen"); }}
           />
         )}
         {tab === "nueva" && (
           <NuevaVentaTab
             data={data}
-            pendingCharge={pendingToCharge}
-            onPendingDone={() => { setResumenPanel("ingresos"); setPendingToCharge(null); setTab("resumen"); }}
+            pendingCharge={activeCharge}
+            onPendingDone={() => {
+              setPendingToCharge(null);
+              setTab("resumen");
+            }}
           />
         )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
@@ -460,39 +490,18 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
   );
 }
 
-
-function getLocalDateKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatDateKey(value?: string | null) {
-  if (!value) return "—";
-  const [year, month, day] = value.slice(0, 10).split("-");
-  if (!year || !month || !day) return "—";
-  return `${day}/${month}`;
-}
-
 // ───────────────────────────── RESUMEN
 function ResumenTab({
   data,
   equipoEnabled,
-  initialPanel = "ingresos",
   onCobrarPendiente,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
-  initialPanel?: "ingresos" | "pendientes" | "gastos";
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
 }) {
   type ActivePanel = "ingresos" | "pendientes" | "gastos";
-  const [activePanel, setActivePanel] = React.useState<ActivePanel>(initialPanel);
-
-  React.useEffect(() => {
-    setActivePanel(initialPanel);
-  }, [initialPanel]);
+  const [activePanel, setActivePanel] = React.useState<ActivePanel>("ingresos");
 
   React.useEffect(() => {
     const handler = () => { data.refresh(); setActivePanel("gastos"); };
@@ -604,7 +613,7 @@ function ResumenTab({
             <div className="divide-y divide-white/5">
               {data.expensesToday.map((e: any) => {
                 const date = e.date
-                  ? formatDateKey(e.date)
+                  ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
                   : e.created_at
                     ? new Date(e.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
                     : "—";
@@ -646,7 +655,7 @@ function NuevoGastoTab({
 }) {
   const [form, setForm] = React.useState({ name: "", amount: "", type: "", method: "", note: "" });
   const [saving, setSaving] = React.useState(false);
-  const today = getLocalDateKey();
+  const today = new Date().toISOString().slice(0, 10);
   const GTYPES = ["fijo", "variable", "ocasional", "marketing"];
   const GMETHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
 
@@ -1898,6 +1907,7 @@ function NuevaVentaTab({
   const pendingInjectedRef = React.useRef(false);
   React.useEffect(() => {
     if (!pendingCharge || pendingInjectedRef.current || data.services.length === 0) return;
+    setStep(3);
 
     // Try to match by name (case-insensitive)
     const match = data.services.find(
@@ -1906,13 +1916,8 @@ function NuevaVentaTab({
 
     if (match) {
       setCart({ [match.id]: 1 });
-    } else if (pendingCharge.service_name) {
-      // Service not in catalogue — inject a virtual item keyed by a sentinel
-      // We'll handle the amount manually via a synthetic service entry below
-      // For now just leave cart empty; the service row will be shown via pendingCharge
+      pendingInjectedRef.current = true;
     }
-
-    pendingInjectedRef.current = true;
   }, [pendingCharge, data.services]);
 
   // If the service from pending is NOT in the catalogue we still need to show it in the cart.
@@ -2106,7 +2111,7 @@ function NuevaVentaTab({
           .from("appointments")
           .update({ status: "charged", notes: professionalNote || null })
           .eq("id", pendingCharge.id)
-          .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
+          .in("status", ["pending_payment", "pending", "confirmed", "in_service", "scheduled"]);
 
         if (updateError) throw updateError;
 
@@ -2137,6 +2142,7 @@ function NuevaVentaTab({
         removeLocalManualPendingCharge(pendingCharge.id);
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        onPendingDone?.();
       } else {
         // ── FLUJO NORMAL: nueva venta desde cero ──
         await registerPayment({
@@ -2160,7 +2166,6 @@ function NuevaVentaTab({
       }
 
       await data.refresh();
-      onPendingDone?.();
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
     } finally {
