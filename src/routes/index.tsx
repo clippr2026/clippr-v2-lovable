@@ -149,7 +149,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
     );
   }
 
-  const utilidad = Math.max(0, data.utilidad);
+  const utilidad = data.utilidad;
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -172,7 +172,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           value={data.totalGastos > 0 ? `-${fmtAR(data.totalGastos)}` : "$0"}
           icon={ArrowDownCircle}
           tone="danger"
-          spark={data.revByDay.map((v) => v * 0.25)}
+          spark={data.gastosByDay}
         />
         <Stat
           active={activeMetric === "utilidad"}
@@ -181,7 +181,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           value={fmtAR(utilidad)}
           icon={Wallet}
           tone="success"
-          spark={data.revByDay.map((v, i) => v - (data.revByDay[i] || 0) * 0.25)}
+          spark={data.revByDay.map((v, i) => v - (data.gastosByDay?.[i] ?? 0))}
         />
       </section>
 {/* Revenue chart + breakdown */}
@@ -303,13 +303,16 @@ function Stat({
 // ---------------------------------------------------------------------------
 function RevenueChart({ data, activeMetric, fromStr, toStr }: {
   data: DashboardData;
-  activeMetric: string;
+  activeMetric: "ingresos" | "gastos" | "utilidad";
   fromStr: string;
   toStr: string;
 }) {
   const isSingleDay = fromStr === toStr;
 
-  const metricConfig: Record<string, { label: string; values: number[]; fmt: (v: number) => string; total?: number }> = {
+  const hourlyGastos = data.hoursGastosValues ?? data.hoursValues.map(() => 0);
+  const dailyGastos = data.gastosByDay ?? data.revByDay.map(() => 0);
+
+  const metricConfig: Record<"ingresos" | "gastos" | "utilidad", { label: string; values: number[]; fmt: (v: number) => string; total: number }> = {
     ingresos: {
       label: "Ingresos",
       values: isSingleDay ? data.hoursValues : data.revByDay,
@@ -318,38 +321,42 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
     },
     gastos: {
       label: "Gastos",
-      values: isSingleDay ? data.hoursGastosValues : (data.gastosByDay ?? data.revByDay.map(() => 0)),
-      fmt: fmtAR,
+      values: isSingleDay ? hourlyGastos : dailyGastos,
+      fmt: (v) => v > 0 ? `-${fmtAR(v)}` : "$0",
       total: data.totalGastos,
     },
     utilidad: {
       label: "Utilidad",
       values: isSingleDay
-        ? data.hoursValues.map((v, i) => v - (data.hoursGastosValues?.[i] ?? 0))
-        : data.revByDay.map((v, i) => v - (data.gastosByDay?.[i] ?? 0)),
+        ? data.hoursValues.map((v, i) => v - (hourlyGastos[i] ?? 0))
+        : data.revByDay.map((v, i) => v - (dailyGastos[i] ?? 0)),
       fmt: fmtAR,
       total: data.utilidad,
     },
   };
+
   const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
 
-  // Build chart data: hourly if single day, daily if range
   const chart = isSingleDay
     ? data.hoursLabels.filter((_, i) => i % 3 === 0).map((h, i) => ({
         day: h,
-        rev: cfg.values.filter((_, j) => j % 3 === 0)[i] ?? 0,
+        value: cfg.values.filter((_, j) => j % 3 === 0)[i] ?? 0,
       }))
     : data.days7.map((d, i) => ({
-        // Use only dates within range — no off-by-one
         day: new Date(d + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
-        rev: cfg.values[i] ?? 0,
+        value: cfg.values[i] ?? 0,
       }));
-
-  const total = cfg.total !== undefined ? cfg.total : cfg.values.reduce((s, v) => s + v, 0);
 
   const rangeLabel = isSingleDay
     ? `Hoy · ${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}`
     : `${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} al ${new Date(toStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
+
+  const strokeColor =
+    activeMetric === "gastos"
+      ? "rgb(251 113 133)"
+      : activeMetric === "utilidad"
+        ? "rgb(52 211 153)"
+        : "oklch(0.72 0.2 245)";
 
   return (
     <div className="glass rounded-2xl p-5 relative overflow-hidden h-full">
@@ -357,22 +364,18 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
         <div>
           <div className="text-xs text-muted-foreground">{cfg.label}</div>
           <div className="font-display text-3xl font-semibold tracking-tight mt-1">
-            {cfg.fmt(total)}
+            {cfg.fmt(cfg.total)}
           </div>
           <div className="text-xs text-muted-foreground mt-1">{rangeLabel}</div>
         </div>
       </div>
       <div className="h-64 sm:h-72 mt-3 -mx-2">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+          <AreaChart key={activeMetric} data={chart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="rev-grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="oklch(0.72 0.26 305 / 0.55)" />
-                <stop offset="100%" stopColor="oklch(0.72 0.2 245 / 0)" />
-              </linearGradient>
-              <linearGradient id="rev-stroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="oklch(0.72 0.2 245)" />
-                <stop offset="100%" stopColor="oklch(0.72 0.26 305)" />
+              <linearGradient id={`chart-grad-${activeMetric}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={strokeColor} stopOpacity={0.42} />
+                <stop offset="100%" stopColor={strokeColor} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid stroke="oklch(1 0 0 / 0.05)" vertical={false} />
@@ -410,10 +413,10 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
             ) : null}
             <Area
               type="monotone"
-              dataKey="rev"
-              stroke="url(#rev-stroke)"
+              dataKey="value"
+              stroke={strokeColor}
               strokeWidth={2.5}
-              fill="url(#rev-grad)"
+              fill={`url(#chart-grad-${activeMetric})`}
               isAnimationActive={false}
             />
           </AreaChart>
