@@ -131,7 +131,7 @@ function fmtShortDow(d: Date) {
   return d.toLocaleDateString("es-AR", { weekday: "short" });
 }
 function fmtTime(d: Date) {
-  return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  return `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1387,57 +1387,58 @@ function AppointmentDetailDialog({
   const email = client?.email ?? null;
   const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
   const requiresDeposit = Boolean(appointment.deposit_status && appointment.deposit_status !== "none");
-  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })} · ${fmtTime(start)} a ${fmtTime(end)}`;
+  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
+  const statusLabel = appointment.status === "charged"
+    ? "Cobrado"
+    : appointment.status === "confirmed"
+      ? "Confirmado"
+      : appointment.status === "cancelled"
+        ? "Cancelado"
+        : appointment.status === "in_service"
+          ? "En servicio"
+          : "Pendiente";
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl p-0 overflow-hidden" aria-describedby={undefined}>
-        {/* Header themed by status */}
-        <DialogHeader
-          className="px-6 pt-5 pb-4 border-b"
-          style={{
-            borderColor: `${meta.border}40`,
-            background: `linear-gradient(to bottom, ${meta.bg}, transparent)`,
-            boxShadow: `0 0 40px -12px ${meta.dot}40`,
-          }}
-        >
-          <div className="flex items-start justify-between gap-3">
+      <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border-white/10 bg-[#08070f]/95 shadow-[0_28px_90px_-28px_rgba(0,0,0,0.95)] backdrop-blur-2xl" aria-describedby={undefined}>
+        <DialogHeader className="relative px-5 pt-5 pb-4 border-b border-white/10 bg-white/[0.025]">
+          <div className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-25 blur-3xl" style={{ background: meta.dot }} />
+          <div className="relative flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: meta.dot, opacity: 0.7 }}>Cliente</div>
-              <DialogTitle className="mt-1 text-2xl font-display truncate">{appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}</DialogTitle>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: meta.dot }}>
+                <span className="size-1.5 rounded-full" style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }} />
+                {statusLabel}
+              </div>
+              <DialogTitle className="text-[28px] leading-none font-display tracking-tight truncate">
+                {appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}
+              </DialogTitle>
             </div>
             <div className="flex gap-2 pr-6">
-              <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onFicha(appointment)}>
+              <Button size="sm" variant="secondary" className="h-8 rounded-full border-white/10 bg-white/[0.06] px-3 text-xs hover:bg-white/[0.1]" onClick={() => onFicha(appointment)}>
                 <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
               </Button>
-              <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onEdit(appointment)}>
+              <Button size="sm" variant="secondary" className="h-8 rounded-full border-white/10 bg-white/[0.06] px-3 text-xs hover:bg-white/[0.1]" onClick={() => onEdit(appointment)}>
                 Editar
               </Button>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 p-6">
-          {/* Service card themed by status */}
-          <div
-            className="rounded-2xl p-4 ring-1"
-            style={{
-              background: `${meta.bg}`,
-              boxShadow: `inset 0 0 0 1px ${meta.border}60, 0 0 24px -8px ${meta.dot}30`,
-            }}
-          >
+        <div className="space-y-3.5 p-5">
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-lg font-semibold">{appointment.service_name || "Servicio"}</div>
-                <div className="mt-2 text-sm text-foreground/80 capitalize">{dateText}</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Profesional: <span className="text-foreground">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+              <div className="min-w-0">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">Turno</div>
+                <div className="mt-1.5 text-lg font-semibold leading-tight truncate">{appointment.service_name || "Servicio"}</div>
+                <div className="mt-2 text-sm text-white/70">{dateText}</div>
+                <div className="mt-1 text-sm text-white/45">
+                  Profesional: <span className="text-white/85">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
                 </div>
               </div>
               {appointment.service_price ? (
-                <div className="text-right text-2xl font-display font-semibold">
+                <div className="shrink-0 text-right text-2xl font-display font-semibold tracking-tight">
                   ${Number(appointment.service_price).toLocaleString("es-AR")}
                 </div>
               ) : null}
@@ -1470,20 +1471,28 @@ function AppointmentDetailDialog({
 
           <div className="grid gap-2 text-sm">
             {phone && (
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
-                <span>{phone}</span>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">Teléfono</div>
+                  <div className="mt-0.5 truncate text-white/85">{phone}</div>
+                </div>
                 {whatsappHref && (
-                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-500/30 transition">
+                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition">
                     <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
                   </a>
                 )}
               </div>
             )}
-            {email && <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">{email}</div>}
+            {email && (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-2.5">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">Email</div>
+                <div className="mt-0.5 truncate text-white/85">{email}</div>
+              </div>
+            )}
             {appointment.notes && (
-              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Notas</div>
-                {appointment.notes}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-2.5">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35 mb-1">Notas</div>
+                <div className="text-white/80">{appointment.notes}</div>
               </div>
             )}
           </div>
@@ -1498,15 +1507,14 @@ function AppointmentDetailDialog({
               <Button
                 onClick={() => onCobrar(appointment)}
                 disabled={appointment.status === "charged"}
-                className={appointment.status === "charged" ? "" : "bg-emerald-600 hover:bg-emerald-500 text-white border-0"}
-                style={appointment.status === "charged" ? undefined : {
-                  boxShadow: "0 4px 16px -6px oklch(0.76 0.2 150 / 0.6)",
-                }}
+                className={appointment.status === "charged"
+                  ? "rounded-2xl border-white/10 bg-white/[0.06] text-white/45"
+                  : "rounded-2xl border-0 bg-emerald-500/90 text-white hover:bg-emerald-400 shadow-[0_12px_30px_-16px_rgba(16,185,129,0.9)]"}
               >
                 <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
               </Button>
               {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
-                <Button variant="destructive" onClick={() => onCancel(appointment)}>
+                <Button variant="destructive" onClick={() => onCancel(appointment)} className="rounded-2xl bg-rose-500/90 hover:bg-rose-400 text-white border-0 shadow-[0_12px_30px_-16px_rgba(244,63,94,0.9)]">
                   Cancelar turno
                 </Button>
               ) : (
@@ -1520,8 +1528,8 @@ function AppointmentDetailDialog({
           )}
 
           {appointment.status !== "blocked" && (
-          <div className="rounded-2xl p-3" style={{ background: `${meta.bg}80`, boxShadow: `inset 0 0 0 1px ${meta.border}30` }}>
-            <div className="text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: meta.dot, opacity: 0.7 }}>Cambiar estado</div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+            <div className="text-[10px] uppercase tracking-[0.18em] mb-2 text-white/35">Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
               {([
                 ["pending", "Pendiente"],
@@ -1533,11 +1541,11 @@ function AppointmentDetailDialog({
                   <button
                     key={status}
                     onClick={() => onChangeStatus(appointment, status)}
-                    className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition"
+                    className="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition"
                     style={{
-                      background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
+                      background: isActive ? `${sMeta.dot}18` : "rgba(255,255,255,0.035)",
                       color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
-                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.border}, 0 0 12px -4px ${sMeta.dot}` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.dot}55` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
                     }}
                   >
                     {label}
