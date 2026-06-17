@@ -230,8 +230,8 @@ export function useCajaData() {
     // Employees
     setEmployees(
       empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; commission_pct: number | null }>)
-            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null }))
+        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; avatar_url?: string | null; commission_pct: number | null }>)
+            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null, avatar_url: r.avatar_url ?? null }))
         : []
     );
 
