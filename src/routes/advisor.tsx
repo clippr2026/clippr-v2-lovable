@@ -664,104 +664,129 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
-      {/* Logo / Icono central */}
-      <div className="relative mb-8">
-        <div className="grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20 ring-1 ring-primary/30 shadow-[0_0_60px_-10px_oklch(0.65_0.28_290/0.4)]">
-          <Brain className="h-12 w-12 text-primary" />
-        </div>
-        {/* Pulse ring */}
-        <div className="absolute inset-0 rounded-3xl ring-1 ring-primary/20 animate-ping" style={{ animationDuration: "2.5s" }} />
-      </div>
+    <div className="relative flex min-h-[70vh] flex-col items-center justify-center overflow-hidden px-4 py-10">
+      {/* Background glows estilo Dashboard */}
+      <div className="pointer-events-none absolute -left-32 top-8 h-72 w-72 rounded-full bg-violet-500/18 blur-3xl" />
+      <div className="pointer-events-none absolute -right-28 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
+      <div className="pointer-events-none absolute left-1/2 top-28 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
 
-      {/* Título */}
-      <div className="text-center max-w-3xl mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">Asesor Clippr</p>
-        <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight mb-4">
-          Descubrí qué está frenando el crecimiento de tu negocio
-        </h1>
-        <p className="text-base text-muted-foreground leading-relaxed">
-          Obtené un diagnóstico completo en segundos y recibí acciones concretas para aumentar tus ingresos.
+      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center">
+        {/* Cerebro premium */}
+        <div className="relative mb-5">
+          <div className="absolute inset-0 scale-[1.85] rounded-full bg-gradient-to-br from-primary/25 via-violet-500/15 to-sky-500/20 blur-3xl" />
+          <div className="absolute inset-0 scale-[1.35] rounded-[2rem] border border-white/10 bg-white/[0.025] backdrop-blur-xl" />
+          <div className="relative grid h-36 w-36 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.13] via-white/[0.055] to-white/[0.025] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.85)]">
+            <Brain className="h-20 w-20 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.55)]" />
+          </div>
+          <div className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping" style={{ animationDuration: "3s" }} />
+        </div>
+
+        {/* Tarjeta flotante */}
+        <div className="mb-5 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/12 ring-1 ring-primary/25">
+            <span className="text-base">❤️</span>
+          </div>
+          <div className="text-left">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Salud del negocio</div>
+            <div className="text-sm font-semibold text-foreground">Diagnóstico inteligente listo</div>
+          </div>
+        </div>
+
+        {/* Título */}
+        <div className="text-center max-w-3xl mb-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">Asesor Clippr</p>
+          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight mb-4">
+            Descubrí qué está frenando el crecimiento de tu negocio
+          </h1>
+          <p className="text-base text-muted-foreground leading-relaxed">
+            Obtené un diagnóstico completo en segundos y recibí acciones concretas para aumentar tus ingresos.
+          </p>
+        </div>
+
+        {/* Indicadores */}
+        <div className="flex flex-wrap justify-center gap-2 mb-8 max-w-3xl">
+          {indicators.map((ind) => (
+            <div
+              key={ind.label}
+              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+            >
+              <span>{ind.emoji}</span>
+              <span>{ind.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA premium */}
+        <button
+          type="button"
+          onClick={onStart}
+          className="group relative inline-flex h-16 min-w-[280px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-10 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.8)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/0.95)]"
+        >
+          <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+          <Brain className="relative h-5 w-5" />
+          <span className="relative">Analizar mi negocio</span>
+        </button>
+
+        <p className="mt-4 text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
+          Analizamos ventas, clientes, agenda y rentabilidad para detectar oportunidades de crecimiento.
         </p>
       </div>
-
-      {/* Indicadores */}
-      <div className="flex flex-wrap justify-center gap-2 mb-10 max-w-3xl">
-        {indicators.map((ind) => (
-          <div
-            key={ind.label}
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-muted-foreground"
-          >
-            <span>{ind.emoji}</span>
-            <span>{ind.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* CTA */}
-      <button
-        type="button"
-        onClick={onStart}
-        className="group relative inline-flex h-14 items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-primary to-accent px-8 text-base font-bold text-white shadow-[0_16px_40px_-12px_oklch(0.65_0.28_290/0.6)] transition hover:brightness-110 hover:shadow-[0_20px_48px_-12px_oklch(0.65_0.28_290/0.7)] hover:scale-[1.02] active:scale-[0.99]"
-      >
-        <Brain className="h-5 w-5" />
-        Analizar mi negocio
-      </button>
-
-      <p className="mt-4 text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
-        Analizamos ventas, clientes, agenda y rentabilidad para detectar oportunidades de crecimiento.
-      </p>
     </div>
   );
 }
 
 function AnalysisLoader({ step }: { step: number }) {
   const steps = [
-    { label: "Analizando rentabilidad",          icon: "💰" },
-    { label: "Analizando fidelización",          icon: "👥" },
-    { label: "Analizando ocupación de agenda",   icon: "📅" },
-    { label: "Analizando dependencia del dueño", icon: "🧑‍💼" },
-    { label: "Detectando oportunidades",         icon: "🔍" },
-    { label: "Generando plan de acción",         icon: "📋" },
+    { label: "Analizando ventas",             icon: "💰" },
+    { label: "Analizando clientes",           icon: "👥" },
+    { label: "Analizando agenda",             icon: "📅" },
+    { label: "Calculando oportunidades",      icon: "📈" },
+    { label: "Generando recomendaciones",     icon: "✨" },
   ];
 
-  const pct = Math.round((Math.max(0, step) / steps.length) * 100);
+  const safeStep = Math.min(Math.max(0, step), steps.length);
+  const pct = Math.round((safeStep / steps.length) * 100);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
-      <div className="w-full max-w-3xl">
+    <div className="relative flex min-h-[72vh] flex-col items-center justify-center overflow-hidden px-4 py-10">
+      <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-violet-500/16 blur-3xl" />
+      <div className="pointer-events-none absolute -right-32 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
+      <div className="pointer-events-none absolute left-1/2 top-24 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+
+      <div className="relative z-10 w-full max-w-3xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-6 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-8">
         {/* Header */}
-        <div className="flex flex-col items-center text-center mb-10">
-          <div className="relative mb-6">
-            <div className="grid h-20 w-20 place-items-center rounded-3xl bg-primary/10 ring-1 ring-primary/25">
-              <Brain className="h-10 w-10 text-primary" />
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="relative mb-5">
+            <div className="absolute inset-0 scale-[1.65] rounded-full bg-gradient-to-br from-primary/25 to-accent/20 blur-3xl" />
+            <div className="relative grid h-24 w-24 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)]">
+              <Brain className="h-12 w-12 text-primary" />
             </div>
-            {/* Rotating border */}
-            <svg className="absolute inset-0 animate-spin" style={{ animationDuration: "3s" }} viewBox="0 0 80 80" fill="none" width="80" height="80">
-              <circle cx="40" cy="40" r="38" stroke="url(#spinGrad)" strokeWidth="2" strokeDasharray="60 180" strokeLinecap="round" />
+            <svg className="absolute inset-0 animate-spin" style={{ animationDuration: "3s" }} viewBox="0 0 96 96" fill="none" width="96" height="96">
+              <circle cx="48" cy="48" r="46" stroke="url(#spinGradPremium)" strokeWidth="2" strokeDasharray="72 220" strokeLinecap="round" />
               <defs>
-                <linearGradient id="spinGrad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+                <linearGradient id="spinGradPremium" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stopColor="oklch(0.65 0.28 290)" />
+                  <stop offset="55%" stopColor="oklch(0.72 0.2 245)" />
                   <stop offset="100%" stopColor="transparent" />
                 </linearGradient>
               </defs>
             </svg>
           </div>
           <h2 className="font-display text-3xl font-bold tracking-tight">Analizando tu negocio</h2>
-          <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-            Clippr está leyendo caja, clientes, turnos y rendimiento para generar tu diagnóstico.
+          <p className="mt-2 text-sm text-muted-foreground max-w-md">
+            Clippr IA está leyendo ventas, clientes, agenda y rentabilidad antes de mostrar el diagnóstico.
           </p>
         </div>
 
-        {/* Progress bar */}
-        <div className="mb-6">
+        {/* Progress bar premium */}
+        <div className="mb-7">
           <div className="flex justify-between text-xs text-muted-foreground mb-2">
-            <span>Analizando…</span>
-            <span>{pct}%</span>
+            <span>Progreso del análisis</span>
+            <span className="font-semibold text-foreground">{pct}%</span>
           </div>
-          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-2.5 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-1000"
+              className="h-full rounded-full bg-gradient-to-r from-primary via-violet-500 to-accent shadow-[0_0_24px_oklch(0.65_0.28_290/0.65)] transition-all duration-700"
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -770,40 +795,36 @@ function AnalysisLoader({ step }: { step: number }) {
         {/* Steps */}
         <div className="space-y-3">
           {steps.map((item, index) => {
-            const done    = index < step;
-            const current = index === step;
-            const pending = index > step;
+            const done    = index < safeStep;
+            const current = index === safeStep;
+            const pending = index > safeStep;
             return (
               <div
                 key={item.label}
                 className={cn(
                   "flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-500",
-                  done    && "border-emerald-400/25 bg-emerald-400/[0.06]",
-                  current && "border-primary/30 bg-primary/[0.07] ring-1 ring-primary/20",
+                  done    && "border-emerald-400/25 bg-emerald-400/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
+                  current && "border-primary/35 bg-primary/[0.075] ring-1 ring-primary/20 shadow-[0_0_32px_-20px_oklch(0.65_0.28_290/0.9)]",
                   pending && "border-white/8 bg-white/[0.02] opacity-50",
                 )}
               >
-                {/* Status icon */}
-                <div className="shrink-0 w-6 h-6 flex items-center justify-center">
+                <div className="shrink-0 w-7 h-7 flex items-center justify-center">
                   {done    && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
                   {current && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
                   {pending && <div className="h-4 w-4 rounded-full border-2 border-white/15" />}
                 </div>
-                {/* Emoji */}
                 <span className="text-lg shrink-0">{item.icon}</span>
-                {/* Label */}
                 <span className={cn(
                   "text-sm font-medium flex-1",
                   done    && "text-emerald-300",
                   current && "text-white",
                   pending && "text-muted-foreground",
                 )}>
-                  {item.label}
+                  {item.label}...
                 </span>
-                {/* Done checkmark text */}
                 {done && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/70 shrink-0">
-                    Listo
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/75 shrink-0">
+                    Completado
                   </span>
                 )}
               </div>
