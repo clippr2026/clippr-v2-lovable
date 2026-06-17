@@ -339,7 +339,7 @@ function AdvisorContent({
   }
 
   return (
-    <div className="space-y-12 max-w-5xl mx-auto w-full">
+    <div className="space-y-7 max-w-5xl mx-auto w-full">
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={DEMO.payments}
@@ -363,25 +363,25 @@ function AdvisorContent({
       {advisorTab === "analisis" && (<>
 
       {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-white/[0.045] bg-white/[0.012] p-4 shadow-[0_28px_100px_-60px_rgba(0,0,0,0.95)] sm:p-5">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.055] blur-3xl" />
+      <div className="relative rounded-[2rem] border border-emerald-300/[0.14] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_24px_90px_-52px_rgba(45,212,191,0.55)] sm:p-4">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.07] blur-3xl" />
         {/* Separador de sección */}
         <div className="relative flex items-center gap-4 mb-4">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Salud del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         </div>
-      <GlassCard className="relative overflow-hidden p-5 sm:p-7 border border-white/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(255,255,255,0.055),0_34px_110px_-48px_rgba(124,58,237,0.75)]">
+      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.18] bg-white/[0.045] shadow-[0_0_0_1px_rgba(45,212,191,0.06),0_28px_95px_-50px_rgba(45,212,191,0.62)]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">❤️ ¿Cómo está tu negocio hoy?</h2>
-        <p className="text-sm text-muted-foreground mb-5">Análisis de los indicadores del período actual.</p>
+        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">🧠 Diagnóstico IA</h2>
+        <p className="text-sm text-muted-foreground mb-4">Evaluación automática de rentabilidad, ocupación y crecimiento.</p>
 
-        <div className="grid md:grid-cols-2 gap-5 items-center">
+        <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-5 items-center">
           {/* Left: circular gauge + bar */}
           <div className="flex flex-col items-center gap-4">
             <div className="relative flex items-center justify-center">
               {/* SVG ring */}
-              <svg width="170" height="170" viewBox="0 0 200 200" className="-rotate-90">
+              <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
                 {/* Track */}
                 <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="14" />
                 {/* Progress */}
@@ -402,14 +402,14 @@ function AdvisorContent({
               </svg>
               {/* Center text */}
               <div className="absolute flex flex-col items-center">
-                <span className={cn("font-display text-5xl font-bold leading-none", healthTone.text)}>{animatedHealth}</span>
+                <span className={cn("font-display text-6xl font-bold leading-none", healthTone.text)}>{animatedHealth}</span>
                 <span className="text-sm text-muted-foreground mt-1">/100</span>
               </div>
             </div>
             {/* Info below circle */}
             <div className="text-center">
               <div className="text-sm text-muted-foreground">Puntaje de salud</div>
-              <div className={cn("mt-1 text-xl font-bold", healthTone.text)}>{healthTone.label}</div>
+              <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>{healthTone.label}</div>
               <p className="mt-2 text-xs text-muted-foreground max-w-[220px] leading-relaxed">{healthTone.message}</p>
             </div>
             {/* Progress bar */}
@@ -419,30 +419,34 @@ function AdvisorContent({
           </div>
 
           {/* Right: impact panel */}
-          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-5 h-full">
-            <div className="text-base font-semibold mb-5">¿Qué impacta en tu puntaje?</div>
-            <div className="space-y-3">
+          <div className="rounded-2xl border border-emerald-300/[0.13] bg-white/[0.035] p-5 h-full shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+            <div className="text-base font-semibold mb-4">Factores detectados por la IA</div>
+            <div className="space-y-4">
               {[
-                { tone: "good" as const, label: "Utilidad",             value: "+30%" },
-                { tone: "good" as const, label: "Captación de clientes", value: "+16%" },
-                { tone: "good" as const, label: "Ocupación",            value: "62%"  },
-                { tone: "warning" as const, label: `${DEMO.inactiveClients} clientes para recuperar`, value: "" },
-                { tone: "warning" as const, label: "144 turnos disponibles sin ocupar", value: "" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    {item.tone === "good"
-                      ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
-                      : <AlertTriangle className="h-5 w-5 shrink-0 text-cyan-400" />}
-                    <span className="text-sm text-muted-foreground">{item.label}</span>
+                { label: "Utilidad", value: "+30%", progress: 82, icon: DollarSign },
+                { label: "Captación de clientes", value: "+16%", progress: 68, icon: Users },
+                { label: "Ocupación", value: "62%", progress: 62, icon: ClipboardList },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="rounded-2xl border border-white/[0.08] bg-white/[0.028] p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
+                        <span className="text-sm text-muted-foreground">{item.label}</span>
+                      </div>
+                      <span className="text-sm font-bold text-emerald-300">{item.value}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 shadow-[0_0_18px_rgba(45,212,191,0.45)]" style={{ width: `${item.progress}%` }} />
+                    </div>
                   </div>
-                  {item.value && (
-                    <span className={cn("text-sm font-bold", item.tone === "good" ? "text-emerald-300" : "text-cyan-300")}>
-                      {item.value}
-                    </span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
+              <div className="grid gap-2 pt-1 text-sm text-muted-foreground sm:grid-cols-2">
+                <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2"><AlertTriangle className="h-4 w-4 text-cyan-300" />{DEMO.inactiveClients} clientes para recuperar</div>
+                <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2"><AlertTriangle className="h-4 w-4 text-cyan-300" />144 turnos disponibles</div>
+              </div>
             </div>
           </div>
         </div>
@@ -450,14 +454,14 @@ function AdvisorContent({
       </div>{/* /Salud */}
 
       {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-white/[0.045] bg-white/[0.012] p-4 shadow-[0_28px_100px_-60px_rgba(0,0,0,0.95)] sm:p-5">
+      <div className="relative rounded-[2rem] border border-sky-300/[0.12] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.05),0_24px_90px_-52px_rgba(99,102,241,0.55)] sm:p-4">
         <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-500/[0.045] blur-3xl" />
         <div className="flex items-center gap-4 mb-4">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Evolución del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="p-5 sm:p-7 space-y-5 border border-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(124,58,237,0.55)]">
+      <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.13] shadow-[0_0_0_1px_rgba(56,189,248,0.05),0_24px_80px_-42px_rgba(99,102,241,0.56)]">
         <h2 className="font-display text-2xl font-bold tracking-tight">📈 Evolución del negocio</h2>
 
         {/* Bloque superior: +18% */}
@@ -583,14 +587,14 @@ function AdvisorContent({
       </div>{/* /Evolución */}
 
       {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-white/[0.045] bg-white/[0.012] p-4 shadow-[0_28px_100px_-60px_rgba(0,0,0,0.95)] sm:p-5">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-500/[0.04] blur-3xl" />
+      <div className="relative rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.06] blur-3xl" />
         <div className="flex items-center gap-4 mb-4">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Historial de análisis</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="relative overflow-hidden p-5 sm:p-7 border border-white/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(255,255,255,0.055),0_34px_110px_-48px_rgba(124,58,237,0.75)]">
+      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-violet-300/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(139,92,246,0.06),0_30px_100px_-52px_rgba(124,58,237,0.7)]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
@@ -606,7 +610,7 @@ function AdvisorContent({
 
         <div className="grid gap-3 md:grid-cols-3">
           {reports.map((report) => (
-            <ReportCard key={report.month} report={report} />
+            <ReportCard key={report.month} report={report} isPrimary={report.month === "Junio 2026"} />
           ))}
           {!reports.some(r => r.month === "Mayo 2026") && (
             <ReportCard report={{ month: "Mayo 2026", health: 76, growth: 12, profit: 1420000, revenue: 3100000 }} />
@@ -1648,15 +1652,24 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
   );
 }
 
-function ReportCard({ report }: { report: { month: string; health: number; growth: number; profit: number; revenue: number } }) {
+function ReportCard({ report, isPrimary = false }: { report: { month: string; health: number; growth: number; profit: number; revenue: number }; isPrimary?: boolean }) {
   const healthTone = getHealthTone(report.health);
   const growthPositive = report.growth >= 0;
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex flex-col gap-4 hover:border-white/20 transition-colors">
+    <div className={cn(
+      "relative overflow-hidden rounded-2xl border p-5 flex flex-col gap-4 transition-all",
+      isPrimary
+        ? "border-emerald-300/25 bg-emerald-300/[0.055] shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_22px_70px_-46px_rgba(45,212,191,0.75)] hover:border-emerald-300/35"
+        : "border-white/10 bg-white/[0.026] opacity-85 hover:opacity-100 hover:border-white/20"
+    )}>
+      {isPrimary && <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/45 to-transparent" />}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-white">{report.month}</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground uppercase tracking-wider">Informe guardado</p>
+          <div className="flex items-center gap-2">
+            {isPrimary && <span className="rounded-full bg-emerald-300/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/20">Último</span>}
+            <p className={cn("font-semibold text-white", isPrimary ? "text-base" : "text-sm")}>{report.month}</p>
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground uppercase tracking-wider">Informe guardado</p>
         </div>
         <span className={cn(
           "text-xs font-bold px-2 py-0.5 rounded-full ring-1",
@@ -1669,7 +1682,7 @@ function ReportCard({ report }: { report: { month: string; health: number; growt
       <div className="space-y-2 text-xs">
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Utilidad</span>
-          <span className="font-semibold text-emerald-300">{fmtAR(report.profit)}</span>
+          <span className={cn("font-semibold text-emerald-300", isPrimary && "text-sm")}>{fmtAR(report.profit)}</span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Facturación</span>
