@@ -226,12 +226,16 @@ async function loadDashboard(
       .reduce((s, p) => s + Number(p.total || 0), 0),
   );
 
+  const todayKey = today.toLocaleDateString("sv-SE");
+  const fallbackExpenseHour = new Date().getHours();
   const hoursGastosValues = Array.from({ length: 24 }, (_, h) =>
     gastosHoy
       .filter((g) => {
-        if (!g.created_at) return false;
-        const created = new Date(g.created_at);
-        return created.getHours() === h && localDate(g.created_at) === today.toLocaleDateString("sv-SE");
+        if (g.created_at) {
+          const created = new Date(g.created_at);
+          return created.getHours() === h && localDate(g.created_at) === todayKey;
+        }
+        return (g.date === todayKey) && h === fallbackExpenseHour;
       })
       .reduce((s, g) => s + Number(g.amount || 0), 0),
   );
