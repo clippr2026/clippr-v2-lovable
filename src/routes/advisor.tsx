@@ -174,7 +174,7 @@ function AdvisorRoute() {
     <AppShell>
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-        {!isAnalyzing && (
+        {analysisStarted && !isAnalyzing && (
           <div className="relative flex w-full items-center justify-end sm:w-auto">
             <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
             <div className="relative flex max-w-full items-center gap-2 overflow-x-auto rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
@@ -443,6 +443,14 @@ function AdvisorContent({
               <div className="text-sm text-muted-foreground">Puntaje de salud</div>
               <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>{healthTone.label}</div>
               <p className="mt-2 text-xs text-muted-foreground max-w-[220px] leading-relaxed">{healthTone.message}</p>
+              <div className="mt-4 max-w-[280px] rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.045] px-4 py-3 text-left shadow-[0_0_28px_rgba(45,212,191,0.10),inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <div className="mb-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                  <Brain className="h-3.5 w-3.5" /> Insight IA
+                </div>
+                <p className="text-xs leading-relaxed text-white/72">
+                  La rentabilidad está creciendo mejor que la ocupación. Todavía podés mejorar resultados llenando más horarios disponibles antes de sumar equipo.
+                </p>
+              </div>
             </div>
             {/* Progress bar */}
             <div className="w-full h-2.5 overflow-hidden rounded-full bg-white/10">
@@ -486,14 +494,14 @@ function AdvisorContent({
       </div>{/* /Salud */}
 
       {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-sky-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.10),0_26px_105px_-48px_rgba(14,165,233,0.82)] sm:p-4">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.10] blur-3xl" />
+      <div className="relative rounded-[2rem] border border-sky-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_30px_125px_-42px_rgba(14,165,233,1)] sm:p-4">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
         <div className="flex items-center gap-4 mb-4">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Evolución del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.22] shadow-[0_0_0_1px_rgba(56,189,248,0.10),0_28px_95px_-42px_rgba(14,165,233,0.82)]">
+      <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
         <h2 className="font-display text-2xl font-bold tracking-tight">Resultados del período</h2>
 
         {/* Bloque superior: +18% */}
