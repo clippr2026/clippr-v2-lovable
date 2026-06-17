@@ -2582,7 +2582,6 @@ function ClientAutocomplete({
       );
       if (exact.length === 1) {
         onPick(exact[0]);
-        onChange("");
       }
     }, 600);
     return () => clearTimeout(timer);
@@ -2622,7 +2621,7 @@ function ClientAutocomplete({
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => { onPick(c); onChange(""); }}
+                  onClick={() => onPick(c)}
                   className="w-full text-left px-4 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0 transition-colors"
                 >
                   <span className="min-w-0">
