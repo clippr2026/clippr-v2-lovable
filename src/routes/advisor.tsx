@@ -53,9 +53,14 @@ type AdvisorAction = {
   howToAct: string[];
   suggestedMessage: string;
   actionButtons: string[];
-  occupancyOptions?: { label: string; emoji: string; recommended?: boolean; discount?: number; message?: string }[];
+  occupancyOptions?: {
+    label: string;
+    emoji: string;
+    recommended?: boolean;
+    discount?: number;
+    message?: string;
+  }[];
 };
-
 
 type InfoModalContent = {
   title: string;
@@ -66,7 +71,8 @@ type InfoModalContent = {
 const INFO_CONTENT = {
   health: {
     title: "Estado actual del negocio",
-    description: "Resume la salud general del negocio en un puntaje simple de 0 a 100, combinando rentabilidad, clientes, ocupación y oportunidades pendientes.",
+    description:
+      "Resume la salud general del negocio en un puntaje simple de 0 a 100, combinando rentabilidad, clientes, ocupación y oportunidades pendientes.",
     points: [
       "82/100 indica que el negocio está saludable, pero todavía tiene margen para crecer.",
       "El puntaje sube cuando mejora la utilidad, aumentan los clientes, se ocupa mejor la agenda y baja la cantidad de oportunidades perdidas.",
@@ -77,7 +83,8 @@ const INFO_CONTENT = {
   },
   growth: {
     title: "Evolución del negocio",
-    description: "Mide cómo evolucionó la utilidad del negocio frente al mes anterior — tanto mejoras como caídas.",
+    description:
+      "Mide cómo evolucionó la utilidad del negocio frente al mes anterior — tanto mejoras como caídas.",
     points: [
       "Fórmula: utilidad actual vs utilidad del mes anterior.",
       "Utilidad = facturación - gastos - comisiones.",
@@ -145,7 +152,9 @@ function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
   const navigate = useNavigate();
-  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">("analisis");
+  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">(
+    "analisis",
+  );
   const [priorityOpen, setPriorityOpen] = React.useState(false);
   const [analysisStarted, setAnalysisStarted] = React.useState(() => {
     if (typeof window === "undefined") return false;
@@ -153,15 +162,6 @@ function AdvisorRoute() {
     return localStorage.getItem("clippr_advisor_last_daily_analysis") === today;
   });
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
-
-  React.useEffect(() => {
-    if (analysisStarted && !isAnalyzing) {
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
-    }
-  }, [analysisStarted, isAnalyzing]);
-
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
@@ -187,33 +187,71 @@ function AdvisorRoute() {
           <div className="relative flex w-full items-center justify-end sm:w-auto">
             <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
             <div className="relative flex max-w-full items-center gap-2 overflow-x-auto rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-          {([
-            { key: "analisis", icon: "📊", label: "Análisis", active: "from-cyan-400/25 via-blue-500/18 to-indigo-500/20 text-cyan-100 ring-cyan-300/35 shadow-cyan-500/20", idle: "hover:text-cyan-100 hover:ring-cyan-300/20 hover:bg-cyan-400/8" },
-            { key: "acciones", icon: "🎯", label: "Acciones recomendadas", active: "from-fuchsia-400/25 via-violet-500/18 to-indigo-500/20 text-fuchsia-100 ring-fuchsia-300/35 shadow-fuchsia-500/20", idle: "hover:text-fuchsia-100 hover:ring-fuchsia-300/20 hover:bg-fuchsia-400/8" },
-            { key: "simuladores", icon: "💰", label: "Simuladores", active: "from-emerald-400/25 via-teal-500/18 to-cyan-500/20 text-emerald-100 ring-emerald-300/35 shadow-emerald-500/20", idle: "hover:text-emerald-100 hover:ring-emerald-300/20 hover:bg-emerald-400/8" },
-          ] as const).map((t) => {
-            const active = advisorTab === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setAdvisorTab(t.key)}
-                className={cn(
-                  "group relative min-h-[48px] overflow-hidden rounded-[18px] px-4 py-3 text-sm font-bold tracking-[-0.01em] transition-all duration-300 ring-1 ring-white/10 sm:px-5",
-                  "before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent before:opacity-0 before:transition-opacity",
-                  "after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.16),transparent_48%)] after:opacity-0 after:transition-opacity",
-                  active
-                    ? cn("bg-gradient-to-br shadow-[0_16px_42px_var(--tw-shadow-color)] before:opacity-100 after:opacity-100 scale-[1.01]", t.active)
-                    : cn("text-muted-foreground bg-white/[0.035] hover:-translate-y-0.5 hover:ring-1 hover:shadow-[0_12px_30px_rgba(15,23,42,0.35)]", t.idle)
-                )}
-              >
-                <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
-                  <span className={cn("grid h-7 w-7 place-items-center rounded-full text-[14px] transition-all", active ? "bg-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_18px_rgba(255,255,255,0.10)]" : "bg-white/[0.06] group-hover:bg-white/12")}>{t.icon}</span>
-                  <span>{t.label}</span>
-                </span>
-              </button>
-            );
-          })}
+              {(
+                [
+                  {
+                    key: "analisis",
+                    icon: "📊",
+                    label: "Análisis",
+                    active:
+                      "from-cyan-400/25 via-blue-500/18 to-indigo-500/20 text-cyan-100 ring-cyan-300/35 shadow-cyan-500/20",
+                    idle: "hover:text-cyan-100 hover:ring-cyan-300/20 hover:bg-cyan-400/8",
+                  },
+                  {
+                    key: "acciones",
+                    icon: "🎯",
+                    label: "Acciones recomendadas",
+                    active:
+                      "from-fuchsia-400/25 via-violet-500/18 to-indigo-500/20 text-fuchsia-100 ring-fuchsia-300/35 shadow-fuchsia-500/20",
+                    idle: "hover:text-fuchsia-100 hover:ring-fuchsia-300/20 hover:bg-fuchsia-400/8",
+                  },
+                  {
+                    key: "simuladores",
+                    icon: "💰",
+                    label: "Simuladores",
+                    active:
+                      "from-emerald-400/25 via-teal-500/18 to-cyan-500/20 text-emerald-100 ring-emerald-300/35 shadow-emerald-500/20",
+                    idle: "hover:text-emerald-100 hover:ring-emerald-300/20 hover:bg-emerald-400/8",
+                  },
+                ] as const
+              ).map((t) => {
+                const active = advisorTab === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setAdvisorTab(t.key)}
+                    className={cn(
+                      "group relative min-h-[48px] overflow-hidden rounded-[18px] px-4 py-3 text-sm font-bold tracking-[-0.01em] transition-all duration-300 ring-1 ring-white/10 sm:px-5",
+                      "before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent before:opacity-0 before:transition-opacity",
+                      "after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.16),transparent_48%)] after:opacity-0 after:transition-opacity",
+                      active
+                        ? cn(
+                            "bg-gradient-to-br shadow-[0_16px_42px_var(--tw-shadow-color)] before:opacity-100 after:opacity-100 scale-[1.01]",
+                            t.active,
+                          )
+                        : cn(
+                            "text-muted-foreground bg-white/[0.035] hover:-translate-y-0.5 hover:ring-1 hover:shadow-[0_12px_30px_rgba(15,23,42,0.35)]",
+                            t.idle,
+                          ),
+                    )}
+                  >
+                    <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
+                      <span
+                        className={cn(
+                          "grid h-7 w-7 place-items-center rounded-full text-[14px] transition-all",
+                          active
+                            ? "bg-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_18px_rgba(255,255,255,0.10)]"
+                            : "bg-white/[0.06] group-hover:bg-white/12",
+                        )}
+                      >
+                        {t.icon}
+                      </span>
+                      <span>{t.label}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -253,7 +291,9 @@ function AdvisorContent({
   const todayKey = getTodayKey();
 
   const [analysisStep, setAnalysisStep] = React.useState(0);
-  const [reports, setReports] = React.useState<Array<{ month: string; health: number; growth: number; profit: number; revenue: number }>>(() => {
+  const [reports, setReports] = React.useState<
+    Array<{ month: string; health: number; growth: number; profit: number; revenue: number }>
+  >(() => {
     if (typeof window === "undefined") return [];
     const saved = localStorage.getItem("clippr_advisor_monthly_reports_demo");
     if (saved) {
@@ -335,7 +375,6 @@ function AdvisorContent({
   const animatedHealth = Math.round(DEMO.health * animationProgress);
   const animatedProfit = Math.round(DEMO.profit * animationProgress);
 
-
   function handleResolveRecommendation(action: AdvisorAction) {
     setResolvedRecommendations((current) => {
       if (current.includes(action.title)) return current;
@@ -391,294 +430,393 @@ function AdvisorContent({
         />
       )}
 
-      {advisorTab === "analisis" && (<>
-
-      {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
-        {/* Separador de sección */}
-        <div className="relative flex items-center gap-4 mb-4">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Salud del negocio</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        </div>
-      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(45,212,191,0.16),0_35px_125px_-40px_rgba(45,212,191,1)]">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="font-display text-2xl font-bold tracking-tight">Estado actual</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Rentabilidad, clientes y ocupación del período.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setInfoModal(INFO_CONTENT.health)}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-emerald-300/35 bg-emerald-300/10 text-xs font-bold text-emerald-300 shadow-[0_0_22px_rgba(45,212,191,0.18)] transition hover:bg-emerald-300/20 hover:text-white"
-            aria-label="Información de estado actual"
-          >i</button>
-        </div>
-
-        <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-5 items-center">
-          {/* Left: circular gauge + bar */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative flex items-center justify-center">
-              {/* SVG ring */}
-              <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
-                {/* Track */}
-                <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="14" />
-                {/* Progress */}
-                <circle
-                  cx="100" cy="100" r="84" fill="none"
-                  stroke="url(#healthGrad)" strokeWidth="14"
-                  strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 84}`}
-                  strokeDashoffset={`${2 * Math.PI * 84 * (1 - animatedHealth / 100)}`}
-                  className="transition-all duration-700"
-                />
-                <defs>
-                  <linearGradient id="healthGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#4ade80" />
-                    <stop offset="100%" stopColor="#818cf8" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              {/* Center text */}
-              <div className="absolute flex flex-col items-center">
-                <span className={cn("font-display text-6xl font-bold leading-none", healthTone.text)}>{animatedHealth}</span>
-                <span className="text-sm text-muted-foreground mt-1">/100</span>
-              </div>
+      {advisorTab === "analisis" && (
+        <>
+          {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
+          <div className="relative rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4">
+            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
+            {/* Separador de sección */}
+            <div className="relative flex items-center gap-4 mb-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
+                Salud del negocio
+              </span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
             </div>
-            {/* Info below circle */}
-            <div className="text-center">
-              <div className="text-sm text-muted-foreground">Puntaje de salud</div>
-              <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>{healthTone.label}</div>
-              <p className="mt-2 text-xs text-muted-foreground max-w-[220px] leading-relaxed">{healthTone.message}</p>
-              <div className="mt-4 max-w-[260px] text-center">
-                <div className="mb-1 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                  <Brain className="h-3.5 w-3.5" /> Insight IA
+            <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(45,212,191,0.16),0_35px_125px_-40px_rgba(45,212,191,1)]">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="font-display text-2xl font-bold tracking-tight">Estado actual</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Rentabilidad, clientes y ocupación del período.
+                  </p>
                 </div>
-                <p className="text-xs leading-relaxed text-white/72">
-                  La rentabilidad está creciendo mejor que la ocupación. Todavía podés mejorar resultados llenando más horarios disponibles antes de sumar equipo.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setInfoModal(INFO_CONTENT.health)}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-emerald-300/35 bg-emerald-300/10 text-xs font-bold text-emerald-300 shadow-[0_0_22px_rgba(45,212,191,0.18)] transition hover:bg-emerald-300/20 hover:text-white"
+                  aria-label="Información de estado actual"
+                >
+                  i
+                </button>
               </div>
-            </div>
-            {/* Progress bar */}
-            <div className="w-full h-2.5 overflow-hidden rounded-full bg-white/10">
-              <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-700", healthTone.bar)} style={{ width: `${animatedHealth}%` }} />
-            </div>
-          </div>
 
-          {/* Right: impact panel */}
-          <div className="rounded-2xl border border-emerald-300/[0.13] bg-white/[0.035] p-5 h-full shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
-            <div className="text-base font-semibold mb-4">Factores detectados por la IA</div>
-            <div className="space-y-4">
-              {[
-                { label: "Utilidad", value: "+30%", progress: 82, icon: DollarSign },
-                { label: "Captación de clientes", value: "+16%", progress: 68, icon: Users },
-                { label: "Ocupación", value: "62%", progress: 62, icon: ClipboardList },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="rounded-2xl border border-white/[0.08] bg-white/[0.028] p-3">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
-                        <span className="text-sm text-muted-foreground">{item.label}</span>
-                      </div>
-                      <span className="text-sm font-bold text-emerald-300">{item.value}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 shadow-[0_0_18px_rgba(45,212,191,0.45)]" style={{ width: `${item.progress}%` }} />
+              <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-5 items-center">
+                {/* Left: circular gauge + bar */}
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative flex items-center justify-center">
+                    {/* SVG ring */}
+                    <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
+                      {/* Track */}
+                      <circle
+                        cx="100"
+                        cy="100"
+                        r="84"
+                        fill="none"
+                        stroke="rgba(255,255,255,0.08)"
+                        strokeWidth="14"
+                      />
+                      {/* Progress */}
+                      <circle
+                        cx="100"
+                        cy="100"
+                        r="84"
+                        fill="none"
+                        stroke="url(#healthGrad)"
+                        strokeWidth="14"
+                        strokeLinecap="round"
+                        strokeDasharray={`${2 * Math.PI * 84}`}
+                        strokeDashoffset={`${2 * Math.PI * 84 * (1 - animatedHealth / 100)}`}
+                        className="transition-all duration-700"
+                      />
+                      <defs>
+                        <linearGradient id="healthGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#4ade80" />
+                          <stop offset="100%" stopColor="#818cf8" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    {/* Center text */}
+                    <div className="absolute flex flex-col items-center">
+                      <span
+                        className={cn(
+                          "font-display text-6xl font-bold leading-none",
+                          healthTone.text,
+                        )}
+                      >
+                        {animatedHealth}
+                      </span>
+                      <span className="text-sm text-muted-foreground mt-1">/100</span>
                     </div>
                   </div>
-                );
-              })}
-              <div className="grid gap-2 pt-1 text-sm text-muted-foreground sm:grid-cols-2">
-                <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2"><AlertTriangle className="h-4 w-4 text-cyan-300" />{DEMO.inactiveClients} clientes para recuperar</div>
-                <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2"><AlertTriangle className="h-4 w-4 text-cyan-300" />144 turnos disponibles</div>
+                  {/* Info below circle */}
+                  <div className="text-center">
+                    <div className="text-sm text-muted-foreground">Puntaje de salud</div>
+                    <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>
+                      {healthTone.label}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground max-w-[220px] leading-relaxed">
+                      {healthTone.message}
+                    </p>
+                    <div className="mt-4 max-w-[260px] text-center">
+                      <div className="mb-1 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                        <Brain className="h-3.5 w-3.5" /> Insight IA
+                      </div>
+                      <p className="text-xs leading-relaxed text-white/72">
+                        La rentabilidad está creciendo mejor que la ocupación. Todavía podés mejorar
+                        resultados llenando más horarios disponibles antes de sumar equipo.
+                      </p>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full h-2.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={cn(
+                        "h-full rounded-full bg-gradient-to-r transition-all duration-700",
+                        healthTone.bar,
+                      )}
+                      style={{ width: `${animatedHealth}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Right: impact panel */}
+                <div className="rounded-2xl border border-emerald-300/[0.13] bg-white/[0.035] p-5 h-full shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+                  <div className="text-base font-semibold mb-4">Factores detectados por la IA</div>
+                  <div className="space-y-4">
+                    {[
+                      { label: "Utilidad", value: "+30%", progress: 82, icon: DollarSign },
+                      { label: "Captación de clientes", value: "+16%", progress: 68, icon: Users },
+                      { label: "Ocupación", value: "62%", progress: 62, icon: ClipboardList },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={item.label}
+                          className="rounded-2xl border border-white/[0.08] bg-white/[0.028] p-3"
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                              <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
+                              <span className="text-sm text-muted-foreground">{item.label}</span>
+                            </div>
+                            <span className="text-sm font-bold text-emerald-300">{item.value}</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 shadow-[0_0_18px_rgba(45,212,191,0.45)]"
+                              style={{ width: `${item.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="grid gap-2 pt-1 text-sm text-muted-foreground sm:grid-cols-2">
+                      <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2">
+                        <AlertTriangle className="h-4 w-4 text-cyan-300" />
+                        {DEMO.inactiveClients} clientes para recuperar
+                      </div>
+                      <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2">
+                        <AlertTriangle className="h-4 w-4 text-cyan-300" />
+                        144 turnos disponibles
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </GlassCard>
           </div>
-        </div>
-      </GlassCard>
-      </div>{/* /Salud */}
+          {/* /Salud */}
 
-      {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-sky-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_30px_125px_-42px_rgba(14,165,233,1)] sm:p-4">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
-        <div className="flex items-center gap-4 mb-4">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Evolución del negocio</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-        </div>
-      <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
-        <h2 className="font-display text-2xl font-bold tracking-tight">Resultados del período</h2>
-
-        {/* Bloque superior: +18% */}
-        <div className="relative flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-5 py-3.5">
-          {/* Icono izquierda */}
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25">
-            <TrendingUp className="h-6 w-6 text-sky-300" />
-          </div>
-          {/* Textos */}
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Crecimiento mensual</div>
-            <div className="flex items-baseline gap-3 mt-1 flex-wrap">
-              <span className="font-display text-5xl font-bold text-sky-300 leading-none">+18%</span>
-              <span className="text-base text-muted-foreground">vs mes anterior</span>
+          {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
+          <div className="relative rounded-[2rem] border border-sky-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_30px_125px_-42px_rgba(14,165,233,1)] sm:p-4">
+            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
+            <div className="flex items-center gap-4 mb-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
+                Evolución del negocio
+              </span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
-          </div>
-          {/* Info btn arriba derecha */}
-          <button
-            type="button"
-            onClick={() => setInfoModal(INFO_CONTENT.growth)}
-            className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full border border-sky-300/40 bg-sky-300/10 text-xs font-bold text-sky-300 transition hover:bg-sky-300/20"
-            aria-label="Información de crecimiento"
-          >i</button>
-        </div>
+            <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
+              <h2 className="font-display text-2xl font-bold tracking-tight">
+                Resultados del período
+              </h2>
 
-        {/* Etiqueta IMPULSADOS POR */}
-        <div className="flex flex-col items-center gap-1 text-center">
-          <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">Impulsados por</div>
-          <div className="text-muted-foreground text-base leading-none">↓</div>
-        </div>
-
-        {/* 3 tarjetas: Clientes / Ticket / Ocupación */}
-        <div className="grid md:grid-cols-3 gap-3">
-          {/* Clientes nuevos */}
-          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20">
-              <Users className="h-5 w-5 text-violet-400" />
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Clientes nuevos</div>
-              <div className="font-display text-4xl font-bold text-violet-300 mt-1 leading-none">
-                {Math.round(45 * animationProgress)}
+              {/* Bloque superior: +18% */}
+              <div className="relative flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-5 py-3.5">
+                {/* Icono izquierda */}
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25">
+                  <TrendingUp className="h-6 w-6 text-sky-300" />
+                </div>
+                {/* Textos */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Crecimiento mensual
+                  </div>
+                  <div className="flex items-baseline gap-3 mt-1 flex-wrap">
+                    <span className="font-display text-5xl font-bold text-sky-300 leading-none">
+                      +18%
+                    </span>
+                    <span className="text-base text-muted-foreground">vs mes anterior</span>
+                  </div>
+                </div>
+                {/* Info btn arriba derecha */}
+                <button
+                  type="button"
+                  onClick={() => setInfoModal(INFO_CONTENT.growth)}
+                  className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full border border-sky-300/40 bg-sky-300/10 text-xs font-bold text-sky-300 transition hover:bg-sky-300/20"
+                  aria-label="Información de crecimiento"
+                >
+                  i
+                </button>
               </div>
-            </div>
-            <div className="rounded-xl bg-violet-400/10 px-3 py-2">
-              <div className="text-sm font-bold text-violet-300">+16%</div>
-              <div className="text-xs text-muted-foreground">vs mes anterior</div>
-            </div>
-          </div>
 
-          {/* Ticket promedio */}
-          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20">
-              <DollarSign className="h-5 w-5 text-sky-400" />
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Ticket promedio</div>
-              <div className="font-display text-3xl font-bold text-sky-300 mt-1 leading-none">
-                {fmtAR(Math.round(DEMO.ticket * animationProgress))}
+              {/* Etiqueta IMPULSADOS POR */}
+              <div className="flex flex-col items-center gap-1 text-center">
+                <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                  Impulsados por
+                </div>
+                <div className="text-muted-foreground text-base leading-none">↓</div>
               </div>
-            </div>
-            <div className="rounded-xl bg-sky-400/10 px-3 py-2">
-              <div className="text-sm font-bold text-sky-300">+10%</div>
-              <div className="text-xs text-muted-foreground">vs mes anterior</div>
-            </div>
-          </div>
 
-          {/* Ocupación */}
-          <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20">
-              <ClipboardList className="h-5 w-5 text-orange-400" />
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Ocupación</div>
-              <div className="font-display text-4xl font-bold text-orange-300 mt-1 leading-none">
-                {Math.round(DEMO.occupancy * animationProgress)}%
+              {/* 3 tarjetas: Clientes / Ticket / Ocupación */}
+              <div className="grid md:grid-cols-3 gap-3">
+                {/* Clientes nuevos */}
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
+                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20">
+                    <Users className="h-5 w-5 text-violet-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Clientes nuevos</div>
+                    <div className="font-display text-4xl font-bold text-violet-300 mt-1 leading-none">
+                      {Math.round(45 * animationProgress)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-violet-400/10 px-3 py-2">
+                    <div className="text-sm font-bold text-violet-300">+16%</div>
+                    <div className="text-xs text-muted-foreground">vs mes anterior</div>
+                  </div>
+                </div>
+
+                {/* Ticket promedio */}
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
+                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20">
+                    <DollarSign className="h-5 w-5 text-sky-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Ticket promedio</div>
+                    <div className="font-display text-3xl font-bold text-sky-300 mt-1 leading-none">
+                      {fmtAR(Math.round(DEMO.ticket * animationProgress))}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-sky-400/10 px-3 py-2">
+                    <div className="text-sm font-bold text-sky-300">+10%</div>
+                    <div className="text-xs text-muted-foreground">vs mes anterior</div>
+                  </div>
+                </div>
+
+                {/* Ocupación */}
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
+                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20">
+                    <ClipboardList className="h-5 w-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Ocupación</div>
+                    <div className="font-display text-4xl font-bold text-orange-300 mt-1 leading-none">
+                      {Math.round(DEMO.occupancy * animationProgress)}%
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-orange-400/10 px-3 py-2">
+                    <div className="text-sm font-bold text-orange-300">+8%</div>
+                    <div className="text-xs text-muted-foreground">vs mes anterior</div>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="rounded-xl bg-orange-400/10 px-3 py-2">
-              <div className="text-sm font-bold text-orange-300">+8%</div>
-              <div className="text-xs text-muted-foreground">vs mes anterior</div>
-            </div>
-          </div>
-        </div>
 
-        {/* Etiqueta GENERARON MÁS */}
-        <div className="flex flex-col items-center gap-1 text-center">
-          <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">Generaron más</div>
-          <div className="text-muted-foreground text-base leading-none">↓</div>
-        </div>
-
-        {/* Bloque Utilidad gigante */}
-        <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-6 py-5 flex items-center justify-between gap-5">
-          {/* Left */}
-          <div className="z-10">
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25">
-                <DollarSign className="h-6 w-6 text-emerald-400" />
+              {/* Etiqueta GENERARON MÁS */}
+              <div className="flex flex-col items-center gap-1 text-center">
+                <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                  Generaron más
+                </div>
+                <div className="text-muted-foreground text-base leading-none">↓</div>
               </div>
-              <div className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">Utilidad</div>
-              <span className="rounded-lg bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/25">+30%</span>
+
+              {/* Bloque Utilidad gigante */}
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-6 py-5 flex items-center justify-between gap-5">
+                {/* Left */}
+                <div className="z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25">
+                      <DollarSign className="h-6 w-6 text-emerald-400" />
+                    </div>
+                    <div className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">
+                      Utilidad
+                    </div>
+                    <span className="rounded-lg bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/25">
+                      +30%
+                    </span>
+                  </div>
+                  <div className="font-display text-4xl sm:text-5xl font-bold text-emerald-300 mt-3 leading-none">
+                    {fmtAR(animatedProfit)}
+                  </div>
+                </div>
+                {/* Right: sparkline SVG */}
+                <div className="shrink-0 opacity-80">
+                  <svg width="120" height="60" viewBox="0 0 160 80" fill="none">
+                    <defs>
+                      <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4ade80" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M0 70 C30 65, 50 55, 70 45 S110 20, 160 5"
+                      stroke="#4ade80"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                    <path
+                      d="M0 70 C30 65, 50 55, 70 45 S110 20, 160 5 L160 80 L0 80 Z"
+                      fill="url(#sparkFill)"
+                    />
+                    <circle cx="160" cy="5" r="5" fill="#4ade80" />
+                  </svg>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+          {/* /Evolución */}
+
+          {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
+          <div className="relative rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
+            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.06] blur-3xl" />
+            <div className="flex items-center gap-4 mb-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
+                Historial de análisis
+              </span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
-            <div className="font-display text-4xl sm:text-5xl font-bold text-emerald-300 mt-3 leading-none">
-              {fmtAR(animatedProfit)}
-            </div>
-          </div>
-          {/* Right: sparkline SVG */}
-          <div className="shrink-0 opacity-80">
-            <svg width="120" height="60" viewBox="0 0 160 80" fill="none">
-              <defs>
-                <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#4ade80" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d="M0 70 C30 65, 50 55, 70 45 S110 20, 160 5" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-              <path d="M0 70 C30 65, 50 55, 70 45 S110 20, 160 5 L160 80 L0 80 Z" fill="url(#sparkFill)" />
-              <circle cx="160" cy="5" r="5" fill="#4ade80" />
-            </svg>
-          </div>
-        </div>
-      </GlassCard>
-      </div>{/* /Evolución */}
+            <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-violet-300/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(139,92,246,0.06),0_30px_100px_-52px_rgba(124,58,237,0.7)]">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+                <div>
+                  <h2 className="font-display text-2xl font-bold tracking-tight">
+                    Informes mensuales
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-muted-foreground shrink-0">
+                  Próximo informe: <span className="font-semibold text-white">1 de julio</span>
+                </div>
+              </div>
 
-      {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.06] blur-3xl" />
-        <div className="flex items-center gap-4 mb-4">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Historial de análisis</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-        </div>
-      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-violet-300/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(139,92,246,0.06),0_30px_100px_-52px_rgba(124,58,237,0.7)]">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-          <div>
-            <h2 className="font-display text-2xl font-bold tracking-tight">Informes mensuales</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
-            </p>
+              <div className="grid gap-3 md:grid-cols-3">
+                {reports.map((report) => (
+                  <ReportCard
+                    key={report.month}
+                    report={report}
+                    isPrimary={report.month === "Junio 2026"}
+                  />
+                ))}
+                {!reports.some((r) => r.month === "Mayo 2026") && (
+                  <ReportCard
+                    report={{
+                      month: "Mayo 2026",
+                      health: 76,
+                      growth: 12,
+                      profit: 1420000,
+                      revenue: 3100000,
+                    }}
+                  />
+                )}
+                {!reports.some((r) => r.month === "Abril 2026") && (
+                  <ReportCard
+                    report={{
+                      month: "Abril 2026",
+                      health: 71,
+                      growth: 8,
+                      profit: 1180000,
+                      revenue: 2780000,
+                    }}
+                  />
+                )}
+              </div>
+            </GlassCard>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-muted-foreground shrink-0">
-            Próximo informe: <span className="font-semibold text-white">1 de julio</span>
-          </div>
-        </div>
+          {/* /Historial */}
 
-        <div className="grid gap-3 md:grid-cols-3">
-          {reports.map((report) => (
-            <ReportCard key={report.month} report={report} isPrimary={report.month === "Junio 2026"} />
-          ))}
-          {!reports.some(r => r.month === "Mayo 2026") && (
-            <ReportCard report={{ month: "Mayo 2026", health: 76, growth: 12, profit: 1420000, revenue: 3100000 }} />
-          )}
-          {!reports.some(r => r.month === "Abril 2026") && (
-            <ReportCard report={{ month: "Abril 2026", health: 71, growth: 8, profit: 1180000, revenue: 2780000 }} />
-          )}
-        </div>
-      </GlassCard>
-      </div>{/* /Historial */}
-
-      {infoModal ? (
-        <InfoModal content={infoModal} onClose={() => setInfoModal(null)} />
-      ) : null}
-      </>)}
+          {infoModal ? <InfoModal content={infoModal} onClose={() => setInfoModal(null)} /> : null}
+        </>
+      )}
     </div>
   );
 }
-
 
 function useResultAnimation(enabled = false) {
   const [progress, setProgress] = React.useState(enabled ? 0 : 1);
@@ -736,7 +874,10 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
           <div className="relative grid h-36 w-36 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.13] via-white/[0.055] to-white/[0.025] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.85)]">
             <Brain className="h-20 w-20 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.55)]" />
           </div>
-          <div className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping" style={{ animationDuration: "3s" }} />
+          <div
+            className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping"
+            style={{ animationDuration: "3s" }}
+          />
         </div>
 
         {/* Tarjeta flotante */}
@@ -745,19 +886,26 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
             <span className="text-base">❤️</span>
           </div>
           <div className="text-left">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Salud del negocio</div>
-            <div className="text-sm font-semibold text-foreground">Diagnóstico inteligente listo</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Salud del negocio
+            </div>
+            <div className="text-sm font-semibold text-foreground">
+              Diagnóstico inteligente listo
+            </div>
           </div>
         </div>
 
         {/* Título */}
         <div className="text-center max-w-3xl mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">Asesor Clippr</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">
+            Asesor Clippr
+          </p>
           <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight mb-4">
             Descubrí qué está frenando el crecimiento de tu negocio
           </h1>
           <p className="text-base text-muted-foreground leading-relaxed">
-            Obtené un diagnóstico completo en segundos y recibí acciones concretas para aumentar tus ingresos.
+            Obtené un diagnóstico completo en segundos y recibí acciones concretas para aumentar tus
+            ingresos.
           </p>
         </div>
 
@@ -786,7 +934,8 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         </button>
 
         <p className="mt-4 text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
-          Analizamos ventas, clientes, agenda y rentabilidad para detectar oportunidades de crecimiento.
+          Analizamos ventas, clientes, agenda y rentabilidad para detectar oportunidades de
+          crecimiento.
         </p>
       </div>
     </div>
@@ -795,11 +944,11 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
 
 function AnalysisLoader({ step }: { step: number }) {
   const steps = [
-    { label: "Analizando ventas",             icon: "💰" },
-    { label: "Analizando clientes",           icon: "👥" },
-    { label: "Analizando agenda",             icon: "📅" },
-    { label: "Calculando oportunidades",      icon: "📈" },
-    { label: "Generando recomendaciones",     icon: "✨" },
+    { label: "Analizando ventas", icon: "💰" },
+    { label: "Analizando clientes", icon: "👥" },
+    { label: "Analizando agenda", icon: "📅" },
+    { label: "Calculando oportunidades", icon: "📈" },
+    { label: "Generando recomendaciones", icon: "✨" },
   ];
 
   const safeStep = Math.min(Math.max(0, step), steps.length);
@@ -819,10 +968,32 @@ function AnalysisLoader({ step }: { step: number }) {
             <div className="relative grid h-24 w-24 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)]">
               <Brain className="h-12 w-12 text-primary" />
             </div>
-            <svg className="absolute inset-0 animate-spin" style={{ animationDuration: "3s" }} viewBox="0 0 96 96" fill="none" width="96" height="96">
-              <circle cx="48" cy="48" r="46" stroke="url(#spinGradPremium)" strokeWidth="2" strokeDasharray="72 220" strokeLinecap="round" />
+            <svg
+              className="absolute inset-0 animate-spin"
+              style={{ animationDuration: "3s" }}
+              viewBox="0 0 96 96"
+              fill="none"
+              width="96"
+              height="96"
+            >
+              <circle
+                cx="48"
+                cy="48"
+                r="46"
+                stroke="url(#spinGradPremium)"
+                strokeWidth="2"
+                strokeDasharray="72 220"
+                strokeLinecap="round"
+              />
               <defs>
-                <linearGradient id="spinGradPremium" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+                <linearGradient
+                  id="spinGradPremium"
+                  x1="0"
+                  y1="0"
+                  x2="96"
+                  y2="96"
+                  gradientUnits="userSpaceOnUse"
+                >
                   <stop offset="0%" stopColor="oklch(0.65 0.28 290)" />
                   <stop offset="55%" stopColor="oklch(0.72 0.2 245)" />
                   <stop offset="100%" stopColor="transparent" />
@@ -832,7 +1003,8 @@ function AnalysisLoader({ step }: { step: number }) {
           </div>
           <h2 className="font-display text-3xl font-bold tracking-tight">Analizando tu negocio</h2>
           <p className="mt-2 text-sm text-muted-foreground max-w-md">
-            Clippr IA está leyendo ventas, clientes, agenda y rentabilidad antes de mostrar el diagnóstico.
+            Clippr IA está leyendo ventas, clientes, agenda y rentabilidad antes de mostrar el
+            diagnóstico.
           </p>
         </div>
 
@@ -853,7 +1025,7 @@ function AnalysisLoader({ step }: { step: number }) {
         {/* Steps */}
         <div className="space-y-3">
           {steps.map((item, index) => {
-            const done    = index < safeStep;
+            const done = index < safeStep;
             const current = index === safeStep;
             const pending = index > safeStep;
             return (
@@ -861,23 +1033,27 @@ function AnalysisLoader({ step }: { step: number }) {
                 key={item.label}
                 className={cn(
                   "flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-500",
-                  done    && "border-emerald-400/25 bg-emerald-400/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
-                  current && "border-primary/35 bg-primary/[0.075] ring-1 ring-primary/20 shadow-[0_0_32px_-20px_oklch(0.65_0.28_290/0.9)]",
+                  done &&
+                    "border-emerald-400/25 bg-emerald-400/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
+                  current &&
+                    "border-primary/35 bg-primary/[0.075] ring-1 ring-primary/20 shadow-[0_0_32px_-20px_oklch(0.65_0.28_290/0.9)]",
                   pending && "border-white/8 bg-white/[0.02] opacity-50",
                 )}
               >
                 <div className="shrink-0 w-7 h-7 flex items-center justify-center">
-                  {done    && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
+                  {done && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
                   {current && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
                   {pending && <div className="h-4 w-4 rounded-full border-2 border-white/15" />}
                 </div>
                 <span className="text-lg shrink-0">{item.icon}</span>
-                <span className={cn(
-                  "text-sm font-medium flex-1",
-                  done    && "text-emerald-300",
-                  current && "text-white",
-                  pending && "text-muted-foreground",
-                )}>
+                <span
+                  className={cn(
+                    "text-sm font-medium flex-1",
+                    done && "text-emerald-300",
+                    current && "text-white",
+                    pending && "text-muted-foreground",
+                  )}
+                >
                   {item.label}...
                 </span>
                 {done && (
@@ -939,20 +1115,27 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       ],
       suggestedMessage:
         "Hola 👋 Tenemos algunos horarios disponibles para mañana y activamos un beneficio especial por tiempo limitado. ¿Querés que te reserve un lugar?",
-      actionButtons: ["Crear promoción", "Enviar WhatsApp", "Ver horarios libres", "Marcar como resuelto"],
+      actionButtons: [
+        "Crear promoción",
+        "Enviar WhatsApp",
+        "Ver horarios libres",
+        "Marcar como resuelto",
+      ],
     });
   }
 
   if (DEMO.payments > 0) {
     actions.push({
       title: "Aumentar facturación por cliente",
-      detail: "El ticket promedio puede mejorar con servicios complementarios, productos o combos de mayor valor.",
+      detail:
+        "El ticket promedio puede mejorar con servicios complementarios, productos o combos de mayor valor.",
       impact: `Potencial estimado: +${fmtAR(DEMO.payments * 1000)}`,
       impactAmount: `+${fmtAR(DEMO.payments * 1000)}`,
       impactExplanation: `Si agregás en promedio $1.000 por venta, sobre los ${DEMO.payments} servicios del período, podés generar este ingreso adicional sin necesidad de sumar nuevos clientes.`,
       button: "Tomar acción",
       tone: "money",
-      problem: "Hay oportunidad de aumentar la facturación por cliente sin subir precios de forma directa.",
+      problem:
+        "Hay oportunidad de aumentar la facturación por cliente sin subir precios de forma directa.",
       opportunity: `Si agregás $1.000 promedio por venta, podrías generar aproximadamente ${fmtAR(DEMO.payments * 1000)} adicionales en el período analizado.`,
       howToAct: [
         "Ofrecer productos o servicios complementarios durante la visita.",
@@ -985,7 +1168,12 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       ],
       suggestedMessage:
         "Hola 👋 Queríamos agradecerte por ser parte de nuestros clientes frecuentes. Esta semana tenemos un beneficio especial para vos. ¿Querés que te pasemos horarios disponibles?",
-      actionButtons: ["Enviar WhatsApp", "Ver clientes VIP", "Crear beneficio", "Marcar como resuelto"],
+      actionButtons: [
+        "Enviar WhatsApp",
+        "Ver clientes VIP",
+        "Crear beneficio",
+        "Marcar como resuelto",
+      ],
     });
   }
 
@@ -999,7 +1187,8 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       button: "Tomar acción",
       tone: "neutral",
       problem: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
-      opportunity: "Confirmarlos ayuda a reducir ausencias, cancelaciones de último momento y horarios perdidos.",
+      opportunity:
+        "Confirmarlos ayuda a reducir ausencias, cancelaciones de último momento y horarios perdidos.",
       howToAct: [
         "Enviar recordatorio automático o manual.",
         "Pedir confirmación con una respuesta simple.",
@@ -1008,7 +1197,12 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       ],
       suggestedMessage:
         "Hola 👋 Te escribimos para confirmar tu turno. Respondé CONFIRMO para mantener la reserva o avisame si necesitás cambiar el horario.",
-      actionButtons: ["Ver turnos", "Enviar recordatorio", "Confirmar seleccionados", "Marcar como resuelto"],
+      actionButtons: [
+        "Ver turnos",
+        "Enviar recordatorio",
+        "Confirmar seleccionados",
+        "Marcar como resuelto",
+      ],
     });
   }
 
@@ -1030,20 +1224,35 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
         "Publicar disponibilidad ese día en redes o estados de WhatsApp.",
         "Medir si sube la ocupación la semana siguiente para ajustar la estrategia.",
       ],
-      suggestedMessage:
-        `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos [beneficio]. Respondé este mensaje y te ayudamos a coordinar.`,
+      suggestedMessage: `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos [beneficio]. Respondé este mensaje y te ayudamos a coordinar.`,
       actionButtons: ["Crear beneficio", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
       occupancyOptions: [
-        { emoji: "🎁", label: "Beneficio sin descuento", recommended: true, discount: 0,
-          message: `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos una bebida de regalo. Respondé este mensaje y te ayudamos a coordinar.` },
-        { emoji: "⭐", label: "Upgrade de servicio", discount: 0,
-          message: `Hola 👋 Reservá tu turno para el ${DEMO.lowDay} y te incluimos un upgrade de servicio sin cargo. Es nuestra forma de reconocer tu preferencia. Escribinos y te contamos los horarios disponibles.` },
-        { emoji: "💸", label: "10% OFF", discount: 10,
-          message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 10% de descuento por tiempo limitado. Respondé este mensaje y te reservamos el lugar.` },
-        { emoji: "💸", label: "15% OFF", discount: 15,
-          message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 15% de descuento especial. Si te interesa, respondé y te ayudamos a reservar.` },
-        { emoji: "⚙️", label: "Personalizado", discount: undefined,
-          message: "" },
+        {
+          emoji: "🎁",
+          label: "Beneficio sin descuento",
+          recommended: true,
+          discount: 0,
+          message: `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos una bebida de regalo. Respondé este mensaje y te ayudamos a coordinar.`,
+        },
+        {
+          emoji: "⭐",
+          label: "Upgrade de servicio",
+          discount: 0,
+          message: `Hola 👋 Reservá tu turno para el ${DEMO.lowDay} y te incluimos un upgrade de servicio sin cargo. Es nuestra forma de reconocer tu preferencia. Escribinos y te contamos los horarios disponibles.`,
+        },
+        {
+          emoji: "💸",
+          label: "10% OFF",
+          discount: 10,
+          message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 10% de descuento por tiempo limitado. Respondé este mensaje y te reservamos el lugar.`,
+        },
+        {
+          emoji: "💸",
+          label: "15% OFF",
+          discount: 15,
+          message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 15% de descuento especial. Si te interesa, respondé y te ayudamos a reservar.`,
+        },
+        { emoji: "⚙️", label: "Personalizado", discount: undefined, message: "" },
       ],
     });
   }
@@ -1064,40 +1273,99 @@ const DEMO_PREV = {
   occupancy: 54,
   growth: 18,
   weeklyRevenue: [680000, 820000, 960000, 1002000],
-  weeklyProfit:  [280000, 350000, 440000, 490000],
+  weeklyProfit: [280000, 350000, 440000, 490000],
   weeklyClients: [160, 182, 198, 202],
 };
 
 // ─── HISTORIAL MES ANTERIOR ───────────────────────────────────────────────────
 
 function HistorialMesAnterior() {
-  const [activeMetric, setActiveMetric] = React.useState<"revenue" | "profit" | "clients">("revenue");
+  const [activeMetric, setActiveMetric] = React.useState<"revenue" | "profit" | "clients">(
+    "revenue",
+  );
 
   const metricConfig = {
-    revenue: { label: "Facturación", color: "#a78bfa", data: DEMO_PREV.weeklyRevenue, fmt: (v: number) => fmtAR(v) },
-    profit:  { label: "Utilidad",   color: "#34d399", data: DEMO_PREV.weeklyProfit,   fmt: (v: number) => fmtAR(v) },
-    clients: { label: "Clientes",   color: "#60a5fa", data: DEMO_PREV.weeklyClients,  fmt: (v: number) => String(v) },
+    revenue: {
+      label: "Facturación",
+      color: "#a78bfa",
+      data: DEMO_PREV.weeklyRevenue,
+      fmt: (v: number) => fmtAR(v),
+    },
+    profit: {
+      label: "Utilidad",
+      color: "#34d399",
+      data: DEMO_PREV.weeklyProfit,
+      fmt: (v: number) => fmtAR(v),
+    },
+    clients: {
+      label: "Clientes",
+      color: "#60a5fa",
+      data: DEMO_PREV.weeklyClients,
+      fmt: (v: number) => String(v),
+    },
   };
 
   const cfg = metricConfig[activeMetric];
   const CHART_H = 90;
 
   const impulsores: { tone: "good" | "warning"; text: string }[] = [
-    { tone: "good",    text: "Clientes nuevos +16% vs período anterior" },
-    { tone: "good",    text: "Ticket promedio +10% vs período anterior" },
-    { tone: "good",    text: "Ocupación +8 puntos vs período anterior" },
+    { tone: "good", text: "Clientes nuevos +16% vs período anterior" },
+    { tone: "good", text: "Ticket promedio +10% vs período anterior" },
+    { tone: "good", text: "Ocupación +8 puntos vs período anterior" },
     { tone: "warning", text: `${DEMO.inactiveClients} clientes sin retorno en +45 días` },
     { tone: "warning", text: `${DEMO.freeSlotsMonth} turnos disponibles sin ocupar` },
   ];
 
   const statCards = [
-    { label: "Ingresos",           value: fmtAR(DEMO_PREV.revenue),       sub: "Facturación bruta",       color: "text-violet-300", bg: "bg-violet-400/10 ring-1 ring-violet-400/20" },
-    { label: "Gastos",             value: fmtAR(DEMO_PREV.expenses),      sub: "Costos del período",      color: "text-rose-300",   bg: "bg-rose-400/10 ring-1 ring-rose-400/20" },
-    { label: "Utilidad",           value: fmtAR(DEMO_PREV.profit),        sub: "Ganancia neta",           color: "text-emerald-300",bg: "bg-emerald-400/10 ring-1 ring-emerald-400/20" },
-    { label: "Clientes atendidos", value: String(DEMO_PREV.clientsTotal), sub: "Total del mes",           color: "text-sky-300",    bg: "bg-sky-400/10 ring-1 ring-sky-400/20" },
-    { label: "Clientes nuevos",    value: String(DEMO_PREV.clientsNew),   sub: "+16% vs mes previo",      color: "text-sky-300",    bg: "bg-sky-400/10 ring-1 ring-sky-400/20" },
-    { label: "Ticket promedio",    value: fmtAR(DEMO_PREV.ticket),        sub: "+10% vs mes previo",      color: "text-cyan-300",  bg: "bg-cyan-400/10 ring-1 ring-cyan-400/20" },
-    { label: "Ocupación",          value: `${DEMO_PREV.occupancy}%`,      sub: "+8 pts vs mes previo",    color: "text-orange-300", bg: "bg-orange-400/10 ring-1 ring-orange-400/20" },
+    {
+      label: "Ingresos",
+      value: fmtAR(DEMO_PREV.revenue),
+      sub: "Facturación bruta",
+      color: "text-violet-300",
+      bg: "bg-violet-400/10 ring-1 ring-violet-400/20",
+    },
+    {
+      label: "Gastos",
+      value: fmtAR(DEMO_PREV.expenses),
+      sub: "Costos del período",
+      color: "text-rose-300",
+      bg: "bg-rose-400/10 ring-1 ring-rose-400/20",
+    },
+    {
+      label: "Utilidad",
+      value: fmtAR(DEMO_PREV.profit),
+      sub: "Ganancia neta",
+      color: "text-emerald-300",
+      bg: "bg-emerald-400/10 ring-1 ring-emerald-400/20",
+    },
+    {
+      label: "Clientes atendidos",
+      value: String(DEMO_PREV.clientsTotal),
+      sub: "Total del mes",
+      color: "text-sky-300",
+      bg: "bg-sky-400/10 ring-1 ring-sky-400/20",
+    },
+    {
+      label: "Clientes nuevos",
+      value: String(DEMO_PREV.clientsNew),
+      sub: "+16% vs mes previo",
+      color: "text-sky-300",
+      bg: "bg-sky-400/10 ring-1 ring-sky-400/20",
+    },
+    {
+      label: "Ticket promedio",
+      value: fmtAR(DEMO_PREV.ticket),
+      sub: "+10% vs mes previo",
+      color: "text-cyan-300",
+      bg: "bg-cyan-400/10 ring-1 ring-cyan-400/20",
+    },
+    {
+      label: "Ocupación",
+      value: `${DEMO_PREV.occupancy}%`,
+      sub: "+8 pts vs mes previo",
+      color: "text-orange-300",
+      bg: "bg-orange-400/10 ring-1 ring-orange-400/20",
+    },
   ];
 
   const maxVal = Math.max(...cfg.data);
@@ -1111,12 +1379,20 @@ function HistorialMesAnterior() {
             <BarChart2 className="h-3.5 w-3.5" />
             Historial del mes anterior
           </div>
-          <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight">📅 {DEMO_PREV.month}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Resumen completo del período anterior para comparar con el mes actual.</p>
+          <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight">
+            📅 {DEMO_PREV.month}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Resumen completo del período anterior para comparar con el mes actual.
+          </p>
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-right shrink-0">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Crecimiento</div>
-          <div className="mt-1 font-display text-3xl font-semibold text-primary">+{DEMO_PREV.growth}%</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+            Crecimiento
+          </div>
+          <div className="mt-1 font-display text-3xl font-semibold text-primary">
+            +{DEMO_PREV.growth}%
+          </div>
           <div className="text-[10px] text-muted-foreground mt-0.5">vs mes previo</div>
         </div>
       </div>
@@ -1125,8 +1401,12 @@ function HistorialMesAnterior() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {statCards.map((card) => (
           <div key={card.label} className={cn("rounded-2xl p-4", card.bg)}>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wider">{card.label}</div>
-            <div className={cn("mt-2 font-display text-xl font-semibold", card.color)}>{card.value}</div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider">
+              {card.label}
+            </div>
+            <div className={cn("mt-2 font-display text-xl font-semibold", card.color)}>
+              {card.value}
+            </div>
             <div className="mt-1 text-[10px] text-muted-foreground">{card.sub}</div>
           </div>
         ))}
@@ -1145,10 +1425,12 @@ function HistorialMesAnterior() {
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ring-1",
                   activeMetric === k
-                    ? k === "revenue" ? "bg-violet-500/15 ring-violet-400/30 text-violet-300"
-                      : k === "profit" ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300"
-                      : "bg-sky-500/15 ring-sky-400/30 text-sky-300"
-                    : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground"
+                    ? k === "revenue"
+                      ? "bg-violet-500/15 ring-violet-400/30 text-violet-300"
+                      : k === "profit"
+                        ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300"
+                        : "bg-sky-500/15 ring-sky-400/30 text-sky-300"
+                    : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground",
                 )}
               >
                 {metricConfig[k].label}
@@ -1162,16 +1444,24 @@ function HistorialMesAnterior() {
             const labels = ["Sem 1", "Sem 2", "Sem 3", "Sem 4"];
             return (
               <div key={i} className="flex flex-col items-center gap-1.5 flex-1">
-                <div className="text-[10px] font-semibold truncate w-full text-center" style={{ color: cfg.color }}>
+                <div
+                  className="text-[10px] font-semibold truncate w-full text-center"
+                  style={{ color: cfg.color }}
+                >
                   {cfg.fmt(val)}
                 </div>
-                <div className="w-full rounded-t-lg relative" style={{ height: `${CHART_H}px`, backgroundColor: "rgba(255,255,255,0.04)" }}>
+                <div
+                  className="w-full rounded-t-lg relative"
+                  style={{ height: `${CHART_H}px`, backgroundColor: "rgba(255,255,255,0.04)" }}
+                >
                   <div
                     className="absolute bottom-0 w-full rounded-t-lg transition-all duration-700"
                     style={{ height: `${barH}px`, backgroundColor: cfg.color, opacity: 0.75 }}
                   />
                 </div>
-                <div className="text-[10px] text-muted-foreground whitespace-nowrap">{labels[i]}</div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  {labels[i]}
+                </div>
               </div>
             );
           })}
@@ -1205,15 +1495,22 @@ function HistorialMesAnterior() {
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed">
           La utilidad de {DEMO_PREV.month} creció un{" "}
-          <span className="font-semibold text-emerald-300">+30%</span> respecto al mes previo, impulsada principalmente por el aumento de clientes nuevos (+16%) y el ticket promedio (+10%). La ocupación mejoró 8 puntos alcanzando el 62%. Sin embargo, persisten{" "}
-          <span className="font-semibold text-cyan-300">{DEMO.freeSlotsMonth} espacios libres en agenda</span> y{" "}
-          <span className="font-semibold text-cyan-300">{DEMO.inactiveClients} clientes inactivos</span> que representan una oportunidad concreta de crecimiento para el mes actual.
+          <span className="font-semibold text-emerald-300">+30%</span> respecto al mes previo,
+          impulsada principalmente por el aumento de clientes nuevos (+16%) y el ticket promedio
+          (+10%). La ocupación mejoró 8 puntos alcanzando el 62%. Sin embargo, persisten{" "}
+          <span className="font-semibold text-cyan-300">
+            {DEMO.freeSlotsMonth} espacios libres en agenda
+          </span>{" "}
+          y{" "}
+          <span className="font-semibold text-cyan-300">
+            {DEMO.inactiveClients} clientes inactivos
+          </span>{" "}
+          que representan una oportunidad concreta de crecimiento para el mes actual.
         </p>
       </div>
     </GlassCard>
   );
 }
-
 
 function getStrategicIdea() {
   return {
@@ -1235,17 +1532,55 @@ function percent(now: number, previous: number) {
 }
 
 function getHealthTone(health: number) {
-  if (health >= 85) return { label: "Excelente", message: "Tu negocio está funcionando muy bien. Mantené el ritmo actual.", text: "text-emerald-400", bar: "from-emerald-500 to-primary" };
-  if (health >= 70) return { label: "Bueno", message: "Tu negocio está saludable, aunque todavía hay oportunidades de crecimiento.", text: "text-lime-300", bar: "from-lime-400 to-primary" };
-  if (health >= 50) return { label: "Regular", message: "Hay indicadores que requieren atención para mejorar el rendimiento.", text: "text-cyan-300", bar: "from-cyan-400 to-accent" };
-  return { label: "Crítico", message: "Tu negocio necesita acciones urgentes para recuperar su rendimiento.", text: "text-red-400", bar: "from-red-500 to-cyan-400" };
+  if (health >= 85)
+    return {
+      label: "Excelente",
+      message: "Tu negocio está funcionando muy bien. Mantené el ritmo actual.",
+      text: "text-emerald-400",
+      bar: "from-emerald-500 to-primary",
+    };
+  if (health >= 70)
+    return {
+      label: "Bueno",
+      message: "Tu negocio está saludable, aunque todavía hay oportunidades de crecimiento.",
+      text: "text-lime-300",
+      bar: "from-lime-400 to-primary",
+    };
+  if (health >= 50)
+    return {
+      label: "Regular",
+      message: "Hay indicadores que requieren atención para mejorar el rendimiento.",
+      text: "text-cyan-300",
+      bar: "from-cyan-400 to-accent",
+    };
+  return {
+    label: "Crítico",
+    message: "Tu negocio necesita acciones urgentes para recuperar su rendimiento.",
+    text: "text-red-400",
+    bar: "from-red-500 to-cyan-400",
+  };
 }
 
 function GlassCard({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("glass rounded-3xl bg-white/[0.025] ring-1 ring-white/[0.08] shadow-[0_18px_70px_-45px_rgba(99,102,241,0.65)]", className)}>{children}</div>;
+  return (
+    <div
+      className={cn(
+        "glass rounded-3xl bg-white/[0.025] ring-1 ring-white/[0.08] shadow-[0_18px_70px_-45px_rgba(99,102,241,0.65)]",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
-function Badge({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+function Badge({
+  icon: Icon,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary ring-1 ring-primary/20">
       <Icon className="h-3.5 w-3.5" />
@@ -1314,7 +1649,11 @@ function ActionCard({ action, onOpen }: { action: AdvisorAction; onOpen: () => v
           action.tone === "neutral" && "bg-white/5 text-white ring-white/10",
         )}
       >
-        {action.tone === "client" ? <MessageCircle className="h-4 w-4" /> : <Target className="h-4 w-4" />}
+        {action.tone === "client" ? (
+          <MessageCircle className="h-4 w-4" />
+        ) : (
+          <Target className="h-4 w-4" />
+        )}
       </div>
 
       <div className="text-sm font-semibold">{action.title}</div>
@@ -1373,11 +1712,16 @@ function PrioridadesTab({
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-emerald-400/10 ring-1 ring-emerald-400/20">
           <CheckCircle2 className="h-8 w-8 text-emerald-400" />
         </div>
-        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">🎉 ¡Estás al día!</h2>
+        <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">
+          🎉 ¡Estás al día!
+        </h2>
         <p className="mt-2 max-w-md mx-auto text-sm text-muted-foreground">
-          No se detectaron nuevas acciones prioritarias para hoy. Tu negocio está funcionando correctamente según los indicadores actuales.
+          No se detectaron nuevas acciones prioritarias para hoy. Tu negocio está funcionando
+          correctamente según los indicadores actuales.
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">Volvé mañana para revisar nuevas oportunidades detectadas por la IA.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Volvé mañana para revisar nuevas oportunidades detectadas por la IA.
+        </p>
         <button
           type="button"
           onClick={onReset}
@@ -1390,35 +1734,47 @@ function PrioridadesTab({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Main card */}
-      <GlassCard className="p-6 sm:p-8">
+      <GlassCard className="relative overflow-hidden border-cyan-400/20 p-6 shadow-[0_0_80px_rgba(34,211,238,0.10),0_0_110px_rgba(16,185,129,0.08)] sm:p-8">
+        <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-cyan-400/20 blur-[90px]" />
+        <div className="pointer-events-none absolute right-0 top-0 h-80 w-80 rounded-full bg-emerald-400/16 blur-[95px]" />
+        <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
         {/* Header */}
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
-            🎯 Prioridad detectada por IA
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.25em] text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.16)]">
+            🎯 Oportunidad detectada por IA
           </div>
-          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-white">{current.title}</h2>
+          <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            {current.title}
+          </h2>
         </div>
 
         {/* Oportunidad + Impacto */}
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">🔍 Oportunidad detectada</div>
+        <div className="relative z-10 mt-6 grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-3xl border border-white/12 bg-white/[0.04] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              🔍 Oportunidad detectada
+            </div>
             <p className="mt-3 text-sm leading-relaxed text-white">{current.problem}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 flex flex-col justify-between">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">💰 Oportunidad económica</div>
-            <div className="mt-3 font-display text-4xl font-semibold tracking-tight text-emerald-300 leading-none">
+          <div className="relative overflow-hidden rounded-3xl border border-emerald-300/35 bg-gradient-to-br from-emerald-400/[0.16] via-cyan-400/[0.08] to-white/[0.035] p-5 shadow-[0_0_55px_rgba(16,185,129,0.16),inset_0_1px_0_rgba(255,255,255,0.10)] flex flex-col justify-between">
+            <div className="pointer-events-none absolute -right-14 -top-14 h-40 w-40 rounded-full bg-emerald-300/25 blur-3xl" />
+            <div className="relative text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">
+              💰 Potencial mensual
+            </div>
+            <div className="relative mt-3 font-display text-5xl font-semibold tracking-tight text-emerald-300 leading-none drop-shadow-[0_0_20px_rgba(52,211,153,0.22)]">
               {current.impactAmount}
             </div>
-            <p className="mt-3 text-xs text-muted-foreground leading-relaxed">{current.impactExplanation}</p>
+            <p className="relative mt-3 text-xs text-emerald-50/70 leading-relaxed">
+              {current.impactExplanation}
+            </p>
           </div>
         </div>
 
         {/* Cómo tomar acción */}
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="text-sm font-semibold text-white">✅ Cómo tomar acción</div>
+        <div className="relative z-10 mt-4 rounded-3xl border border-cyan-300/15 bg-gradient-to-br from-white/[0.055] to-cyan-400/[0.035] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <div className="text-sm font-semibold text-white">✅ Plan de acción</div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {current.howToAct.map((step) => (
               <div key={step} className="flex items-start gap-2.5">
@@ -1430,140 +1786,193 @@ function PrioridadesTab({
         </div>
 
         {/* Opciones de acción para baja ocupación */}
-        {current.occupancyOptions && (() => {
-          const opts = current.occupancyOptions!;
-          const selOpt = opts[selectedOptionIdx];
-          const isCustom = selOpt?.label === "Personalizado";
-          const discountPct = isCustom
-            ? Math.max(0, Math.min(100, Number(customDiscount) || 0))
-            : (selOpt?.discount ?? 0);
+        {current.occupancyOptions &&
+          (() => {
+            const opts = current.occupancyOptions!;
+            const selOpt = opts[selectedOptionIdx];
+            const isCustom = selOpt?.label === "Personalizado";
+            const discountPct = isCustom
+              ? Math.max(0, Math.min(100, Number(customDiscount) || 0))
+              : (selOpt?.discount ?? 0);
 
-          // Recalculate impact based on selected option
-          const baseAmount = Math.round(8 * DEMO.ticket);
-          const adjustedAmount = discountPct > 0
-            ? Math.round(baseAmount * (1 - discountPct / 100))
-            : baseAmount;
-          const diffVsBase = adjustedAmount - baseAmount;
+            // Recalculate impact based on selected option
+            const baseAmount = Math.round(8 * DEMO.ticket);
+            const adjustedAmount =
+              discountPct > 0 ? Math.round(baseAmount * (1 - discountPct / 100)) : baseAmount;
+            const diffVsBase = adjustedAmount - baseAmount;
 
-          // Derive active message
-          const activeMsg = isCustom
-            ? customMsg
-            : (selOpt?.message ?? current.suggestedMessage);
+            // Derive active message
+            const activeMsg = isCustom ? customMsg : (selOpt?.message ?? current.suggestedMessage);
 
-          // Reco text based on selection
-          const recoText = (() => {
-            if (isCustom) return "Configurá los detalles del beneficio personalizado y la IA ajustará la recomendación.";
-            if (!selOpt?.discount) return "Mantener el precio protege tu margen. Un beneficio de bajo costo puede ser suficiente para activar la demanda en este día.";
-            if (selOpt.discount <= 10) return `Un ${selOpt.discount}% de descuento es moderado. Puede impulsar la demanda, pero considerá que reduce el ingreso por turno. Aplicalo por tiempo limitado y medí la respuesta.`;
-            return `Un ${selOpt.discount}% de descuento es significativo. Solo conviene si la ocupación de este día sigue siendo baja después de probar opciones sin descuento.`;
-          })();
+            // Reco text based on selection
+            const recoText = (() => {
+              if (isCustom)
+                return "Configurá los detalles del beneficio personalizado y la IA ajustará la recomendación.";
+              if (!selOpt?.discount)
+                return "Mantener el precio protege tu margen. Un beneficio de bajo costo puede ser suficiente para activar la demanda en este día.";
+              if (selOpt.discount <= 10)
+                return `Un ${selOpt.discount}% de descuento es moderado. Puede impulsar la demanda, pero considerá que reduce el ingreso por turno. Aplicalo por tiempo limitado y medí la respuesta.`;
+              return `Un ${selOpt.discount}% de descuento es significativo. Solo conviene si la ocupación de este día sigue siendo baja después de probar opciones sin descuento.`;
+            })();
 
-          return (
-            <div className="mt-4 space-y-4">
-              {/* Selector de opción */}
-              <div className="rounded-2xl border border-primary/20 bg-primary/[0.05] p-5">
-                <div className="text-sm font-semibold text-white mb-1">¿Qué tipo de acción querés implementar?</div>
-                <p className="text-xs text-muted-foreground mb-4">Clippr recomienda priorizar beneficios antes de bajar precios para proteger la rentabilidad.</p>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {opts.map((opt, i) => {
-                    const isSelected = selectedOptionIdx === i;
-                    return (
-                      <button
-                        key={opt.label}
-                        type="button"
-                        onClick={() => setSelectedOptionIdx(i)}
-                        className={cn(
-                          "relative flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition text-left",
-                          isSelected
-                            ? opt.recommended
-                              ? "border-emerald-400/50 bg-emerald-400/[0.12] ring-1 ring-emerald-400/30"
-                              : "border-primary/50 bg-primary/[0.12] ring-1 ring-primary/30"
-                            : "border-white/10 bg-white/[0.03] hover:border-white/20"
-                        )}
-                      >
-                        <span className="text-base shrink-0">{opt.emoji}</span>
-                        <span className={cn("font-medium", isSelected ? (opt.recommended ? "text-emerald-300" : "text-primary") : "text-muted-foreground")}>
-                          {opt.label}
-                        </span>
-                        {opt.recommended && (
-                          <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full ring-1 ring-emerald-400/20 whitespace-nowrap shrink-0">
-                            Recomendado
+            return (
+              <div className="relative z-10 mt-4 space-y-4">
+                {/* Selector de opción */}
+                <div className="relative overflow-hidden rounded-3xl border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.08] via-blue-500/[0.04] to-violet-500/[0.05] p-5 shadow-[0_0_50px_rgba(59,130,246,0.10),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-cyan-300/14 blur-3xl" />
+                  <div className="relative text-sm font-semibold text-white mb-1">
+                    ¿Qué tipo de acción querés implementar?
+                  </div>
+                  <p className="relative text-xs text-muted-foreground mb-4">
+                    Clippr recomienda priorizar beneficios antes de bajar precios para proteger la
+                    rentabilidad.
+                  </p>
+                  <div className="relative grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {opts.map((opt, i) => {
+                      const isSelected = selectedOptionIdx === i;
+                      return (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => setSelectedOptionIdx(i)}
+                          className={cn(
+                            "relative flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition text-left",
+                            isSelected
+                              ? opt.recommended
+                                ? "border-emerald-400/50 bg-emerald-400/[0.12] ring-1 ring-emerald-400/30"
+                                : "border-primary/50 bg-primary/[0.12] ring-1 ring-primary/30"
+                              : "border-white/10 bg-white/[0.03] hover:border-white/20",
+                          )}
+                        >
+                          <span className="text-base shrink-0">{opt.emoji}</span>
+                          <span
+                            className={cn(
+                              "font-medium",
+                              isSelected
+                                ? opt.recommended
+                                  ? "text-emerald-300"
+                                  : "text-primary"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {opt.label}
                           </span>
-                        )}
-                        {isSelected && !opt.recommended && (
-                          <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-primary" />
-                        )}
-                      </button>
-                    );
-                  })}
+                          {opt.recommended && (
+                            <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full ring-1 ring-emerald-400/20 whitespace-nowrap shrink-0">
+                              Recomendado
+                            </span>
+                          )}
+                          {isSelected && !opt.recommended && (
+                            <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Personalizado: campos extra */}
+                  {isCustom && (
+                    <div className="mt-4 grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-cyan-100/75 mb-1 block">
+                          Nombre de la acción
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Corte + bebida, Promo martes, Upgrade de barba"
+                          value={customBenefit}
+                          onChange={(e) => setCustomBenefit(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">
+                          Descuento % (0 = sin descuento)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Ej: 0 o 10"
+                          value={customDiscount}
+                          onChange={(e) => setCustomDiscount(e.target.value.replace(/\D/g, ""))}
+                          className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Personalizado: campos extra */}
-                {isCustom && (
-                  <div className="mt-4 grid sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Nombre del beneficio</label>
-                      <input type="text" placeholder="Ej: Shampoo gratis"
-                        value={customBenefit} onChange={(e) => setCustomBenefit(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Descuento % (0 = sin descuento)</label>
-                      <input type="text" inputMode="numeric" placeholder="Ej: 0 o 10"
-                        value={customDiscount} onChange={(e) => setCustomDiscount(e.target.value.replace(/\D/g, ""))}
-                        className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
-                    </div>
+                {/* Oportunidad económica recalculada */}
+                {discountPct > 0 && (
+                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 flex items-start gap-3">
+                    <AlertTriangle className="h-4 w-4 text-cyan-400 mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Con un{" "}
+                      <span className="font-semibold text-cyan-300">
+                        {discountPct}% de descuento
+                      </span>{" "}
+                      la oportunidad económica se reduce a{" "}
+                      <span className="font-semibold text-white">+{fmtAR(adjustedAmount)}/mes</span>{" "}
+                      (vs {fmtAR(baseAmount)} sin descuento). Diferencia:{" "}
+                      <span className="text-rose-300 font-semibold">{fmtAR(diffVsBase)}</span>.
+                    </p>
                   </div>
                 )}
-              </div>
 
-              {/* Oportunidad económica recalculada */}
-              {discountPct > 0 && (
-                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 flex items-start gap-3">
-                  <AlertTriangle className="h-4 w-4 text-cyan-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Con un <span className="font-semibold text-cyan-300">{discountPct}% de descuento</span> la oportunidad económica se reduce a{" "}
-                    <span className="font-semibold text-white">+{fmtAR(adjustedAmount)}/mes</span>{" "}
-                    (vs {fmtAR(baseAmount)} sin descuento). Diferencia: <span className="text-rose-300 font-semibold">{fmtAR(diffVsBase)}</span>.
-                  </p>
-                </div>
-              )}
-
-              {/* Recomendación dinámica según opción */}
-              <div className={cn(
-                "rounded-2xl border p-4",
-                !selOpt?.discount ? "border-emerald-400/20 bg-emerald-400/[0.05]" :
-                selOpt.discount <= 10 ? "border-cyan-400/20 bg-cyan-400/[0.05]" :
-                "border-rose-400/20 bg-rose-400/[0.05]"
-              )}>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Recomendación IA</div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{recoText}</p>
-              </div>
-
-              {/* Mensaje reactivo */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                <div className="text-sm font-semibold text-white">💬 Mensaje sugerido editable</div>
-                <p className="mt-1 text-xs text-muted-foreground">Adaptalo al tono de tu negocio. Sirve para WhatsApp, email, Instagram o campañas.</p>
-                <textarea
-                  value={isCustom ? customMsg : activeMsg}
-                  onChange={(e) => {
-                    if (isCustom) setCustomMsg(e.target.value);
-                  }}
-                  readOnly={!isCustom}
+                {/* Recomendación dinámica según opción */}
+                <div
                   className={cn(
-                    "mt-3 min-h-[110px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition resize-none",
-                    isCustom ? "focus:border-primary/50" : "cursor-default opacity-90"
+                    "rounded-2xl border p-4",
+                    !selOpt?.discount
+                      ? "border-emerald-400/20 bg-emerald-400/[0.05]"
+                      : selOpt.discount <= 10
+                        ? "border-cyan-400/20 bg-cyan-400/[0.05]"
+                        : "border-rose-400/20 bg-rose-400/[0.05]",
                   )}
-                />
-                {!isCustom && (
-                  <p className="mt-1.5 text-[10px] text-muted-foreground">
-                    Seleccioná "Personalizado" para editar el mensaje libremente.
+                >
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">
+                    Recomendación IA
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{recoText}</p>
+                </div>
+
+                {/* Mensaje reactivo */}
+                <div className="rounded-3xl border border-white/12 bg-white/[0.045] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  <div className="text-sm font-semibold text-white">
+                    {isCustom
+                      ? "⚙️ Configurar acción personalizada"
+                      : "💬 Mensaje listo para enviar"}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {isCustom
+                      ? "Escribí una propuesta clara para enviar por WhatsApp, email o Instagram."
+                      : "Podés usar este texto como base para activar más turnos."}
                   </p>
-                )}
+                  <textarea
+                    value={isCustom ? customMsg : activeMsg}
+                    placeholder={
+                      isCustom
+                        ? "Escribí el mensaje que querés enviar a tus clientes..."
+                        : undefined
+                    }
+                    onChange={(e) => {
+                      if (isCustom) setCustomMsg(e.target.value);
+                    }}
+                    readOnly={!isCustom}
+                    className={cn(
+                      "mt-3 min-h-[110px] w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm text-white outline-none transition resize-none placeholder:text-muted-foreground/60",
+                      isCustom ? "focus:border-cyan-300/50" : "cursor-default opacity-90",
+                    )}
+                  />
+                  {!isCustom && (
+                    <p className="mt-1.5 text-[10px] text-muted-foreground">
+                      Seleccioná "Personalizado" para editar el mensaje libremente.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         {/* Mensaje sugerido estándar (solo si no hay occupancyOptions) */}
         {!current.occupancyOptions && (
@@ -1588,7 +1997,9 @@ function PrioridadesTab({
 
 function MessageSugeridoBlock({ suggestedMessage }: { suggestedMessage: string }) {
   const [message, setMessage] = React.useState(suggestedMessage);
-  React.useEffect(() => { setMessage(suggestedMessage); }, [suggestedMessage]);
+  React.useEffect(() => {
+    setMessage(suggestedMessage);
+  }, [suggestedMessage]);
 
   return (
     <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -1615,30 +2026,47 @@ function RecommendationDetailModal({
   onResolve: () => void;
 }) {
   const [message, setMessage] = React.useState(action.suggestedMessage);
-  React.useEffect(() => { setMessage(action.suggestedMessage); }, [action.suggestedMessage]);
+  React.useEffect(() => {
+    setMessage(action.suggestedMessage);
+  }, [action.suggestedMessage]);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-background p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">🎯 Prioridad detectada por IA</div>
-            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">{action.title}</h2>
+            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
+              🎯 Prioridad detectada por IA
+            </div>
+            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">
+              {action.title}
+            </h2>
           </div>
-          <button type="button" onClick={onClose}
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+          >
             Cerrar
           </button>
         </div>
         <div className="mt-6 grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">🔍 Oportunidad detectada</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              🔍 Oportunidad detectada
+            </div>
             <p className="mt-2 text-sm leading-relaxed text-white">{action.problem}</p>
           </div>
           <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">💰 Impacto estimado</div>
-            <div className="mt-2 font-display text-2xl font-semibold text-emerald-300">{action.impact}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Basado en datos reales de los últimos 30 días.</p>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
+              💰 Impacto estimado
+            </div>
+            <div className="mt-2 font-display text-2xl font-semibold text-emerald-300">
+              {action.impact}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Basado en datos reales de los últimos 30 días.
+            </p>
           </div>
         </div>
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -1654,13 +2082,21 @@ function RecommendationDetailModal({
         </div>
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div className="text-sm font-semibold text-white">💬 Mensaje sugerido editable</div>
-          <p className="mt-1 text-xs text-muted-foreground">Adaptalo al tono de tu negocio. Sirve para WhatsApp, email o mensaje directo.</p>
-          <textarea value={message} onChange={(e) => setMessage(e.target.value)}
-            className="mt-3 min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition focus:border-primary/50" />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Adaptalo al tono de tu negocio. Sirve para WhatsApp, email o mensaje directo.
+          </p>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            className="mt-3 min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none transition focus:border-primary/50"
+          />
         </div>
         <div className="mt-5">
-          <button type="button" onClick={onResolve}
-            className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20">
+          <button
+            type="button"
+            onClick={onResolve}
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
+          >
             <CheckCircle2 className="h-3.5 w-3.5" />
             Marcar como resuelto
           </button>
@@ -1678,9 +2114,15 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
         <div className="pointer-events-none absolute -left-20 bottom-0 h-48 w-48 rounded-full bg-sky-400/10 blur-3xl" />
         <div className="relative flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">Información</div>
-            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">{content.title}</h2>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{content.description}</p>
+            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">
+              Información
+            </div>
+            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">
+              {content.title}
+            </h2>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+              {content.description}
+            </p>
           </div>
           <button
             type="button"
@@ -1693,8 +2135,13 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
 
         <div className="relative mt-6 space-y-3">
           {content.points.map((point, index) => (
-            <div key={point} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-relaxed text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-300/10 text-xs font-bold text-emerald-300">{index + 1}</span>
+            <div
+              key={point}
+              className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-relaxed text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+            >
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-300/10 text-xs font-bold text-emerald-300">
+                {index + 1}
+              </span>
               <span>{point}</span>
             </div>
           ))}
@@ -1704,37 +2151,62 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
   );
 }
 
-function ReportCard({ report, isPrimary = false }: { report: { month: string; health: number; growth: number; profit: number; revenue: number }; isPrimary?: boolean }) {
+function ReportCard({
+  report,
+  isPrimary = false,
+}: {
+  report: { month: string; health: number; growth: number; profit: number; revenue: number };
+  isPrimary?: boolean;
+}) {
   const healthTone = getHealthTone(report.health);
   const growthPositive = report.growth >= 0;
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-2xl border p-5 flex flex-col gap-4 transition-all",
-      isPrimary
-        ? "border-emerald-300/25 bg-emerald-300/[0.055] shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_22px_70px_-46px_rgba(45,212,191,0.75)] hover:border-emerald-300/35"
-        : "border-white/10 bg-white/[0.026] opacity-85 hover:opacity-100 hover:border-white/20"
-    )}>
-      {isPrimary && <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/45 to-transparent" />}
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-2xl border p-5 flex flex-col gap-4 transition-all",
+        isPrimary
+          ? "border-emerald-300/25 bg-emerald-300/[0.055] shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_22px_70px_-46px_rgba(45,212,191,0.75)] hover:border-emerald-300/35"
+          : "border-white/10 bg-white/[0.026] opacity-85 hover:opacity-100 hover:border-white/20",
+      )}
+    >
+      {isPrimary && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/45 to-transparent" />
+      )}
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            {isPrimary && <span className="rounded-full bg-emerald-300/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/20">Último</span>}
-            <p className={cn("font-semibold text-white", isPrimary ? "text-base" : "text-sm")}>{report.month}</p>
+            {isPrimary && (
+              <span className="rounded-full bg-emerald-300/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/20">
+                Último
+              </span>
+            )}
+            <p className={cn("font-semibold text-white", isPrimary ? "text-base" : "text-sm")}>
+              {report.month}
+            </p>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground uppercase tracking-wider">Informe guardado</p>
+          <p className="mt-1 text-[10px] text-muted-foreground uppercase tracking-wider">
+            Informe guardado
+          </p>
         </div>
-        <span className={cn(
-          "text-xs font-bold px-2 py-0.5 rounded-full ring-1",
-          growthPositive ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300" : "bg-rose-400/10 ring-rose-400/20 text-rose-300"
-        )}>
-          {growthPositive ? "+" : ""}{report.growth}%
+        <span
+          className={cn(
+            "text-xs font-bold px-2 py-0.5 rounded-full ring-1",
+            growthPositive
+              ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300"
+              : "bg-rose-400/10 ring-rose-400/20 text-rose-300",
+          )}
+        >
+          {growthPositive ? "+" : ""}
+          {report.growth}%
         </span>
       </div>
 
       <div className="space-y-2 text-xs">
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Utilidad</span>
-          <span className={cn("font-semibold text-emerald-300", isPrimary && "text-sm")}>{fmtAR(report.profit)}</span>
+          <span className={cn("font-semibold text-emerald-300", isPrimary && "text-sm")}>
+            {fmtAR(report.profit)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Facturación</span>
@@ -1742,12 +2214,17 @@ function ReportCard({ report, isPrimary = false }: { report: { month: string; he
         </div>
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Salud</span>
-          <span className={cn("font-semibold", healthTone.text)}>{report.health}/100 · {healthTone.label}</span>
+          <span className={cn("font-semibold", healthTone.text)}>
+            {report.health}/100 · {healthTone.label}
+          </span>
         </div>
       </div>
 
       <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-        <div className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)} style={{ width: `${report.health}%` }} />
+        <div
+          className={cn("h-full rounded-full bg-gradient-to-r", healthTone.bar)}
+          style={{ width: `${report.health}%` }}
+        />
       </div>
     </div>
   );
@@ -1758,7 +2235,9 @@ function ReportPlaceholder({ month }: { month: string }) {
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <p className="text-sm font-semibold text-white">{month}</p>
       <p className="mt-1 text-xs text-muted-foreground">Sin informe guardado.</p>
-      <p className="mt-4 text-xs text-muted-foreground">Se va a crear automáticamente cuando corresponda.</p>
+      <p className="mt-4 text-xs text-muted-foreground">
+        Se va a crear automáticamente cuando corresponda.
+      </p>
     </div>
   );
 }
@@ -1772,10 +2251,12 @@ function SimuladoresTab(props: SimuladorProps) {
     <div className="space-y-5">
       {/* Selector interno */}
       <div className="flex gap-2">
-        {([
-          { key: "precios", label: "💰 Simulador de precios" },
-          { key: "profesional", label: "🧑‍💼 Sumar un profesional" },
-        ] as const).map((t) => (
+        {(
+          [
+            { key: "precios", label: "💰 Simulador de precios" },
+            { key: "profesional", label: "🧑‍💼 Sumar un profesional" },
+          ] as const
+        ).map((t) => (
           <button
             key={t.key}
             type="button"
@@ -1784,7 +2265,7 @@ function SimuladoresTab(props: SimuladorProps) {
               "rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all",
               sim === t.key
                 ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground"
+                : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
             )}
           >
             {t.label}
@@ -1833,7 +2314,10 @@ function useServicesData(businessId: string | null | undefined) {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (!businessId) { setLoading(false); return; }
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
     async function load() {
@@ -1888,7 +2372,9 @@ function useServicesData(businessId: string | null | undefined) {
     }
 
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [businessId]);
 
   return { servicios, loading };
@@ -1901,15 +2387,45 @@ function fmtNum(n: number) {
 }
 
 const nivelMeta = {
-  recomendado:     { emoji: "✅", label: "Recomendado",            cls: "border-emerald-400/30 bg-emerald-400/[0.16]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
-  progresivo:      { emoji: "🟡", label: "Aplicar progresivamente", cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
-  evaluar:         { emoji: "🟡", label: "Evaluar con cuidado",    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
-  no_recomendado:  { emoji: "🔴", label: "No recomendado todavía", cls: "border-rose-400/30 bg-rose-400/[0.07]",     titleCls: "text-rose-300",    dot: "bg-rose-400" },
-  alto_riesgo:     { emoji: "⚠️", label: "Alto riesgo",            cls: "border-orange-400/30 bg-orange-400/[0.07]", titleCls: "text-orange-300",  dot: "bg-orange-400" },
+  recomendado: {
+    emoji: "✅",
+    label: "Recomendado",
+    cls: "border-emerald-400/30 bg-emerald-400/[0.16]",
+    titleCls: "text-emerald-300",
+    dot: "bg-emerald-400",
+  },
+  progresivo: {
+    emoji: "🟡",
+    label: "Aplicar progresivamente",
+    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",
+    titleCls: "text-cyan-300",
+    dot: "bg-cyan-400",
+  },
+  evaluar: {
+    emoji: "🟡",
+    label: "Evaluar con cuidado",
+    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",
+    titleCls: "text-cyan-300",
+    dot: "bg-cyan-400",
+  },
+  no_recomendado: {
+    emoji: "🔴",
+    label: "No recomendado todavía",
+    cls: "border-rose-400/30 bg-rose-400/[0.07]",
+    titleCls: "text-rose-300",
+    dot: "bg-rose-400",
+  },
+  alto_riesgo: {
+    emoji: "⚠️",
+    label: "Alto riesgo",
+    cls: "border-orange-400/30 bg-orange-400/[0.07]",
+    titleCls: "text-orange-300",
+    dot: "bg-orange-400",
+  },
 };
 
 // Servicios demo (en producción vendrían de price_catalog de Supabase)
-const PRESETS_PCT  = [10, 15, 20];
+const PRESETS_PCT = [10, 15, 20];
 const PRESETS_FIJO = [500, 1000, 2000, 5000];
 
 function getRecomendacion(
@@ -1923,21 +2439,39 @@ function getRecomendacion(
   const pctPerdible = cantidadMensual > 0 ? (serviciosPerdibles / cantidadMensual) * 100 : 0;
 
   if (pctAumento > 30) {
-    return { nivel: "alto_riesgo", resumen: `Este aumento representa un ${pctAumento.toFixed(0)}% sobre el precio actual, lo que es demasiado alto en relación a la demanda. Podrías perder más clientes de los que compensaría el nuevo precio. Considerá hacerlo en dos etapas.` };
+    return {
+      nivel: "alto_riesgo",
+      resumen: `Este aumento representa un ${pctAumento.toFixed(0)}% sobre el precio actual, lo que es demasiado alto en relación a la demanda. Podrías perder más clientes de los que compensaría el nuevo precio. Considerá hacerlo en dos etapas.`,
+    };
   }
   if (ocupacion >= 80 && pctAumento <= 15) {
-    return { nivel: "recomendado", resumen: `Tu ocupación es alta (${ocupacion}%) y el aumento es moderado (${pctAumento.toFixed(0)}%). Este cambio parece seguro: podés perder hasta ${serviciosPerdibles} servicios al mes y seguir facturando lo mismo. Podés aplicarlo directamente.` };
+    return {
+      nivel: "recomendado",
+      resumen: `Tu ocupación es alta (${ocupacion}%) y el aumento es moderado (${pctAumento.toFixed(0)}%). Este cambio parece seguro: podés perder hasta ${serviciosPerdibles} servicios al mes y seguir facturando lo mismo. Podés aplicarlo directamente.`,
+    };
   }
   if (ocupacion >= 80 && pctAumento > 15) {
-    return { nivel: "progresivo", resumen: `Tu ocupación es alta (${ocupacion}%) pero el aumento es considerable (${pctAumento.toFixed(0)}%). Conviene aplicarlo primero en clientes nuevos y servicios premium durante 2 semanas antes de generalizarlo.` };
+    return {
+      nivel: "progresivo",
+      resumen: `Tu ocupación es alta (${ocupacion}%) pero el aumento es considerable (${pctAumento.toFixed(0)}%). Conviene aplicarlo primero en clientes nuevos y servicios premium durante 2 semanas antes de generalizarlo.`,
+    };
   }
   if (ocupacion >= 60 && pctAumento <= 15) {
-    return { nivel: "progresivo", resumen: `Tu ocupación es moderada (${ocupacion}%) y el aumento es razonable (${pctAumento.toFixed(0)}%). Puede funcionar bien, pero conviene comunicarlo con anticipación y medir la respuesta los primeros 15 días. Podés perder hasta ${serviciosPerdibles} turnos sin perder facturación.` };
+    return {
+      nivel: "progresivo",
+      resumen: `Tu ocupación es moderada (${ocupacion}%) y el aumento es razonable (${pctAumento.toFixed(0)}%). Puede funcionar bien, pero conviene comunicarlo con anticipación y medir la respuesta los primeros 15 días. Podés perder hasta ${serviciosPerdibles} turnos sin perder facturación.`,
+    };
   }
   if (ocupacion >= 60 && pctAumento > 15) {
-    return { nivel: "evaluar", resumen: `Tu ocupación es del ${ocupacion}% y el aumento es del ${pctAumento.toFixed(0)}%. El riesgo es medio-alto. Antes de aplicarlo en toda la agenda, probalo en servicios premium o con clientes nuevos y medí el impacto real.` };
+    return {
+      nivel: "evaluar",
+      resumen: `Tu ocupación es del ${ocupacion}% y el aumento es del ${pctAumento.toFixed(0)}%. El riesgo es medio-alto. Antes de aplicarlo en toda la agenda, probalo en servicios premium o con clientes nuevos y medí el impacto real.`,
+    };
   }
-  return { nivel: "no_recomendado", resumen: `Tu ocupación actual (${ocupacion}%) todavía tiene margen libre. Subir precios ahora podría frenar la captación de nuevos clientes justo cuando más los necesitás. Primero conviene completar la agenda y luego revisar los precios.` };
+  return {
+    nivel: "no_recomendado",
+    resumen: `Tu ocupación actual (${ocupacion}%) todavía tiene margen libre. Subir precios ahora podría frenar la captación de nuevos clientes justo cuando más los necesitás. Primero conviene completar la agenda y luego revisar los precios.`,
+  };
 }
 
 function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
@@ -1955,28 +2489,37 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
     }
   }, [serviciosReales, servicioId]);
 
-  const servicio = serviciosReales.find(s => s.id === servicioId) ?? serviciosReales[0] ?? null;
+  const servicio = serviciosReales.find((s) => s.id === servicioId) ?? serviciosReales[0] ?? null;
   const precioActual = servicio?.precio ?? 0;
   const cantidadMensual = servicio?.mensual ?? 0;
   const facturacionServicio = precioActual * cantidadMensual;
 
-
   // Calcular aumento en pesos
-  const aumentoNum = tipoAumento === "fijo"
-    ? Math.max(0, Number(aumentoFijo) || 0)
-    : Math.round(precioActual * (Math.max(0, Number(aumentoPct) || 0) / 100));
+  const aumentoNum =
+    tipoAumento === "fijo"
+      ? Math.max(0, Number(aumentoFijo) || 0)
+      : Math.round(precioActual * (Math.max(0, Number(aumentoPct) || 0) / 100));
 
   const nuevoPrecio = precioActual + aumentoNum;
   const ingresoExtra = aumentoNum * cantidadMensual;
-  const cantidadEquilibrio = nuevoPrecio > 0 ? Math.ceil(facturacionServicio / nuevoPrecio) : cantidadMensual;
+  const cantidadEquilibrio =
+    nuevoPrecio > 0 ? Math.ceil(facturacionServicio / nuevoPrecio) : cantidadMensual;
   const serviciosPerdibles = Math.max(0, cantidadMensual - cantidadEquilibrio);
-  const pctPerdible = cantidadMensual > 0 ? ((serviciosPerdibles / cantidadMensual) * 100).toFixed(1) : "0";
-  const riesgoLabel = Number(pctPerdible) < 10 ? "Bajo" : Number(pctPerdible) < 25 ? "Medio" : "Alto";
-  const riesgoColor = Number(pctPerdible) < 10 ? "text-emerald-300" : Number(pctPerdible) < 25 ? "text-cyan-300" : "text-rose-300";
+  const pctPerdible =
+    cantidadMensual > 0 ? ((serviciosPerdibles / cantidadMensual) * 100).toFixed(1) : "0";
+  const riesgoLabel =
+    Number(pctPerdible) < 10 ? "Bajo" : Number(pctPerdible) < 25 ? "Medio" : "Alto";
+  const riesgoColor =
+    Number(pctPerdible) < 10
+      ? "text-emerald-300"
+      : Number(pctPerdible) < 25
+        ? "text-cyan-300"
+        : "text-rose-300";
 
-  const recomendacion = simulado && aumentoNum > 0
-    ? getRecomendacion(aumentoNum, precioActual, ocupacion, serviciosPerdibles, cantidadMensual)
-    : null;
+  const recomendacion =
+    simulado && aumentoNum > 0
+      ? getRecomendacion(aumentoNum, precioActual, ocupacion, serviciosPerdibles, cantidadMensual)
+      : null;
 
   function calcular() {
     if (!aumentoNum) return;
@@ -1994,15 +2537,20 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
       {/* Header */}
       <div>
         <Badge icon={DollarSign}>Simulador de precios</Badge>
-        <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">💰 Simulador de precios</h2>
+        <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
+          💰 Simulador de precios
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Elegí un servicio, elegí el aumento y la IA te dice si conviene, cuánto ganás y cuántos clientes podés perder sin facturar menos.
+          Elegí un servicio, elegí el aumento y la IA te dice si conviene, cuánto ganás y cuántos
+          clientes podés perder sin facturar menos.
         </p>
       </div>
 
       {/* Paso 1: Elegir servicio */}
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">1. Elegí el servicio a simular</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          1. Elegí el servicio a simular
+        </p>
         {loadingServicios ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -2010,17 +2558,27 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
           </div>
         ) : serviciosReales.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground">
-            No hay servicios activos. Creá servicios en <span className="font-semibold text-white">Configuración → Servicios</span> para usar el simulador.
+            No hay servicios activos. Creá servicios en{" "}
+            <span className="font-semibold text-white">Configuración → Servicios</span> para usar el
+            simulador.
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
             {serviciosReales.map((s) => (
-              <button key={s.id} type="button"
-                onClick={() => { setServicioId(s.id); reset(); }}
-                className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  setServicioId(s.id);
+                  reset();
+                }}
+                className={cn(
+                  "rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
                   servicioId === s.id
                     ? "border-primary/50 bg-primary/15 text-primary"
-                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                )}
+              >
                 {s.nombre}
               </button>
             ))}
@@ -2030,40 +2588,74 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
 
       {/* Paso 2: Datos actuales del servicio */}
       {servicio && (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">2. Datos actuales — {servicio.nombre}</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {[
-            { label: "Precio actual",      value: `$${fmtNum(precioActual)}` },
-            { label: "Servicios este mes", value: cantidadMensual > 0 ? fmtNum(cantidadMensual) : "—" },
-            { label: "Facturación/mes",    value: cantidadMensual > 0 ? `$${fmtNum(facturacionServicio)}` : "—" },
-            { label: "Ocupación",          value: `${ocupacion}%` },
-            { label: "Ticket prom. (total)", value: `$${fmtNum(ticket)}` },
-          ].map((d) => (
-            <div key={d.label} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground leading-tight">{d.label}</div>
-              <div className="mt-1.5 text-sm font-bold text-white tabular-nums">{d.value}</div>
-            </div>
-          ))}
-        </div>
-        {cantidadMensual === 0 && (
-          <p className="text-xs text-muted-foreground">
-            No se registraron turnos para <span className="font-semibold text-white">{servicio.nombre}</span> en el mes actual. La simulación usará el precio del servicio; el ingreso extra estimado se calculará por unidad.
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            2. Datos actuales — {servicio.nombre}
           </p>
-        )}
-      </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {[
+              { label: "Precio actual", value: `$${fmtNum(precioActual)}` },
+              {
+                label: "Servicios este mes",
+                value: cantidadMensual > 0 ? fmtNum(cantidadMensual) : "—",
+              },
+              {
+                label: "Facturación/mes",
+                value: cantidadMensual > 0 ? `$${fmtNum(facturacionServicio)}` : "—",
+              },
+              { label: "Ocupación", value: `${ocupacion}%` },
+              { label: "Ticket prom. (total)", value: `$${fmtNum(ticket)}` },
+            ].map((d) => (
+              <div
+                key={d.label}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center"
+              >
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground leading-tight">
+                  {d.label}
+                </div>
+                <div className="mt-1.5 text-sm font-bold text-white tabular-nums">{d.value}</div>
+              </div>
+            ))}
+          </div>
+          {cantidadMensual === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No se registraron turnos para{" "}
+              <span className="font-semibold text-white">{servicio.nombre}</span> en el mes actual.
+              La simulación usará el precio del servicio; el ingreso extra estimado se calculará por
+              unidad.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Paso 3: Elegir aumento */}
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">3. Elegí el aumento</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          3. Elegí el aumento
+        </p>
 
         {/* Toggle fijo / % */}
         <div className="flex gap-2 mb-3">
-          {([["fijo", "Monto fijo ($)"], ["pct", "Porcentaje (%)"]] as const).map(([k, lbl]) => (
-            <button key={k} type="button" onClick={() => { setTipoAumento(k); reset(); }}
-              className={cn("rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
-                tipoAumento === k ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground")}>
+          {(
+            [
+              ["fijo", "Monto fijo ($)"],
+              ["pct", "Porcentaje (%)"],
+            ] as const
+          ).map(([k, lbl]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => {
+                setTipoAumento(k);
+                reset();
+              }}
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
+                tipoAumento === k
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-white/10 bg-white/[0.03] text-muted-foreground",
+              )}
+            >
               {lbl}
             </button>
           ))}
@@ -2072,28 +2664,66 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
         {tipoAumento === "fijo" ? (
           <div className="flex flex-wrap gap-2 items-center">
             {PRESETS_FIJO.map((p) => (
-              <button key={p} type="button" onClick={() => { setAumentoFijo(String(p)); setSimulado(false); }}
-                className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
-                  Number(aumentoFijo) === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  setAumentoFijo(String(p));
+                  setSimulado(false);
+                }}
+                className={cn(
+                  "rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+                  Number(aumentoFijo) === p
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                )}
+              >
                 +${fmtNum(p)}
               </button>
             ))}
-            <input type="text" inputMode="numeric" placeholder="Otro monto $"
-              value={aumentoFijo} onChange={(e) => { setAumentoFijo(e.target.value.replace(/\D/g, "")); setSimulado(false); }}
-              className="w-36 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Otro monto $"
+              value={aumentoFijo}
+              onChange={(e) => {
+                setAumentoFijo(e.target.value.replace(/\D/g, ""));
+                setSimulado(false);
+              }}
+              className="w-36 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50"
+            />
           </div>
         ) : (
           <div className="flex flex-wrap gap-2 items-center">
             {PRESETS_PCT.map((p) => (
-              <button key={p} type="button" onClick={() => { setAumentoPct(String(p)); setSimulado(false); }}
-                className={cn("rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
-                  Number(aumentoPct) === p ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground")}>
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  setAumentoPct(String(p));
+                  setSimulado(false);
+                }}
+                className={cn(
+                  "rounded-xl border px-4 py-2 text-sm font-semibold transition-all",
+                  Number(aumentoPct) === p
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                )}
+              >
                 +{p}%
               </button>
             ))}
-            <input type="text" inputMode="numeric" placeholder="Otro %"
-              value={aumentoPct} onChange={(e) => { setAumentoPct(e.target.value.replace(/\D/g, "")); setSimulado(false); }}
-              className="w-28 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50" />
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Otro %"
+              value={aumentoPct}
+              onChange={(e) => {
+                setAumentoPct(e.target.value.replace(/\D/g, ""));
+                setSimulado(false);
+              }}
+              className="w-28 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/50"
+            />
           </div>
         )}
 
@@ -2106,8 +2736,11 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
               <span className="font-bold text-emerald-300">${fmtNum(nuevoPrecio)}</span>
               <span className="text-xs text-emerald-300/70">(+${fmtNum(aumentoNum)})</span>
             </div>
-            <button type="button" onClick={calcular}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110">
+            <button
+              type="button"
+              onClick={calcular}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+            >
               <Sparkles className="h-3.5 w-3.5" />
               Calcular
             </button>
@@ -2118,19 +2751,37 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
       {/* Paso 4 + 5: Resultados + Recomendación */}
       {simulado && aumentoNum > 0 && (
         <div className="space-y-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">4. Resultado de la simulación</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            4. Resultado de la simulación
+          </p>
 
           {/* Métricas clave */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "Precio actual",        value: `$${fmtNum(precioActual)}`,  color: "text-white" },
-              { label: "Nuevo precio",          value: `$${fmtNum(nuevoPrecio)}`,   color: "text-emerald-300" },
-              { label: "Diferencia por servicio", value: `+$${fmtNum(aumentoNum)}`, color: "text-emerald-300" },
-              { label: "Ingreso extra estimado",  value: `+$${fmtNum(ingresoExtra)}/mes`, color: "text-emerald-300" },
+              { label: "Precio actual", value: `$${fmtNum(precioActual)}`, color: "text-white" },
+              {
+                label: "Nuevo precio",
+                value: `$${fmtNum(nuevoPrecio)}`,
+                color: "text-emerald-300",
+              },
+              {
+                label: "Diferencia por servicio",
+                value: `+$${fmtNum(aumentoNum)}`,
+                color: "text-emerald-300",
+              },
+              {
+                label: "Ingreso extra estimado",
+                value: `+$${fmtNum(ingresoExtra)}/mes`,
+                color: "text-emerald-300",
+              },
             ].map((m) => (
               <div key={m.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{m.label}</div>
-                <div className={cn("mt-2 font-display text-xl font-bold tabular-nums", m.color)}>{m.value}</div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {m.label}
+                </div>
+                <div className={cn("mt-2 font-display text-xl font-bold tabular-nums", m.color)}>
+                  {m.value}
+                </div>
               </div>
             ))}
           </div>
@@ -2138,21 +2789,32 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
           {/* Punto de equilibrio + Riesgo */}
           <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-5 grid sm:grid-cols-2 gap-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary mb-2">Punto de equilibrio</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary mb-2">
+                Punto de equilibrio
+              </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Podés perder hasta{" "}
-                <span className="font-bold text-white">{fmtNum(serviciosPerdibles)} servicios/mes ({pctPerdible}%)</span>{" "}
+                <span className="font-bold text-white">
+                  {fmtNum(serviciosPerdibles)} servicios/mes ({pctPerdible}%)
+                </span>{" "}
                 y seguir facturando los mismos{" "}
-                <span className="font-bold text-white">${fmtNum(facturacionServicio)}</span> actuales.
+                <span className="font-bold text-white">${fmtNum(facturacionServicio)}</span>{" "}
+                actuales.
               </p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Riesgo estimado</p>
-              <div className={cn("font-display text-3xl font-bold", riesgoColor)}>{riesgoLabel}</div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">
+                Riesgo estimado
+              </p>
+              <div className={cn("font-display text-3xl font-bold", riesgoColor)}>
+                {riesgoLabel}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {riesgoLabel === "Bajo" ? "Podés perder poca demanda antes de perder facturación."
-                  : riesgoLabel === "Medio" ? "Hay margen, pero conviene monitorear las primeras semanas."
-                  : "El margen para perder demanda sin afectar facturación es pequeño."}
+                {riesgoLabel === "Bajo"
+                  ? "Podés perder poca demanda antes de perder facturación."
+                  : riesgoLabel === "Medio"
+                    ? "Hay margen, pero conviene monitorear las primeras semanas."
+                    : "El margen para perder demanda sin afectar facturación es pequeño."}
               </p>
             </div>
           </div>
@@ -2163,13 +2825,17 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-2xl">{nivelMeta[recomendacion.nivel].emoji}</span>
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    Recomendación IA
+                  </p>
                   <p className={cn("text-base font-bold", nivelMeta[recomendacion.nivel].titleCls)}>
                     {nivelMeta[recomendacion.nivel].label}
                   </p>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{recomendacion.resumen}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {recomendacion.resumen}
+              </p>
             </div>
           )}
         </div>
@@ -2180,7 +2846,13 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
 
 // ─── SIMULADOR PROFESIONAL ────────────────────────────────────────────────────
 
-function SimuladorProfesional({ servicios, facturacion, ticket, clientes, ocupacion }: SimuladorProps) {
+function SimuladorProfesional({
+  servicios,
+  facturacion,
+  ticket,
+  clientes,
+  ocupacion,
+}: SimuladorProps) {
   const [loadingIA, setLoadingIA] = React.useState(false);
   const [resultado, setResultado] = React.useState<ProfSimResult | null>(null);
   const [analizado, setAnalizado] = React.useState(false);
@@ -2220,25 +2892,35 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 500,
+          messages: [{ role: "user", content: prompt }],
+        }),
       });
       const json = await res.json();
-      const text = (json.content ?? []).map((b: { type: string; text?: string }) => b.type === "text" ? (b.text ?? "") : "").join("");
+      const text = (json.content ?? [])
+        .map((b: { type: string; text?: string }) => (b.type === "text" ? (b.text ?? "") : ""))
+        .join("");
       setResultado(JSON.parse(text.replace(/```json|```/g, "").trim()) as ProfSimResult);
     } catch {
-      const nivel: ProfSimResult["nivel"] = ocupacion >= 80 ? "recomendado" : ocupacion >= 65 ? "evaluar" : "no_recomendado";
-      const facturacionPotencial = nivel === "recomendado" ? Math.round(servicios * 0.8 * ticket) : 0;
+      const nivel: ProfSimResult["nivel"] =
+        ocupacion >= 80 ? "recomendado" : ocupacion >= 65 ? "evaluar" : "no_recomendado";
+      const facturacionPotencial =
+        nivel === "recomendado" ? Math.round(servicios * 0.8 * ticket) : 0;
       setResultado({
         nivel,
-        resumen: nivel === "recomendado"
-          ? `Tu ocupación del ${ocupacion}% indica que la agenda está casi completa. La demanda actual supera la capacidad disponible y se detectan horarios sin disponibilidad de forma recurrente.`
-          : nivel === "evaluar"
-          ? `Tu ocupación del ${ocupacion}% es moderada. Todavía existe capacidad para crecer con el equipo actual. Se recomienda volver a analizar cuando la ocupación supere el 80%.`
-          : `Tu ocupación del ${ocupacion}% indica que hay capacidad disponible con el equipo actual. Antes de incorporar personal, conviene trabajar en completar la agenda existente.`,
+        resumen:
+          nivel === "recomendado"
+            ? `Tu ocupación del ${ocupacion}% indica que la agenda está casi completa. La demanda actual supera la capacidad disponible y se detectan horarios sin disponibilidad de forma recurrente.`
+            : nivel === "evaluar"
+              ? `Tu ocupación del ${ocupacion}% es moderada. Todavía existe capacidad para crecer con el equipo actual. Se recomienda volver a analizar cuando la ocupación supere el 80%.`
+              : `Tu ocupación del ${ocupacion}% indica que hay capacidad disponible con el equipo actual. Antes de incorporar personal, conviene trabajar en completar la agenda existente.`,
         facturacionPotencial,
-        explicacionFacturacion: nivel === "recomendado"
-          ? `Basado en la demanda que no puede absorberse con la capacidad actual al ${ocupacion}% de ocupación y un ticket promedio de $${fmtNum(ticket)}.`
-          : "",
+        explicacionFacturacion:
+          nivel === "recomendado"
+            ? `Basado en la demanda que no puede absorberse con la capacidad actual al ${ocupacion}% de ocupación y un ticket promedio de $${fmtNum(ticket)}.`
+            : "",
       });
     } finally {
       setLoadingIA(false);
@@ -2251,9 +2933,12 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Badge icon={TrendingUp}>Análisis de equipo</Badge>
-          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">👥 ¿Conviene incorporar un profesional?</h2>
+          <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
+            👥 ¿Conviene incorporar un profesional?
+          </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            La IA analiza la ocupación, demanda y capacidad actual para recomendarte si es el momento.
+            La IA analiza la ocupación, demanda y capacidad actual para recomendarte si es el
+            momento.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -2262,8 +2947,13 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
             { label: "🎟️ Ticket prom.", value: `$${fmtNum(ticket)}` },
             { label: "💰 Facturación", value: `$${fmtNum(facturacion)}` },
           ].map((d) => (
-            <div key={d.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[100px]">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{d.label}</div>
+            <div
+              key={d.label}
+              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-center min-w-[100px]"
+            >
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                {d.label}
+              </div>
               <div className="mt-1 text-sm font-semibold tabular-nums">{d.value}</div>
             </div>
           ))}
@@ -2273,7 +2963,9 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
       {/* Qué analiza la IA */}
       {!analizado && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">La IA va a analizar</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">
+            La IA va a analizar
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {[
               "Ocupación promedio del período",
@@ -2294,8 +2986,11 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
 
       {/* Botón analizar */}
       {!analizado && (
-        <button type="button" onClick={analizar}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-6 py-2.5 text-sm font-semibold text-white transition hover:brightness-110">
+        <button
+          type="button"
+          onClick={analizar}
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-6 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+        >
           <Sparkles className="h-4 w-4" />
           Analizar ahora
         </button>
@@ -2307,7 +3002,9 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
           <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
           <div>
             <p className="text-sm font-semibold">Analizando tu negocio…</p>
-            <p className="text-xs text-muted-foreground mt-0.5">La IA evalúa ocupación, demanda, horarios y tendencia de clientes.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              La IA evalúa ocupación, demanda, horarios y tendencia de clientes.
+            </p>
           </div>
         </div>
       )}
@@ -2320,58 +3017,82 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
             <div className="flex items-center gap-3">
               <span className="text-2xl">{nivelMeta[resultado.nivel].emoji}</span>
               <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recomendación IA</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                  Recomendación IA
+                </p>
                 <p className={cn("text-base font-semibold", nivelMeta[resultado.nivel].titleCls)}>
                   {resultado.nivel === "recomendado"
                     ? ocupacion >= 90
                       ? "Se recomienda incorporar un profesional"
                       : "Comenzar a evaluar la incorporación"
                     : resultado.nivel === "evaluar"
-                    ? "Todavía no es necesario"
-                    : "No se recomienda actualmente"}
+                      ? "Todavía no es necesario"
+                      : "No se recomienda actualmente"}
                 </p>
               </div>
             </div>
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{resultado.resumen}</p>
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+              {resultado.resumen}
+            </p>
           </div>
 
           {/* Impacto económico — coherente con la recomendación */}
           {resultado.nivel === "recomendado" ? (
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">📈 Facturación potencial estimada</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
+                📈 Facturación potencial estimada
+              </p>
               <p className="mt-3 font-display text-4xl font-semibold text-emerald-300 tracking-tight">
                 +${fmtNum(resultado.facturacionPotencial)}
                 <span className="ml-2 text-base font-normal text-emerald-300/70">por mes</span>
               </p>
-              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{resultado.explicacionFacturacion}</p>
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                {resultado.explicacionFacturacion}
+              </p>
             </div>
           ) : resultado.nivel === "evaluar" ? (
             <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.06] p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">📈 Potencial de crecimiento con el equipo actual</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                📈 Potencial de crecimiento con el equipo actual
+              </p>
               <p className="mt-3 font-display text-4xl font-semibold text-cyan-300 tracking-tight">
                 {Math.round((1 - ocupacion / 100) * 100)}%
-                <span className="ml-2 text-base font-normal text-cyan-300/70">de capacidad disponible</span>
+                <span className="ml-2 text-base font-normal text-cyan-300/70">
+                  de capacidad disponible
+                </span>
               </p>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                Ocupación actual: {ocupacion}%. Todavía existe capacidad suficiente para crecer con el equipo actual. Se recomienda volver a analizar cuando la ocupación supere el 80%.
+                Ocupación actual: {ocupacion}%. Todavía existe capacidad suficiente para crecer con
+                el equipo actual. Se recomienda volver a analizar cuando la ocupación supere el 80%.
               </p>
             </div>
           ) : (
             <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">📅 Capacidad disponible actual</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                📅 Capacidad disponible actual
+              </p>
               <p className="mt-3 font-display text-4xl font-semibold text-foreground tracking-tight">
                 ~{Math.round(servicios * (1 - ocupacion / 100))}
-                <span className="ml-2 text-base font-normal text-muted-foreground">espacios libres por mes</span>
+                <span className="ml-2 text-base font-normal text-muted-foreground">
+                  espacios libres por mes
+                </span>
               </p>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                Todavía existen turnos disponibles con el equipo actual. Completar la agenda antes de incorporar un nuevo profesional maximiza la rentabilidad.
+                Todavía existen turnos disponibles con el equipo actual. Completar la agenda antes
+                de incorporar un nuevo profesional maximiza la rentabilidad.
               </p>
             </div>
           )}
 
           {/* Volver a analizar */}
-          <button type="button" onClick={() => { setAnalizado(false); setResultado(null); }}
-            className="text-xs font-semibold text-muted-foreground hover:text-foreground transition">
+          <button
+            type="button"
+            onClick={() => {
+              setAnalizado(false);
+              setResultado(null);
+            }}
+            className="text-xs font-semibold text-muted-foreground hover:text-foreground transition"
+          >
             Volver a analizar
           </button>
         </div>
@@ -2379,4 +3100,3 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
     </GlassCard>
   );
 }
-
