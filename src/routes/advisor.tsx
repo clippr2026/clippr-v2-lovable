@@ -64,6 +64,17 @@ type InfoModalContent = {
 };
 
 const INFO_CONTENT = {
+  health: {
+    title: "Estado actual del negocio",
+    description: "Resume la salud general del negocio en un puntaje simple de 0 a 100, combinando rentabilidad, clientes, ocupación y oportunidades pendientes.",
+    points: [
+      "82/100 indica que el negocio está saludable, pero todavía tiene margen para crecer.",
+      "El puntaje sube cuando mejora la utilidad, aumentan los clientes, se ocupa mejor la agenda y baja la cantidad de oportunidades perdidas.",
+      "Los factores de la derecha muestran qué está empujando el resultado: utilidad, captación de clientes y ocupación.",
+      "Las alertas inferiores marcan oportunidades concretas: clientes para recuperar y turnos disponibles sin ocupar.",
+      "Este diagnóstico sirve para decidir rápido dónde enfocar acciones comerciales esta semana.",
+    ],
+  },
   growth: {
     title: "Evolución del negocio",
     description: "Mide cómo evolucionó la utilidad del negocio frente al mes anterior — tanto mejoras como caídas.",
@@ -163,7 +174,7 @@ function AdvisorRoute() {
     <AppShell>
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-        {analysisStarted && !isAnalyzing && (
+        {!isAnalyzing && (
           <div className="flex items-center gap-2 shrink-0">
           {([
             { key: "analisis",    label: "📊 Análisis" },
@@ -363,18 +374,28 @@ function AdvisorContent({
       {advisorTab === "analisis" && (<>
 
       {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-emerald-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.10),0_26px_105px_-48px_rgba(45,212,191,0.82)] sm:p-4">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.115] blur-3xl" />
+      <div className="relative rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
         {/* Separador de sección */}
         <div className="relative flex items-center gap-4 mb-4">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Salud del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         </div>
-      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.25] bg-white/[0.048] shadow-[0_0_0_1px_rgba(45,212,191,0.11),0_32px_110px_-46px_rgba(45,212,191,0.88)]">
+      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(45,212,191,0.16),0_35px_125px_-40px_rgba(45,212,191,1)]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">Estado actual</h2>
-        <p className="text-sm text-muted-foreground mb-4">Rentabilidad, clientes y ocupación del período.</p>
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-2xl font-bold tracking-tight">Estado actual</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Rentabilidad, clientes y ocupación del período.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setInfoModal(INFO_CONTENT.health)}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-emerald-300/35 bg-emerald-300/10 text-xs font-bold text-emerald-300 shadow-[0_0_22px_rgba(45,212,191,0.18)] transition hover:bg-emerald-300/20 hover:text-white"
+            aria-label="Información de estado actual"
+          >i</button>
+        </div>
 
         <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-5 items-center">
           {/* Left: circular gauge + bar */}
@@ -1623,27 +1644,30 @@ function RecommendationDetailModal({
 
 function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-background p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/65 px-4 backdrop-blur-md">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-[#090714]/95 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_35px_120px_-55px_rgba(45,212,191,0.85)]">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-emerald-400/12 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 bottom-0 h-48 w-48 rounded-full bg-sky-400/10 blur-3xl" />
+        <div className="relative flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Información</div>
-            <h2 className="mt-2 font-display text-xl font-semibold tracking-tight text-white">{content.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{content.description}</p>
+            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">Información</div>
+            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">{content.title}</h2>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{content.description}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+            className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.09] hover:text-white"
           >
             Cerrar
           </button>
         </div>
 
-        <div className="mt-5 space-y-3">
-          {content.points.map((point) => (
-            <div key={point} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-muted-foreground">
-              {point}
+        <div className="relative mt-6 space-y-3">
+          {content.points.map((point, index) => (
+            <div key={point} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-relaxed text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-300/10 text-xs font-bold text-emerald-300">{index + 1}</span>
+              <span>{point}</span>
             </div>
           ))}
         </div>
@@ -1849,7 +1873,7 @@ function fmtNum(n: number) {
 }
 
 const nivelMeta = {
-  recomendado:     { emoji: "✅", label: "Recomendado",            cls: "border-emerald-400/30 bg-emerald-400/[0.115]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
+  recomendado:     { emoji: "✅", label: "Recomendado",            cls: "border-emerald-400/30 bg-emerald-400/[0.16]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
   progresivo:      { emoji: "🟡", label: "Aplicar progresivamente", cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
   evaluar:         { emoji: "🟡", label: "Evaluar con cuidado",    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
   no_recomendado:  { emoji: "🔴", label: "No recomendado todavía", cls: "border-rose-400/30 bg-rose-400/[0.07]",     titleCls: "text-rose-300",    dot: "bg-rose-400" },
