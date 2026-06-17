@@ -1542,7 +1542,7 @@ function StatsView({
       </div>
 
       {/* Servicios Desglose */}
-      <ServiciosDesglose sales={sales} businessId={businessId} />
+      <ServiciosDesglose sales={sales} businessId={businessId} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />
     </div>
   );
 }
@@ -1559,7 +1559,7 @@ const PIE_COLORS = [
   "oklch(0.75 0.14 95)",   // lime
 ];
 
-function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessId: string | null }) {
+function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }: { sales: ProfSale[]; businessId: string | null; commissionPct: number; commissionFixed: number }) {
   const [tab, setTab] = React.useState<"all" | "services" | "catalog">("all");
 
   // Load price_catalog to classify each sale by real origin
@@ -1605,6 +1605,11 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
 
       if (!rawName || saleTotal <= 0) continue;
 
+      // En este desglose mostramos SOLO la comisión del profesional, no el total facturado.
+      const saleCommission = commissionFixed > 0
+        ? Number(commissionFixed)
+        : Math.round(saleTotal * (Number(commissionPct || 0) / 100));
+
       // Find which real catalog items appear in this payment's service_name
       const matched: typeof allReal = [];
       let remaining = rawName;
@@ -1625,13 +1630,13 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
         const key = matched[0].name;
         const existing = map.get(key);
         if (existing) {
-          existing.total += saleTotal;
+          existing.total += saleCommission;
         } else {
-          map.set(key, { displayName: matched[0].displayName, total: saleTotal, isService: matched[0].isService, isCatalog: matched[0].isCatalog });
+          map.set(key, { displayName: matched[0].displayName, total: saleCommission, isService: matched[0].isService, isCatalog: matched[0].isCatalog });
         }
       } else {
         // Multiple items: split total evenly
-        const share = saleTotal / matched.length;
+        const share = saleCommission / matched.length;
         for (const real of matched) {
           const existing = map.get(real.name);
           if (existing) {
@@ -1645,7 +1650,7 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
 
     return Array.from(map.values())
       .sort((a, b) => b.total - a.total);
-  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded]);
+  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded, commissionPct, commissionFixed]);
 
   const filtered = React.useMemo(() => {
     if (tab === "services") return aggregated.filter(i => i.isService);
@@ -1681,7 +1686,7 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
 
       <div className="flex items-start justify-between mb-4">
         <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Servicios</div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Comisión por servicio</div>
           <div className="mt-0.5 text-2xl font-display font-light tracking-tight">Desglose</div>
         </div>
         {/* Tabs */}
@@ -1724,7 +1729,7 @@ function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessI
                   style={{ transform: "rotate(-90deg)", transformOrigin: `${CX}px ${CY}px`, transition: "stroke-dasharray 0.5s" }}
                 />
               ))}
-              <text x={CX} y={CY - 8} textAnchor="middle" fill="white" fontSize="11" opacity="0.5" fontFamily="sans-serif">Total</text>
+              <text x={CX} y={CY - 8} textAnchor="middle" fill="white" fontSize="11" opacity="0.5" fontFamily="sans-serif">Comisión</text>
               <text x={CX} y={CY + 10} textAnchor="middle" fill="white" fontSize="14" fontWeight="600" fontFamily="sans-serif">
                 {fmt(grandTotal)}
               </text>
