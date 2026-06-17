@@ -15,6 +15,7 @@ import {
 import {
   openCashSession,
   closeCashSession,
+  reopenCashSession,
 } from "@/components/cash-register/session-actions";
 import { PreciosTab } from "@/components/cash-register/precios-tab";
 import { InventarioTab } from "@/components/cash-register/inventario-tab";
@@ -188,7 +189,6 @@ export const Route = createFileRoute("/cash-register")({
     finalAmount: (search.finalAmount as string) ?? null,
     depositPaid: (search.depositPaid as string) ?? null,
     totalPrice: (search.totalPrice as string) ?? null,
-    fromAgenda: (search.fromAgenda as string) ?? null,
   }),
   head: () => ({
     meta: [
@@ -210,34 +210,6 @@ function CashRegisterPage() {
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
-  const routeAppointmentCharge = React.useMemo(() => {
-    if (!search.appointmentId) return null;
-
-    const amount = Number(search.finalAmount ?? search.totalPrice ?? 0);
-    const servicePrice = Number.isFinite(amount) && amount > 0 ? amount : Number(search.totalPrice ?? 0);
-
-    return {
-      id: search.appointmentId,
-      business_id: data.businessId ?? "",
-      client_name: search.clientName ?? "",
-      service_name: search.serviceName ?? "Servicio",
-      service_price: servicePrice,
-      employee_id: search.employeeId ?? "",
-      notes: null,
-      status: "confirmed",
-    } as ReturnType<typeof useCajaData>["pendingCharges"][number];
-  }, [
-    search.appointmentId,
-    search.finalAmount,
-    search.totalPrice,
-    search.clientName,
-    search.serviceName,
-    search.employeeId,
-    data.businessId,
-  ]);
-
-  const activeCharge = pendingToCharge ?? routeAppointmentCharge;
-
 
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
@@ -257,6 +229,64 @@ function CashRegisterPage() {
   function handleCobrarPendiente(appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
     setPendingToCharge(appt);
     setTab("nueva");
+  }
+
+  async function handleReabrirCajaDesdeBanner() {
+    if (!data.businessId || !session?.user?.id) {
+      setCajaCerrada(false);
+      data.refresh();
+      return;
+    }
+
+    try {
+      const { data: lastCierre, error } = await supabase
+        .from("caja_cierres" as any)
+        .select("*")
+        .eq("business_id", data.businessId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (lastCierre?.id) {
+        const now = new Date();
+        const eventos = Array.isArray((lastCierre as any).eventos) ? (lastCierre as any).eventos : [];
+        const evento = {
+          tipo: "reapertura",
+          fecha_hora: now.toISOString(),
+          hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+          usuario: session.user.email ?? "Caja",
+          motivo: null,
+        };
+
+        await supabase
+          .from("caja_cierres" as any)
+          .update({
+            estado: "reabierta",
+            reopened_at: now.toISOString(),
+            reopened_by: session.user.email ?? session.user.id,
+            eventos: [...eventos, evento],
+            updated_at: now.toISOString(),
+          })
+          .eq("id", (lastCierre as any).id)
+          .eq("business_id", data.businessId);
+      }
+
+      await reopenCashSession({
+        sessionId: data.cajaSession?.sessionId ?? `local_${Date.now()}`,
+        businessId: data.businessId,
+        reopenedBy: session.user.id,
+      });
+
+      toast.success("Caja reabierta");
+    } catch (e: any) {
+      console.warn(e);
+      toast.error(e?.message ?? "No se pudo registrar la reapertura");
+    } finally {
+      setCajaCerrada(false);
+      await data.refresh();
+    }
   }
 
   if (authLoading || !session) {
@@ -290,7 +320,7 @@ function CashRegisterPage() {
               <p className="mt-0.5 text-sm text-muted-foreground">La caja de hoy ya fue cerrada. Podés reabrirla hasta las 00:00.</p>
             </div>
             <button
-              onClick={() => { setCajaCerrada(false); data.refresh(); }}
+              onClick={handleReabrirCajaDesdeBanner}
               className="shrink-0 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground"
             >
               Reabrir caja
@@ -338,11 +368,8 @@ function CashRegisterPage() {
         {tab === "nueva" && (
           <NuevaVentaTab
             data={data}
-            pendingCharge={activeCharge}
-            onPendingDone={() => {
-              setPendingToCharge(null);
-              setTab("resumen");
-            }}
+            pendingCharge={pendingToCharge}
+            onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
           />
         )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
@@ -1145,6 +1172,17 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
       .eq("business_id", businessId);
 
     if (error) { toast.error(error.message); return; }
+
+    try {
+      await reopenCashSession({
+        sessionId: cierre.id,
+        businessId,
+        reopenedBy: reason.trim() || "Caja",
+      });
+    } catch {
+      // El historial visual ya quedó guardado en caja_cierres.
+    }
+
     toast.success("Caja reabierta");
     setSelected(null);
     loadCierres();
@@ -1907,7 +1945,6 @@ function NuevaVentaTab({
   const pendingInjectedRef = React.useRef(false);
   React.useEffect(() => {
     if (!pendingCharge || pendingInjectedRef.current || data.services.length === 0) return;
-    setStep(3);
 
     // Try to match by name (case-insensitive)
     const match = data.services.find(
@@ -1916,8 +1953,13 @@ function NuevaVentaTab({
 
     if (match) {
       setCart({ [match.id]: 1 });
-      pendingInjectedRef.current = true;
+    } else if (pendingCharge.service_name) {
+      // Service not in catalogue — inject a virtual item keyed by a sentinel
+      // We'll handle the amount manually via a synthetic service entry below
+      // For now just leave cart empty; the service row will be shown via pendingCharge
     }
+
+    pendingInjectedRef.current = true;
   }, [pendingCharge, data.services]);
 
   // If the service from pending is NOT in the catalogue we still need to show it in the cart.
@@ -2111,7 +2153,7 @@ function NuevaVentaTab({
           .from("appointments")
           .update({ status: "charged", notes: professionalNote || null })
           .eq("id", pendingCharge.id)
-          .in("status", ["pending_payment", "pending", "confirmed", "in_service", "scheduled"]);
+          .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
 
         if (updateError) throw updateError;
 
@@ -2206,19 +2248,9 @@ function NuevaVentaTab({
         <div className="grid grid-cols-4 gap-1">
           {stepItems.map((s) => {
             const active = step === s.n;
-            const disabled =
-              (s.n >= 2 && !employeeId) ||
-              (s.n >= 3 && !clientId) ||
-              (s.n >= 4 && cartItems.length === 0);
             return (
-              <button
-                key={s.n}
-                disabled={disabled}
-                onClick={() => {
-                  if (disabled) return;
-                  setStep(s.n);
-                }}
-                className={cn("rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border disabled:cursor-not-allowed disabled:opacity-40",
+              <button key={s.n} onClick={() => setStep(s.n)}
+                className={cn("rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border",
                   active ? "bg-gradient-to-b from-amber-200 to-amber-300 text-black border-amber-200"
                     : "text-muted-foreground border-white/10 bg-white/[0.02] hover:text-foreground")}>
                 {s.n} · {s.label}
@@ -2241,17 +2273,9 @@ function NuevaVentaTab({
               <button key={e.id} type="button" onClick={() => setEmployeeId(e.id)}
                 className={cn("w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left transition-all",
                   active ? "border-amber-300/50 bg-amber-300/10" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.04]")}>
-                {e.avatar_url ? (
-                  <img
-                    src={e.avatar_url}
-                    alt={e.name}
-                    className="size-9 rounded-full object-cover ring-1 ring-white/10"
-                  />
-                ) : (
-                  <span className="size-9 rounded-full bg-gradient-to-br from-amber-200/80 to-amber-500/80 text-black font-semibold grid place-items-center">
-                    {(e.name || "P").slice(0, 1).toUpperCase()}
-                  </span>
-                )}
+                <span className="size-9 rounded-full bg-gradient-to-br from-amber-200/80 to-amber-500/80 text-black font-semibold grid place-items-center">
+                  {(e.name || "P").slice(0, 1).toUpperCase()}
+                </span>
                 <span className="flex-1">
                   <span className="block text-sm font-semibold text-foreground">{e.name}</span>
                   <span className="block text-xs text-muted-foreground">Profesional</span>
@@ -2335,19 +2359,15 @@ function NuevaVentaTab({
             async function handleGuardarCliente() {
               if (!client.trim()) { toast.error("Ingresá el nombre del cliente."); return; }
               if (!phone.trim()) { toast.error("Ingresá el teléfono del cliente."); return; }
-              if (isFieldEnabled("email") && !email.trim()) { toast.error("Ingresá el email del cliente."); return; }
               const saved = await saveClientIfNeeded();
               if (saved) {
                 setClientId(saved);
-                setClient(client.trim());
-                setPhone(phone.trim());
-                setEmail(email.trim());
-                setBirthDate(birthDate || "");
                 setNewClientOpen(false);
-                await data.refresh();
                 toast.success("Cliente guardado");
               } else {
-                toast.error("No se pudo guardar el cliente. Intentá nuevamente.");
+                // No businessId or already existed — use name as display, generate temp id
+                setClientId(`new_${Date.now()}`);
+                setNewClientOpen(false);
               }
             }
             return (
@@ -2365,7 +2385,7 @@ function NuevaVentaTab({
                   className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
                 {isFieldEnabled("email") && (
                   <input value={email} onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email *" type="email"
+                    placeholder="Email" type="email"
                     className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
                 )}
                 {isFieldEnabled("fecha_nacimiento") && (
@@ -2563,8 +2583,8 @@ function NuevaVentaTab({
           </div>
           <Money value={total} />
           {step < 4 ? (
-            <button onClick={goNext} disabled={(step === 1 && !employeeId) || (step === 2 && !clientId) || (step === 3 && cartItems.length === 0)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+            <button onClick={goNext}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 transition-all">
               Continuar <ArrowRight className="size-4" />
             </button>
           ) : (
@@ -2610,6 +2630,7 @@ function ClientAutocomplete({
       );
       if (exact.length === 1) {
         onPick(exact[0]);
+        onChange("");
       }
     }, 600);
     return () => clearTimeout(timer);
@@ -2649,7 +2670,7 @@ function ClientAutocomplete({
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => onPick(c)}
+                  onClick={() => { onPick(c); onChange(""); }}
                   className="w-full text-left px-4 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0 transition-colors"
                 >
                   <span className="min-w-0">
