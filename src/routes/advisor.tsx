@@ -363,18 +363,18 @@ function AdvisorContent({
       {advisorTab === "analisis" && (<>
 
       {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-emerald-300/[0.14] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_24px_90px_-52px_rgba(45,212,191,0.55)] sm:p-4">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.07] blur-3xl" />
+      <div className="relative rounded-[2rem] border border-emerald-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.10),0_26px_105px_-48px_rgba(45,212,191,0.82)] sm:p-4">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.115] blur-3xl" />
         {/* Separador de sección */}
         <div className="relative flex items-center gap-4 mb-4">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Salud del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         </div>
-      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.18] bg-white/[0.045] shadow-[0_0_0_1px_rgba(45,212,191,0.06),0_28px_95px_-50px_rgba(45,212,191,0.62)]">
+      <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.25] bg-white/[0.048] shadow-[0_0_0_1px_rgba(45,212,191,0.11),0_32px_110px_-46px_rgba(45,212,191,0.88)]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">🧠 Diagnóstico IA</h2>
-        <p className="text-sm text-muted-foreground mb-4">Evaluación automática de rentabilidad, ocupación y crecimiento.</p>
+        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">Estado actual</h2>
+        <p className="text-sm text-muted-foreground mb-4">Rentabilidad, clientes y ocupación del período.</p>
 
         <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-5 items-center">
           {/* Left: circular gauge + bar */}
@@ -454,27 +454,27 @@ function AdvisorContent({
       </div>{/* /Salud */}
 
       {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-      <div className="relative rounded-[2rem] border border-sky-300/[0.12] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.05),0_24px_90px_-52px_rgba(99,102,241,0.55)] sm:p-4">
-        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-500/[0.045] blur-3xl" />
+      <div className="relative rounded-[2rem] border border-sky-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.10),0_26px_105px_-48px_rgba(14,165,233,0.82)] sm:p-4">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.10] blur-3xl" />
         <div className="flex items-center gap-4 mb-4">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Evolución del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.13] shadow-[0_0_0_1px_rgba(56,189,248,0.05),0_24px_80px_-42px_rgba(99,102,241,0.56)]">
-        <h2 className="font-display text-2xl font-bold tracking-tight">📈 Evolución del negocio</h2>
+      <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.22] shadow-[0_0_0_1px_rgba(56,189,248,0.10),0_28px_95px_-42px_rgba(14,165,233,0.82)]">
+        <h2 className="font-display text-2xl font-bold tracking-tight">Resultados del período</h2>
 
         {/* Bloque superior: +18% */}
         <div className="relative flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-5 py-3.5">
           {/* Icono izquierda */}
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-emerald-400/10 ring-1 ring-emerald-400/20">
-            <TrendingUp className="h-6 w-6 text-emerald-400" />
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25">
+            <TrendingUp className="h-6 w-6 text-sky-300" />
           </div>
           {/* Textos */}
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Evolución del negocio</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Crecimiento mensual</div>
             <div className="flex items-baseline gap-3 mt-1 flex-wrap">
-              <span className="font-display text-5xl font-bold text-emerald-300 leading-none">+18%</span>
+              <span className="font-display text-5xl font-bold text-sky-300 leading-none">+18%</span>
               <span className="text-base text-muted-foreground">vs mes anterior</span>
             </div>
           </div>
@@ -482,7 +482,7 @@ function AdvisorContent({
           <button
             type="button"
             onClick={() => setInfoModal(INFO_CONTENT.growth)}
-            className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full border border-primary/40 bg-primary/10 text-xs font-bold text-primary transition hover:bg-primary/20"
+            className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full border border-sky-300/40 bg-sky-300/10 text-xs font-bold text-sky-300 transition hover:bg-sky-300/20"
             aria-label="Información de crecimiento"
           >i</button>
         </div>
@@ -598,7 +598,7 @@ function AdvisorContent({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
-            <h2 className="font-display text-2xl font-bold tracking-tight">📅 Historial de análisis</h2>
+            <h2 className="font-display text-2xl font-bold tracking-tight">Informes mensuales</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Clippr guarda un informe al comenzar cada mes. No necesitás tocar ningún botón.
             </p>
@@ -1849,7 +1849,7 @@ function fmtNum(n: number) {
 }
 
 const nivelMeta = {
-  recomendado:     { emoji: "✅", label: "Recomendado",            cls: "border-emerald-400/30 bg-emerald-400/[0.07]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
+  recomendado:     { emoji: "✅", label: "Recomendado",            cls: "border-emerald-400/30 bg-emerald-400/[0.115]", titleCls: "text-emerald-300", dot: "bg-emerald-400" },
   progresivo:      { emoji: "🟡", label: "Aplicar progresivamente", cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
   evaluar:         { emoji: "🟡", label: "Evaluar con cuidado",    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",   titleCls: "text-cyan-300",   dot: "bg-cyan-400" },
   no_recomendado:  { emoji: "🔴", label: "No recomendado todavía", cls: "border-rose-400/30 bg-rose-400/[0.07]",     titleCls: "text-rose-300",    dot: "bg-rose-400" },
