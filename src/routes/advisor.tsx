@@ -7,6 +7,7 @@ import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import {
   AlertTriangle,
   Bell,
@@ -199,8 +200,8 @@ function AdvisorRoute() {
                   },
                   {
                     key: "acciones",
-                    icon: "🎯",
-                    label: "Acciones recomendadas",
+                    icon: "🧠",
+                    label: "Gerente IA",
                     active:
                       "from-fuchsia-400/25 via-violet-500/18 to-indigo-500/20 text-fuchsia-100 ring-fuchsia-300/35 shadow-fuchsia-500/20",
                     idle: "hover:text-fuchsia-100 hover:ring-fuchsia-300/20 hover:bg-fuchsia-400/8",
@@ -421,14 +422,7 @@ function AdvisorContent({
         />
       )}
 
-      {advisorTab === "acciones" && (
-        <PrioridadesTab
-          actions={getDemoActions(showExtraRecommendation).slice(0, 3)}
-          resolvedRecommendations={resolvedRecommendations}
-          onResolve={handleResolveRecommendation}
-          onReset={handleResetRecommendations}
-        />
-      )}
+      {advisorTab === "acciones" && <GrowthManagerTab businessId={businessId} />}
 
       {advisorTab === "analisis" && (
         <>
@@ -3098,5 +3092,652 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
         </div>
       )}
     </GlassCard>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  GERENTE DE CRECIMIENTO IA — motor de recomendaciones reales
+//  Exclusivo para barberías y peluquerías. Lee datos reales (solo lectura):
+//  clients (useClientsData), appointments, services, employees.
+//  Cada recomendación responde: problema · dinero perdido · recuperable ·
+//  acción exacta · a quién contactar · mensaje · cómo medir.
+//  NO modifica base de datos ni ninguna otra parte de la app.
+// ══════════════════════════════════════════════════════════════════════════
+
+type GrowthAppt = {
+  id: string;
+  client_id: string | null;
+  client_name: string | null;
+  service_name: string | null;
+  service_price: number | null;
+  starts_at: string;
+  status: string;
+  employee_id: string | null;
+};
+
+type GrowthService = { id: string; name: string; price: number | null };
+type GrowthEmployee = { id: string; full_name: string };
+
+type GrowthContact = { name: string; phone?: string | null; detail?: string };
+
+type GrowthCategory = "recuperacion" | "agenda" | "equipo" | "ticket" | "rentabilidad";
+
+type GrowthRec = {
+  id: string;
+  category: GrowthCategory;
+  icon: string;
+  tone: "money" | "warning" | "growth" | "client";
+  title: string;
+  problem: string;
+  moneyLost: number;
+  moneyRecoverable: number;
+  action: string;
+  steps: string[];
+  who: string;
+  contacts: GrowthContact[];
+  message: string;
+  measure: string;
+  basis: string;
+  priority: number;
+};
+
+const DONE_STATUSES = ["completed", "charged"];
+const DOW_LABELS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
+function useGrowthData(businessId: string | null | undefined) {
+  const clientsQuery = useClientsData(businessId ?? null);
+  const [appts, setAppts] = React.useState<GrowthAppt[]>([]);
+  const [services, setServices] = React.useState<GrowthService[]>([]);
+  const [employees, setEmployees] = React.useState<GrowthEmployee[]>([]);
+  const [loadingExtra, setLoadingExtra] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!businessId) {
+      setLoadingExtra(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingExtra(true);
+      setError(null);
+      const since = new Date();
+      since.setDate(since.getDate() - 90);
+      try {
+        const [apptRes, svcRes, empRes] = await Promise.all([
+          supabase
+            .from("appointments")
+            .select("id,client_id,client_name,service_name,service_price,starts_at,status,employee_id")
+            .eq("business_id", businessId)
+            .gte("starts_at", since.toISOString())
+            .order("starts_at", { ascending: false }),
+          supabase.from("services").select("id,name,price").eq("business_id", businessId),
+          supabase.from("employees").select("id,full_name").eq("business_id", businessId),
+        ]);
+        if (cancelled) return;
+        setAppts((apptRes.error ? [] : ((apptRes.data ?? []) as GrowthAppt[])));
+        setServices((svcRes.error ? [] : ((svcRes.data ?? []) as GrowthService[])));
+        setEmployees((empRes.error ? [] : ((empRes.data ?? []) as GrowthEmployee[])));
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
+      } finally {
+        if (!cancelled) setLoadingExtra(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
+
+  return {
+    clients: clientsQuery.data ?? [],
+    appts,
+    services,
+    employees,
+    loading: clientsQuery.isLoading || loadingExtra,
+    error: error || (clientsQuery.error as Error | null)?.message || null,
+  };
+}
+
+function buildGrowthRecommendations(
+  clients: Client[],
+  appts: GrowthAppt[],
+  services: GrowthService[],
+  employees: GrowthEmployee[],
+): { recs: GrowthRec[]; avgTicket: number; totalOpportunity: number } {
+  const recs: GrowthRec[] = [];
+
+  // Ticket promedio real (gasto total / visitas reales).
+  const totalVisits = clients.reduce((s, c) => s + c.visits, 0);
+  const totalSpent = clients.reduce((s, c) => s + c.spent, 0);
+  const svcPrices = services.map((s) => Number(s.price ?? 0)).filter((p) => p > 0);
+  const apptPrices = appts.map((a) => Number(a.service_price ?? 0)).filter((p) => p > 0);
+  const avgSvcPrice =
+    svcPrices.length > 0
+      ? Math.round(svcPrices.reduce((a, b) => a + b, 0) / svcPrices.length)
+      : apptPrices.length > 0
+        ? Math.round(apptPrices.reduce((a, b) => a + b, 0) / apptPrices.length)
+        : 0;
+  const avgTicket = totalVisits > 0 ? Math.round(totalSpent / totalVisits) : avgSvcPrice;
+
+  const done = appts.filter((a) => DONE_STATUSES.includes(a.status));
+  const empName = (id: string | null) => employees.find((e) => e.id === id)?.full_name ?? "Sin asignar";
+
+  // ── 1. VIP en riesgo (alto valor que se está enfriando) ────────────────────
+  const vipRisk = clients
+    .filter((c) => (c.visits >= 8 || c.spent >= 100000) && (c.lastVisitDays ?? 0) >= 30)
+    .sort((a, b) => b.spent - a.spent);
+  if (vipRisk.length > 0) {
+    const perClient = vipRisk.map((c) => (c.visits > 0 ? Math.round(c.spent / c.visits) : avgTicket));
+    const lost = perClient.reduce((a, b) => a + b, 0);
+    const recoverable = Math.round(lost * 0.6);
+    recs.push({
+      id: "vip-riesgo",
+      category: "recuperacion",
+      icon: "👑",
+      tone: "money",
+      title: "Clientes VIP enfriándose",
+      problem: `${vipRisk.length} de tus mejores clientes (los que más gastan y más vienen) no pasan hace más de 30 días.`,
+      moneyLost: lost,
+      moneyRecoverable: recoverable,
+      action: "Contactá uno por uno a tus VIP con un mensaje personal (no masivo) y ofrecéles prioridad de turno esta semana.",
+      steps: [
+        "Abrí la lista de VIP de abajo y mandales un WhatsApp personalizado con su nombre.",
+        "Ofrecé un turno reservado a su horario habitual sin que tengan que pedirlo.",
+        "Sumá un detalle premium gratis (lavado, perfilado de barba o asesoramiento) para que sientan el trato VIP.",
+      ],
+      who: `${vipRisk.length} clientes VIP sin visita reciente`,
+      contacts: vipRisk.slice(0, 8).map((c) => ({
+        name: c.name,
+        phone: c.phone,
+        detail: `${c.visits} visitas · ${fmtAR(c.spent)} · ${c.lastVisit ?? "hace tiempo"}`,
+      })),
+      message:
+        "Hola {nombre} 👋 Soy de la barbería. Te tengo reservado tu horario de siempre para esta semana así no te quedás sin lugar. ¿Te viene bien el {día}? Cualquier cosa lo movemos. ✂️",
+      measure: "Cuántos de estos VIP reservaron en los próximos 7 días. Meta: recuperar al menos la mitad.",
+      basis: `Ticket real por VIP: ${fmtAR(Math.round(lost / vipRisk.length))}. Recuperable estimado con un retorno del 60%.`,
+      priority: recoverable + 100000,
+    });
+  }
+
+  // ── 2. Clientes inactivos (+45 días) ───────────────────────────────────────
+  const inactivos = clients
+    .filter((c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180)
+    .filter((c) => !vipRisk.some((v) => v.id === c.id))
+    .sort((a, b) => b.spent - a.spent);
+  if (inactivos.length > 0) {
+    const lost = inactivos.length * avgTicket;
+    const recoverable = Math.round(lost * 0.35);
+    recs.push({
+      id: "inactivos-45",
+      category: "recuperacion",
+      icon: "🔁",
+      tone: "client",
+      title: "Clientes que dejaron de venir",
+      problem: `${inactivos.length} clientes que ya te conocían no vuelven hace más de 45 días. Cada semana que pasa es más difícil recuperarlos.`,
+      moneyLost: lost,
+      moneyRecoverable: recoverable,
+      action: `Lanzá una campaña de reactivación a estos ${inactivos.length} clientes con un motivo concreto para volver esta semana.`,
+      steps: [
+        "Mandá el mensaje de abajo por WhatsApp a la lista de clientes inactivos.",
+        "Dales un motivo con fecha límite: un beneficio que vence el domingo.",
+        "Si en 3 días no responden, mandá un segundo mensaje corto recordando el beneficio.",
+      ],
+      who: `${inactivos.length} clientes inactivos (45+ días)`,
+      contacts: inactivos.slice(0, 8).map((c) => ({
+        name: c.name,
+        phone: c.phone,
+        detail: `${c.visits} visitas · última ${c.lastVisit ?? "hace tiempo"}`,
+      })),
+      message:
+        "Hola {nombre} 👋 ¡Hace rato que no te vemos! Esta semana te guardamos un lugar y un 15% off en tu próximo corte. Válido hasta el domingo. ¿Te reservo? ✂️",
+      measure: "Cuántos volvieron en 14 días. Si vuelve 1 de cada 3, la campaña ya es rentable.",
+      basis: `Ticket promedio real: ${fmtAR(avgTicket)}. Recuperable estimado con retorno conservador del 35%.`,
+      priority: recoverable + 50000,
+    });
+  }
+
+  // ── 3. Día muerto (el día que menos factura) ───────────────────────────────
+  if (done.length >= 10) {
+    const weeks = 90 / 7;
+    const byDow = Array.from({ length: 7 }, () => ({ revenue: 0, count: 0 }));
+    done.forEach((a) => {
+      const d = new Date(a.starts_at).getDay();
+      byDow[d].revenue += Number(a.service_price ?? avgTicket);
+      byDow[d].count += 1;
+    });
+    // Solo días laborables con actividad (excluye domingo si está vacío).
+    const active = byDow
+      .map((v, dow) => ({ dow, perWeek: v.revenue / weeks, count: v.count }))
+      .filter((v) => v.count > 0);
+    if (active.length >= 2) {
+      const best = active.reduce((m, v) => (v.perWeek > m.perWeek ? v : m));
+      const worst = active.reduce((m, v) => (v.perWeek < m.perWeek ? v : m));
+      const gapMonthly = Math.round((best.perWeek - worst.perWeek) * 4);
+      if (gapMonthly > avgTicket) {
+        recs.push({
+          id: "dia-muerto",
+          category: "agenda",
+          icon: "📉",
+          tone: "warning",
+          title: `El ${DOW_LABELS[worst.dow]} es tu agujero de plata`,
+          problem: `Los ${DOW_LABELS[worst.dow]} facturás muy por debajo de tu mejor día (${DOW_LABELS[best.dow]}). Es agenda vacía que ya estás pagando igual (alquiler, sillón, tu tiempo).`,
+          moneyLost: gapMonthly,
+          moneyRecoverable: Math.round(gapMonthly * 0.5),
+          action: `Convertí el ${DOW_LABELS[worst.dow]} en tu día de ofertas: promo fija + difusión el día anterior.`,
+          steps: [
+            `Creá una promo exclusiva del ${DOW_LABELS[worst.dow]} (ej: corte + barba a precio especial, o 2x1 con un amigo).`,
+            `Publicá los turnos libres del ${DOW_LABELS[worst.dow]} en Instagram y estados de WhatsApp el ${DOW_LABELS[(worst.dow + 6) % 7]}.`,
+            "Ofrecé ese día a clientes que siempre piden horarios saturados como alternativa cómoda.",
+          ],
+          who: "Clientes activos + seguidores de Instagram/WhatsApp",
+          contacts: [],
+          message:
+            `🔥 Promo de los ${DOW_LABELS[worst.dow]}: corte + barba a precio especial, solo con turno previo. Quedan pocos lugares, escribime y te reservo. ✂️`,
+          measure: `Facturación del ${DOW_LABELS[worst.dow]} en las próximas 3 semanas vs hoy.`,
+          basis: `Diferencia real ${DOW_LABELS[best.dow]} vs ${DOW_LABELS[worst.dow]}, proyectada a un mes.`,
+          priority: gapMonthly,
+        });
+      }
+    }
+  }
+
+  // ── 4. Profesional con baja ocupación ──────────────────────────────────────
+  if (employees.length >= 2 && done.length >= 12) {
+    const byEmp = new Map<string, number>();
+    done.forEach((a) => {
+      if (!a.employee_id) return;
+      byEmp.set(a.employee_id, (byEmp.get(a.employee_id) ?? 0) + 1);
+    });
+    if (byEmp.size >= 2) {
+      const counts = [...byEmp.entries()].map(([id, count]) => ({ id, count }));
+      const avg = counts.reduce((s, c) => s + c.count, 0) / counts.length;
+      const low = counts.reduce((m, c) => (c.count < m.count ? c : m));
+      if (low.count < avg * 0.6) {
+        const gap = Math.round((avg - low.count) * avgSvcPrice);
+        recs.push({
+          id: "prof-baja-ocupacion",
+          category: "equipo",
+          icon: "🪑",
+          tone: "warning",
+          title: `${empName(low.id)} tiene el sillón frío`,
+          problem: `${empName(low.id)} atendió bastante menos que el promedio del equipo en los últimos 90 días. Sillón parado = plata parada.`,
+          moneyLost: gap,
+          moneyRecoverable: Math.round(gap * 0.7),
+          action: `Dirigí demanda hacia ${empName(low.id)}: asignale los nuevos turnos y mostralo en tu perfil público.`,
+          steps: [
+            `Cuando entren reservas sin profesional elegido, asignáselas a ${empName(low.id)}.`,
+            `Pediles a tus clientes nuevos que prueben con ${empName(low.id)} destacando su especialidad.`,
+            `Dale a ${empName(low.id)} un horario propio en la promo del día flojo para que arranque su agenda.`,
+          ],
+          who: `${empName(low.id)} (profesional con menor ocupación)`,
+          contacts: [],
+          message:
+            `¿Probaste cortarte con ${empName(low.id)}? Esta semana tiene los mejores horarios disponibles. Escribime y te reservo. ✂️`,
+          measure: `Turnos completados por ${empName(low.id)} el próximo mes vs los últimos 30 días.`,
+          basis: `Promedio del equipo: ${Math.round(avg)} turnos. ${empName(low.id)}: ${low.count}. Valorizado al precio medio de servicio.`,
+          priority: gap,
+        });
+      }
+    }
+  }
+
+  // ── 5. Oportunidad corte + barba (combo clásico de barbería) ───────────────
+  const corteSinBarba = clients.filter(
+    (c) =>
+      c.history.some((h) => /corte|pelo|cabello/i.test(h.service)) &&
+      !c.history.some((h) => /barba/i.test(h.service)) &&
+      (c.lastVisitDays ?? 999) <= 90,
+  );
+  if (corteSinBarba.length >= 3) {
+    const barbaSvc = services.find((s) => /barba/i.test(s.name));
+    const barbaPrice = Number(barbaSvc?.price ?? 0) || Math.round(avgTicket * 0.5);
+    const recoverable = Math.round(corteSinBarba.length * barbaPrice * 0.3);
+    recs.push({
+      id: "corte-mas-barba",
+      category: "ticket",
+      icon: "🧔",
+      tone: "growth",
+      title: "Corte sí, barba no: ticket sin explotar",
+      problem: `${corteSinBarba.length} clientes activos se cortan con vos pero nunca sumaron la barba. Es la venta más fácil que estás dejando pasar.`,
+      moneyLost: 0,
+      moneyRecoverable: recoverable,
+      action: "Convertí el corte+barba en oferta por defecto: ofrecelo en el sillón, no esperes que lo pidan.",
+      steps: [
+        `Entrená al equipo para ofrecer la barba a todo cliente de corte: "¿Te emprolijo la barba también?".`,
+        `Mostrá un precio combo atractivo (corte + barba) más barato que comprarlos por separado.`,
+        "Mandá el mensaje de abajo a los clientes que nunca probaron el servicio de barba.",
+      ],
+      who: `${corteSinBarba.length} clientes de corte que nunca hicieron barba`,
+      contacts: corteSinBarba.slice(0, 8).map((c) => ({
+        name: c.name,
+        phone: c.phone,
+        detail: `${c.visits} cortes · ${c.lastVisit ?? ""}`,
+      })),
+      message:
+        `Hola {nombre} 👋 Esta semana estamos con combo corte + barba a precio especial. Te queda 🔥. ¿Lo sumamos a tu próximo turno? ✂️`,
+      measure: "Cuántos de estos clientes sumaron barba en su próxima visita.",
+      basis: `Precio de barba usado: ${fmtAR(barbaPrice)}. Recuperable con adopción del 30%.`,
+      priority: recoverable + 20000,
+    });
+  }
+
+  // ── 6. Cancelaciones recurrentes ───────────────────────────────────────────
+  const cancels = appts.filter((a) => a.status === "cancelled" && a.client_name);
+  if (cancels.length >= 3) {
+    const byClient = new Map<string, number>();
+    cancels.forEach((a) => {
+      const k = (a.client_name ?? "").trim();
+      if (k) byClient.set(k, (byClient.get(k) ?? 0) + 1);
+    });
+    const repeat = [...byClient.entries()].filter(([, n]) => n >= 2);
+    const lost = cancels.length * avgTicket;
+    if (lost > avgTicket) {
+      recs.push({
+        id: "cancelaciones",
+        category: "agenda",
+        icon: "🚫",
+        tone: "warning",
+        title: "Las cancelaciones te están vaciando turnos",
+        problem: `Tuviste ${cancels.length} cancelaciones en los últimos 90 días${repeat.length > 0 ? ` y ${repeat.length} clientes cancelan de forma repetida` : ""}. Cada hueco que no se rellena es plata perdida.`,
+        moneyLost: lost,
+        moneyRecoverable: Math.round(lost * 0.5),
+        action: "Implementá recordatorio + lista de espera para tapar los huecos al instante.",
+        steps: [
+          "Mandá un recordatorio por WhatsApp 24 hs antes de cada turno para bajar el ausentismo.",
+          "Armá una lista de espera de clientes que quieren entrar antes; ofrecéles el hueco apenas alguien cancela.",
+          repeat.length > 0
+            ? "A los que cancelan repetido, pedí una seña simbólica para reservar."
+            : "Pedí confirmación el día anterior para liberar el lugar a tiempo.",
+        ],
+        who: repeat.length > 0 ? `${repeat.length} clientes con cancelaciones repetidas` : "Clientes con turno próximo",
+        contacts: repeat.slice(0, 8).map(([name, n]) => ({ name, detail: `${n} cancelaciones` })),
+        message:
+          "Hola {nombre} 👋 Te recuerdo tu turno de mañana ✂️ Si no podés venir, avisame así libero el lugar para otra persona. ¡Gracias!",
+        measure: "Cantidad de cancelaciones y ausencias el próximo mes vs hoy.",
+        basis: `Cada turno perdido vale ${fmtAR(avgTicket)}. Recuperable estimado tapando la mitad de los huecos.`,
+        priority: Math.round(lost * 0.5),
+      });
+    }
+  }
+
+  // ── 7. Servicio premium poco vendido ───────────────────────────────────────
+  if (services.length >= 3 && done.length >= 10) {
+    const usage = new Map<string, number>();
+    done.forEach((a) => {
+      const n = (a.service_name ?? "").toLowerCase();
+      usage.set(n, (usage.get(n) ?? 0) + 1);
+    });
+    const pricedSorted = [...services]
+      .filter((s) => Number(s.price ?? 0) > avgSvcPrice * 1.2)
+      .sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0));
+    const premium = pricedSorted.find((s) => (usage.get(s.name.toLowerCase()) ?? 0) <= Math.max(1, done.length * 0.05));
+    if (premium) {
+      const target = Math.max(4, Math.round(done.length * 0.08));
+      const recoverable = Math.round(target * Number(premium.price ?? 0));
+      recs.push({
+        id: "premium-poco-vendido",
+        category: "rentabilidad",
+        icon: "💎",
+        tone: "growth",
+        title: `"${premium.name}" casi no se vende`,
+        problem: `${premium.name} es uno de tus servicios más caros (${fmtAR(Number(premium.price ?? 0))}) pero casi nadie lo pide. Tenés margen alto sin aprovechar.`,
+        moneyLost: 0,
+        moneyRecoverable: recoverable,
+        action: `Hacé visible y deseable el ${premium.name}: mostralo, explicá el beneficio y ofrecelo activamente.`,
+        steps: [
+          `Mostrá el ${premium.name} en tu perfil público y en el local con una foto de antes/después.`,
+          `Entrená al equipo para recomendarlo al cliente indicado en el momento justo.`,
+          `Probá una promo de lanzamiento por tiempo limitado para que lo prueben.`,
+        ],
+        who: "Clientes que buscan calidad / experiencia premium",
+        contacts: [],
+        message:
+          `Sumamos ${premium.name} ✨ Ideal si querés un resultado de otro nivel. Esta semana con cupo limitado. ¿Te lo reservo? ✂️`,
+        measure: `Cuántos ${premium.name} vendiste el próximo mes (hoy: casi cero).`,
+        basis: `Precio del servicio: ${fmtAR(Number(premium.price ?? 0))}. Meta conservadora: ${target} ventas/mes.`,
+        priority: recoverable + 10000,
+      });
+    }
+  }
+
+  recs.sort((a, b) => b.priority - a.priority);
+  const totalOpportunity = recs.reduce((s, r) => s + r.moneyRecoverable, 0);
+  return { recs, avgTicket, totalOpportunity };
+}
+
+// ─────────────────────────── UI premium ───────────────────────────
+
+function GrowthContactsBlock({ contacts }: { contacts: GrowthContact[] }) {
+  const [open, setOpen] = React.useState(false);
+  if (contacts.length === 0) return null;
+  const shown = open ? contacts : contacts.slice(0, 3);
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/45">A quién contactar</div>
+      <div className="space-y-1.5">
+        {shown.map((c, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 text-sm">
+            <span className="min-w-0 truncate font-medium text-white/90">{c.name}</span>
+            <span className="shrink-0 text-xs text-white/45">{c.detail}</span>
+            {c.phone ? (
+              <a
+                href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"
+              >
+                WhatsApp
+              </a>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {contacts.length > 3 ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-2 text-xs font-semibold text-cyan-300 hover:text-cyan-200"
+        >
+          {open ? "Ver menos" : `Ver los ${contacts.length}`}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function GrowthMessageBlock({ message }: { message: string }) {
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Mensaje listo para enviar</div>
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              navigator.clipboard?.writeText(message);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            } catch { /* ignore */ }
+          }}
+          className="rounded-lg bg-white/8 px-2.5 py-1 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/15"
+        >
+          {copied ? "¡Copiado!" : "Copiar"}
+        </button>
+      </div>
+      <p className="text-sm leading-relaxed text-white/80">{message}</p>
+    </div>
+  );
+}
+
+const GROWTH_TONES: Record<GrowthRec["tone"], { ring: string; glow: string; chip: string }> = {
+  money: { ring: "ring-amber-300/25", glow: "from-amber-500/20 via-orange-500/10 to-transparent", chip: "bg-amber-400/15 text-amber-200 ring-amber-300/30" },
+  warning: { ring: "ring-rose-300/25", glow: "from-rose-500/20 via-red-500/10 to-transparent", chip: "bg-rose-400/15 text-rose-200 ring-rose-300/30" },
+  growth: { ring: "ring-emerald-300/25", glow: "from-emerald-500/20 via-teal-500/10 to-transparent", chip: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" },
+  client: { ring: "ring-cyan-300/25", glow: "from-cyan-500/20 via-blue-500/10 to-transparent", chip: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/30" },
+};
+
+function GrowthRecCard({ rec, hero = false }: { rec: GrowthRec; hero?: boolean }) {
+  const t = GROWTH_TONES[rec.tone];
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[26px] border border-white/10 bg-[#080b16]/80 p-5 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] ring-1 backdrop-blur-2xl sm:p-6",
+        t.ring,
+        hero && "ring-2",
+      )}
+    >
+      <div className={cn("pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl", t.glow)} />
+      <div className="relative">
+        <div className="flex items-start gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {hero ? (
+                <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/70 ring-1 ring-white/15">
+                  Prioridad de hoy
+                </span>
+              ) : null}
+              <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", t.chip)}>
+                {rec.category}
+              </span>
+            </div>
+            <h3 className={cn("mt-1.5 font-bold tracking-[-0.01em] text-white", hero ? "text-2xl" : "text-lg")}>{rec.title}</h3>
+          </div>
+        </div>
+
+        <p className="mt-3 text-sm leading-relaxed text-white/70">{rec.problem}</p>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {rec.moneyLost > 0 ? (
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-rose-200/70">Estás perdiendo</div>
+              <div className="mt-0.5 text-xl font-extrabold text-rose-200">{fmtAR(rec.moneyLost)}</div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Oportunidad</div>
+              <div className="mt-0.5 text-sm font-semibold text-white/70">Ingreso extra sin sumar costos</div>
+            </div>
+          )}
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.08] p-3">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">Podés recuperar</div>
+            <div className="mt-0.5 text-xl font-extrabold text-emerald-200">{fmtAR(rec.moneyRecoverable)}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-3">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Qué hacer hoy</div>
+          <p className="mt-1 text-sm font-semibold text-white/90">{rec.action}</p>
+          <ol className="mt-2 space-y-1.5">
+            {rec.steps.map((s, i) => (
+              <li key={i} className="flex gap-2 text-sm text-white/70">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">{i + 1}</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="mt-3 grid gap-3">
+          <GrowthContactsBlock contacts={rec.contacts} />
+          <GrowthMessageBlock message={rec.message} />
+        </div>
+
+        <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Cómo medir si funcionó</div>
+            <p className="mt-0.5 text-sm text-white/75">{rec.measure}</p>
+          </div>
+        </div>
+
+        <p className="mt-2 text-[11px] text-white/35">{rec.basis}</p>
+      </div>
+    </div>
+  );
+}
+
+function GrowthManagerTab({ businessId }: { businessId: string | null | undefined }) {
+  const { clients, appts, services, employees, loading, error } = useGrowthData(businessId);
+  const { recs, avgTicket, totalOpportunity } = React.useMemo(
+    () => buildGrowthRecommendations(clients, appts, services, employees),
+    [clients, appts, services, employees],
+  );
+
+  if (loading) {
+    return (
+      <div className="relative mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[#070b18]/80 p-10 text-center shadow-2xl">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(56,189,248,0.18),transparent_60%)]" />
+        <div className="relative">
+          <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-white/8 text-3xl ring-1 ring-white/15">🧠</div>
+          <p className="mt-4 text-lg font-bold text-white">Tu gerente IA está analizando el negocio…</p>
+          <p className="mt-1 text-sm text-white/55">Leyendo clientes, agenda y servicios reales de tu barbería.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mt-6 rounded-[28px] border border-rose-400/20 bg-rose-500/[0.06] p-8 text-center">
+        <p className="text-sm text-rose-200">No pudimos leer los datos del negocio. Probá recargar.</p>
+      </div>
+    );
+  }
+
+  if (recs.length === 0) {
+    return (
+      <div className="mt-6 rounded-[28px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-3xl ring-1 ring-emerald-400/30">✅</div>
+        <p className="mt-4 text-lg font-bold text-white">No detectamos fugas de plata hoy</p>
+        <p className="mt-1 text-sm text-white/60">Tu agenda, clientes y servicios están bien aprovechados. Volvé mañana: el gerente IA revisa todo cada día.</p>
+      </div>
+    );
+  }
+
+  const [hero, ...rest] = recs;
+
+  return (
+    <div className="mt-6 space-y-5">
+      {/* Encabezado: el número que importa */}
+      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#070b18]/80 p-6 shadow-[0_30px_90px_-50px_rgba(16,185,129,0.7)] backdrop-blur-2xl sm:p-7">
+        <div className="pointer-events-none absolute -top-24 left-1/3 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-lg ring-1 ring-white/15">🧠</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Tu gerente de crecimiento IA</span>
+            </div>
+            <h2 className="mt-2 text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">
+              Si ejecutás las {recs.length} acciones de hoy, podés sumar hasta
+            </h2>
+          </div>
+          <div className="shrink-0 text-right">
+            <div className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-4xl font-black text-transparent sm:text-5xl">
+              {fmtAR(totalOpportunity)}
+            </div>
+            <div className="mt-1 text-xs text-white/45">Ticket promedio real: {fmtAR(avgTicket)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Prioridad del día */}
+      <GrowthRecCard rec={hero} hero />
+
+      {/* Resto */}
+      {rest.length > 0 ? (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {rest.map((r) => (
+            <GrowthRecCard key={r.id} rec={r} />
+          ))}
+        </div>
+      ) : null}
+
+      <p className="px-2 text-center text-xs text-white/35">
+        Recomendaciones calculadas con los datos reales de tu negocio (clientes, agenda y servicios de los últimos 90 días). Los montos son estimaciones con supuestos conservadores indicados en cada tarjeta.
+      </p>
+    </div>
   );
 }
