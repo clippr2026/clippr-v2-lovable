@@ -209,6 +209,7 @@ function CashRegisterPage() {
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen"
   );
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
+  const [resumenPanel, setResumenPanel] = useState<"ingresos" | "pendientes" | "gastos">("ingresos");
 
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
@@ -284,7 +285,7 @@ function CashRegisterPage() {
       <Header data={data} />
       <Tabs
         tab={tab}
-        onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); setTab(t); }}
+        onChange={(t) => { if (t !== "nueva") setPendingToCharge(null); if (t === "resumen") setResumenPanel("ingresos"); setTab(t); }}
         data={data}
         userEmail={session.user.email ?? null}
         onNuevoGasto={() => { setPendingToCharge(null); setTab("nuevo-gasto"); }}
@@ -295,6 +296,7 @@ function CashRegisterPage() {
           <ResumenTab
             data={data}
             equipoEnabled={permissions.equipo}
+            initialPanel={resumenPanel}
             onCobrarPendiente={handleCobrarPendiente}
           />
         )}
@@ -303,14 +305,14 @@ function CashRegisterPage() {
             data={data}
             userEmail={session.user.email ?? null}
             onCancel={() => setTab("resumen")}
-            onSaved={() => { data.refresh(); setTab("resumen"); }}
+            onSaved={async () => { setResumenPanel("gastos"); await data.refresh(); setTab("resumen"); }}
           />
         )}
         {tab === "nueva" && (
           <NuevaVentaTab
             data={data}
             pendingCharge={pendingToCharge}
-            onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
+            onPendingDone={() => { setResumenPanel("ingresos"); setPendingToCharge(null); setTab("resumen"); }}
           />
         )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
@@ -458,18 +460,39 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
   );
 }
 
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateKey(value?: string | null) {
+  if (!value) return "—";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  if (!year || !month || !day) return "—";
+  return `${day}/${month}`;
+}
+
 // ───────────────────────────── RESUMEN
 function ResumenTab({
   data,
   equipoEnabled,
+  initialPanel = "ingresos",
   onCobrarPendiente,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
+  initialPanel?: "ingresos" | "pendientes" | "gastos";
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
 }) {
   type ActivePanel = "ingresos" | "pendientes" | "gastos";
-  const [activePanel, setActivePanel] = React.useState<ActivePanel>("ingresos");
+  const [activePanel, setActivePanel] = React.useState<ActivePanel>(initialPanel);
+
+  React.useEffect(() => {
+    setActivePanel(initialPanel);
+  }, [initialPanel]);
 
   React.useEffect(() => {
     const handler = () => { data.refresh(); setActivePanel("gastos"); };
@@ -581,7 +604,7 @@ function ResumenTab({
             <div className="divide-y divide-white/5">
               {data.expensesToday.map((e: any) => {
                 const date = e.date
-                  ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
+                  ? formatDateKey(e.date)
                   : e.created_at
                     ? new Date(e.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
                     : "—";
@@ -623,7 +646,7 @@ function NuevoGastoTab({
 }) {
   const [form, setForm] = React.useState({ name: "", amount: "", type: "", method: "", note: "" });
   const [saving, setSaving] = React.useState(false);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateKey();
   const GTYPES = ["fijo", "variable", "ocasional", "marketing"];
   const GMETHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
 
