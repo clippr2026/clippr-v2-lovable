@@ -66,7 +66,7 @@ export function useProfessionals(businessId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,avatar_url,role,commission_pct,commission_fixed,is_active")
+        .select("id,full_name,avatar_url,commission_pct,commission_fixed,is_active")
         .eq("business_id", businessId!)
         .order("full_name", { ascending: true });
       if (error) throw new Error(error.message);
