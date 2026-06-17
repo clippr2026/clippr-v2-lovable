@@ -437,7 +437,7 @@ function ProfessionalsPage() {
 
       {/* Content */}
       {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
-      {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} />}
+      {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
       </div>
@@ -1489,12 +1489,14 @@ function TurnosView({ businessId, empId, approvalMode, approvalModeEnabled, prof
 
 
 function StatsView({
-  businessId, empId, from, to,
+  businessId, empId, from, to, commissionPct, commissionFixed,
 }: {
   businessId: string | null;
   empId: string | null;
   from: string;
   to: string;
+  commissionPct: number;
+  commissionFixed: number;
 }) {
   const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
   const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
@@ -1542,7 +1544,7 @@ function StatsView({
       </div>
 
       {/* Servicios Desglose */}
-      <ServiciosDesglose sales={sales} businessId={businessId} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />
+      <ServiciosDesglose sales={sales} businessId={businessId} commissionPct={commissionPct} commissionFixed={commissionFixed} />
     </div>
   );
 }
