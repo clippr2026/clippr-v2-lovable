@@ -27,6 +27,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
   PieChart,
   Pie,
   Cell,
@@ -324,10 +325,10 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
     utilidad: {
       label: "Utilidad",
       values: isSingleDay
-        ? data.hoursValues.map((v, i) => Math.max(0, v - (data.hoursGastosValues?.[i] ?? 0)))
-        : data.revByDay.map((v, i) => Math.max(0, v - (data.gastosByDay?.[i] ?? 0))),
+        ? data.hoursValues.map((v, i) => v - (data.hoursGastosValues?.[i] ?? 0))
+        : data.revByDay.map((v, i) => v - (data.gastosByDay?.[i] ?? 0)),
       fmt: fmtAR,
-      total: Math.max(0, data.utilidad),
+      total: data.utilidad,
     },
   };
   const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
@@ -385,8 +386,14 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
               tickLine={false}
               axisLine={false}
               tick={{ fill: "oklch(0.65 0.025 270)", fontSize: 11 }}
-              width={50}
-              tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+              width={58}
+              domain={activeMetric === "utilidad" ? ["auto", "auto"] : [0, "auto"]}
+              tickFormatter={(v) => {
+                const n = Number(v);
+                const sign = n < 0 ? "-" : "";
+                const abs = Math.abs(n);
+                return abs >= 1000 ? `${sign}${Math.round(abs / 1000)}k` : `${sign}${abs}`;
+              }}
             />
             <Tooltip
               contentStyle={{
@@ -398,6 +405,9 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
               labelStyle={{ color: "oklch(0.85 0 0)" }}
               formatter={(v: number) => [cfg.fmt(Number(v)), cfg.label]}
             />
+            {activeMetric === "utilidad" ? (
+              <ReferenceLine y={0} stroke="oklch(1 0 0 / 0.18)" strokeDasharray="4 4" />
+            ) : null}
             <Area
               type="monotone"
               dataKey="rev"
