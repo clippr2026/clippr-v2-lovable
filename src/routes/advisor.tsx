@@ -175,7 +175,9 @@ function AdvisorRoute() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
         {!isAnalyzing && (
-          <div className="flex items-center gap-3 shrink-0 rounded-[22px] border border-white/10 bg-slate-950/35 p-1.5 shadow-[0_18px_55px_rgba(15,23,42,0.35)] backdrop-blur-xl">
+          <div className="relative flex w-full items-center justify-end sm:w-auto">
+            <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
+            <div className="relative flex max-w-full items-center gap-2 overflow-x-auto rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
           {([
             { key: "analisis", icon: "📊", label: "Análisis", active: "from-cyan-400/25 via-blue-500/18 to-indigo-500/20 text-cyan-100 ring-cyan-300/35 shadow-cyan-500/20", idle: "hover:text-cyan-100 hover:ring-cyan-300/20 hover:bg-cyan-400/8" },
             { key: "acciones", icon: "🎯", label: "Acciones recomendadas", active: "from-fuchsia-400/25 via-violet-500/18 to-indigo-500/20 text-fuchsia-100 ring-fuchsia-300/35 shadow-fuchsia-500/20", idle: "hover:text-fuchsia-100 hover:ring-fuchsia-300/20 hover:bg-fuchsia-400/8" },
@@ -188,21 +190,23 @@ function AdvisorRoute() {
                 type="button"
                 onClick={() => setAdvisorTab(t.key)}
                 className={cn(
-                  "group relative overflow-hidden rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 ring-1 ring-white/10",
-                  "before:absolute before:inset-x-3 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/45 before:to-transparent before:opacity-0 before:transition-opacity",
+                  "group relative min-h-[48px] overflow-hidden rounded-[18px] px-4 py-3 text-sm font-bold tracking-[-0.01em] transition-all duration-300 ring-1 ring-white/10 sm:px-5",
+                  "before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent before:opacity-0 before:transition-opacity",
+                  "after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.16),transparent_48%)] after:opacity-0 after:transition-opacity",
                   active
-                    ? cn("bg-gradient-to-br shadow-[0_14px_35px_var(--tw-shadow-color)] before:opacity-100", t.active)
-                    : cn("text-muted-foreground bg-white/[0.025] hover:-translate-y-0.5 hover:ring-1", t.idle)
+                    ? cn("bg-gradient-to-br shadow-[0_16px_42px_var(--tw-shadow-color)] before:opacity-100 after:opacity-100 scale-[1.01]", t.active)
+                    : cn("text-muted-foreground bg-white/[0.035] hover:-translate-y-0.5 hover:ring-1 hover:shadow-[0_12px_30px_rgba(15,23,42,0.35)]", t.idle)
                 )}
               >
                 <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
-                  <span className={cn("grid h-6 w-6 place-items-center rounded-full text-[13px] transition-all", active ? "bg-white/12 shadow-inner" : "bg-white/[0.05] group-hover:bg-white/10")}>{t.icon}</span>
+                  <span className={cn("grid h-7 w-7 place-items-center rounded-full text-[14px] transition-all", active ? "bg-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_18px_rgba(255,255,255,0.10)]" : "bg-white/[0.06] group-hover:bg-white/12")}>{t.icon}</span>
                   <span>{t.label}</span>
                 </span>
               </button>
             );
           })}
-        </div>
+            </div>
+          </div>
         )}
       </div>
 
