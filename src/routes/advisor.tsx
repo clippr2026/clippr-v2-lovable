@@ -155,6 +155,15 @@ function AdvisorRoute() {
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
 
   React.useEffect(() => {
+    if (analysisStarted && !isAnalyzing) {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+  }, [analysisStarted, isAnalyzing]);
+
+
+  React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
 
