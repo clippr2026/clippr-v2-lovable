@@ -339,7 +339,7 @@ function AdvisorContent({
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto w-full">
+    <div className="space-y-12 max-w-5xl mx-auto w-full">
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={DEMO.payments}
@@ -363,14 +363,16 @@ function AdvisorContent({
       {advisorTab === "analisis" && (<>
 
       {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-      <div>
+      <div className="relative rounded-[2rem] border border-white/[0.045] bg-white/[0.012] p-4 shadow-[0_28px_100px_-60px_rgba(0,0,0,0.95)] sm:p-5">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.055] blur-3xl" />
         {/* Separador de sección */}
-        <div className="flex items-center gap-4 mb-3">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Salud del negocio</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+        <div className="relative flex items-center gap-4 mb-4">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Salud del negocio</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         </div>
-      <GlassCard className="p-5 sm:p-7 border border-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(124,58,237,0.55)]">
+      <GlassCard className="relative overflow-hidden p-5 sm:p-7 border border-white/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(255,255,255,0.055),0_34px_110px_-48px_rgba(124,58,237,0.75)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <h2 className="font-display text-2xl font-bold tracking-tight mb-1">❤️ ¿Cómo está tu negocio hoy?</h2>
         <p className="text-sm text-muted-foreground mb-5">Análisis de los indicadores del período actual.</p>
 
@@ -448,10 +450,11 @@ function AdvisorContent({
       </div>{/* /Salud */}
 
       {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-4 mb-3">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Evolución del negocio</span>
+      <div className="relative rounded-[2rem] border border-white/[0.045] bg-white/[0.012] p-4 shadow-[0_28px_100px_-60px_rgba(0,0,0,0.95)] sm:p-5">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-500/[0.045] blur-3xl" />
+        <div className="flex items-center gap-4 mb-4">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Evolución del negocio</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
       <GlassCard className="p-5 sm:p-7 space-y-5 border border-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(124,58,237,0.55)]">
@@ -580,13 +583,15 @@ function AdvisorContent({
       </div>{/* /Evolución */}
 
       {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-4 mb-3">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">Historial de análisis</span>
+      <div className="relative rounded-[2rem] border border-white/[0.045] bg-white/[0.012] p-4 shadow-[0_28px_100px_-60px_rgba(0,0,0,0.95)] sm:p-5">
+        <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-500/[0.04] blur-3xl" />
+        <div className="flex items-center gap-4 mb-4">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Historial de análisis</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </div>
-      <GlassCard className="p-5 sm:p-7 border border-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(124,58,237,0.55)]">
+      <GlassCard className="relative overflow-hidden p-5 sm:p-7 border border-white/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(255,255,255,0.055),0_34px_110px_-48px_rgba(124,58,237,0.75)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
             <h2 className="font-display text-2xl font-bold tracking-tight">📅 Historial de análisis</h2>
