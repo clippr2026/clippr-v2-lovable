@@ -459,12 +459,12 @@ function Tabs({
               onClick={() => onChange(t.id)}
               className={cn(
                 "relative px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",
-                active ? "text-amber-200" : "text-muted-foreground hover:text-foreground"
+                active ? "text-blue-200" : "text-muted-foreground hover:text-foreground"
               )}
             >
               {t.label}
               {active && (
-                <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-amber-300/80 via-amber-200 to-amber-400/80 shadow-[0_0_12px] shadow-amber-300/40" />
+                <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-blue-300/80 via-blue-200 to-blue-400/80 shadow-[0_0_12px] shadow-blue-300/40" />
               )}
             </button>
           );
@@ -483,8 +483,8 @@ function Tabs({
             className={cn(
               "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
               nuevaActive
-                ? "bg-gradient-to-r from-amber-200 to-amber-400 text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.7)] ring-1 ring-amber-300/60"
-                : "bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
+                ? "bg-gradient-to-r from-blue-400 to-violet-500 text-black shadow-[0_8px_30px_-8px_oklch(0.65_0.20_265/0.70)] ring-1 ring-blue-300/60"
+                : "bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.65_0.20_265/0.55)]"
             )}
           >
             <span className="text-base leading-none">＋</span> Nueva venta
@@ -554,13 +554,13 @@ function ResumenTab({
   }, [data]);
 
   const stats: { id: ActivePanel; label: string; value: number; sub?: string; icon: any; tint: string; money: boolean }[] = [
-    { id: "ingresos",   label: "Ingresos",   value: data.revHoy,       sub: "",  icon: Wallet,       tint: "from-amber-400/20 to-amber-500/0",   money: true  },
+    { id: "ingresos",   label: "Ingresos",   value: data.revHoy,       sub: "",  icon: Wallet,       tint: "from-blue-500/20 to-violet-500/0",   money: true  },
     { id: "pendientes", label: "Pendientes", value: data.pendingAmount, sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, tint: "from-violet-400/25 to-violet-500/0", money: true },
     { id: "gastos",     label: "Gastos",     value: data.totalGastos,  sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "0 gastos", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true },
   ];
 
   const ACTIVE_RING: Record<ActivePanel, string> = {
-    ingresos:   "ring-amber-400/40 bg-amber-400/[0.06]",
+    ingresos:   "ring-blue-400/40 bg-blue-400/[0.06]",
     pendientes: "ring-violet-400/40 bg-violet-400/[0.06]",
     gastos:     "ring-rose-400/40 bg-rose-400/[0.06]",
   };
@@ -625,7 +625,7 @@ function ResumenTab({
                     {equipoEnabled && (
                       <button
                         onClick={() => onCobrarPendiente(a)}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/25 hover:bg-amber-400/25 transition"
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-400/15 text-blue-300 ring-1 ring-blue-400/25 hover:bg-blue-400/25 transition"
                       >
                         Cobrar
                       </button>
@@ -749,7 +749,7 @@ function NuevoGastoTab({
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Nombre del gasto *"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-amber-300/50"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
           <input
             value={form.amount}
@@ -757,13 +757,13 @@ function NuevoGastoTab({
             placeholder="Monto *"
             type="number"
             min={0}
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-amber-300/50"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <select
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-amber-300/50"
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-blue-300/50"
             >
               <option value="">Tipo</option>
               {GTYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
@@ -771,7 +771,7 @@ function NuevoGastoTab({
             <select
               value={form.method}
               onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-amber-300/50"
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-blue-300/50"
             >
               <option value="">Método de pago</option>
               {GMETHODS.map((m) => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
@@ -781,13 +781,13 @@ function NuevoGastoTab({
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="Nota (opcional)"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-amber-300/50"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
           <button
             type="button"
             onClick={saveGasto}
             disabled={saving}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-amber-300 to-amber-400 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:brightness-105 disabled:opacity-50"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-blue-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             Registrar gasto
@@ -812,11 +812,11 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
   };
   const chipCls: Record<typeof mode, string> = {
     auto: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-    manual: "border-amber-300/30 bg-amber-300/10 text-amber-200",
+    manual: "border-blue-300/30 bg-blue-300/10 text-blue-200",
   };
   const dotCls: Record<typeof mode, string> = {
     auto: "bg-emerald-400",
-    manual: "bg-amber-300",
+    manual: "bg-blue-300",
   };
   const options: { id: typeof mode; label: string; icon: typeof Zap }[] = [
     { id: "auto", label: "Automático", icon: Zap },
@@ -853,7 +853,7 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <o.icon className="size-4 text-amber-300" /> {o.label}
+              <o.icon className="size-4 text-blue-300" /> {o.label}
             </button>
           );
         })}
@@ -1096,7 +1096,7 @@ function CierreCajaBtn({
                   onChange={(e) => setObs(e.target.value)}
                   rows={2}
                   placeholder="Novedades del día, diferencias, etc."
-                  className="mt-1 w-full rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-amber-300/40 resize-none"
+                  className="mt-1 w-full rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-blue-300/40 resize-none"
                 />
               </div>
 
@@ -1104,7 +1104,7 @@ function CierreCajaBtn({
                 type="button"
                 onClick={confirmar}
                 disabled={saving}
-                className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-amber-200 to-amber-400 text-black hover:brightness-105 disabled:opacity-50 transition-all"
+                className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-black hover:brightness-105 disabled:opacity-50 transition-all"
               >
                 {saving ? "Guardando…" : "Confirmar cierre"}
               </button>
@@ -1285,8 +1285,8 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
 
               {/* Observation for THIS specific cierre — from last cierre event */}
               {getCierreObservacion(selected) && (
-                <div className="rounded-xl bg-amber-500/[0.06] ring-1 ring-amber-400/15 px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-amber-300/60 mb-1">Observación del cierre</div>
+                <div className="rounded-xl bg-blue-500/[0.06] ring-1 ring-blue-400/15 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-blue-300/60 mb-1">Observación del cierre</div>
                   <p className="text-sm text-foreground/80 whitespace-pre-wrap">{getCierreObservacion(selected)}</p>
                 </div>
               )}
@@ -1393,14 +1393,14 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
 // helpers
 const CHARGE_TYPE_META: Record<string, { label: string; cls: string }> = {
   auto:   { label: "Automático", cls: "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300" },
-  manual: { label: "Manual",     cls: "bg-amber-500/10  ring-amber-400/25  text-amber-200"  },
+  manual: { label: "Manual",     cls: "bg-blue-500/10  ring-blue-400/25  text-blue-200"  },
   caja:   { label: "Caja",       cls: "bg-sky-500/10    ring-sky-400/25    text-sky-300"    },
 };
 
 const STATUS_META: Record<string, { label: string; dot: string }> = {
   cobrado:     { label: "Cobrado",     dot: "bg-emerald-400" },
-  pendiente:   { label: "Pendiente",   dot: "bg-amber-400"   },
-  pending_payment: { label: "Pendiente", dot: "bg-amber-400" },
+  pendiente:   { label: "Pendiente",   dot: "bg-blue-400"   },
+  pending_payment: { label: "Pendiente", dot: "bg-blue-400" },
   aprobado:    { label: "Aprobado",    dot: "bg-sky-400"     },
   anulado:     { label: "Anulado",     dot: "bg-rose-400"    },
   reembolsado: { label: "Reembolsado", dot: "bg-violet-400"  },
@@ -1537,7 +1537,7 @@ function DetailModal({ payment, employees, onClose }: {
             <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">Detalle del servicio</p>
             <Row label="Servicio / Producto" value={payment.service_name ?? "—"} />
             {discount && discount > 0 && (
-              <Row label="Descuento aplicado" value={<span className="text-amber-300">−${discount.toLocaleString("es-AR")}</span>} />
+              <Row label="Descuento aplicado" value={<span className="text-blue-300">−${discount.toLocaleString("es-AR")}</span>} />
             )}
             {depositApplied && depositApplied > 0 && (
               <Row label="Seña aplicada" value={<span className="text-primary">−${depositApplied.toLocaleString("es-AR")}</span>} />
@@ -1619,7 +1619,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
               <div className="flex gap-1 ml-1">
                 {([
                   { id: "auto",   label: "Automático", title: "El profesional cobra desde su panel sin confirmación", activeCls: "bg-emerald-500/15 ring-emerald-400/35 text-emerald-300" },
-                  { id: "manual", label: "Manual",      title: "Caja/recepción confirma y cobra cada servicio",        activeCls: "bg-amber-500/15  ring-amber-400/35  text-amber-300"  },
+                  { id: "manual", label: "Manual",      title: "Caja/recepción confirma y cobra cada servicio",        activeCls: "bg-blue-500/15  ring-blue-400/35  text-blue-300"  },
                 ] as const).map((opt) => (
                   <button key={opt.id} onClick={() => data.setApprovalMode(opt.id)} title={opt.title}
                     className={cn("px-2.5 py-1 rounded-full text-[11px] font-medium ring-1 transition",
@@ -1668,7 +1668,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-amber-400/[0.035] hover:bg-amber-400/[0.06] transition cursor-pointer"
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-blue-400/[0.035] hover:bg-blue-400/[0.06] transition cursor-pointer"
                       onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -1703,7 +1703,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
                           <button
                             type="button"
                             onClick={() => onCobrarPendiente(p)}
-                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold bg-amber-300/15 text-amber-200 ring-1 ring-amber-300/30 hover:bg-amber-300/25 transition whitespace-nowrap"
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold bg-blue-300/15 text-blue-200 ring-1 ring-blue-300/30 hover:bg-blue-300/25 transition whitespace-nowrap"
                           >
                             Cobrar
                           </button>
@@ -2240,15 +2240,15 @@ function NuevaVentaTab({
   return (
     <div className="max-w-3xl mx-auto w-full space-y-5">
       {pendingCharge && (
-        <Card className="px-5 py-3 flex items-center gap-3 border-amber-300/30 bg-amber-300/[0.06]">
-          <Clock className="size-4 text-amber-300 shrink-0" />
+        <Card className="px-5 py-3 flex items-center gap-3 border-blue-300/30 bg-blue-300/[0.06]">
+          <Clock className="size-4 text-blue-300 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-200">Continuando cobro pendiente</p>
+            <p className="text-sm font-semibold text-blue-200">Continuando cobro pendiente</p>
             <p className="text-xs text-muted-foreground truncate">
               {pendingCharge.client_name ?? "Sin cliente"} · {pendingCharge.service_name ?? "Servicio"} · ${Number(pendingCharge.service_price ?? 0).toLocaleString("es-AR")}
             </p>
             {getManualPendingNote(pendingCharge.notes) && (
-              <p className="mt-1 text-xs text-amber-100/90 truncate">
+              <p className="mt-1 text-xs text-blue-100/90 truncate">
                 Nota del profesional: {getManualPendingNote(pendingCharge.notes)}
               </p>
             )}
@@ -2268,7 +2268,7 @@ function NuevaVentaTab({
             return (
               <button key={s.n} onClick={() => setStep(s.n)}
                 className={cn("rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border",
-                  active ? "bg-gradient-to-b from-amber-200 to-amber-300 text-black border-amber-200"
+                  active ? "bg-gradient-to-b from-blue-200 to-blue-300 text-black border-blue-200"
                     : "text-muted-foreground border-white/10 bg-white/[0.02] hover:text-foreground")}>
                 {s.n} · {s.label}
               </button>
@@ -2289,15 +2289,15 @@ function NuevaVentaTab({
             return (
               <button key={e.id} type="button" onClick={() => setEmployeeId(e.id)}
                 className={cn("w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left transition-all",
-                  active ? "border-amber-300/50 bg-amber-300/10" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.04]")}>
-                <span className="size-9 rounded-full bg-gradient-to-br from-amber-200/80 to-amber-500/80 text-black font-semibold grid place-items-center">
+                  active ? "border-blue-300/50 bg-blue-300/10" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.04]")}>
+                <span className="size-9 rounded-full bg-gradient-to-br from-blue-200/80 to-blue-500/80 text-black font-semibold grid place-items-center">
                   {(e.name || "P").slice(0, 1).toUpperCase()}
                 </span>
                 <span className="flex-1">
                   <span className="block text-sm font-semibold text-foreground">{e.name}</span>
                   <span className="block text-xs text-muted-foreground">Profesional</span>
                 </span>
-                {active ? <Check className="size-4 text-amber-200" /> : <ArrowRight className="size-4 text-muted-foreground" />}
+                {active ? <Check className="size-4 text-blue-200" /> : <ArrowRight className="size-4 text-muted-foreground" />}
               </button>
             );
           })}
@@ -2396,29 +2396,29 @@ function NuevaVentaTab({
                 </div>
                 <input value={client} onChange={(e) => { setClient(e.target.value); setClientId(null); }}
                   placeholder="Nombre *"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40" />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)}
                   placeholder="Teléfono *"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40" />
                 {isFieldEnabled("email") && (
                   <input value={email} onChange={(e) => setEmail(e.target.value)}
                     placeholder="Email" type="email"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40" />
                 )}
                 {isFieldEnabled("fecha_nacimiento") && (
                   <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
                     type="date"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40" />
                 )}
                 {isFieldEnabled("notas") && (
                   <input value={clientNotes} onChange={(e) => setClientNotes(e.target.value)}
                     placeholder="Notas"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40" />
                 )}
                 <button
                   type="button"
                   onClick={handleGuardarCliente}
-                  className="w-full py-2.5 rounded-xl text-sm font-semibold transition bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110"
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold transition bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-black hover:brightness-110"
                 >
                   Confirmar cliente
                 </button>
@@ -2440,7 +2440,7 @@ function NuevaVentaTab({
             {categories.map((c) => (
               <button key={c} onClick={() => setCategory(c)}
                 className={cn("rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors capitalize",
-                  category === c ? "border-amber-300/50 bg-amber-300/10 text-amber-200"
+                  category === c ? "border-blue-300/50 bg-blue-300/10 text-blue-200"
                     : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground")}>
                 {c}
               </button>
@@ -2511,11 +2511,11 @@ function NuevaVentaTab({
           </div>
           <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
             <button onClick={() => setPaymentMode("simple")}
-              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "simple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>
+              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "simple" ? "bg-blue-200 text-black" : "text-muted-foreground hover:text-foreground")}>
               Pago simple
             </button>
             <button onClick={() => setPaymentMode("multiple")}
-              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "multiple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>
+              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "multiple" ? "bg-blue-200 text-black" : "text-muted-foreground hover:text-foreground")}>
               Pago múltiple
             </button>
           </div>
@@ -2530,7 +2530,7 @@ function NuevaVentaTab({
                     return (
                       <button key={m.id} onClick={() => setMethod(m.id as PayMethod)}
                         className={cn("flex flex-col items-center gap-2 rounded-xl border p-4 transition-all",
-                          active ? "border-amber-300/50 bg-amber-300/10 text-foreground"
+                          active ? "border-blue-300/50 bg-blue-300/10 text-foreground"
                             : "border-white/10 bg-white/[0.02] text-muted-foreground hover:text-foreground")}>
                         <m.icon className="size-5" /> <span className="text-sm font-medium">{m.label}</span>
                       </button>
@@ -2542,7 +2542,7 @@ function NuevaVentaTab({
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground">¿Con cuánto paga?</label>
                   <input value={received} onChange={(e) => setReceived(e.target.value)} inputMode="numeric" placeholder="Monto entregado"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40" />
                   {receivedNumber > 0 && (
                     <p className="text-sm text-muted-foreground">
                       Entregado: ${receivedNumber.toLocaleString("es-AR")}{change > 0 && <span className="text-emerald-300"> | Vuelto: ${change.toLocaleString("es-AR")}</span>}
@@ -2565,7 +2565,7 @@ function NuevaVentaTab({
                     </select>
                     <input value={sp.amount} onChange={(e) => updateSplit(idx, "amount", e.target.value)}
                       inputMode="numeric" placeholder="Monto"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-blue-300/40" />
                     <button onClick={() => removeSplit(idx)} disabled={splits.length <= 1}
                       className="h-10 w-9 rounded-xl border border-white/10 bg-white/[0.03] grid place-items-center text-muted-foreground hover:text-rose-300 disabled:opacity-30 transition-colors">
                       <Trash2 className="size-3.5" />
@@ -2579,7 +2579,7 @@ function NuevaVentaTab({
               </button>
               <div className="flex items-center justify-between text-sm rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3">
                 <span className="text-muted-foreground">Total cargado: ${splitsTotal.toLocaleString("es-AR")}</span>
-                <span className={cn("font-semibold", splitsRemaining === 0 ? "text-emerald-300" : splitsRemaining > 0 ? "text-amber-200" : "text-rose-300")}>
+                <span className={cn("font-semibold", splitsRemaining === 0 ? "text-emerald-300" : splitsRemaining > 0 ? "text-blue-200" : "text-rose-300")}>
                   {splitsRemaining === 0 ? "Completo ✓" : splitsRemaining > 0 ? `Falta $${splitsRemaining.toLocaleString("es-AR")}` : `Sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}`}
                 </span>
               </div>
@@ -2601,12 +2601,12 @@ function NuevaVentaTab({
           <Money value={total} />
           {step < 4 ? (
             <button onClick={goNext}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 transition-all">
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white bg-gradient-to-b from-blue-400 to-violet-500 hover:from-blue-100 hover:to-blue-300 disabled:opacity-40 transition-all">
               Continuar <ArrowRight className="size-4" />
             </button>
           ) : (
             <button disabled={cartCount === 0 || submitting || (paymentMode === "multiple" && splitsRemaining !== 0)} onClick={handleCobrar}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 transition-all">
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white bg-gradient-to-b from-blue-400 to-violet-500 hover:from-blue-100 hover:to-blue-300 disabled:opacity-40 transition-all">
               {submitting ? <><Loader2 className="size-4 animate-spin" /> Confirmando…</> : <>Confirmar cobro <Check className="size-4" /></>}
             </button>
           )}
@@ -2657,7 +2657,7 @@ function ClientAutocomplete({
   return (
     <div className="space-y-2">
       {/* Search input */}
-      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-amber-300/40">
+      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
         <Search className="size-4 shrink-0 text-muted-foreground" />
         <input
           value={value}
