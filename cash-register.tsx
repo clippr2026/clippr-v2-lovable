@@ -150,12 +150,12 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
               onClick={() => onChange(t.id)}
               className={cn(
                 "relative px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",
-                active ? "text-amber-200" : "text-muted-foreground hover:text-foreground"
+                active ? "text-blue-200" : "text-muted-foreground hover:text-foreground"
               )}
             >
               {t.label}
               {active && (
-                <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-amber-300/80 via-amber-200 to-amber-400/80 shadow-[0_0_12px] shadow-amber-300/40" />
+                <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-blue-500/80 via-violet-300 to-violet-500/80 shadow-[0_0_12px] shadow-blue-500/40" />
               )}
             </button>
           );
@@ -174,8 +174,8 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
             className={cn(
               "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
               nuevaActive
-                ? "bg-gradient-to-r from-amber-200 to-amber-400 text-black shadow-[0_8px_30px_-8px_oklch(0.78_0.17_65/0.7)] ring-1 ring-amber-300/60"
-                : "bg-gradient-to-r from-amber-300/90 to-amber-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.78_0.17_65/0.55)]"
+                ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_8px_30px_-8px_rgb(139_92_246/0.65)] ring-1 ring-blue-400/60"
+                : "bg-gradient-to-r from-blue-500/90 via-violet-500/90 to-fuchsia-500/90 text-white hover:brightness-110 cash-action-glow shadow-[0_8px_24px_-10px_rgb(79_125_255/0.55)]"
             )}
           >
             <span className="text-base leading-none">＋</span> Nueva venta
@@ -192,9 +192,8 @@ function Card({ className, children }: { className?: string; children: React.Rea
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025]",
-        "shadow-[0_1px_0_oklch(1_0_0/0.04)_inset,0_20px_50px_-20px_oklch(0_0_0/0.6)]",
-        "backdrop-blur-xl",
+        "relative overflow-hidden rounded-2xl border border-white/[0.09] bg-white/[0.03] cash-card-glow",
+        "backdrop-blur-2xl",
         className
       )}
     >
@@ -235,7 +234,7 @@ function ResumenTab({ data, equipoEnabled }: { data: ReturnType<typeof useCajaDa
       label: "Cobrado",
       value: data.revHoy,
       icon: Wallet,
-      tint: "from-amber-400/20 to-amber-500/0",
+      tint: "from-blue-500/20 to-fuchsia-500/0",
       money: true,
     },
     {
@@ -312,11 +311,11 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
   };
   const chipCls: Record<typeof mode, string> = {
     auto: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-    manual: "border-amber-300/30 bg-amber-300/10 text-amber-200",
+    manual: "border-blue-400/30 bg-blue-500/10 text-blue-200",
   };
   const dotCls: Record<typeof mode, string> = {
     auto: "bg-emerald-400",
-    manual: "bg-amber-300",
+    manual: "bg-blue-500",
   };
   const options: { id: typeof mode; label: string; icon: typeof Zap }[] = [
     { id: "auto", label: "Automático", icon: Zap },
@@ -353,7 +352,7 @@ function ApprovalMode({ data, equipoEnabled }: { data: ReturnType<typeof useCaja
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <o.icon className="size-4 text-amber-300" /> {o.label}
+              <o.icon className="size-4 text-blue-300" /> {o.label}
             </button>
           );
         })}
@@ -378,13 +377,13 @@ function CierreCajaBtn() {
 // helpers
 const CHARGE_TYPE_META: Record<string, { label: string; cls: string }> = {
   auto:   { label: "Automático", cls: "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300" },
-  manual: { label: "Manual",     cls: "bg-amber-500/10  ring-amber-400/25  text-amber-200"  },
+  manual: { label: "Manual",     cls: "bg-violet-500/10  ring-blue-500/25  text-blue-200"  },
   caja:   { label: "Caja",       cls: "bg-sky-500/10    ring-sky-400/25    text-sky-300"    },
 };
 
 const STATUS_META: Record<string, { label: string; dot: string }> = {
   cobrado:     { label: "Cobrado",     dot: "bg-emerald-400" },
-  pendiente:   { label: "Pendiente",   dot: "bg-amber-400"   },
+  pendiente:   { label: "Pendiente",   dot: "bg-blue-500"   },
   aprobado:    { label: "Aprobado",    dot: "bg-sky-400"     },
   anulado:     { label: "Anulado",     dot: "bg-rose-400"    },
   reembolsado: { label: "Reembolsado", dot: "bg-violet-400"  },
@@ -523,7 +522,7 @@ function History({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>
               <div className="flex gap-1 ml-1">
                 {([
                   { id: "auto",   label: "Automático", title: "El profesional cobra desde su panel sin confirmación", activeCls: "bg-emerald-500/15 ring-emerald-400/35 text-emerald-300" },
-                  { id: "manual", label: "Manual",      title: "Caja/recepción confirma y cobra cada servicio",        activeCls: "bg-amber-500/15  ring-amber-400/35  text-amber-300"  },
+                  { id: "manual", label: "Manual",      title: "Caja/recepción confirma y cobra cada servicio",        activeCls: "bg-violet-500/15  ring-blue-500/35  text-blue-300"  },
                 ] as const).map((opt) => (
                   <button key={opt.id} onClick={() => data.setApprovalMode(opt.id)} title={opt.title}
                     className={cn("px-2.5 py-1 rounded-full text-[11px] font-medium ring-1 transition",
@@ -895,7 +894,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
             return (
               <button key={s.n} onClick={() => setStep(s.n)}
                 className={cn("rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border",
-                  active ? "bg-gradient-to-b from-amber-200 to-amber-300 text-black border-amber-200"
+                  active ? "bg-gradient-to-b from-blue-500 to-violet-400 text-black border-blue-400"
                     : "text-muted-foreground border-white/10 bg-white/[0.02] hover:text-foreground")}>
                 {s.n} · {s.label}
               </button>
@@ -916,8 +915,8 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
             return (
               <button key={e.id} type="button" onClick={() => setEmployeeId(e.id)}
                 className={cn("w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left transition-all",
-                  active ? "border-amber-300/50 bg-amber-300/10" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.04]")}>
-                <span className="size-9 rounded-full bg-gradient-to-br from-amber-200/80 to-amber-500/80 text-black font-semibold grid place-items-center">
+                  active ? "border-blue-400/50 bg-blue-500/10" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.04]")}>
+                <span className="size-9 rounded-full bg-gradient-to-br from-blue-500/80 to-fuchsia-500/80 text-black font-semibold grid place-items-center">
                   {(e.name || "P").slice(0, 1).toUpperCase()}
                 </span>
                 <span className="flex-1">
@@ -926,7 +925,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
                     {e.commission_pct != null ? `${e.commission_pct}% comisión` : "Profesional"}
                   </span>
                 </span>
-                {active ? <Check className="size-4 text-amber-200" /> : <ArrowRight className="size-4 text-muted-foreground" />}
+                {active ? <Check className="size-4 text-blue-200" /> : <ArrowRight className="size-4 text-muted-foreground" />}
               </button>
             );
           })}
@@ -944,13 +943,13 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
           </div>
           <div className="space-y-3">
             <input value={client} onChange={(e) => { setClient(e.target.value); setClientId(null); }} placeholder="Nombre *"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400/40" />
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400/40" />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400/40" />
             <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)} type="date"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400/40" />
           </div>
         </Card>
       )}
@@ -966,7 +965,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
             {categories.map((c) => (
               <button key={c} onClick={() => setCategory(c)}
                 className={cn("rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors capitalize",
-                  category === c ? "border-amber-300/50 bg-amber-300/10 text-amber-200"
+                  category === c ? "border-blue-400/50 bg-blue-500/10 text-blue-200"
                     : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground")}>
                 {c}
               </button>
@@ -1043,11 +1042,11 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
           </div>
           <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
             <button onClick={() => setPaymentMode("simple")}
-              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "simple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>
+              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "simple" ? "bg-blue-500 text-black" : "text-muted-foreground hover:text-foreground")}>
               Pago simple
             </button>
             <button onClick={() => setPaymentMode("multiple")}
-              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "multiple" ? "bg-amber-200 text-black" : "text-muted-foreground hover:text-foreground")}>
+              className={cn("rounded-lg py-2.5 text-sm font-semibold", paymentMode === "multiple" ? "bg-blue-500 text-black" : "text-muted-foreground hover:text-foreground")}>
               Pago múltiple
             </button>
           </div>
@@ -1062,7 +1061,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
                     return (
                       <button key={m.id} onClick={() => setMethod(m.id as PayMethod)}
                         className={cn("flex flex-col items-center gap-2 rounded-xl border p-4 transition-all",
-                          active ? "border-amber-300/50 bg-amber-300/10 text-foreground"
+                          active ? "border-blue-400/50 bg-blue-500/10 text-foreground"
                             : "border-white/10 bg-white/[0.02] text-muted-foreground hover:text-foreground")}>
                         <m.icon className="size-5" /> <span className="text-sm font-medium">{m.label}</span>
                       </button>
@@ -1074,7 +1073,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground">¿Con cuánto paga?</label>
                   <input value={received} onChange={(e) => setReceived(e.target.value)} inputMode="numeric" placeholder="Monto entregado"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400/40" />
                   {receivedNumber > 0 && (
                     <p className="text-sm text-muted-foreground">
                       Entregado: ${receivedNumber.toLocaleString("es-AR")}{change > 0 && <span className="text-emerald-300"> | Vuelto: ${change.toLocaleString("es-AR")}</span>}
@@ -1097,7 +1096,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
                     </select>
                     <input value={sp.amount} onChange={(e) => updateSplit(idx, "amount", e.target.value)}
                       inputMode="numeric" placeholder="Monto"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-300/40" />
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-blue-400/40" />
                     <button onClick={() => removeSplit(idx)} disabled={splits.length <= 1}
                       className="h-10 w-9 rounded-xl border border-white/10 bg-white/[0.03] grid place-items-center text-muted-foreground hover:text-rose-300 disabled:opacity-30 transition-colors">
                       <Trash2 className="size-3.5" />
@@ -1111,7 +1110,7 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
               </button>
               <div className="flex items-center justify-between text-sm rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3">
                 <span className="text-muted-foreground">Total cargado: ${splitsTotal.toLocaleString("es-AR")}</span>
-                <span className={cn("font-semibold", splitsRemaining === 0 ? "text-emerald-300" : splitsRemaining > 0 ? "text-amber-200" : "text-rose-300")}>
+                <span className={cn("font-semibold", splitsRemaining === 0 ? "text-emerald-300" : splitsRemaining > 0 ? "text-blue-200" : "text-rose-300")}>
                   {splitsRemaining === 0 ? "Completo ✓" : splitsRemaining > 0 ? `Falta $${splitsRemaining.toLocaleString("es-AR")}` : `Sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}`}
                 </span>
               </div>
@@ -1133,12 +1132,12 @@ function NuevaVentaTab({ data }: { data: ReturnType<typeof useCajaData> }) {
           <Money value={total} />
           {step < 4 ? (
             <button onClick={goNext}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 transition-all">
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 disabled:opacity-40 transition-all">
               Continuar <ArrowRight className="size-4" />
             </button>
           ) : (
             <button disabled={cartCount === 0 || submitting || (paymentMode === "multiple" && splitsRemaining !== 0)} onClick={handleCobrar}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 disabled:opacity-40 transition-all">
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-zinc-950 bg-gradient-to-b from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 disabled:opacity-40 transition-all">
               {submitting ? <><Loader2 className="size-4 animate-spin" /> Confirmando…</> : <>Confirmar cobro <Check className="size-4" /></>}
             </button>
           )}
@@ -1169,7 +1168,7 @@ function ClientAutocomplete({
 
   return (
     <label className="block relative">
-      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-amber-300/40">
+      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-400/40">
         <Search className="size-4 text-muted-foreground" />
         <input
           value={value}
