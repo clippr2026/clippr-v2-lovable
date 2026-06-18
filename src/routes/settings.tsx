@@ -721,7 +721,7 @@ function LandingSection() {
         <div className="mt-6 border-t border-white/10 pt-5">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="text-sm font-semibold">Información adicional</h3>
+              <h3 className="text-sm font-semibold">Beneficios del negocio</h3>
               <p className="mt-1 text-xs text-white/50">
                 Máximo 12. Se muestran como intereses/beneficios con emoji en la página pública.
               </p>
@@ -1158,7 +1158,7 @@ function BrandingSection() {
     const value = customBenefit.trim().slice(0, 35);
     if (!value) return;
     if (benefits.length >= 12) {
-      toast.error("Has alcanzado el máximo de 12 informaciones adicionales.");
+      toast.error("Has alcanzado el máximo de 12 beneficios.");
       return;
     }
     if (benefits.some((b) => b.label.toLowerCase() === value.toLowerCase())) {
@@ -1632,7 +1632,7 @@ function BrandingSection() {
             </div>
           </SectionCard>
 
-          <SectionCard label="Información adicional">
+          <SectionCard label="Beneficios del negocio">
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
@@ -1710,7 +1710,7 @@ function BrandingSection() {
                   disabled={benefits.length >= 12}
                   placeholder={
                     benefits.length >= 12
-                      ? "Has alcanzado el máximo de 12 informaciones adicionales."
+                      ? "Has alcanzado el máximo de 12 beneficios."
                       : "Agregar información adicional..."
                   }
                   className="flex-1 rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1726,7 +1726,7 @@ function BrandingSection() {
               </div>
               {benefits.length >= 12 ? (
                 <p className="text-xs font-medium text-amber-300">
-                  Has alcanzado el máximo de 12 informaciones adicionales.
+                  Has alcanzado el máximo de 12 beneficios.
                 </p>
               ) : null}
             </div>
