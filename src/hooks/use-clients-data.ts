@@ -26,6 +26,8 @@ export type ClientFavoriteService = {
   amount: number;
 };
 
+export type ClientVipTag = "vip" | "ex_vip" | null;
+
 export type Client = {
   id: string;
   name: string;
@@ -42,17 +44,61 @@ export type Client = {
   lastVisit?: string | null;
   lastVisitDays?: number | null;
   status: ClientStatus;
+  vipTag: ClientVipTag;
   rating: number;
   history: ClientPayment[];
 };
 
 export type ClientStatus = "vip" | "nuevo" | "activo" | "inactivo" | "perdido";
 
-function computeStatus(visits: number, spent: number, lastVisitDays: number | null): ClientStatus {
-  if (visits === 0 || lastVisitDays === null) return "nuevo";
-  if ((visits >= 8 || spent >= 100000) && lastVisitDays <= 60) return "vip";
-  if (lastVisitDays <= 60) return "activo";
-  if (lastVisitDays <= 90) return "inactivo";
+const ACTIVE_DAYS = 45;
+const LOST_FROM_DAYS = 76;
+
+function diffDaysBetween(a: string, b: string): number {
+  const start = new Date(`${a}T00:00:00`).getTime();
+  const end = new Date(`${b}T00:00:00`).getTime();
+  return Math.max(0, Math.round((end - start) / 86_400_000));
+}
+
+function getUniqueVisitDays(history: ClientPayment[]): string[] {
+  const days = history.reduce<string[]>((acc, p) => {
+    const day = p.date?.slice(0, 10);
+    if (day) acc.push(day);
+    return acc;
+  }, []);
+
+  return Array.from(new Set(days)).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+}
+
+function isVipSequence(days: string[]): boolean {
+  if (days.length < 4) return false;
+  return days.every((day, index) => index === 0 || diffDaysBetween(days[index - 1], day) <= 15);
+}
+
+function computeVipTag(history: ClientPayment[]): ClientVipTag {
+  const visitDays = getUniqueVisitDays(history);
+  if (visitDays.length < 4) return null;
+
+  const currentWindow = visitDays.slice(-4);
+  if (isVipSequence(currentWindow)) return "vip";
+
+  for (let i = 0; i <= visitDays.length - 4; i += 1) {
+    if (isVipSequence(visitDays.slice(i, i + 4))) return "ex_vip";
+  }
+
+  return null;
+}
+
+function computeStatus(
+  visits: number,
+  lastVisitDays: number | null,
+  vipTag: ClientVipTag,
+): ClientStatus {
+  if (visits <= 1) return "nuevo";
+  if (vipTag === "vip") return "vip";
+  if (lastVisitDays === null) return "nuevo";
+  if (lastVisitDays <= ACTIVE_DAYS) return "activo";
+  if (lastVisitDays < LOST_FROM_DAYS) return "inactivo";
   return "perdido";
 }
 
@@ -91,21 +137,23 @@ async function loadClients(businessId: string): Promise<Client[]> {
   if (error) throw new Error("Error cargando clientes: " + error.message);
   if (!rawClients?.length) return [];
 
-  const [{ data: payments, error: paymentsError }, { data: appointments, error: appointmentsError }] =
-    await Promise.all([
-      supabase
-        .from("payments")
-        .select("id,client_name,service_name,total,amount,created_at")
-        .eq("business_id", businessId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("appointments")
-        .select("id,client_id,client_name,service_name,starts_at,status")
-        .eq("business_id", businessId)
-        .gte("starts_at", new Date().toISOString())
-        .neq("status", "cancelled")
-        .order("starts_at", { ascending: true }),
-    ]);
+  const [
+    { data: payments, error: paymentsError },
+    { data: appointments, error: appointmentsError },
+  ] = await Promise.all([
+    supabase
+      .from("payments")
+      .select("id,client_name,service_name,total,amount,created_at")
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("appointments")
+      .select("id,client_id,client_name,service_name,starts_at,status")
+      .eq("business_id", businessId)
+      .gte("starts_at", new Date().toISOString())
+      .neq("status", "cancelled")
+      .order("starts_at", { ascending: true }),
+  ]);
 
   if (paymentsError)
     throw new Error("Error cargando historial de clientes: " + paymentsError.message);
@@ -171,9 +219,11 @@ async function loadClients(businessId: string): Promise<Client[]> {
       .sort((a, b) => b.count - a.count || b.amount - a.amount)
       .slice(0, 3);
 
-    const nextAppointment = appointmentsByClientId.get(c.id) ?? appointmentsByName.get(name.trim().toLowerCase()) ?? null;
+    const nextAppointment =
+      appointmentsByClientId.get(c.id) ?? appointmentsByName.get(name.trim().toLowerCase()) ?? null;
     const last = history[0]?.date ?? null;
     const lastVisit = formatLastVisit(last);
+    const vipTag = computeVipTag(history);
 
     return {
       id: c.id,
@@ -190,7 +240,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
       nextAppointment,
       lastVisit: lastVisit.label,
       lastVisitDays: lastVisit.days,
-      status: computeStatus(visits, spent, lastVisit.days),
+      vipTag,
+      status: computeStatus(visits, lastVisit.days, vipTag),
       rating: computeRating(visits, spent, lastVisit.days),
       history,
     };
