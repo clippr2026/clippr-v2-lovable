@@ -111,16 +111,16 @@ const CLIENT_METRIC_INFO = {
   nuevos: {
     title: "Clientes nuevos",
     description:
-      "Clientes del mes vigente que realizaron su primera visita y todavía no regresaron una segunda vez.",
+      "Clientes cuya primera visita ocurrió durante el mes vigente. Siguen contando como nuevos todo ese mes, aunque vuelvan 2 o 3 veces.",
     bullets: [
       "El contador se reinicia cada mes: si es otro mes, arranca de 0.",
-      "Cuando repiten, dejan de ser nuevos y pasan a activo, inactivo, perdido o VIP según su comportamiento.",
-      "Sirve para medir captación y primera retención.",
+      "Cuando cambia el mes, dejan de ser nuevos y pasan a activo, inactivo, perdido o VIP según su comportamiento.",
+      "Sirve para medir cuántos clientes nuevos captó el negocio este mes.",
     ],
   },
   activos: {
     title: "Clientes activos",
-    description: "Clientes con más de una visita cuya última visita fue hace 45 días o menos.",
+    description: "Clientes que ya no son nuevos y cuya última visita fue hace 45 días o menos.",
     bullets: [
       "Representan la base vigente del negocio.",
       "Incluye clientes que siguen viniendo con una frecuencia saludable.",
