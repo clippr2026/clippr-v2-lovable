@@ -927,19 +927,19 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
   ];
 
   return (
-    <div className="relative flex min-h-[70vh] flex-col items-center justify-center overflow-hidden px-4 py-10">
+    <div className="relative flex min-h-[calc(100dvh-140px)] flex-col items-center justify-center overflow-hidden px-3 py-4 sm:px-4 sm:py-6">
       {/* Background glows estilo Dashboard */}
       <div className="pointer-events-none absolute -left-32 top-8 h-72 w-72 rounded-full bg-violet-500/18 blur-3xl" />
       <div className="pointer-events-none absolute -right-28 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
       <div className="pointer-events-none absolute left-1/2 top-28 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
 
-      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center">
+      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center text-center">
         {/* Cerebro premium */}
-        <div className="relative mb-5">
+        <div className="relative mb-3 sm:mb-4">
           <div className="absolute inset-0 scale-[1.85] rounded-full bg-gradient-to-br from-primary/25 via-violet-500/15 to-sky-500/20 blur-3xl" />
           <div className="absolute inset-0 scale-[1.35] rounded-[2rem] border border-white/10 bg-white/[0.025] backdrop-blur-xl" />
-          <div className="relative grid h-36 w-36 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.13] via-white/[0.055] to-white/[0.025] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.85)]">
-            <Brain className="h-20 w-20 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.55)]" />
+          <div className="relative grid h-24 w-24 sm:h-28 sm:w-28 lg:h-32 lg:w-32 place-items-center rounded-[1.6rem] sm:rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.13] via-white/[0.055] to-white/[0.025] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.85)]">
+            <Brain className="h-12 w-12 sm:h-16 sm:w-16 lg:h-18 lg:w-18 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.55)]" />
           </div>
           <div
             className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping"
@@ -948,7 +948,7 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         </div>
 
         {/* Tarjeta flotante */}
-        <div className="mb-5 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+        <div className="mb-3 sm:mb-4 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/12 ring-1 ring-primary/25">
             <span className="text-base">❤️</span>
           </div>
@@ -963,25 +963,25 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         </div>
 
         {/* Título */}
-        <div className="text-center max-w-3xl mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">
+        <div className="text-center max-w-3xl mb-4 sm:mb-5">
+          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.24em] sm:tracking-[0.3em] text-primary mb-2">
             Asesor Clippr
           </p>
-          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight mb-4">
+          <h1 className="font-display text-2xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight mb-3">
             Descubrí qué está frenando el crecimiento de tu negocio
           </h1>
-          <p className="text-base text-muted-foreground leading-relaxed">
+          <p className="mx-auto max-w-2xl text-sm sm:text-base text-muted-foreground leading-relaxed">
             Obtené un diagnóstico completo en segundos y recibí acciones concretas para aumentar tus
             ingresos.
           </p>
         </div>
 
         {/* Indicadores */}
-        <div className="flex flex-wrap justify-center gap-2 mb-8 max-w-3xl">
+        <div className="flex flex-wrap justify-center gap-2 mb-4 sm:mb-6 max-w-3xl">
           {indicators.map((ind) => (
             <div
               key={ind.label}
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs sm:gap-2 sm:px-4 sm:py-2 sm:text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
             >
               <span>{ind.emoji}</span>
               <span>{ind.label}</span>
@@ -993,14 +993,14 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         <button
           type="button"
           onClick={onStart}
-          className="group relative inline-flex h-16 min-w-[280px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-10 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.8)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/0.95)]"
+          className="group relative inline-flex h-12 sm:h-14 lg:h-16 w-full max-w-[280px] sm:min-w-[280px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-6 sm:px-10 text-sm sm:text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.8)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/0.95)]"
         >
           <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
           <Brain className="relative h-5 w-5" />
           <span className="relative">Analizar mi negocio</span>
         </button>
 
-        <p className="mt-4 text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
+        <p className="mt-3 text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
           Analizamos ventas, clientes, agenda y rentabilidad para detectar oportunidades de
           crecimiento.
         </p>
@@ -1030,7 +1030,7 @@ function AnalysisLoader({ step }: { step: number }) {
       <div className="relative z-10 w-full max-w-3xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-6 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-8">
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="relative mb-5">
+          <div className="relative mb-3 sm:mb-4">
             <div className="absolute inset-0 scale-[1.65] rounded-full bg-gradient-to-br from-primary/25 to-accent/20 blur-3xl" />
             <div className="relative grid h-24 w-24 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)]">
               <Brain className="h-12 w-12 text-primary" />
