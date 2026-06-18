@@ -305,15 +305,16 @@ function CashRegisterPage() {
   if (cajaCerrada) {
     return (
       <AppShell>
-        <div className="flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">Caja</h1>
-            <p className="mt-2 text-sm md:text-base text-muted-foreground">Cobros, gastos y liquidaciones</p>
+        <div className="cash-premium-shell">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">Caja</h1>
+              <p className="mt-2 text-sm md:text-base text-muted-foreground">Cobros, gastos y liquidaciones</p>
+            </div>
           </div>
-        </div>
-        <div className="mt-8 space-y-4">
+          <div className="mt-8 space-y-4">
           {/* Estado banner */}
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl px-6 py-6 flex items-center gap-5">
+          <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow backdrop-blur-xl px-6 py-6 flex items-center gap-5">
             <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-400/20 grid place-items-center shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-300"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
@@ -349,6 +350,7 @@ function CashRegisterPage() {
               />
             </div>
           )}
+          </div>
         </div>
       </AppShell>
     );
@@ -357,6 +359,7 @@ function CashRegisterPage() {
   // ── CAJA ABIERTA ──────────────────────────────────────────────────────────
   return (
     <AppShell>
+      <div className="cash-premium-shell">
       <Header data={data} />
       <Tabs
         tab={tab}
@@ -404,6 +407,7 @@ function CashRegisterPage() {
             onCajaReopened={() => { setCajaCerrada(false); data.refresh(); }}
           />
         )}
+      </div>
       </div>
     </AppShell>
   );
@@ -508,7 +512,7 @@ function Card({ className, children, ...props }: React.HTMLAttributes<HTMLDivEle
     <div
       {...props}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025]",
+        "relative overflow-hidden rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-card-glow",
         "shadow-[0_1px_0_oklch(1_0_0/0.04)_inset,0_20px_50px_-20px_oklch(0_0_0/0.6)]",
         "backdrop-blur-xl",
         className
@@ -602,7 +606,7 @@ function ResumenTab({
       )}
 
       {activePanel === "pendientes" && (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] overflow-hidden cash-panel-glow">
           <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
             <div className="text-sm font-semibold">Pendientes de cobro</div>
             <div className="text-xs text-muted-foreground">{data.pendingCharges.length} pendiente{data.pendingCharges.length !== 1 ? "s" : ""} · ${data.pendingAmount.toLocaleString("es-AR")}</div>
@@ -639,7 +643,7 @@ function ResumenTab({
       )}
 
       {activePanel === "gastos" && (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] overflow-hidden cash-panel-glow">
           <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
             <div className="text-sm font-semibold">Gastos</div>
             <div className="text-xs text-muted-foreground">{data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}</div>
@@ -1216,11 +1220,11 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
       {loading ? (
         <div className="py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
       ) : cierres.length === 0 ? (
-        <div className="glass rounded-2xl py-12 text-center text-sm text-muted-foreground">
+        <div className="glass rounded-2xl py-12 text-center text-sm text-muted-foreground cash-panel-glow">
           Sin cierres registrados todavía.
         </div>
       ) : (
-        <div className="glass rounded-2xl overflow-hidden">
+        <div className="glass rounded-2xl overflow-hidden cash-panel-glow">
           <div className="grid grid-cols-[1fr_160px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
             <div>Fecha</div>
             <div className="text-right">Estado</div>
