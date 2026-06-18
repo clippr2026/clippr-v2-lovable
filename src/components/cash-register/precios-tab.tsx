@@ -129,8 +129,8 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                           <span className="font-semibold text-white/70">${Number(r.price).toLocaleString("es-AR")}</span>
                         </div>
                         <div className="mt-1 flex items-center justify-between gap-3 text-sm tabular-nums">
-                          <span className="text-amber-300/70">Ef.</span>
-                          <span className="font-semibold text-amber-200">${cash.toLocaleString("es-AR")}</span>
+                          <span className="text-blue-300/70">Ef.</span>
+                          <span className="font-semibold text-blue-200">${cash.toLocaleString("es-AR")}</span>
                         </div>
                       </div>
                     </div>
@@ -169,7 +169,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                         <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
                         {typeof r.stock === "number" && (
                           <div className={cn("text-[11px] mt-0.5",
-                            r.stock === 0 ? "text-rose-300" : r.stock <= 3 ? "text-amber-300" : "text-muted-foreground")}>
+                            r.stock === 0 ? "text-rose-300" : r.stock <= 3 ? "text-blue-300" : "text-muted-foreground")}>
                             Stock: {r.stock}
                           </div>
                         )}
@@ -180,8 +180,8 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                           <span className="font-semibold text-white/70">${Number(r.price).toLocaleString("es-AR")}</span>
                         </div>
                         <div className="mt-1 flex items-center justify-between gap-3 text-sm tabular-nums">
-                          <span className="text-amber-300/70">Ef.</span>
-                          <span className="font-semibold text-amber-200">${cash.toLocaleString("es-AR")}</span>
+                          <span className="text-blue-300/70">Ef.</span>
+                          <span className="font-semibold text-blue-200">${cash.toLocaleString("es-AR")}</span>
                         </div>
                       </div>
                     </div>

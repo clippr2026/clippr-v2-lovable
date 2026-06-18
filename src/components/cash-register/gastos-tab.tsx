@@ -111,7 +111,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="Nombre del gasto *"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-blue-400/50"
             />
             <input
               value={form.amount}
@@ -119,13 +119,13 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
               placeholder="Monto *"
               type="number"
               min={0}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-blue-400/50"
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <select
                 value={form.type}
                 onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-blue-400/50"
               >
                 <option value="">Tipo</option>
                 {TYPES.map((t) => (
@@ -137,7 +137,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
               <select
                 value={form.method}
                 onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
-                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-blue-400/50"
               >
                 <option value="">Método de pago</option>
                 {METHODS.map((m) => (
@@ -151,13 +151,13 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               placeholder="Nota (opcional)"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-blue-400/50"
             />
             <button
               type="button"
               onClick={save}
               disabled={saving}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-sm disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-b from-blue-500 to-violet-500 text-white cash-action-glow font-semibold text-sm disabled:opacity-50"
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               Registrar gasto
@@ -188,7 +188,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
             </div>
             <button
               onClick={() => setShowForm((v) => !v)}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 px-4 py-2.5 text-sm font-semibold"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-blue-500 to-violet-500 text-white cash-action-glow px-4 py-2.5 text-sm font-semibold"
             >
               <Plus className="size-4" /> Nuevo gasto
             </button>
@@ -205,7 +205,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Nombre del gasto *"
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-blue-400/50"
           />
           <input
             value={form.amount}
@@ -213,13 +213,13 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
             placeholder="Monto *"
             type="number"
             min={0}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-blue-400/50"
           />
           <div className="grid grid-cols-2 gap-2">
             <select
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+              className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-blue-400/50"
             >
               <option value="">Tipo</option>
               {TYPES.map((t) => (
@@ -231,7 +231,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
             <select
               value={form.method}
               onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
-              className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+              className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-blue-400/50"
             >
               <option value="">Método de pago</option>
               {METHODS.map((m) => (
@@ -245,12 +245,12 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="Nota (opcional)"
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-amber-300/50"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-blue-400/50"
           />
           <button
             onClick={save}
             disabled={saving}
-            className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-sm disabled:opacity-50"
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-b from-blue-500 to-violet-500 text-white cash-action-glow font-semibold text-sm disabled:opacity-50"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             Registrar gasto

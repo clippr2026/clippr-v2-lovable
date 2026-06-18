@@ -82,7 +82,7 @@ export function ProfesionalesTab({
         <select
           value={empId}
           onChange={(e) => setEmpId(e.target.value)}
-          className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50 h-[38px]"
+          className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-400/50 h-[38px]"
         >
           <option value="all">Todos los profesionales</option>
           {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
@@ -126,7 +126,7 @@ export function ProfesionalesTab({
 
           return (
             <div key={emp.id} className="relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.028] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <div className="absolute -right-12 -top-16 h-32 w-32 rounded-full bg-amber-300/10 blur-3xl" />
+              <div className="absolute -right-12 -top-16 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" />
               <div className="relative flex items-center justify-between flex-wrap gap-3 mb-4">
                 <div>
                   <h3 className="text-base font-semibold text-foreground">{emp.full_name}</h3>
@@ -150,7 +150,7 @@ export function ProfesionalesTab({
                   {pendiente > 0 && (
                     <button
                       onClick={() => setPayModal({ emp, pendiente })}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-300/15 border border-amber-300/30 text-amber-200 text-xs hover:bg-amber-300/25 transition shadow-[0_10px_28px_-18px_rgba(251,191,36,0.8)]"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-200 text-xs hover:bg-blue-500/25 transition shadow-[0_10px_28px_-18px_rgba(251,191,36,0.8)]"
                     >
                       Pagar comisión
                     </button>
@@ -159,7 +159,7 @@ export function ProfesionalesTab({
               </div>
               <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {[
-                  { label: "Comisión",    val: `$${comision.toLocaleString("es-AR")}`,    cls: "text-amber-300"   },
+                  { label: "Comisión",    val: `$${comision.toLocaleString("es-AR")}`,    cls: "text-blue-300"   },
                   { label: "Pagado",      val: `$${pagado.toLocaleString("es-AR")}`,      cls: "text-sky-300"     },
                   { label: "Pendiente",   val: `$${pendiente.toLocaleString("es-AR")}`,   cls: pendiente > 0 ? "text-rose-300" : "text-muted-foreground" },
                 ].map(({ label, val, cls }) => (
@@ -264,7 +264,7 @@ function PayModal({
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-lg font-semibold text-foreground mt-1 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-lg font-semibold text-foreground mt-1 focus:outline-none focus:border-blue-400/50"
             />
           </div>
           <div>
@@ -272,7 +272,7 @@ function PayModal({
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-400/50"
             >
               {["Efectivo", "Transferencia", "Débito", "Crédito", "Mercado Pago"].map((m) => (
                 <option key={m}>{m}</option>
@@ -285,7 +285,7 @@ function PayModal({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Ej: Pago parcial mayo"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-400/50"
             />
           </div>
         </div>
@@ -299,7 +299,7 @@ function PayModal({
           <button
             disabled={saving}
             onClick={save}
-            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-sm disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-blue-500 to-violet-500 text-zinc-950 font-semibold text-sm disabled:opacity-50"
           >
             {saving ? "Guardando…" : "Guardar pago"}
           </button>
