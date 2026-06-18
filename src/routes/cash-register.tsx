@@ -307,8 +307,8 @@ function CashRegisterPage() {
       <AppShell>
         <div className="cash-premium-shell cash-register-page">
 
-      <div className="pointer-events-none absolute left-1/2 top-[-132px] z-[-1] h-[720px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_18%_5%,rgb(139_92_246_/_0.46),transparent_43%),radial-gradient(circle_at_78%_2%,rgb(79_125_255_/_0.38),transparent_42%),radial-gradient(circle_at_44%_88%,rgb(255_123_229_/_0.18),transparent_56%)] blur-[18px]" />
-      <div className="pointer-events-none absolute left-1/2 top-[72px] z-[-1] h-[360px] w-screen -translate-x-1/2 bg-[linear-gradient(90deg,rgb(139_92_246_/_0.20),rgb(79_125_255_/_0.16),transparent_86%)] blur-[32px]" />
+      <div className="pointer-events-none absolute left-1/2 top-[-132px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_18%_5%,rgb(139_92_246_/_0.30),transparent_43%),radial-gradient(circle_at_78%_2%,rgb(79_125_255_/_0.26),transparent_42%),radial-gradient(circle_at_44%_88%,rgb(255_123_229_/_0.10),transparent_56%)] blur-[20px]" />
+      <div className="pointer-events-none absolute left-1/2 top-[72px] z-[-1] h-[360px] w-screen -translate-x-1/2 bg-[linear-gradient(90deg,rgb(139_92_246_/_0.08),rgb(79_125_255_/_0.07),transparent_86%)] blur-[42px]" />
 <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">Caja</h1>
