@@ -6361,7 +6361,7 @@ function SettingsPage() {
             {active === "horarios" && <HorariosSection />}
             {active === "equipo" && <EquipoSection />}
             {active === "servicios" && <ServiciosSection />}
-            {active === "servicios" && <SenasSection />}
+            
             {active === "catalogo" && <CatalogoSection />}
             {active === "caja" && <CajaSection />}
             {active === "apariencia" && <AparienciaSection />}
