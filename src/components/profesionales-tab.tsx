@@ -155,7 +155,7 @@ export function ProfesionalesTab({
           <select
             value={empId}
             onChange={(e) => setEmpId(e.target.value)}
-            className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+            className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-300/50"
           >
             <option value="all">Todos los profesionales</option>
             {employees.map((e) => (
@@ -168,7 +168,7 @@ export function ProfesionalesTab({
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Desde
             </span>
-            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-amber-200">
+            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-blue-200">
               <CalendarDays className="size-4" />
             </span>
             <input
@@ -176,14 +176,14 @@ export function ProfesionalesTab({
               value={from}
               onChange={(e) => setFrom(e.target.value)}
               onClick={(e) => e.currentTarget.showPicker?.()}
-              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-300/50"
             />
           </label>
           <label className="group relative min-w-[170px] flex-1 sm:flex-none">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Hasta
             </span>
-            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-amber-200">
+            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-blue-200">
               <CalendarDays className="size-4" />
             </span>
             <input
@@ -191,7 +191,7 @@ export function ProfesionalesTab({
               value={to}
               onChange={(e) => setTo(e.target.value)}
               onClick={(e) => e.currentTarget.showPicker?.()}
-              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-amber-300/50"
+              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-300/50"
             />
           </label>
         </div>
@@ -249,7 +249,7 @@ export function ProfesionalesTab({
                     { label: "Facturación", value: `$${facturacion.toLocaleString("es-AR")}`, color: "text-emerald-300" },
                     { label: "Comisión",    value: `$${comision.toLocaleString("es-AR")}`,    color: "text-foreground" },
                     { label: "Pagado",      value: `$${pagado.toLocaleString("es-AR")}`,      color: "text-sky-300" },
-                    { label: "Pendiente",   value: `$${pendiente.toLocaleString("es-AR")}`,   color: pendiente > 0 ? "text-amber-300" : "text-muted-foreground" },
+                    { label: "Pendiente",   value: `$${pendiente.toLocaleString("es-AR")}`,   color: pendiente > 0 ? "text-blue-300" : "text-muted-foreground" },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="text-center min-w-[70px]">
                       <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">{label}</div>
@@ -362,7 +362,7 @@ function PayModal({
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-lg font-semibold text-foreground mt-1 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-lg font-semibold text-foreground mt-1 focus:outline-none focus:border-blue-300/50"
             />
           </div>
           <div>
@@ -370,7 +370,7 @@ function PayModal({
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-300/50"
             >
               {["Efectivo", "Transferencia", "Débito", "Crédito", "Mercado Pago"].map((m) => (
                 <option key={m}>{m}</option>
@@ -383,7 +383,7 @@ function PayModal({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Ej: Pago parcial mayo"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-amber-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-300/50"
             />
           </div>
         </div>
@@ -397,7 +397,7 @@ function PayModal({
           <button
             disabled={saving}
             onClick={save}
-            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-sm disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-blue-400 to-violet-500 text-white font-semibold text-sm disabled:opacity-50"
           >
             {saving ? "Guardando…" : "Guardar pago"}
           </button>

@@ -39,7 +39,7 @@ type Movement = {
 function mvStyle(type: string) {
   if (["ingreso", "in", "inicial"].includes(type))
     return { color: "text-emerald-300", sign: "+", label: type === "inicial" ? "INICIAL" : "INGRESO" };
-  if (type === "venta") return { color: "text-amber-300", sign: "-", label: "VENTA" };
+  if (type === "venta") return { color: "text-blue-300", sign: "-", label: "VENTA" };
   if (type === "ajuste") return { color: "text-muted-foreground", sign: "±", label: "AJUSTE" };
   return { color: "text-rose-300", sign: "-", label: "RETIRO" };
 }
@@ -121,7 +121,7 @@ export function InventarioTab({
             className={cn(
               "rounded-full border px-4 py-1.5 text-xs whitespace-nowrap font-medium transition-colors",
               activeCat === c
-                ? "border-amber-300/50 bg-amber-300/10 text-amber-200"
+                ? "border-blue-300/50 bg-blue-300/10 text-blue-200"
                 : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-foreground"
             )}>
             {c}
@@ -149,7 +149,7 @@ export function InventarioTab({
               let stockCls = "text-foreground";
               if (stock === 0) { badge = { cls: "bg-rose-400/15 text-rose-300 ring-rose-400/20", label: "SIN STOCK" }; stockCls = "text-rose-300"; }
               else if (crit > 0 && stock <= crit) { badge = { cls: "bg-rose-400/15 text-rose-300 ring-rose-400/20", label: "CRÍTICO" }; stockCls = "text-rose-300"; }
-              else if (min > 0 && stock <= min) { badge = { cls: "bg-amber-400/15 text-amber-300 ring-amber-400/20", label: "BAJO" }; stockCls = "text-amber-300"; }
+              else if (min > 0 && stock <= min) { badge = { cls: "bg-blue-400/15 text-blue-300 ring-blue-400/20", label: "BAJO" }; stockCls = "text-blue-300"; }
               else { badge = { cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20", label: "OK" }; }
               return (
                 <div key={p.id} className="grid grid-cols-[1fr_80px_80px_100px] px-5 py-3.5 items-center hover:bg-white/[0.02] transition-colors">
@@ -171,7 +171,7 @@ export function InventarioTab({
                       <Minus className="size-4" />
                     </button>
                     <button onClick={() => setModal({ product: p, direction: 1 })}
-                      className="size-8 grid place-items-center rounded-md bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950">
+                      className="size-8 grid place-items-center rounded-md bg-gradient-to-b from-blue-400 to-violet-500 text-white">
                       <Plus className="size-4" />
                     </button>
                   </div>
@@ -329,20 +329,20 @@ function StockModal({
           type="number"
           value={qty}
           onChange={(e) => setQty(e.target.value)}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-3 text-xl font-bold text-center text-foreground mt-1 mb-3 focus:outline-none focus:border-amber-300/50"
+          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-3 text-xl font-bold text-center text-foreground mt-1 mb-3 focus:outline-none focus:border-blue-300/50"
         />
         <label className="text-[11px] text-muted-foreground">Nota / responsable (opcional)</label>
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="Ej: Reposición proveedor"
-          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground mt-1 mb-4 focus:outline-none focus:border-amber-300/50"
+          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground mt-1 mb-4 focus:outline-none focus:border-blue-300/50"
         />
         <div className="flex gap-2">
           <button
             disabled={saving}
             onClick={confirm}
-            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-amber-300 to-amber-400 text-zinc-950 font-semibold text-sm disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-blue-400 to-violet-500 text-white font-semibold text-sm disabled:opacity-50"
           >
             {saving ? "Guardando…" : "Confirmar"}
           </button>
