@@ -26,7 +26,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import React from "react";
+import React from 'react';
 import { useAuth } from "@/hooks/use-auth";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
@@ -92,6 +92,7 @@ type SectionId =
   | "equipo"
   | "servicios"
   | "catalogo"
+  | "clientes"
   | "caja"
   | "senas"
   | "apariencia"
@@ -148,6 +149,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Store,
         tint: "text-[oklch(0.82_0.14_75)]",
         glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]",
+      },
+      {
+        id: "clientes",
+        label: "Clientes",
+        icon: Users,
+        tint: "text-[oklch(0.78_0.18_240)]",
+        glow: "from-[oklch(0.78_0.18_240/0.25)] to-[oklch(0.65_0.2_255/0.05)]",
       },
     ],
   },
@@ -246,43 +254,25 @@ function AparienciaSection() {
               type="button"
               onClick={() => applyTheme(opt.id)}
               className={cn(
-                "relative rounded-2xl p-4 text-left transition-all ring-1",
+                "relative rounded-2xl p-5 text-left transition-all ring-1",
                 isActive
                   ? "ring-primary bg-primary/10"
-                  : "ring-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
+                  : "ring-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
               )}
             >
               {/* Preview swatch */}
-              <div
-                className={cn(
-                  "rounded-xl h-20 mb-4 flex items-center justify-center ring-1",
-                  opt.preview,
-                  opt.ring,
-                )}
-              >
-                <opt.Icon
-                  className={cn("size-7", opt.id === "dark" ? "text-white/60" : "text-black/50")}
-                />
+              <div className={cn("rounded-xl h-20 mb-4 flex items-center justify-center ring-1", opt.preview, opt.ring)}>
+                <opt.Icon className={cn("size-7", opt.id === "dark" ? "text-white/60" : "text-black/50")} />
               </div>
 
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="font-semibold text-sm">{opt.label}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                    {opt.desc}
-                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{opt.desc}</div>
                 </div>
                 {isActive && (
                   <div className="shrink-0 h-5 w-5 rounded-full bg-primary grid place-items-center mt-0.5">
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path
-                        d="M1 4L3.5 6.5L9 1"
-                        stroke="white"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
                 )}
               </div>
@@ -299,15 +289,7 @@ function AparienciaSection() {
 }
 
 // ─────────── Branding ───────────
-type FeaturedClientCategory =
-  | "Marca"
-  | "Artista"
-  | "Futbolista"
-  | "Equipo de fútbol"
-  | "Influencer"
-  | "Empresa"
-  | "Celebridad"
-  | "Otro";
+type FeaturedClientCategory = "Marca" | "Artista" | "Futbolista" | "Equipo de fútbol" | "Influencer" | "Empresa" | "Celebridad" | "Otro";
 
 type FeaturedClient = {
   id: string;
@@ -318,64 +300,14 @@ type FeaturedClient = {
   order: number;
 };
 
-const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
-  "Marca",
-  "Artista",
-  "Futbolista",
-  "Equipo de fútbol",
-  "Influencer",
-  "Empresa",
-  "Celebridad",
-  "Otro",
-];
-
-// ─────────── Beneficios del local (lista editable, máx. 12) ───────────
-type Benefit = { id: string; label: string; active: boolean };
-
-const DEFAULT_BENEFITS: string[] = [
-  "⚡ Confirmación instantánea",
-  "📅 Reserva online 24/7",
-  "💈 Orden de llegada",
-  "💎 Servicio premium",
-  "☕ Bebidas de cortesía",
-  "💳 Acepta tarjetas",
-  "📶 Wi-Fi gratuito",
-  "❄️ Ambiente climatizado",
-  "🎵 Música ambiente",
-  "🧴 Productos profesionales",
-  "🚗 Estacionamiento cercano",
-  "⭐ Atención personalizada",
-];
-
-function makeBenefitId(): string {
-  return `benefit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function buildDefaultBenefits(): Benefit[] {
-  return DEFAULT_BENEFITS.map((label) => ({ id: makeBenefitId(), label, active: false }));
-}
-
-function normalizeBenefits(value: unknown): Benefit[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((b): b is Record<string, unknown> => !!b && typeof b === "object")
-    .map((b) => ({
-      id: typeof b.id === "string" && b.id ? b.id : makeBenefitId(),
-      label: typeof b.label === "string" ? b.label.slice(0, 35) : "",
-      active: b.active !== false,
-    }))
-    .filter((b) => b.label.trim().length > 0)
-    .slice(0, 12);
-}
+const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = ["Marca", "Artista", "Futbolista", "Equipo de fútbol", "Influencer", "Empresa", "Celebridad", "Otro"];
 
 function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item, index) => {
-      const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-      const category = FEATURED_CLIENT_CATEGORIES.includes(row.category as FeaturedClientCategory)
-        ? (row.category as FeaturedClientCategory)
-        : "Otro";
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+      const category = FEATURED_CLIENT_CATEGORIES.includes(row.category as FeaturedClientCategory) ? row.category as FeaturedClientCategory : "Otro";
       return {
         id: typeof row.id === "string" && row.id ? row.id : `featured-${Date.now()}-${index}`,
         name: typeof row.name === "string" ? row.name : "",
@@ -404,32 +336,11 @@ type BrandingData = {
   cover_url: string;
   portfolio_urls: string[];
   featured_clients: FeaturedClient[];
-  avatar_position: string;
-  cover_position: string;
-  portfolio_positions: string[];
-  featured_positions: Record<string, string>;
-  business_start_date: string;
 };
 const EMPTY_BRANDING: BrandingData = {
-  name: "",
-  slug: "",
-  address: "",
-  phone: "",
-  email: "",
-  instagram: "",
-  website: "",
-  description: "",
-  profile_note: "",
-  logo_url: "",
-  avatar_url: "",
-  cover_url: "",
-  portfolio_urls: [],
-  featured_clients: [],
-  avatar_position: "50% 50%",
-  cover_position: "50% 50%",
-  portfolio_positions: [],
-  featured_positions: {},
-  business_start_date: "",
+  name: "", slug: "", address: "", phone: "", email: "",
+  instagram: "", website: "", description: "", profile_note: "", logo_url: "",
+  avatar_url: "", cover_url: "", portfolio_urls: [], featured_clients: [],
 };
 
 // Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
@@ -495,12 +406,7 @@ function slugifyLive(value: string): string {
 }
 
 // ─────────── Landing (colores de la página pública) ───────────
-const LANDING_DEFAULTS = {
-  primary: "#7c3aed",
-  secondary: "#d946ef",
-  accent: "#d6b66a",
-  buttonText: "#ffffff",
-};
+const LANDING_DEFAULTS = { primary: "#7c3aed", secondary: "#7c3aed", accent: "#d6b66a", buttonText: "#ffffff" };
 const LANDING_THEME_DEFAULT = "dark" as const;
 type LandingTheme = "dark" | "light";
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
@@ -511,20 +417,28 @@ function normalizeHex(value: string, fallback: string): string {
 }
 
 const ADDITIONAL_INFO_OPTIONS = [
-  "⚡ Confirmación instantánea",
-  "📅 Reserva online 24/7",
+  "✅ Confirmación instantánea",
+  "📱 Reserva online 24/7",
   "💳 Acepta tarjetas",
   "📶 Wi-Fi gratuito",
-  "🚗 Estacionamiento cercano",
+  "🅿️ Estacionamiento cercano",
   "♿ Accesible para silla de ruedas",
+  "🚇 Cerca del transporte público",
   "☕ Café de cortesía",
+  "🥤 Bebidas",
+  "🥤 Bebidas incluidas",
   "❄️ Ambiente climatizado",
+  "👶 Apto para niños",
+  "🐶 Pet friendly",
   "💎 Atención premium",
   "🎵 Música ambiente",
   "🧴 Productos profesionales",
-  "🐶 Pet friendly",
+  "🎮 PlayStation disponible",
+  "💆 Masajes",
+  "🧖 Mascarilla facial",
+  "💈 Atención por orden de llegada",
+  "🇺🇸 Atención en inglés",
 ];
-const MAX_ADDITIONAL_INFO = 12;
 
 function LandingSection() {
   const { businessId } = useAuth();
@@ -533,38 +447,23 @@ function LandingSection() {
   const [colors, setColors] = React.useState(LANDING_DEFAULTS);
   const [theme, setTheme] = React.useState<LandingTheme>(LANDING_THEME_DEFAULT);
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
-  const [newAdditionalInfo, setNewAdditionalInfo] = React.useState("");
 
   React.useEffect(() => {
-    if (!businessId) {
-      setLoading(false);
-      return;
-    }
-    supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle()
+    if (!businessId) { setLoading(false); return; }
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, any>;
         const c = (schedule._branding?.colors ?? {}) as Record<string, string>;
         setColors({
           primary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.primary)),
-          secondary: normalizeHex(c.secondary, LANDING_DEFAULTS.secondary),
+          secondary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.secondary)),
           accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
           buttonText: normalizeHex(c.buttonText, LANDING_DEFAULTS.buttonText),
         });
         const savedTheme = schedule._branding?.theme;
         setTheme(savedTheme === "light" ? "light" : "dark");
-        const savedAdditional = Array.isArray(schedule._branding?.additional_info)
-          ? schedule._branding.additional_info
-          : [];
-        const cleanAdditional = savedAdditional
-          .filter(
-            (item: unknown): item is string => typeof item === "string" && item.trim().length > 0,
-          )
-          .slice(0, MAX_ADDITIONAL_INFO);
-        setAdditionalInfo(cleanAdditional.length > 0 ? cleanAdditional : ADDITIONAL_INFO_OPTIONS);
+        const savedAdditional = Array.isArray(schedule._branding?.additional_info) ? schedule._branding.additional_info : [];
+        setAdditionalInfo(savedAdditional.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 12));
         setLoading(false);
       });
   }, [businessId]);
@@ -572,109 +471,78 @@ function LandingSection() {
   async function save() {
     if (!businessId) return;
     setSaving(true);
+    const gradientGlow = normalizeHex(colors.primary, LANDING_DEFAULTS.primary);
     const next = {
-      primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
-      secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
+      primary: gradientGlow,
+      secondary: gradientGlow,
       accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
       buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
     };
     // Merge sin pisar el resto de _branding.
     const { data: row, error: loadErr } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle();
-    if (loadErr) {
-      setSaving(false);
-      return toast.error("No se pudo leer la configuración: " + loadErr.message);
-    }
+      .from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+    if (loadErr) { setSaving(false); return toast.error("No se pudo leer la configuración: " + loadErr.message); }
     const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
     const branding = (schedule._branding ?? {}) as Record<string, unknown>;
     const nextAdditionalInfo = additionalInfo.filter((item) => item.trim().length > 0).slice(0, 12);
-    const nextSchedule = {
-      ...schedule,
-      _branding: { ...branding, colors: next, theme, additional_info: nextAdditionalInfo },
-    };
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert({ business_id: businessId, schedule: nextSchedule }, { onConflict: "business_id" });
+    const nextSchedule = { ...schedule, _branding: { ...branding, colors: next, theme, additional_info: nextAdditionalInfo } };
+    const { error } = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: nextSchedule },
+      { onConflict: "business_id" },
+    );
     setSaving(false);
     if (error) return toast.error("No se pudo guardar: " + error.message);
     setColors(next);
     toast.success("Landing guardada");
   }
 
-  function updateAdditionalInfo(index: number, value: string) {
-    setAdditionalInfo((current) =>
-      current
-        .map((item, i) => (i === index ? value.slice(0, 35) : item))
-        .slice(0, MAX_ADDITIONAL_INFO),
-    );
-  }
-
-  function removeAdditionalInfo(index: number) {
-    setAdditionalInfo((current) => current.filter((_, i) => i !== index));
-  }
-
-  function addAdditionalInfo() {
-    const value = newAdditionalInfo.trim().slice(0, 35);
-    if (!value) return;
-    if (additionalInfo.length >= MAX_ADDITIONAL_INFO) {
-      toast.error("Máximo 12 informaciones adicionales.");
-      return;
-    }
-    setAdditionalInfo((current) => [...current, value].slice(0, MAX_ADDITIONAL_INFO));
-    setNewAdditionalInfo("");
+  function toggleAdditionalInfo(item: string) {
+    setAdditionalInfo((current) => {
+      if (current.includes(item)) return current.filter((value) => value !== item);
+      if (current.length >= 12) {
+        toast.error("Podés seleccionar hasta 12 opciones");
+        return current;
+      }
+      return [...current, item];
+    });
   }
 
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
-    {
-      key: "primary",
-      label: "Gradientes y glows",
-      desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales.",
-    },
-    {
-      key: "accent",
-      label: "Color de resaltado",
-      desc: "Botones, estados, acciones principales, links, íconos e indicadores.",
-    },
-    {
-      key: "buttonText",
-      label: "Texto de botones",
-      desc: "Color de la letra dentro de los botones principales.",
-    },
+    { key: "primary", label: "Gradientes y glows", desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales." },
+    { key: "accent", label: "Color de resaltado", desc: "Botones, estados, acciones principales, links, íconos e indicadores." },
+    { key: "buttonText", label: "Texto de botones", desc: "Color de la letra dentro de los botones principales." },
   ];
 
+
+  const saveRef = React.useRef(save);
+  React.useEffect(() => { saveRef.current = save; }, [businessId, colors, theme, additionalInfo]);
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (!section || section === "branding") void saveRef.current();
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, []);
+
   if (loading) {
-    return (
-      <div className="grid place-items-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-white/40" />
-      </div>
-    );
+    return <div className="grid place-items-center py-20"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>;
   }
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
-        <h2 id="pagina-reservas-colores" className="scroll-mt-28 text-lg font-semibold">
-          Colores
-        </h2>
-        <p className="mt-1 text-sm text-white/55">
-          Personalizá modo claro/oscuro, gradientes, glows, color de resaltado, texto de botones y
-          beneficios del local.
-        </p>
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+        <h2 id="pagina-reservas-colores" className="scroll-mt-28 text-lg font-semibold">Colores</h2>
+        <p className="mt-1 text-sm text-white/55">Personalizá modo claro/oscuro, gradientes, glows, color de resaltado, texto de botones y beneficios del local.</p>
 
         <div className="mt-5 space-y-4">
           {fields.map(({ key, label, desc }) => (
             <div key={key} className="flex items-center gap-4">
-              <label
-                className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15"
-                style={{ background: colors[key] }}
-              >
+              <label className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15" style={{ background: colors[key] }}>
                 <input
                   type="color"
                   value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
-                  onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
+                  onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))}
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
               </label>
@@ -685,7 +553,7 @@ function LandingSection() {
               <input
                 type="text"
                 value={colors[key]}
-                onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
+                onChange={e => setColors(c => ({ ...c, [key]: e.target.value }))}
                 spellCheck={false}
                 className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25"
                 placeholder="#000000"
@@ -694,11 +562,11 @@ function LandingSection() {
           ))}
         </div>
 
+
+
         <div className="mt-6 border-t border-white/10 pt-5">
           <h3 className="text-sm font-semibold">Modo de la página pública</h3>
-          <p className="mt-1 text-xs text-white/50">
-            Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.
-          </p>
+          <p className="mt-1 text-xs text-white/50">Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.</p>
           <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
             {(["dark", "light"] as LandingTheme[]).map((mode) => (
               <button
@@ -707,9 +575,7 @@ function LandingSection() {
                 onClick={() => setTheme(mode)}
                 className={
                   "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-                  (theme === mode
-                    ? "bg-white text-zinc-950"
-                    : "text-white/60 hover:bg-white/10 hover:text-white")
+                  (theme === mode ? "bg-white text-zinc-950" : "text-white/60 hover:bg-white/10 hover:text-white")
                 }
               >
                 {mode === "dark" ? "Modo oscuro" : "Modo claro"}
@@ -722,67 +588,32 @@ function LandingSection() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-sm font-semibold">Beneficios del negocio</h3>
-              <p className="mt-1 text-xs text-white/50">
-                Máximo 12. Se muestran como intereses/beneficios con emoji en la página pública.
-              </p>
+              <p className="mt-1 text-xs text-white/50">Elegí hasta 12 beneficios para mostrar en la página pública. Si no seleccionás ninguno, no aparece la sección.</p>
             </div>
-            <span className="text-xs font-medium text-white/45">
-              {additionalInfo.length}/{MAX_ADDITIONAL_INFO}
-            </span>
+            <span className="text-xs font-medium text-white/45">{additionalInfo.length}/12</span>
           </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {additionalInfo.slice(0, MAX_ADDITIONAL_INFO).map((item, index) => (
-              <span
-                key={`${index}-${item}`}
-                className="inline-flex items-center gap-2 rounded-full bg-white/[0.075] px-3 py-2 ring-1 ring-white/10"
-              >
-                <input
-                  value={item}
-                  maxLength={35}
-                  onChange={(e) => updateAdditionalInfo(index, e.target.value)}
-                  className="w-48 max-w-[50vw] bg-transparent text-sm font-medium outline-none"
-                />
+          <div className="mt-4 flex flex-wrap gap-2">
+            {ADDITIONAL_INFO_OPTIONS.map((item) => {
+              const active = additionalInfo.includes(item);
+              const disabled = !active && additionalInfo.length >= 12;
+              return (
                 <button
+                  key={item}
                   type="button"
-                  onClick={() => removeAdditionalInfo(index)}
-                  className="text-red-300 transition hover:text-red-200"
-                  aria-label="Eliminar"
+                  disabled={disabled}
+                  onClick={() => toggleAdditionalInfo(item)}
+                  className={
+                    "rounded-full border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35 " +
+                    (active ? "border-white/25 bg-white text-zinc-950 shadow-lg" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white")
+                  }
                 >
-                  <X className="h-3.5 w-3.5" />
+                  {item}
                 </button>
-              </span>
-            ))}
+              );
+            })}
           </div>
-
-          <div className="mt-3 flex gap-2">
-            <input
-              value={newAdditionalInfo}
-              maxLength={35}
-              onChange={(e) => setNewAdditionalInfo(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addAdditionalInfo();
-                }
-              }}
-              placeholder="Agregar información adicional..."
-              disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
-              className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 outline-none focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-45"
-            />
-            <button
-              type="button"
-              onClick={addAdditionalInfo}
-              disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Agregar
-            </button>
-          </div>
-          {additionalInfo.length >= MAX_ADDITIONAL_INFO ? (
-            <p className="mt-2 text-xs text-white/45">Llegaste al máximo de 12.</p>
-          ) : null}
         </div>
+
         <div className="mt-5 flex items-center gap-3">
           <button
             type="button"
@@ -790,7 +621,7 @@ function LandingSection() {
             disabled={saving}
             className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:opacity-50"
           >
-            {saving ? "Guardando…" : "Guardar colores"}
+            {saving ? "Guardando…" : ""}
           </button>
           <button
             type="button"
@@ -803,41 +634,28 @@ function LandingSection() {
       </div>
 
       {/* Vista previa */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
         <p className="text-sm font-medium text-white/70">Vista previa</p>
         <div
           className="mt-3 overflow-hidden rounded-2xl border p-6"
           style={{
             borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
             color: theme === "light" ? "#0f172a" : "#fff",
-            background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`,
+            background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`
           }}
         >
           <div className="relative">
             <div
               aria-hidden
               className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.14] blur-2xl"
-              style={{
-                background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.primary}, transparent 70%)`,
-              }}
+              style={{ background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.primary}, transparent 70%)` }}
             />
-            <div
-              className="relative rounded-3xl border p-4 shadow-xl"
-              style={{
-                borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
-                background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)",
-                color: theme === "light" ? "#0f172a" : "#fff",
-              }}
-            >
+            <div className="relative rounded-3xl border p-5 shadow-xl" style={{ borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)", background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)", color: theme === "light" ? "#0f172a" : "#fff" }}>
               <h3 className="text-base font-semibold">Reservá tu turno</h3>
               <button
                 type="button"
                 className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold"
-                style={{
-                  background: colors.accent,
-                  color: colors.buttonText,
-                  boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)`,
-                }}
+                style={{ background: colors.accent, color: colors.buttonText, boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)` }}
               >
                 Reservar turno
               </button>
@@ -895,29 +713,14 @@ function BrandingSection() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<number | null>(null);
   const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">("info");
-  const [colors, setColors] = useState(LANDING_DEFAULTS);
-  const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
-  const [benefits, setBenefits] = useState<Benefit[]>([]);
-  const [customBenefit, setCustomBenefit] = useState("");
+  const [pageTab, setPageTab] = useState<"info" | "images" | "colors">("info");
 
   useEffect(() => {
-    if (!businessId) {
-      setLoading(false);
-      return;
-    }
+    if (!businessId) { setLoading(false); return; }
     // Load name/slug + assets públicos desde businesses; el resto desde _branding.
     Promise.all([
-      supabase
-        .from("businesses")
-        .select("name,slug,address,phone,email,instagram,avatar_url,cover_url,business_start_date")
-        .eq("id", businessId)
-        .maybeSingle(),
-      supabase
-        .from("business_settings")
-        .select("schedule")
-        .eq("business_id", businessId)
-        .maybeSingle(),
+      supabase.from("businesses").select("name,slug,address,phone,email,instagram,avatar_url,cover_url").eq("id", businessId).maybeSingle(),
+      supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
       const schedule = (settRes.data?.schedule ?? {}) as Record<string, unknown>;
@@ -935,45 +738,9 @@ function BrandingSection() {
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
         cover_url: (biz?.cover_url as string) ?? "",
-        portfolio_urls: Array.isArray(cfg.portfolio_urls)
-          ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3)
-          : [],
+        portfolio_urls: Array.isArray(cfg.portfolio_urls) ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3) : [],
         featured_clients: normalizeFeaturedClients(cfg.featured_clients),
-        avatar_position: (cfg.avatar_position as string) ?? "50% 50%",
-        cover_position: (cfg.cover_position as string) ?? "50% 50%",
-        portfolio_positions: Array.isArray(cfg.portfolio_positions)
-          ? (cfg.portfolio_positions as string[])
-          : [],
-        featured_positions: (cfg.featured_positions && typeof cfg.featured_positions === "object"
-          ? cfg.featured_positions
-          : {}) as Record<string, string>,
-        business_start_date: (biz?.business_start_date as string) ?? "",
       });
-      const cc = (cfg.colors ?? {}) as Record<string, string>;
-      setColors({
-        primary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.primary)),
-        secondary: normalizeHex(cc.secondary, normalizeHex(cc.primary, LANDING_DEFAULTS.secondary)),
-        accent: normalizeHex(cc.accent, LANDING_DEFAULTS.accent),
-        buttonText: normalizeHex(cc.buttonText, LANDING_DEFAULTS.buttonText),
-      });
-      setTheme((cfg.theme as string) === "light" ? "light" : "dark");
-      const rawBenefits = normalizeBenefits(cfg.benefits);
-      if (rawBenefits.length > 0) {
-        setBenefits(rawBenefits);
-      } else {
-        const legacy = Array.isArray(cfg.additional_info)
-          ? (cfg.additional_info as unknown[]).filter(
-              (x): x is string => typeof x === "string" && x.trim().length > 0,
-            )
-          : [];
-        setBenefits(
-          legacy.length > 0
-            ? legacy
-                .slice(0, 12)
-                .map((label) => ({ id: makeBenefitId(), label: label.slice(0, 35), active: true }))
-            : buildDefaultBenefits(),
-        );
-      }
       setLoading(false);
     });
   }, [businessId]);
@@ -983,18 +750,12 @@ function BrandingSection() {
   const avatarPreview = data.avatar_url;
   const coverPreview = data.cover_url;
 
-  const set =
-    (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setData((d) => ({ ...d, [k]: e.target.value }));
+  const set = (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setData(d => ({ ...d, [k]: e.target.value }));
 
   async function uploadImage(file: File, path: string): Promise<string | null> {
-    const { error } = await supabase.storage
-      .from("business-assets")
-      .upload(path, file, { upsert: true });
-    if (error) {
-      toast.error("Error subiendo imagen: " + error.message);
-      return null;
-    }
+    const { error } = await supabase.storage.from("business-assets").upload(path, file, { upsert: true });
+    if (error) { toast.error("Error subiendo imagen: " + error.message); return null; }
     const { data: urlData } = supabase.storage.from("business-assets").getPublicUrl(path);
     return urlData.publicUrl;
   }
@@ -1014,23 +775,7 @@ function BrandingSection() {
   }
 
   // Persiste una columna de imagen directo en businesses (sin esperar a "Guardar").
-  async function persistBrandingPatch(
-    patch: Partial<
-      Pick<
-        BrandingData,
-        | "address"
-        | "phone"
-        | "email"
-        | "instagram"
-        | "website"
-        | "description"
-        | "profile_note"
-        | "logo_url"
-        | "portfolio_urls"
-        | "featured_clients"
-      >
-    >,
-  ): Promise<boolean> {
+  async function persistBrandingPatch(patch: Partial<Pick<BrandingData, "address" | "phone" | "email" | "instagram" | "website" | "description" | "profile_note" | "logo_url" | "portfolio_urls" | "featured_clients">>): Promise<boolean> {
     if (!businessId) return false;
     const { data: existingRow, error: loadError } = await supabase
       .from("business_settings")
@@ -1053,9 +798,10 @@ function BrandingSection() {
       },
     };
 
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert({ business_id: businessId, schedule: nextSchedule }, { onConflict: "business_id" });
+    const { error } = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: nextSchedule },
+      { onConflict: "business_id" },
+    );
     if (error) {
       console.error("[branding] persistBrandingPatch error", { patch, error });
       toast.error("No se pudo guardar la configuración: " + error.message);
@@ -1064,10 +810,7 @@ function BrandingSection() {
     return true;
   }
 
-  async function persistAsset(fields: {
-    avatar_url?: string | null;
-    cover_url?: string | null;
-  }): Promise<boolean> {
+  async function persistAsset(fields: { avatar_url?: string | null; cover_url?: string | null }): Promise<boolean> {
     if (!businessId) return false;
     const { data: row, error } = await supabase
       .from("businesses")
@@ -1095,8 +838,10 @@ function BrandingSection() {
       const { blob, ext, type } = await processImage(file, 512, 512, 0.8);
       const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
       if (!url) return;
-      setData((d) => ({ ...d, avatar_url: url }));
-      toast.success("Foto cargada. Tocá Guardar para confirmar.");
+      const ok = await persistAsset({ avatar_url: url });
+      if (!ok) return;
+      setData(d => ({ ...d, avatar_url: url }));
+      toast.success("Foto de perfil actualizada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1111,8 +856,10 @@ function BrandingSection() {
       const { blob, ext, type } = await processImage(file, 1600, 600, 0.8);
       const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
       if (!url) return;
-      setData((d) => ({ ...d, cover_url: url }));
-      toast.success("Portada cargada. Tocá Guardar para confirmar.");
+      const ok = await persistAsset({ cover_url: url });
+      if (!ok) return;
+      setData(d => ({ ...d, cover_url: url }));
+      toast.success("Portada actualizada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1121,12 +868,12 @@ function BrandingSection() {
   }
 
   async function removeAvatar() {
-    setData((d) => ({ ...d, avatar_url: "" }));
-    toast.success("Foto quitada. Tocá Guardar para confirmar.");
+    const ok = await persistAsset({ avatar_url: null });
+    if (ok) { setData(d => ({ ...d, avatar_url: "" })); toast.success("Foto eliminada"); }
   }
   async function removeCover() {
-    setData((d) => ({ ...d, cover_url: "" }));
-    toast.success("Portada quitada. Tocá Guardar para confirmar.");
+    const ok = await persistAsset({ cover_url: null });
+    if (ok) { setData(d => ({ ...d, cover_url: "" })); toast.success("Portada eliminada"); }
   }
 
   async function handlePortfolioSelect(index: number, file: File | null) {
@@ -1139,8 +886,10 @@ function BrandingSection() {
       const next = [...data.portfolio_urls];
       next[index] = url;
       const clean = next.filter(Boolean).slice(0, 3);
-      setData((d) => ({ ...d, portfolio_urls: clean }));
-      toast.success("Imagen cargada. Tocá Guardar para confirmar.");
+      const ok = await persistBrandingPatch({ portfolio_urls: clean });
+      if (!ok) return;
+      setData(d => ({ ...d, portfolio_urls: clean }));
+      toast.success("Imagen de portafolio actualizada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1150,90 +899,39 @@ function BrandingSection() {
 
   async function removePortfolioImage(index: number) {
     const next = data.portfolio_urls.filter((_, i) => i !== index).slice(0, 3);
-    setData((d) => ({ ...d, portfolio_urls: next }));
-    toast.success("Imagen quitada. Tocá Guardar para confirmar.");
+    const ok = await persistBrandingPatch({ portfolio_urls: next });
+    if (!ok) return;
+    setData(d => ({ ...d, portfolio_urls: next }));
+    toast.success("Imagen eliminada del portafolio");
   }
 
-  function addBenefit() {
-    const value = customBenefit.trim().slice(0, 35);
-    if (!value) return;
-    if (benefits.length >= 12) {
-      toast.error("Has alcanzado el máximo de 12 beneficios.");
-      return;
-    }
-    if (benefits.some((b) => b.label.toLowerCase() === value.toLowerCase())) {
-      setCustomBenefit("");
-      return;
-    }
-    setBenefits((current) =>
-      [...current, { id: makeBenefitId(), label: value, active: true }].slice(0, 12),
-    );
-    setCustomBenefit("");
-  }
-
-  function updateBenefit(id: string, label: string) {
-    setBenefits((current) =>
-      current.map((b) => (b.id === id ? { ...b, label: label.slice(0, 35) } : b)),
-    );
-  }
-
-  function toggleBenefit(id: string) {
-    setBenefits((current) => current.map((b) => (b.id === id ? { ...b, active: !b.active } : b)));
-  }
-
-  function removeBenefit(id: string) {
-    setBenefits((current) => current.filter((b) => b.id !== id));
-  }
-
-  function moveBenefit(id: string, dir: -1 | 1) {
-    setBenefits((current) => {
-      const index = current.findIndex((b) => b.id === id);
-      if (index < 0) return current;
-      const target = index + dir;
-      if (target < 0 || target >= current.length) return current;
-      const list = [...current];
-      [list[index], list[target]] = [list[target], list[index]];
-      return list;
-    });
-  }
 
   function addFeaturedClient() {
-    setData((d) => ({
+    setData(d => ({
       ...d,
       featured_clients: [
         ...d.featured_clients,
-        {
-          id: `featured-${Date.now()}`,
-          name: "",
-          category: "Marca",
-          image_url: "",
-          active: true,
-          order: d.featured_clients.length,
-        },
+        { id: `featured-${Date.now()}`, name: "", category: "Marca", image_url: "", active: true, order: d.featured_clients.length },
       ],
     }));
   }
 
   function updateFeaturedClient(id: string, patch: Partial<FeaturedClient>) {
-    setData((d) => ({
+    setData(d => ({
       ...d,
-      featured_clients: d.featured_clients.map((item) =>
-        item.id === id ? { ...item, ...patch } : item,
-      ),
+      featured_clients: d.featured_clients.map((item) => item.id === id ? { ...item, ...patch } : item),
     }));
   }
 
   function removeFeaturedClient(id: string) {
-    setData((d) => ({
+    setData(d => ({
       ...d,
-      featured_clients: d.featured_clients
-        .filter((item) => item.id !== id)
-        .map((item, index) => ({ ...item, order: index })),
+      featured_clients: d.featured_clients.filter((item) => item.id !== id).map((item, index) => ({ ...item, order: index })),
     }));
   }
 
   function moveFeaturedClient(id: string, direction: -1 | 1) {
-    setData((d) => {
+    setData(d => {
       const list = [...d.featured_clients];
       const index = list.findIndex((item) => item.id === id);
       const nextIndex = index + direction;
@@ -1241,23 +939,6 @@ function BrandingSection() {
       [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
       return { ...d, featured_clients: list.map((item, order) => ({ ...item, order })) };
     });
-  }
-
-  function nudgePosition(value: string | undefined, dx: number, dy: number): string {
-    const [xRaw, yRaw] = String(value || "50% 50%").split(" ");
-    const x = Math.min(100, Math.max(0, parseFloat(xRaw) || 50));
-    const y = Math.min(100, Math.max(0, parseFloat(yRaw) || 50));
-    return `${Math.min(100, Math.max(0, x + dx))}% ${Math.min(100, Math.max(0, y + dy))}%`;
-  }
-
-  function PositionControls({
-    value,
-    onChange,
-  }: {
-    value?: string;
-    onChange: (next: string) => void;
-  }) {
-    return null;
   }
 
   async function handleFeaturedImageSelect(id: string, file: File | null) {
@@ -1323,7 +1004,6 @@ function BrandingSection() {
         phone: normalizedPhone || null,
         email: data.email || null,
         instagram: data.instagram || null,
-        business_start_date: data.business_start_date || null,
       })
       .eq("id", businessId)
       .select("id,name,slug")
@@ -1332,21 +1012,13 @@ function BrandingSection() {
     // Save branding fields inside schedule._branding (schedule column exists).
     // Importante: siempre hacemos merge y preservamos imágenes/clientes destacados
     // si el estado llega vacío por una carga incompleta, para no pisar datos existentes.
-    const { data: existingRow } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle();
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
     const existingBranding = (existingSchedule._branding ?? {}) as Record<string, unknown>;
     const nextPortfolioUrls = data.portfolio_urls.filter(Boolean).slice(0, 3);
     const nextFeaturedClients = data.featured_clients
-      .map((item, index) => ({
-        ...item,
-        order: index,
-        name: item.name.trim(),
-        image_url: item.image_url.trim(),
-      }))
+      .map((item, index) => ({ ...item, order: index, name: item.name.trim(), image_url: item.image_url.trim() }))
       .filter((item) => item.name || item.image_url);
     const newSchedule = {
       ...existingSchedule,
@@ -1360,55 +1032,22 @@ function BrandingSection() {
         description: data.description,
         profile_note: data.profile_note,
         logo_url: logo_url || (existingBranding.logo_url as string | undefined) || "",
-        portfolio_urls:
-          nextPortfolioUrls.length > 0
-            ? nextPortfolioUrls
-            : (existingBranding.portfolio_urls ?? []),
-        featured_clients:
-          nextFeaturedClients.length > 0
-            ? nextFeaturedClients
-            : (existingBranding.featured_clients ?? []),
-        colors: {
-          primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
-          secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
-          accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
-          buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
-        },
-        theme,
-        benefits: benefits
-          .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
-          .filter((b) => b.label.length > 0)
-          .slice(0, 12),
-        additional_info: benefits
-          .filter((b) => b.active && b.label.trim().length > 0)
-          .map((b) => b.label.trim())
-          .slice(0, 12),
-        avatar_position: data.avatar_position,
-        cover_position: data.cover_position,
-        portfolio_positions: data.portfolio_positions,
-        featured_positions: data.featured_positions,
+        portfolio_urls: nextPortfolioUrls.length > 0 ? nextPortfolioUrls : (existingBranding.portfolio_urls ?? []),
+        featured_clients: nextFeaturedClients.length > 0 ? nextFeaturedClients : (existingBranding.featured_clients ?? []),
       },
     };
-    const cfgResult = await supabase
-      .from("business_settings")
-      .upsert({ business_id: businessId, schedule: newSchedule }, { onConflict: "business_id" });
+    const cfgResult = await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: newSchedule },
+      { onConflict: "business_id" },
+    );
 
     setSaving(false);
     if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
     if (!nameResult.data) {
-      return toast.error(
-        "No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.",
-      );
+      return toast.error("No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.");
     }
     if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
-    setData((d) => ({
-      ...d,
-      phone: normalizedPhone,
-      logo_url,
-      slug: finalSlug,
-      avatar_url,
-      cover_url,
-    }));
+    setData(d => ({ ...d, phone: normalizedPhone, logo_url, slug: finalSlug, avatar_url, cover_url }));
     setLogoFile(null);
     // Avisar al header (botón 🌐) para que actualice el link al instante.
     window.dispatchEvent(new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }));
@@ -1416,9 +1055,7 @@ function BrandingSection() {
   }
 
   const saveRef = React.useRef(save);
-  React.useEffect(() => {
-    saveRef.current = save;
-  }, [businessId, data, logoFile, colors, theme, benefits]);
+  React.useEffect(() => { saveRef.current = save; }, [businessId, data, logoFile]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1429,8 +1066,7 @@ function BrandingSection() {
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, []);
 
-  if (loading)
-    return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
+  if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
 
   const publicSlug = slugify(data.slug) || slugify(data.name);
   const publicUrl = `https://myclippr.com/negocio/${publicSlug}`;
@@ -1451,9 +1087,7 @@ function BrandingSection() {
   }
   async function sharePublicLink() {
     if (!publicSlug) return;
-    const nav = navigator as Navigator & {
-      share?: (d: { title?: string; url?: string }) => Promise<void>;
-    };
+    const nav = navigator as Navigator & { share?: (d: { title?: string; url?: string }) => Promise<void> };
     if (typeof nav.share === "function") {
       try {
         await nav.share({ title: data.name || "Reservá tu turno", url: publicUrl });
@@ -1470,13 +1104,7 @@ function BrandingSection() {
     }
   }
 
-  const infoRows: {
-    icon: React.ComponentType<{ className?: string }>;
-    label: string;
-    hint: string;
-    key: keyof BrandingData;
-    type?: string;
-  }[] = [
+  const infoRows: { icon: React.ComponentType<{className?:string}>; label: string; hint: string; key: keyof BrandingData; type?: string }[] = [
     { icon: Building2, label: "Nombre", hint: "", key: "name" },
     { icon: MapPin, label: "Dirección", hint: "", key: "address" },
     { icon: Phone, label: "WhatsApp", hint: "", key: "phone" },
@@ -1493,689 +1121,382 @@ function BrandingSection() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-        {(
-          [
-            ["info", "Información"],
-            ["imagenes", "Imágenes"],
-            ["colores", "Colores"],
-          ] as const
-        ).map(([id, label]) => (
+        {[
+          ["info", "Información"],
+          ["images", "Imágenes"],
+          ["colors", "Colores"],
+        ].map(([id, label]) => (
           <button
             key={id}
             type="button"
-            onClick={() => setActiveTab(id)}
-            className={
-              "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-              (activeTab === id
+            onClick={() => setPageTab(id as "info" | "images" | "colors")}
+            className={cn(
+              "rounded-xl px-4 py-2 text-sm font-semibold transition",
+              pageTab === id
                 ? "bg-white/[0.08] text-foreground ring-1 ring-white/10"
-                : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")
-            }
+                : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+            )}
           >
             {label}
           </button>
         ))}
       </div>
 
-      {activeTab === "info" && (
-        <>
-          <SectionCard label="Información del negocio">
-            <div className="divide-y divide-white/5">
-              {infoRows.map((f) => {
-                const Icon = f.icon;
+
+      {pageTab === "info" ? (
+      <SectionCard label="Información del negocio">
+        <div className="divide-y divide-white/5">
+          {infoRows.map((f) => {
+            const Icon = f.icon;
+            return (
+              <div key={f.key} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                  <Icon className="h-4.5 w-4.5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">{f.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{f.hint}</div>
+                </div>
+                <div className="w-72 max-w-[55%]">
+                  <input
+                    type={f.type ?? "text"}
+                    value={(data[f.key] as string) ?? ""}
+                    onChange={set(f.key)}
+                    className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                  />
+                </div>
+              </div>
+            );
+          })}
+          <div className="flex items-start gap-4 py-4">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <Globe className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">URL pública</div>
+              <div className="text-xs text-muted-foreground mt-0.5 break-all">
+                myclippr.com/negocio/<span className="text-foreground">{slugify(data.slug) || slugify(data.name) || "tu-negocio"}</span>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={data.slug}
+              onChange={(e) => setData(d => ({ ...d, slug: slugifyLive(e.target.value) }))}
+              onBlur={() => setData(d => ({ ...d, slug: slugify(d.slug) }))}
+              placeholder="auro-styloff"
+              className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+            />
+          </div>
+          <div className="flex items-start gap-4 py-4 last:pb-0">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <FileText className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Descripción</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Cuéntale a tus clientes sobre tu empresa</div>
+            </div>
+            <textarea
+              value={data.description}
+              onChange={set("description")}
+              rows={3}
+              className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
+            />
+          </div>
+          <div className="flex items-start gap-4 py-4 last:pb-0">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Nota destacada</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Mensaje fijo arriba del perfil. Máximo 80 caracteres. Acepta emojis, números y letras.</div>
+            </div>
+            <div className="w-72 max-w-[55%]">
+              <input
+                type="text"
+                value={data.profile_note}
+                onChange={(e) => setData(d => ({ ...d, profile_note: e.target.value.slice(0, 80) }))}
+                maxLength={80}
+                placeholder="Ej: 🔥 10% OFF pagando en efectivo"
+                className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+              />
+              <div className="mt-1 text-right text-[10px] text-muted-foreground">{data.profile_note.length}/80</div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard label="Sitio web público">
+        <div className="space-y-5">
+          <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="h-9 w-9 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                  <Globe className="h-4.5 w-4.5 text-muted-foreground" />
+                </div>
+                <div className="font-medium text-sm">Sitio Web Público</div>
+              </div>
+              {publicSlug ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Activo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-muted-foreground ring-1 ring-white/10">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/30" /> Sin configurar
+                </span>
+              )}
+            </div>
+
+            <p className="mt-3 text-sm text-muted-foreground break-all">
+              {publicSlug ? publicUrlShort : "Definí una URL pública arriba para activar tu sitio."}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={copyPublicLink}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Copy className="h-4 w-4" /> Copiar link
+              </button>
+              <button
+                type="button"
+                onClick={openPublicSite}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ExternalLink className="h-4 w-4" /> Abrir sitio
+              </button>
+              <button
+                type="button"
+                onClick={sharePublicLink}
+                disabled={!publicSlug}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Share2 className="h-4 w-4" /> Compartir
+              </button>
+            </div>
+          </div>
+
+          {/* Vista previa */}
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Vista previa</div>
+            <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-[#09090f]">
+              <div className="h-24 w-full overflow-hidden bg-gradient-to-br from-zinc-800 via-zinc-950 to-zinc-900">
+                {coverPreview ? (
+                  <img src={coverPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                ) : null}
+              </div>
+              <div className="px-4 pb-4 -mt-7">
+                <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border-4 border-[#09090f] bg-white text-xl font-bold text-zinc-950">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                  ) : (
+                    (data.name || "C").slice(0, 1)
+                  )}
+                </div>
+                <div className="mt-2 text-base font-semibold text-white">
+                  {data.name || "Nombre del negocio"}
+                </div>
+                {data.address ? (
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
+                    <MapPin className="h-3.5 w-3.5" /> {data.address}
+                  </div>
+                ) : null}
+                <div className="mt-1 text-xs text-white/40 break-all">
+                  {publicSlug ? publicUrlShort : "myclippr.com/negocio/tu-negocio"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard label="Confían en nosotros">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-medium">Clientes destacados</div>
+              <p className="mt-1 text-xs text-muted-foreground">Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta sección no aparece.</p>
+            </div>
+            <button type="button" onClick={addFeaturedClient} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10">
+              <Plus className="h-4 w-4" /> Agregar
+            </button>
+          </div>
+
+          {data.featured_clients.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-muted-foreground">
+              Todavía no cargaste clientes destacados.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.featured_clients.map((item, index) => {
+                const uploading = uploadingFeaturedId === item.id;
                 return (
-                  <div key={f.key} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
-                    <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                      <Icon className="h-4.5 w-4.5 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm">{f.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{f.hint}</div>
-                    </div>
-                    <div className="w-72 max-w-[55%]">
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="grid gap-3 lg:grid-cols-[72px_1fr_180px_120px_auto] lg:items-center">
+                      <div className="h-16 w-16 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                        {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" /> : <span className="text-[10px] text-muted-foreground">Logo</span>}
+                      </div>
                       <input
-                        type={f.type ?? "text"}
-                        value={(data[f.key] as string) ?? ""}
-                        onChange={set(f.key)}
-                        className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                        value={item.name}
+                        onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                        placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
                       />
+                      <select
+                        value={item.category}
+                        onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
+                        className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      >
+                        {FEATURED_CLIENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      <label className={cn("inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : "Imagen"}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleFeaturedImageSelect(item.id, f); }} />
+                      </label>
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => updateFeaturedClient(item.id, { active: !item.active })} className={cn("rounded-lg px-2.5 py-2 text-xs ring-1", item.active ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" : "bg-white/5 text-muted-foreground ring-white/10")}>{item.active ? "Activo" : "Inactivo"}</button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, -1)} disabled={index === 0} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => moveFeaturedClient(item.id, 1)} disabled={index === data.featured_clients.length - 1} className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => removeFeaturedClient(item.id)} className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"><Trash2 className="h-4 w-4" /></button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
-              <div className="flex items-center gap-4 py-3">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <CalendarDays className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">Fecha de inicio del negocio</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Se usa para calcular los años de experiencia en el perfil público.
-                  </div>
-                </div>
-                <div className="w-72 max-w-[55%]">
-                  <input
-                    type="date"
-                    value={data.business_start_date}
-                    onChange={(e) =>
-                      setData((d) => ({ ...d, business_start_date: e.target.value }))
-                    }
-                    className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 [color-scheme:dark]"
-                  />
-                </div>
-              </div>
-              <div className="flex items-start gap-4 py-3">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <Globe className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">URL pública</div>
-                  <div className="text-xs text-muted-foreground mt-0.5 break-all">
-                    myclippr.com/negocio/
-                    <span className="text-foreground">
-                      {slugify(data.slug) || slugify(data.name) || "tu-negocio"}
-                    </span>
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  value={data.slug}
-                  onChange={(e) => setData((d) => ({ ...d, slug: slugifyLive(e.target.value) }))}
-                  onBlur={() => setData((d) => ({ ...d, slug: slugify(d.slug) }))}
-                  placeholder="auro-styloff"
-                  className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                />
-              </div>
-              <div className="flex items-start gap-4 py-3 last:pb-0">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <FileText className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">Descripción</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Cuéntale a tus clientes sobre tu empresa
-                  </div>
-                </div>
-                <textarea
-                  value={data.description}
-                  onChange={set("description")}
-                  rows={3}
-                  className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
-                />
-              </div>
-              <div className="flex items-start gap-4 py-3 last:pb-0">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">Nota destacada</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Mensaje fijo arriba del perfil. Máximo 80 caracteres. Acepta emojis, números y
-                    letras.
-                  </div>
-                </div>
-                <div className="w-72 max-w-[55%]">
-                  <input
-                    type="text"
-                    value={data.profile_note}
-                    onChange={(e) =>
-                      setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
-                    }
-                    maxLength={80}
-                    placeholder="Ej: 🔥 10% OFF pagando en efectivo"
-                    className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                  />
-                  <div className="mt-1 text-right text-[10px] text-muted-foreground">
-                    {data.profile_note.length}/80
-                  </div>
-                </div>
-              </div>
             </div>
-          </SectionCard>
+          )}
+        </div>
+      </SectionCard>
 
-          <SectionCard label="Beneficios del negocio">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  Se muestran como intereses/beneficios en el perfil público. Arrancan inactivos.
-                  Editá, activá/desactivá y eliminá. Máximo 12.
-                </p>
-                <span
-                  className={cn(
-                    "shrink-0 text-xs font-semibold",
-                    benefits.length >= 12 ? "text-amber-300" : "text-white/45",
-                  )}
-                >
-                  {benefits.length}/12
-                </span>
-              </div>
-
-              {benefits.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-xs text-muted-foreground">
-                  Todavía no cargaste información adicional.
-                </div>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {benefits.map((b) => (
-                    <div
-                      key={b.id}
-                      className={cn(
-                        "flex min-w-0 items-center gap-2 rounded-full border px-3 py-2 transition",
-                        b.active
-                          ? "border-emerald-500/25 bg-emerald-500/10"
-                          : "border-white/10 bg-white/[0.05] opacity-75",
-                      )}
-                    >
-                      <input
-                        value={b.label}
-                        maxLength={35}
-                        onChange={(e) => updateBenefit(b.id, e.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => toggleBenefit(b.id)}
-                        className={cn(
-                          "shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ring-1 transition",
-                          b.active
-                            ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                            : "bg-white/5 text-muted-foreground ring-white/10",
-                        )}
-                      >
-                        {b.active ? "Activo" : "Inactivo"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeBenefit(b.id)}
-                        className="shrink-0 text-red-300 hover:text-red-200"
-                        aria-label="Eliminar"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <input
-                  value={customBenefit}
-                  onChange={(e) => setCustomBenefit(e.target.value.slice(0, 35))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addBenefit();
-                    }
-                  }}
-                  maxLength={35}
-                  disabled={benefits.length >= 12}
-                  placeholder={
-                    benefits.length >= 12
-                      ? "Has alcanzado el máximo de 12 beneficios."
-                      : "Agregar información adicional..."
-                  }
-                  className="flex-1 rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
-                />
-                <button
-                  type="button"
-                  onClick={addBenefit}
-                  disabled={benefits.length >= 12}
-                  className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Agregar
-                </button>
-              </div>
-              {benefits.length >= 12 ? (
-                <p className="text-xs font-medium text-amber-300">
-                  Has alcanzado el máximo de 12 beneficios.
-                </p>
-              ) : null}
+      <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
+        <div className="space-y-5">
+          {/* Foto de perfil (sitio web público) */}
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+              <UserIcon className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
-          </SectionCard>
-        </>
-      )}
-
-      {activeTab === "imagenes" && (
-        <>
-          <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
-            <div className="space-y-3">
-              {/* Foto de perfil (sitio web público) */}
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <UserIcon className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">Foto de perfil</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Se muestra en tu sitio web público. Se optimiza a WebP 512px.
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
-                    {avatarPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                        uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                      )}
-                    >
-                      <Upload className="h-3.5 w-3.5" />{" "}
-                      {uploadingAvatar
-                        ? "Subiendo…"
-                        : avatarPreview
-                          ? "Cambiar foto"
-                          : "Subir foto"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={uploadingAvatar}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          e.target.value = "";
-                          handleAvatarSelect(f);
-                        }}
-                      />
-                    </label>
-                    {avatarPreview ? (
-                      <button
-                        type="button"
-                        onClick={removeAvatar}
-                        className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                      >
-                        <X className="h-3.5 w-3.5" /> Eliminar
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">Foto de perfil</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Se muestra en tu sitio web público. Se optimiza a WebP 512px.</div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="h-16 w-16 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
                 {avatarPreview ? (
-                  <PositionControls
-                    value={data.avatar_position}
-                    onChange={(next) => setData((d) => ({ ...d, avatar_position: next }))}
-                  />
+                  <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">vacío</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                  <Upload className="h-3.5 w-3.5" /> {uploadingAvatar ? "Subiendo…" : (avatarPreview ? "Cambiar foto" : "Subir foto")}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleAvatarSelect(f); }} />
+                </label>
+                {avatarPreview ? (
+                  <button
+                    type="button"
+                    onClick={removeAvatar}
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                  >
+                    <X className="h-3.5 w-3.5" /> Eliminar
+                  </button>
                 ) : null}
               </div>
+            </div>
+          </div>
 
-              {/* Portada (sitio web público) */}
-              <div className="border-t border-white/5 pt-5">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                    <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">Portada</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Banner superior de tu sitio web. Se optimiza a WebP 1600×600.
+          {/* Portada (sitio web público) */}
+          <div className="border-t border-white/5 pt-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">Portada</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Banner superior de tu sitio web. Se optimiza a WebP 1600×600.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className={cn("inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                  <Upload className="h-3.5 w-3.5" /> {uploadingCover ? "Subiendo…" : (coverPreview ? "Cambiar portada" : "Subir portada")}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploadingCover} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handleCoverSelect(f); }} />
+                </label>
+                {coverPreview ? (
+                  <button
+                    type="button"
+                    onClick={removeCover}
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
+                  >
+                    <X className="h-3.5 w-3.5" /> Eliminar
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <div className="mt-3 h-32 w-full rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center overflow-hidden">
+              {coverPreview ? (
+                <img src={coverPreview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-muted-foreground">Sin portada</span>
+              )}
+            </div>
+          </div>
+
+          {/* Portafolio (sitio web público) */}
+          <div className="border-t border-white/5 pt-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">Portafolio</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Imágenes destacadas que se mostrarán en tu página pública.</div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {[0, 1, 2].map((index) => {
+                const url = data.portfolio_urls[index];
+                const uploading = uploadingPortfolioIndex === index;
+                return (
+                  <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                    <div className="aspect-[4/3] overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
+                      {url ? (
+                        <img src={url} alt={`Portafolio ${index + 1}`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Imagen {index + 1}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
-                      {coverPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                          uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                        )}
-                      >
-                        <Upload className="h-3.5 w-3.5" />{" "}
-                        {uploadingCover
-                          ? "Subiendo…"
-                          : coverPreview
-                            ? "Cambiar imagen"
-                            : "Subir portada"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingCover}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0] ?? null;
-                            e.target.value = "";
-                            handleCoverSelect(f);
-                          }}
-                        />
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <label className={cn("inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs", uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" /> {uploading ? "Subiendo…" : (url ? "Cambiar" : "Subir")}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ""; handlePortfolioSelect(index, f); }} />
                       </label>
-                      {coverPreview ? (
-                        <button
-                          type="button"
-                          onClick={removeCover}
-                          className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                        >
-                          <X className="h-3.5 w-3.5" /> Eliminar
+                      {url ? (
+                        <button type="button" onClick={() => removePortfolioImage(index)} className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300">
+                          <X className="h-3.5 w-3.5" />
                         </button>
                       ) : null}
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Portafolio (sitio web público) */}
-              <div className="border-t border-white/5 pt-5">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                    <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">Portafolio</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Hasta 3 imágenes del local, trabajos o instalaciones. Se optimizan para cargar
-                      rápido.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {[0, 1, 2].map((index) => {
-                    const url = data.portfolio_urls[index];
-                    const uploading = uploadingPortfolioIndex === index;
-                    return (
-                      <div
-                        key={index}
-                        className="rounded-xl border border-white/10 bg-white/[0.03] p-3"
-                      >
-                        <div className="mb-2 text-xs text-muted-foreground">
-                          {url
-                            ? `✅ Imagen ${index + 1} cargada`
-                            : `📷 Imagen ${index + 1} sin cargar`}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label
-                            className={cn(
-                              "inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                              uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                            )}
-                          >
-                            <Upload className="h-3.5 w-3.5" />{" "}
-                            {uploading ? "Subiendo…" : url ? "Cambiar" : "Subir"}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploading}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handlePortfolioSelect(index, f);
-                              }}
-                            />
-                          </label>
-                          {url ? (
-                            <button
-                              type="button"
-                              onClick={() => removePortfolioImage(index)}
-                              className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                );
+              })}
             </div>
-          </SectionCard>
-
-          <SectionCard label="Confían en nosotros">
-            <div className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="text-sm font-medium">Clientes destacados</div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta
-                    sección no aparece.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={addFeaturedClient}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10"
-                >
-                  <Plus className="h-4 w-4" /> Agregar
-                </button>
-              </div>
-
-              {data.featured_clients.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-center text-sm text-muted-foreground">
-                  Todavía no cargaste clientes destacados.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.featured_clients.map((item, index) => {
-                    const uploading = uploadingFeaturedId === item.id;
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
-                      >
-                        <div className="grid gap-3 lg:grid-cols-[1fr_180px_150px_auto] lg:items-center">
-                          <input
-                            value={item.name}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, { name: e.target.value })
-                            }
-                            placeholder="Nombre: Nike, Duki, Boca Juniors..."
-                            className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                          />
-                          <select
-                            value={item.category}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, {
-                                category: e.target.value as FeaturedClientCategory,
-                              })
-                            }
-                            className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                          >
-                            {FEATURED_CLIENT_CATEGORIES.map((cat) => (
-                              <option key={cat} value={cat}>
-                                {cat}
-                              </option>
-                            ))}
-                          </select>
-                          <label
-                            className={cn(
-                              "inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10",
-                              uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                            )}
-                          >
-                            <Upload className="h-3.5 w-3.5" />{" "}
-                            {uploading ? "Subiendo…" : item.image_url ? "✅ Cambiar" : "📷 Imagen"}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploading}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handleFeaturedImageSelect(item.id, f);
-                              }}
-                            />
-                          </label>
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateFeaturedClient(item.id, { active: !item.active })
-                              }
-                              className={cn(
-                                "rounded-lg px-2.5 py-2 text-xs ring-1",
-                                item.active
-                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                  : "bg-white/5 text-muted-foreground ring-white/10",
-                              )}
-                            >
-                              {item.active ? "Activo" : "Inactivo"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveFeaturedClient(item.id, -1)}
-                              disabled={index === 0}
-                              className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                            >
-                              <ChevronUp className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveFeaturedClient(item.id, 1)}
-                              disabled={index === data.featured_clients.length - 1}
-                              className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeFeaturedClient(item.id)}
-                              className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </SectionCard>
-        </>
-      )}
-
-      {activeTab === "colores" && (
-        <>
-          <SectionCard label="Colores">
-            <p className="text-sm text-white/55">
-              Personalizá modo claro/oscuro, gradientes, glows, color de resaltado y texto de
-              botones.
-            </p>
-            <div className="mt-5 space-y-4">
-              {(
-                [
-                  {
-                    key: "primary",
-                    label: "Color 1 (izquierda)",
-                    desc: "Extremo izquierdo del gradiente de la cabecera, glows y fondo ambiental.",
-                  },
-                  {
-                    key: "secondary",
-                    label: "Color 2 (derecha)",
-                    desc: "Extremo derecho del gradiente de la cabecera, glows y fondo ambiental.",
-                  },
-                  {
-                    key: "accent",
-                    label: "Color de resaltado",
-                    desc: "Botones, estados, acciones principales, links, íconos e indicadores.",
-                  },
-                  {
-                    key: "buttonText",
-                    label: "Texto de botones",
-                    desc: "Color de la letra dentro de los botones principales.",
-                  },
-                ] as const
-              ).map(({ key, label, desc }) => (
-                <div key={key} className="flex items-center gap-4">
-                  <label
-                    className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15"
-                    style={{ background: colors[key] }}
-                  >
-                    <input
-                      type="color"
-                      value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
-                      onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    />
-                  </label>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">{label}</div>
-                    <div className="text-xs text-white/50">{desc}</div>
-                  </div>
-                  <input
-                    type="text"
-                    value={colors[key]}
-                    onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
-                    spellCheck={false}
-                    className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25"
-                    placeholder="#000000"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 border-t border-white/10 pt-5">
-              <h3 className="text-sm font-semibold">Modo de la página pública</h3>
-              <p className="mt-1 text-xs text-white/50">
-                Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.
-              </p>
-              <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
-                {(["dark", "light"] as LandingTheme[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setTheme(mode)}
-                    className={
-                      "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-                      (theme === mode
-                        ? "bg-white text-zinc-950"
-                        : "text-white/60 hover:bg-white/10 hover:text-white")
-                    }
-                  >
-                    {mode === "dark" ? "Modo oscuro" : "Modo claro"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
-              <p className="text-sm font-medium text-white/70">Vista previa</p>
-              <div
-                className="mt-3 overflow-hidden rounded-2xl border p-6"
-                style={{
-                  borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
-                  color: theme === "light" ? "#0f172a" : "#fff",
-                  background: `linear-gradient(90deg, color-mix(in oklch, ${colors.primary} 42%, transparent), color-mix(in oklch, ${colors.secondary} 42%, transparent)), ${theme === "light" ? "#f8fafc" : "#080512"}`,
-                }}
-              >
-                <div
-                  className="relative rounded-3xl border p-4 shadow-xl"
-                  style={{
-                    borderColor:
-                      theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
-                    background:
-                      theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)",
-                  }}
-                >
-                  <h3 className="text-base font-semibold">Reservá tu turno</h3>
-                  <button
-                    type="button"
-                    className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold"
-                    style={{
-                      background: colors.accent,
-                      color: colors.buttonText,
-                      boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)`,
-                    }}
-                  >
-                    Reservar turno
-                  </button>
-                  <div className="mt-3 flex items-center gap-2 text-sm">
-                    <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} />
-                    <span style={{ color: colors.accent, fontWeight: 600 }}>Abierto ahora</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-        </>
-      )}
+          </div>
+        </div>
+      </SectionCard>
     </>
   );
 }
 
 // ─────────── shared bits ───────────
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  on,
+  onChange,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <button
       onClick={() => onChange(!on)}
@@ -2196,9 +1517,15 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   );
 }
 
-function SectionCard({ label, children }: { label: string; children: React.ReactNode }) {
+function SectionCard({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+    <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-4">
         {label}
       </div>
@@ -2258,7 +1585,15 @@ function ConfirmDialog({
 }
 
 // ─────────── Horarios ───────────
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const DAYS = [
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+  "Domingo",
+];
 
 type ReservationSettings = {
   interval: string;
@@ -2282,9 +1617,8 @@ function HorariosSection() {
       enabled: i < 6,
     })),
   );
-  const [reservationSettings, setReservationSettings] = useState<ReservationSettings>(
-    DEFAULT_RESERVATION_SETTINGS,
-  );
+  const [reservationSettings, setReservationSettings] =
+    useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
   const [saving, setSaving] = useState(false);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
@@ -2296,7 +1630,10 @@ function HorariosSection() {
       .eq("business_id", businessId)
       .maybeSingle()
       .then(({ data }) => {
-        const schedule = data?.schedule as Record<string, any> | null | undefined;
+        const schedule = data?.schedule as
+          | Record<string, any>
+          | null
+          | undefined;
         if (!schedule || typeof schedule !== "object") return;
         setDays((current) =>
           current.map((day, i) => {
@@ -2313,9 +1650,15 @@ function HorariosSection() {
         const settings = schedule._settings;
         if (settings && typeof settings === "object") {
           setReservationSettings({
-            interval: String(settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval),
-            maxAdvance: String(settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance),
-            minCancel: String(settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel),
+            interval: String(
+              settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval,
+            ),
+            maxAdvance: String(
+              settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
+            ),
+            minCancel: String(
+              settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
+            ),
           });
         }
       });
@@ -2346,7 +1689,10 @@ function HorariosSection() {
 
     const { error } = await supabase
       .from("business_settings")
-      .upsert({ business_id: businessId, schedule }, { onConflict: "business_id" });
+      .upsert(
+        { business_id: businessId, schedule },
+        { onConflict: "business_id" },
+      );
 
     setSaving(false);
     if (error) return toast.error("Error guardando horarios: " + error.message);
@@ -2354,9 +1700,7 @@ function HorariosSection() {
   }
 
   const saveScheduleRef = useRef(saveSchedule);
-  useEffect(() => {
-    saveScheduleRef.current = saveSchedule;
-  }, [businessId, days, reservationSettings]);
+  useEffect(() => { saveScheduleRef.current = saveSchedule; }, [businessId, days, reservationSettings]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -2395,12 +1739,16 @@ function HorariosSection() {
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-display font-semibold">Horarios de atención</h2>
-          <p className="text-sm text-muted-foreground mt-1">Días y horarios de atención.</p>
+          <h2 className="text-xl font-display font-semibold">
+            Horarios de atención
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Días y horarios de atención.
+          </p>
         </div>
       </div>
 
-      <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+      <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
         <div className="grid grid-cols-[120px_1fr_1fr_auto_auto] gap-3 px-1 pb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           <div>Día</div>
           <div>Apertura</div>
@@ -2424,7 +1772,9 @@ function HorariosSection() {
                 disabled={!d.enabled}
                 onChange={(e) =>
                   setDays((s) =>
-                    s.map((x, idx) => (idx === i ? { ...x, open: e.target.value } : x)),
+                    s.map((x, idx) =>
+                      idx === i ? { ...x, open: e.target.value } : x,
+                    ),
                   )
                 }
                 className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
@@ -2435,7 +1785,9 @@ function HorariosSection() {
                 disabled={!d.enabled}
                 onChange={(e) =>
                   setDays((s) =>
-                    s.map((x, idx) => (idx === i ? { ...x, close: e.target.value } : x)),
+                    s.map((x, idx) =>
+                      idx === i ? { ...x, close: e.target.value } : x,
+                    ),
                   )
                 }
                 className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
@@ -2443,7 +1795,9 @@ function HorariosSection() {
               <Toggle
                 on={d.enabled}
                 onChange={(v) =>
-                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, enabled: v } : x)))
+                  setDays((s) =>
+                    s.map((x, idx) => (idx === i ? { ...x, enabled: v } : x)),
+                  )
                 }
               />
               <button
@@ -2477,13 +1831,18 @@ function HorariosSection() {
           {reservationRows.map((r) => {
             const Icon = r.icon;
             return (
-              <div key={r.key} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+              <div
+                key={r.key}
+                className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
+              >
                 <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
                   <Icon className="h-4.5 w-4.5 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{r.title}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{r.hint}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {r.hint}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2">
                   <input
@@ -2498,13 +1857,18 @@ function HorariosSection() {
                     }
                     className="w-16 bg-transparent text-sm focus:outline-none text-right"
                   />
-                  <span className="text-xs text-muted-foreground">{r.suffix}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {r.suffix}
+                  </span>
                 </div>
               </div>
             );
           })}
         </div>
       </SectionCard>
+      ) : null}
+
+      {pageTab === "colors" ? <LandingSection /> : null}
     </>
   );
 }
@@ -2625,6 +1989,7 @@ type PendingProfessional = {
   isNew: boolean;
 };
 
+
 type CommissionMode = "percent" | "fixed";
 
 type CommissionConfig = {
@@ -2685,12 +2050,19 @@ function Field({
         {label}
       </div>
       {children}
-      {hint && <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>}
+      {hint && (
+        <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>
+      )}
     </div>
   );
 }
 
-type RolePermissionId = "admin_general" | "socio" | "admin_local" | "recepcionista" | "profesional";
+type RolePermissionId =
+  | "admin_general"
+  | "socio"
+  | "admin_local"
+  | "recepcionista"
+  | "profesional";
 
 type PermissionKey =
   | "dashboard"
@@ -2756,18 +2128,10 @@ const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }
   { key: "dashboard", label: "Dashboard", desc: "Métricas generales del negocio." },
   { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },
   { key: "caja_cobro", label: "Caja", desc: "Cobros y medios de pago." },
-  {
-    key: "panel_profesionales",
-    label: "Panel Profesionales",
-    desc: "Vista operativa para profesionales.",
-  },
+  { key: "panel_profesionales", label: "Panel Profesionales", desc: "Vista operativa para profesionales." },
   { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
   { key: "configuracion", label: "Configuración", desc: "Acceso a ajustes del negocio." },
-  {
-    key: "asesor_ia",
-    label: "Asesor IA",
-    desc: "Análisis, recomendaciones, simuladores y métricas con IA.",
-  },
+  { key: "asesor_ia", label: "Asesor IA", desc: "Análisis, recomendaciones, simuladores y métricas con IA." },
 ];
 
 const CONFIG_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
@@ -2920,7 +2284,7 @@ function normalizePublicBooleanMap(value: unknown): Record<string, boolean> {
 }
 
 function getPublicVisibility(schedule: Record<string, unknown>) {
-  return (schedule._publicVisibility ?? {}) as Record<string, unknown>;
+  return ((schedule._publicVisibility ?? {}) as Record<string, unknown>);
 }
 
 function EquipoSection() {
@@ -2936,9 +2300,7 @@ function EquipoSection() {
   const [pendingDeleteUser, setPendingDeleteUser] = useState<AccessUser | null>(null);
   const [deletingAccess, setDeletingAccess] = useState(false);
   const [accessTouched, setAccessTouched] = useState(false);
-  const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(
-    DEFAULT_ROLE_PERMISSIONS.profesional,
-  );
+  const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
   const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
@@ -2953,7 +2315,9 @@ function EquipoSection() {
   const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
-  const [dlgTab, setDlgTab] = useState<"perfil" | "horarios" | "comisiones">("perfil");
+  const [dlgTab, setDlgTab] = useState<
+    "perfil" | "horarios" | "comisiones"
+  >("perfil");
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -2980,20 +2344,10 @@ function EquipoSection() {
         .maybeSingle(),
     ]);
     if (error) toast.error("Error cargando profesionales: " + error.message);
-    if (catalogResult.error)
-      toast.error("Error cargando servicios y catálogo: " + catalogResult.error.message);
+    if (catalogResult.error) toast.error("Error cargando servicios y catálogo: " + catalogResult.error.message);
     const schedule = (settingsResult.data?.schedule ?? {}) as Record<string, unknown>;
-    const employeeRoles = (
-      schedule._employeeRoles && typeof schedule._employeeRoles === "object"
-        ? schedule._employeeRoles
-        : {}
-    ) as Record<string, string>;
-    setRows(
-      ((data ?? []) as EmployeeRow[]).map((emp) => ({
-        ...emp,
-        role: employeeRoles[emp.id] ?? emp.role ?? null,
-      })),
-    );
+    const employeeRoles = (schedule._employeeRoles && typeof schedule._employeeRoles === "object" ? schedule._employeeRoles : {}) as Record<string, string>;
+    setRows(((data ?? []) as EmployeeRow[]).map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })));
     setCommissionItems((catalogResult.data ?? []) as PriceRow[]);
     setLoading(false);
   }, [businessId]);
@@ -3006,9 +2360,7 @@ function EquipoSection() {
     if (!businessId) return;
     const { data, error } = await supabase
       .from("team_members")
-      .select(
-        "id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at",
-      )
+      .select("id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at")
       .eq("business_id", businessId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -3060,17 +2412,9 @@ function EquipoSection() {
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
         const visibility = getPublicVisibility(schedule);
-        setEmployeeOnlineMap(
-          normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline),
-        );
-        const employeeRoles = (
-          schedule._employeeRoles && typeof schedule._employeeRoles === "object"
-            ? schedule._employeeRoles
-            : {}
-        ) as Record<string, string>;
-        setRows((current) =>
-          current.map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })),
-        );
+        setEmployeeOnlineMap(normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline));
+        const employeeRoles = (schedule._employeeRoles && typeof schedule._employeeRoles === "object" ? schedule._employeeRoles : {}) as Record<string, string>;
+        setRows((current) => current.map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })));
         setApprovalEnabled(caja.approvalModeEnabled === true);
         setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
       });
@@ -3095,9 +2439,7 @@ function EquipoSection() {
           .single();
 
         if (error || !inserted) {
-          return toast.error(
-            "Error guardando profesional: " + (error?.message ?? "no se pudo crear"),
-          );
+          return toast.error("Error guardando profesional: " + (error?.message ?? "no se pudo crear"));
         }
 
         {
@@ -3107,15 +2449,10 @@ function EquipoSection() {
             .eq("business_id", businessId)
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<
-            string,
-            unknown
-          >;
+          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
           const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
           const visibility = getPublicVisibility(existingSchedule);
-          const employeesVisibility = normalizePublicBooleanMap(
-            visibility.employees ?? existingSchedule._employeeOnline,
-          );
+          const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
           await supabase.from("business_settings").upsert(
             {
@@ -3131,10 +2468,7 @@ function EquipoSection() {
                 _employeeRoles: { ...existingRoles, [inserted.id]: payload.role ?? "Profesional" },
                 _publicVisibility: {
                   ...visibility,
-                  employees: {
-                    ...employeesVisibility,
-                    [inserted.id]: payload.acceptsOnline !== false,
-                  },
+                  employees: { ...employeesVisibility, [inserted.id]: payload.acceptsOnline !== false },
                 },
               },
             },
@@ -3161,15 +2495,10 @@ function EquipoSection() {
             .eq("business_id", businessId)
             .maybeSingle();
           const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<
-            string,
-            unknown
-          >;
+          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
           const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
           const visibility = getPublicVisibility(existingSchedule);
-          const employeesVisibility = normalizePublicBooleanMap(
-            visibility.employees ?? existingSchedule._employeeOnline,
-          );
+          const employeesVisibility = normalizePublicBooleanMap(visibility.employees ?? existingSchedule._employeeOnline);
 
           await supabase.from("business_settings").upsert(
             {
@@ -3185,10 +2514,7 @@ function EquipoSection() {
                 _employeeRoles: { ...existingRoles, [payload.id]: payload.role ?? "Profesional" },
                 _publicVisibility: {
                   ...visibility,
-                  employees: {
-                    ...employeesVisibility,
-                    [payload.id]: payload.acceptsOnline !== false,
-                  },
+                  employees: { ...employeesVisibility, [payload.id]: payload.acceptsOnline !== false },
                 },
               },
             },
@@ -3239,16 +2565,7 @@ function EquipoSection() {
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
-  }, [
-    businessId,
-    rolePermissions,
-    accessUsers,
-    userPermissions,
-    pendingProfessionals,
-    load,
-    approvalEnabled,
-    approvalMode,
-  ]);
+  }, [businessId, rolePermissions, accessUsers, userPermissions, pendingProfessionals, load, approvalEnabled, approvalMode]);
 
   async function compressProfessionalAvatar(file: File): Promise<Blob> {
     const imageUrl = URL.createObjectURL(file);
@@ -3297,9 +2614,7 @@ function EquipoSection() {
       }
 
       if (blob.size > 80 * 1024) {
-        toast.info(
-          "La imagen quedó optimizada, pero puede superar levemente los 80 KB por el formato original.",
-        );
+        toast.info("La imagen quedó optimizada, pero puede superar levemente los 80 KB por el formato original.");
       }
 
       return blob;
@@ -3320,11 +2635,13 @@ function EquipoSection() {
     const safeId = editingEmp?.id ?? `new-${crypto.randomUUID()}`;
     const path = `${businessId}/${safeId}-${Date.now()}.webp`;
 
-    const { error } = await supabase.storage.from("professionals").upload(path, compressed, {
-      cacheControl: "3600",
-      upsert: true,
-      contentType: "image/webp",
-    });
+    const { error } = await supabase.storage
+      .from("professionals")
+      .upload(path, compressed, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: "image/webp",
+      });
 
     if (error) {
       toast.error("Error subiendo la foto: " + error.message);
@@ -3351,10 +2668,7 @@ function EquipoSection() {
       .eq("business_id", businessId)
       .maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<
-      string,
-      unknown
-    >;
+    const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
 
     await supabase.from("business_settings").upsert(
       {
@@ -3496,7 +2810,7 @@ function EquipoSection() {
     const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
     const fallbackName =
       accessForm.role === "profesional"
-        ? selectedEmployee?.full_name || selectedEmployee?.name || ""
+        ? (selectedEmployee?.full_name || selectedEmployee?.name || "")
         : ROLE_LABEL_BY_ID[accessForm.role];
     const name = (accessForm.name.trim() || fallbackName).trim();
     const email = accessForm.email.trim();
@@ -3522,17 +2836,13 @@ function EquipoSection() {
       permissions: accessPermissionsForm,
     };
 
-    const { data, error } = await supabase.functions.invoke("invite-team-member", {
-      body: payload,
-    });
+    const { data, error } = await supabase.functions.invoke("invite-team-member", { body: payload });
     setSaving(false);
 
     const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
     if (errMsg) return toast.error("Error: " + errMsg);
 
-    toast.success(
-      editingAccessUserId ? "Acceso actualizado correctamente" : "Invitación enviada por email",
-    );
+    toast.success(editingAccessUserId ? "Acceso actualizado correctamente" : "Invitación enviada por email");
     setEditingAccessUserId(null);
     setAccessForm(EMPTY_ACCESS_FORM);
     setAccessTouched(false);
@@ -3563,6 +2873,7 @@ function EquipoSection() {
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
     setAccessTouched(false);
   }
+
 
   async function removeAccessUser(id: string) {
     if (!businessId) return;
@@ -3602,7 +2913,9 @@ function EquipoSection() {
     const admins = accessUsers
       .filter((u) => u.role === "admin_general")
       .slice()
-      .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+      .sort((a, b) =>
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+      );
     return admins[0]?.id ?? null;
   })();
 
@@ -3630,15 +2943,15 @@ function EquipoSection() {
   }
 
   function getRecommendedPermissionKeys(role: RolePermissionId) {
-    return MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
-      (key) => DEFAULT_ROLE_PERMISSIONS[role][key],
-    );
+    return MAIN_PERMISSION_ITEMS
+      .map((i) => i.key)
+      .filter((key) => DEFAULT_ROLE_PERMISSIONS[role][key]);
   }
 
   function getAdditionalPermissionKeys(role: RolePermissionId) {
-    return MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
-      (key) => !DEFAULT_ROLE_PERMISSIONS[role][key],
-    );
+    return MAIN_PERMISSION_ITEMS
+      .map((i) => i.key)
+      .filter((key) => !DEFAULT_ROLE_PERMISSIONS[role][key]);
   }
 
   function getPermissionItem(key: PermissionKey) {
@@ -3673,34 +2986,32 @@ function EquipoSection() {
     toast.success("Permisos recomendados restablecidos");
   }
 
-  const selectedRole =
-    ROLE_PERMISSION_OPTIONS.find((role) => role.id === selectedPermRole) ??
-    ROLE_PERMISSION_OPTIONS[0];
+  const selectedRole = ROLE_PERMISSION_OPTIONS.find((role) => role.id === selectedPermRole) ?? ROLE_PERMISSION_OPTIONS[0];
   const selectedRoleUsers = accessUsers.filter((user) => user.role === selectedPermRole);
   const selectedAccessUser =
     selectedRoleUsers.find((user) => user.id === selectedAccessUserId) ??
     selectedRoleUsers[0] ??
     null;
   const selectedUserPermissions = selectedAccessUser
-    ? (userPermissions[selectedAccessUser.id] ?? DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role])
+    ? userPermissions[selectedAccessUser.id] ?? DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role]
     : null;
-  const selectedPermissions =
-    individualPermMode && selectedUserPermissions
-      ? selectedUserPermissions
-      : selectedPermRole === "admin_general"
-        ? allOnPermissions()
-        : rolePermissions[selectedPermRole];
+  const selectedPermissions = individualPermMode && selectedUserPermissions
+    ? selectedUserPermissions
+    : selectedPermRole === "admin_general"
+      ? allOnPermissions()
+      : rolePermissions[selectedPermRole];
   const selectedRoleLocked = selectedAccessUser?.role === "admin_general";
-  const currentPanelTitle =
-    individualPermMode && selectedAccessUser
-      ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
-      : selectedRole.label;
+  const currentPanelTitle = individualPermMode && selectedAccessUser
+    ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
+    : selectedRole.label;
 
   return (
     <>
       <div>
         <h2 className="text-xl font-display font-semibold">Equipo</h2>
-        <p className="text-sm text-muted-foreground mt-1">Administrá tu equipo.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Administrá tu equipo.
+        </p>
       </div>
 
       <div className="flex items-center gap-1 border-b border-white/5">
@@ -3717,7 +3028,9 @@ function EquipoSection() {
               onClick={() => setTab(id)}
               className={cn(
                 "relative px-4 py-2.5 text-sm transition-colors",
-                active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                active
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {label}
@@ -3730,7 +3043,7 @@ function EquipoSection() {
       </div>
 
       {tab === "pros" && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex justify-end">
             <button
               onClick={openNew}
@@ -3746,7 +3059,8 @@ function EquipoSection() {
             </div>
           ) : rows.length === 0 ? (
             <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
-              No hay profesionales cargados. Agregá el primero con el botón de arriba.
+              No hay profesionales cargados. Agregá el primero con el botón de
+              arriba.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -3769,19 +3083,18 @@ function EquipoSection() {
                         )}
                       >
                         {emp.avatar_url ? (
-                          <img
-                            src={emp.avatar_url}
-                            alt={displayName}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
+                          <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
                         ) : (
                           displayName[0]?.toUpperCase()
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{displayName}</div>
-                        <div className="text-xs text-muted-foreground">Profesional</div>
+                        <div className="font-medium text-sm truncate">
+                          {displayName}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Profesional
+                        </div>
                       </div>
                       <span
                         className={cn(
@@ -3794,7 +3107,9 @@ function EquipoSection() {
                         <span
                           className={cn(
                             "h-1.5 w-1.5 rounded-full",
-                            active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
+                            active
+                              ? "bg-[oklch(0.78_0.17_140)]"
+                              : "bg-muted-foreground",
                           )}
                         />
                         {active ? "Activo" : "Inactivo"}
@@ -3802,19 +3117,7 @@ function EquipoSection() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => {
-                          setEditingEmp(emp);
-                          setForm({
-                            ...EMPTY_FORM,
-                            fullName: emp.full_name ?? emp.name ?? "",
-                            avatarUrl: emp.avatar_url ?? "",
-                            commissionPct: String(emp.commission_pct ?? ""),
-                            role: emp.role ?? "Barbero",
-                            acceptsOnline: employeeOnlineMap[emp.id] !== false,
-                          });
-                          setDlgTab("perfil");
-                          setOpen(true);
-                        }}
+                        onClick={() => { setEditingEmp(emp); setForm({ ...EMPTY_FORM, fullName: emp.full_name ?? emp.name ?? "", avatarUrl: emp.avatar_url ?? "", commissionPct: String(emp.commission_pct ?? ""), role: emp.role ?? "Barbero", acceptsOnline: employeeOnlineMap[emp.id] !== false }); setDlgTab("perfil"); setOpen(true); }}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                       >
                         Editar
@@ -3837,98 +3140,96 @@ function EquipoSection() {
               })}
             </div>
           )}
-          <SectionCard label="Aprobación de cobros profesionales">
-            <div className="space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <ShieldCheck className="h-5 w-5 text-[oklch(0.82_0.14_75)]" />
+        <SectionCard label="Aprobación de cobros profesionales">
+          <div className="space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                <ShieldCheck className="h-5 w-5 text-[oklch(0.82_0.14_75)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-base">Habilitar modo de aprobación</div>
+                <div className="text-sm text-muted-foreground mt-0.5">
+                  Activá esta opción para definir si el cobro del profesional impacta automático o queda pendiente para Caja.
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-base">Habilitar modo de aprobación</div>
-                  <div className="text-sm text-muted-foreground mt-0.5">
-                    Activá esta opción para definir si el cobro del profesional impacta automático o
-                    queda pendiente para Caja.
-                  </div>
-                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovalInfoOpen(true)}
+                className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Info ?
+              </button>
+              <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
+            </div>
+
+            {approvalEnabled && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setApprovalInfoOpen(true)}
-                  className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => setApprovalMode("auto")}
+                  className={cn(
+                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    approvalMode === "auto"
+                      ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
+                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                  )}
                 >
-                  Info ?
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-lg font-semibold">Automático</div>
+                    {approvalMode === "auto" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        ✓ Modo predeterminado
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
+                    <div>✅ El profesional puede cobrar desde su panel.</div>
+                    <div>✅ El cobro impacta automáticamente en los ingresos de Caja.</div>
+                    <div>✅ No requiere revisión ni aprobación previa.</div>
+                  </div>
+                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                    Recomendado cuando los profesionales gestionan sus propios cobros.
+                  </div>
                 </button>
-                <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalMode("manual")}
+                  className={cn(
+                    "text-left rounded-2xl p-5 ring-1 transition-all",
+                    approvalMode === "manual"
+                      ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
+                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-lg font-semibold">Manual</div>
+                    {approvalMode === "manual" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        ✓ Modo predeterminado
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
+                    <div>✅ El profesional envía el cobro a Caja y queda pendiente de confirmación.</div>
+                    <div>✅ Caja revisa la información enviada.</div>
+                    <div>✅ El cobro se registra únicamente cuando es aprobado y confirmado.</div>
+                  </div>
+                  <div className="mt-4 text-xs text-[oklch(0.82_0.14_75)]">
+                    Recomendado cuando los cobros deben ser revisados antes de registrarse.
+                  </div>
+                </button>
               </div>
+            )}
+          </div>
+        </SectionCard>
 
-              {approvalEnabled && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setApprovalMode("auto")}
-                    className={cn(
-                      "text-left rounded-2xl p-4 ring-1 transition-all",
-                      approvalMode === "auto"
-                        ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
-                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-lg font-semibold">Automático</div>
-                      {approvalMode === "auto" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                          ✓ Modo predeterminado
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
-                      <div>✅ El profesional puede cobrar desde su panel.</div>
-                      <div>✅ El cobro impacta automáticamente en los ingresos de Caja.</div>
-                      <div>✅ No requiere revisión ni aprobación previa.</div>
-                    </div>
-                    <div className="mt-3 text-xs text-[oklch(0.82_0.14_75)]">
-                      Recomendado cuando los profesionales gestionan sus propios cobros.
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setApprovalMode("manual")}
-                    className={cn(
-                      "text-left rounded-2xl p-4 ring-1 transition-all",
-                      approvalMode === "manual"
-                        ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
-                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-lg font-semibold">Manual</div>
-                      {approvalMode === "manual" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                          ✓ Modo predeterminado
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
-                      <div>
-                        ✅ El profesional envía el cobro a Caja y queda pendiente de confirmación.
-                      </div>
-                      <div>✅ Caja revisa la información enviada.</div>
-                      <div>✅ El cobro se registra únicamente cuando es aprobado y confirmado.</div>
-                    </div>
-                    <div className="mt-3 text-xs text-[oklch(0.82_0.14_75)]">
-                      Recomendado cuando los cobros deben ser revisados antes de registrarse.
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-          </SectionCard>
         </div>
       )}
 
-      {tab === "users" && (
+            {tab === "users" && (
         <div className="space-y-5">
-          <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+          <div className="glass rounded-2xl p-5 ring-1 ring-white/5">
             <div className="mb-5">
               <h3 className="font-semibold">Accesos</h3>
               {editingAccessUserId && (
@@ -3965,25 +3266,18 @@ function EquipoSection() {
                       }}
                       className={inputCls}
                     >
-                      {ROLE_PERMISSION_OPTIONS.filter((role) => role.id !== "admin_general").map(
-                        (role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.label}
-                          </option>
-                        ),
-                      )}
+                      {ROLE_PERMISSION_OPTIONS.filter((role) => role.id !== "admin_general").map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.label}
+                        </option>
+                      ))}
                     </select>
                   </Field>
 
                   <Field label="Estado">
                     <select
                       value={accessForm.status}
-                      onChange={(e) =>
-                        setAccessForm((f) => ({
-                          ...f,
-                          status: e.target.value as "active" | "inactive",
-                        }))
-                      }
+                      onChange={(e) => setAccessForm((f) => ({ ...f, status: e.target.value as "active" | "inactive" }))}
                       className={inputCls}
                     >
                       <option value="active">Activo</option>
@@ -3997,14 +3291,10 @@ function EquipoSection() {
                     <Field label="Profesional">
                       <select
                         value={accessForm.employee_id ?? ""}
-                        onChange={(e) =>
-                          setAccessForm((f) => ({ ...f, employee_id: e.target.value || null }))
-                        }
+                        onChange={(e) => setAccessForm((f) => ({ ...f, employee_id: e.target.value || null }))}
                         className={cn(
                           inputCls,
-                          accessTouched &&
-                            !accessForm.employee_id &&
-                            "ring-red-500/70 focus:ring-red-500/70",
+                          accessTouched && !accessForm.employee_id && "ring-red-500/70 focus:ring-red-500/70",
                         )}
                       >
                         <option value="">Elegí un profesional</option>
@@ -4016,9 +3306,7 @@ function EquipoSection() {
                       </select>
                     </Field>
                     {accessTouched && !accessForm.employee_id && (
-                      <div className="text-xs text-red-400 mt-1">
-                        Debés seleccionar un profesional para este acceso.
-                      </div>
+                      <div className="text-xs text-red-400 mt-1">Debés seleccionar un profesional para este acceso.</div>
                     )}
                   </div>
                 )}
@@ -4028,9 +3316,7 @@ function EquipoSection() {
                     <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
                       Acceso
                     </div>
-                    <div className="mt-1 text-sm font-medium">
-                      {ROLE_LABEL_BY_ID[accessForm.role]}
-                    </div>
+                    <div className="mt-1 text-sm font-medium">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
                       Este acceso se creará con el rol seleccionado.
                     </div>
@@ -4038,14 +3324,7 @@ function EquipoSection() {
                 )}
 
                 <div>
-                  <Field
-                    label="Nombre"
-                    hint={
-                      accessForm.role === "profesional"
-                        ? "Si lo dejás vacío se toma del profesional."
-                        : undefined
-                    }
-                  >
+                  <Field label="Nombre" hint={accessForm.role === "profesional" ? "Si lo dejás vacío se toma del profesional." : undefined}>
                     <input
                       type="text"
                       autoComplete="off"
@@ -4068,9 +3347,7 @@ function EquipoSection() {
                       onChange={(e) => setAccessForm((f) => ({ ...f, email: e.target.value }))}
                       className={cn(
                         inputCls,
-                        accessTouched &&
-                          !accessForm.email.trim() &&
-                          "ring-red-500/70 focus:ring-red-500/70",
+                        accessTouched && !accessForm.email.trim() && "ring-red-500/70 focus:ring-red-500/70",
                       )}
                       placeholder="ejemplo@correo.com"
                     />
@@ -4083,8 +3360,7 @@ function EquipoSection() {
                 <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
                   <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
                   <span>
-                    No se asignan contraseñas. Al confirmar, se envía una invitación por email para
-                    que la persona cree su propia contraseña.
+                    No se asignan contraseñas. Al confirmar, se envía una invitación por email para que la persona cree su propia contraseña.
                   </span>
                 </div>
 
@@ -4168,12 +3444,11 @@ function EquipoSection() {
                   </div>
                 )}
 
-                <div className="mt-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                <div className="mt-4 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/5">
                     <div className="font-semibold text-sm">Permisos</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Los recomendados vienen marcados según el rol. Podés sumar accesos
-                      adicionales.
+                      Los recomendados vienen marcados según el rol. Podés sumar accesos adicionales.
                     </div>
                   </div>
 
@@ -4203,14 +3478,10 @@ function EquipoSection() {
                                 <div className="text-sm font-medium">{item.label}</div>
                                 <div className="text-xs text-muted-foreground">{item.desc}</div>
                               </div>
-                              <span
-                                className={cn(
-                                  "h-5 w-5 rounded-md grid place-items-center ring-1",
-                                  checked
-                                    ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent"
-                                    : "bg-white/5 ring-white/15",
-                                )}
-                              >
+                              <span className={cn(
+                                "h-5 w-5 rounded-md grid place-items-center ring-1",
+                                checked ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent" : "bg-white/5 ring-white/15",
+                              )}>
                                 {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
                               </span>
                             </button>
@@ -4244,14 +3515,10 @@ function EquipoSection() {
                                 <div className="text-sm font-medium">{item.label}</div>
                                 <div className="text-xs text-muted-foreground">{item.desc}</div>
                               </div>
-                              <span
-                                className={cn(
-                                  "h-5 w-5 rounded-md grid place-items-center ring-1",
-                                  checked
-                                    ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent"
-                                    : "bg-white/5 ring-white/15",
-                                )}
-                              >
+                              <span className={cn(
+                                "h-5 w-5 rounded-md grid place-items-center ring-1",
+                                checked ? "bg-[oklch(0.78_0.17_55)] text-black ring-transparent" : "bg-white/5 ring-white/15",
+                              )}>
                                 {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
                               </span>
                             </button>
@@ -4289,7 +3556,9 @@ function EquipoSection() {
                 <li>Permisos</li>
                 <li>Historial de acceso</li>
               </ul>
-              <p className="text-sm text-red-300/90 mb-5">El usuario ya no podrá iniciar sesión.</p>
+              <p className="text-sm text-red-300/90 mb-5">
+                El usuario ya no podrá iniciar sesión.
+              </p>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -4316,7 +3585,7 @@ function EquipoSection() {
       {approvalInfoOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-3xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
                 <h3 className="text-lg font-semibold">¿Cómo funciona la aprobación de cobros?</h3>
               </div>
@@ -4329,26 +3598,19 @@ function EquipoSection() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4 text-sm text-muted-foreground max-h-[75vh] overflow-y-auto">
+            <div className="p-5 space-y-4 text-sm text-muted-foreground max-h-[75vh] overflow-y-auto">
               <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                 <h4 className="font-semibold text-foreground mb-2">Modo Automático</h4>
                 <p>Cuando un profesional registra un cobro:</p>
                 <ul className="mt-2 space-y-1">
                   <li>✅ El ingreso se registra automáticamente en Caja.</li>
-                  <li>
-                    ✅ El movimiento impacta inmediatamente en reportes, ingresos y estadísticas.
-                  </li>
+                  <li>✅ El movimiento impacta inmediatamente en reportes, ingresos y estadísticas.</li>
                   <li>✅ No requiere revisión ni confirmación adicional.</li>
                 </ul>
                 <div className="mt-3 rounded-lg bg-black/20 p-3">
                   <div className="font-medium text-foreground">Ejemplo</div>
-                  <p className="mt-1">
-                    Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
-                  </p>
-                  <p className="mt-2 text-foreground">
-                    Resultado: el cobro queda registrado, aparece automáticamente en Caja y se
-                    actualizan los ingresos del día.
-                  </p>
+                  <p className="mt-1">Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.</p>
+                  <p className="mt-2 text-foreground">Resultado: el cobro queda registrado, aparece automáticamente en Caja y se actualizan los ingresos del día.</p>
                 </div>
               </div>
 
@@ -4362,13 +3624,8 @@ function EquipoSection() {
                 </ul>
                 <div className="mt-3 rounded-lg bg-black/20 p-3">
                   <div className="font-medium text-foreground">Ejemplo</div>
-                  <p className="mt-1">
-                    Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
-                  </p>
-                  <p className="mt-2 text-foreground">
-                    Resultado: el cobro queda pendiente. Caja revisa la información y, al aprobarlo,
-                    el ingreso se registra oficialmente.
-                  </p>
+                  <p className="mt-1">Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.</p>
+                  <p className="mt-2 text-foreground">Resultado: el cobro queda pendiente. Caja revisa la información y, al aprobarlo, el ingreso se registra oficialmente.</p>
                 </div>
               </div>
 
@@ -4383,28 +3640,16 @@ function EquipoSection() {
                 <div className="mt-3 rounded-lg bg-black/20 p-3">
                   <div className="font-medium text-foreground">Ejemplo</div>
                   <p className="mt-1">Juan finaliza un servicio.</p>
-                  <p className="mt-2 text-foreground">
-                    Resultado: no puede cobrar desde su panel. Caja debe registrar el cobro
-                    manualmente.
-                  </p>
+                  <p className="mt-2 text-foreground">Resultado: no puede cobrar desde su panel. Caja debe registrar el cobro manualmente.</p>
                 </div>
               </div>
 
               <div className="rounded-xl bg-[oklch(0.78_0.17_55/0.10)] ring-1 ring-[oklch(0.78_0.17_55/0.25)] p-4">
                 <h4 className="font-semibold text-foreground mb-2">¿Qué modo debería usar?</h4>
                 <div className="space-y-1">
-                  <div>
-                    <strong className="text-foreground">Automático:</strong> mayor velocidad y menos
-                    pasos en la operación diaria.
-                  </div>
-                  <div>
-                    <strong className="text-foreground">Manual:</strong> mayor control y validación
-                    de ambas partes.
-                  </div>
-                  <div>
-                    <strong className="text-foreground">Desactivado:</strong> control total de los
-                    cobros desde Caja o Administración.
-                  </div>
+                  <div><strong className="text-foreground">Automático:</strong> mayor velocidad y menos pasos en la operación diaria.</div>
+                  <div><strong className="text-foreground">Manual:</strong> mayor control y validación de ambas partes.</div>
+                  <div><strong className="text-foreground">Desactivado:</strong> control total de los cobros desde Caja o Administración.</div>
                 </div>
               </div>
             </div>
@@ -4412,7 +3657,7 @@ function EquipoSection() {
         </div>
       )}
 
-      {open && (
+{open && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => !saving && setOpen(false)}
@@ -4421,23 +3666,19 @@ function EquipoSection() {
             className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 p-4 border-b border-white/5">
+            <div className="flex items-center gap-3 p-5 border-b border-white/5">
               <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
                 {form.avatarUrl ? (
-                  <img
-                    src={form.avatarUrl}
-                    alt={form.fullName || "Profesional"}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={form.avatarUrl} alt={form.fullName || "Profesional"} className="h-full w-full object-cover" />
                 ) : (
                   (form.fullName[0] || "A").toUpperCase()
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold">
-                  {editingEmp ? "Editar profesional" : "Nuevo profesional"}
+                <div className="font-semibold">{editingEmp ? "Editar profesional" : "Nuevo profesional"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {form.role || "Barbero"}
                 </div>
-                <div className="text-xs text-muted-foreground">{form.role || "Barbero"}</div>
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -4462,7 +3703,9 @@ function EquipoSection() {
                     onClick={() => setDlgTab(id)}
                     className={cn(
                       "relative py-3 text-sm transition-colors",
-                      active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                      active
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {label}
@@ -4474,28 +3717,21 @@ function EquipoSection() {
               })}
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               {dlgTab === "perfil" && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="flex items-center gap-4">
                       <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-zinc-950 font-semibold text-xl ring-1 ring-white/10">
                         {form.avatarUrl ? (
-                          <img
-                            src={form.avatarUrl}
-                            alt={form.fullName || "Profesional"}
-                            className="h-full w-full object-cover"
-                          />
+                          <img src={form.avatarUrl} alt={form.fullName || "Profesional"} className="h-full w-full object-cover" />
                         ) : (
                           (form.fullName[0] || "A").toUpperCase()
                         )}
                       </div>
                       <div className="flex-1">
                         <div className="text-sm font-semibold">Foto del profesional</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          JPG, PNG o WEBP. La app la recorta a 200x200, la convierte a WebP y la
-                          comprime antes de subirla.
-                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">JPG, PNG o WEBP. Se muestra como en la página pública; usá una imagen centrada para que el recorte quede bien. La app la recorta a 200x200, la convierte a WebP y la comprime antes de subirla.</div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-3 py-2 text-xs font-medium">
                             Subir imagen
@@ -4527,7 +3763,9 @@ function EquipoSection() {
                   <Field label="Nombre completo *">
                     <input
                       value={form.fullName}
-                      onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, fullName: e.target.value })
+                      }
                       className={inputCls}
                       placeholder="Ej: Alejandro"
                     />
@@ -4536,7 +3774,9 @@ function EquipoSection() {
                     <Field label="Teléfono">
                       <input
                         value={form.phone}
-                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, phone: e.target.value })
+                        }
                         className={inputCls}
                         placeholder="11..."
                       />
@@ -4544,7 +3784,9 @@ function EquipoSection() {
                     <Field label="Rol">
                       <input
                         value={form.role}
-                        onChange={(e) => setForm({ ...form, role: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, role: e.target.value })
+                        }
                         className={inputCls}
                         placeholder="Barbero"
                       />
@@ -4554,13 +3796,17 @@ function EquipoSection() {
                     <input
                       type="checkbox"
                       checked={form.acceptsOnline}
-                      onChange={(e) => setForm({ ...form, acceptsOnline: e.target.checked })}
+                      onChange={(e) =>
+                        setForm({ ...form, acceptsOnline: e.target.checked })
+                      }
                       className="sr-only"
                     />
                     <span
                       className={cn(
                         "h-5 w-9 rounded-full relative transition-colors shrink-0",
-                        form.acceptsOnline ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                        form.acceptsOnline
+                          ? "bg-[oklch(0.78_0.17_55)]"
+                          : "bg-white/15",
                       )}
                     >
                       <span
@@ -4571,16 +3817,21 @@ function EquipoSection() {
                       />
                     </span>
                     <div className="flex-1">
-                      <div className="text-sm font-medium">Acepta reservas en línea</div>
+                      <div className="text-sm font-medium">
+                        Acepta reservas en línea
+                      </div>
                       <div className="text-xs text-muted-foreground">
-                        Este profesional aparecerá disponible para reservas online
+                        Este profesional aparecerá disponible para reservas
+                        online
                       </div>
                     </div>
                   </label>
                   <Field label="Descripción (opcional)">
                     <textarea
                       value={form.description}
-                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
                       className={cn(inputCls, "min-h-[90px] resize-y")}
                       placeholder="Especialidades, experiencia, estilo…"
                     />
@@ -4596,13 +3847,18 @@ function EquipoSection() {
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     return (
-                      <div key={key} className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
+                      <div
+                        key={key}
+                        className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
+                      >
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
                             onClick={() => setDay(key, { enabled: !d.enabled })}
                             className={cn(
                               "h-5 w-9 rounded-full relative transition-colors shrink-0",
-                              d.enabled ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                              d.enabled
+                                ? "bg-[oklch(0.78_0.17_55)]"
+                                : "bg-white/15",
                             )}
                           >
                             <span
@@ -4612,34 +3868,50 @@ function EquipoSection() {
                               )}
                             />
                           </button>
-                          <div className="text-sm font-medium w-20">{label}</div>
+                          <div className="text-sm font-medium w-20">
+                            {label}
+                          </div>
                           {d.enabled && (
                             <>
                               <input
                                 type="time"
                                 value={d.start}
-                                onChange={(e) => setDay(key, { start: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { start: e.target.value })
+                                }
                                 className={timeCls}
                               />
-                              <span className="text-muted-foreground text-xs">a</span>
+                              <span className="text-muted-foreground text-xs">
+                                a
+                              </span>
                               <input
                                 type="time"
                                 value={d.end}
-                                onChange={(e) => setDay(key, { end: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { end: e.target.value })
+                                }
                                 className={timeCls}
                               />
-                              <div className="text-xs text-muted-foreground ml-2">Descanso:</div>
+                              <div className="text-xs text-muted-foreground ml-2">
+                                Descanso:
+                              </div>
                               <input
                                 type="time"
                                 value={d.breakStart}
-                                onChange={(e) => setDay(key, { breakStart: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { breakStart: e.target.value })
+                                }
                                 className={timeCls}
                               />
-                              <span className="text-muted-foreground text-xs">-</span>
+                              <span className="text-muted-foreground text-xs">
+                                -
+                              </span>
                               <input
                                 type="time"
                                 value={d.breakEnd}
-                                onChange={(e) => setDay(key, { breakEnd: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { breakEnd: e.target.value })
+                                }
                                 className={timeCls}
                               />
                             </>
@@ -4651,7 +3923,7 @@ function EquipoSection() {
                 </div>
               )}
 
-              {dlgTab === "comisiones" && (
+                            {dlgTab === "comisiones" && (
                 <div className="space-y-5">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="font-semibold text-sm">Comisiones y servicios que realiza</div>
@@ -4660,24 +3932,17 @@ function EquipoSection() {
                   {(["servicios", "catalogo"] as const).map((kind) => {
                     const isServiceKind = kind === "servicios";
                     const filtered = commissionItems.filter((item) =>
-                      isServiceKind ? item.duration_min != null : item.duration_min == null,
+                      isServiceKind ? item.duration_min != null : item.duration_min == null
                     );
-                    const grouped = filtered.reduce(
-                      (acc, item) => {
-                        const category =
-                          item.category || (isServiceKind ? "Servicios" : "Productos");
-                        if (!acc[category]) acc[category] = [];
-                        acc[category].push(item);
-                        return acc;
-                      },
-                      {} as Record<string, PriceRow[]>,
-                    );
+                    const grouped = filtered.reduce((acc, item) => {
+                      const category = item.category || (isServiceKind ? "Servicios" : "Productos");
+                      if (!acc[category]) acc[category] = [];
+                      acc[category].push(item);
+                      return acc;
+                    }, {} as Record<string, PriceRow[]>);
 
                     return (
-                      <div
-                        key={kind}
-                        className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden"
-                      >
+                      <div key={kind} className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
                         <div className="px-4 py-3 border-b border-white/5">
                           <div className="text-sm font-semibold">
                             {isServiceKind ? "Servicios" : "Catálogo"}
@@ -4721,9 +3986,7 @@ function EquipoSection() {
                                         key={item.id}
                                         className={cn(
                                           "rounded-xl ring-1 p-3 transition-all",
-                                          cfg.enabled
-                                            ? "bg-white/[0.06] ring-white/10"
-                                            : "bg-white/[0.025] ring-white/5 opacity-75",
+                                          cfg.enabled ? "bg-white/[0.06] ring-white/10" : "bg-white/[0.025] ring-white/5 opacity-75",
                                         )}
                                       >
                                         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
@@ -4732,9 +3995,7 @@ function EquipoSection() {
                                             onClick={() => updateCfg({ enabled: !cfg.enabled })}
                                             className={cn(
                                               "h-6 w-11 rounded-full relative transition-colors shrink-0",
-                                              cfg.enabled
-                                                ? "bg-[oklch(0.78_0.17_55)]"
-                                                : "bg-white/15",
+                                              cfg.enabled ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
                                             )}
                                           >
                                             <span
@@ -4746,14 +4007,10 @@ function EquipoSection() {
                                           </button>
 
                                           <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-medium truncate">
-                                              {item.name}
-                                            </div>
+                                            <div className="text-sm font-medium truncate">{item.name}</div>
                                             <div className="text-xs text-muted-foreground">
                                               ${Number(item.price ?? 0).toLocaleString("es-AR")}
-                                              {isServiceKind && item.duration_min
-                                                ? ` · ${item.duration_min} min`
-                                                : ""}
+                                              {isServiceKind && item.duration_min ? ` · ${item.duration_min} min` : ""}
                                             </div>
                                           </div>
 
@@ -4761,11 +4018,7 @@ function EquipoSection() {
                                             <select
                                               value={cfg.mode}
                                               disabled={!cfg.enabled}
-                                              onChange={(e) =>
-                                                updateCfg({
-                                                  mode: e.target.value as CommissionMode,
-                                                })
-                                              }
+                                              onChange={(e) => updateCfg({ mode: e.target.value as CommissionMode })}
                                               className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
                                             >
                                               <option value="percent">% comisión</option>
@@ -4777,9 +4030,7 @@ function EquipoSection() {
                                                 min={0}
                                                 disabled={!cfg.enabled}
                                                 value={cfg.value}
-                                                onChange={(e) =>
-                                                  updateCfg({ value: e.target.value })
-                                                }
+                                                onChange={(e) => updateCfg({ value: e.target.value })}
                                                 className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
                                                 placeholder="0"
                                               />
@@ -4804,7 +4055,7 @@ function EquipoSection() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 p-4 border-t border-white/5">
+            <div className="flex items-center gap-2 p-5 border-t border-white/5">
               <button
                 onClick={saveProfessional}
                 disabled={saving}
@@ -4860,7 +4111,10 @@ type PriceForm = {
   criticalStock: string;
 };
 
-const emptyPriceForm = (category = "Servicios", isService = true): PriceForm => ({
+const emptyPriceForm = (
+  category = "Servicios",
+  isService = true,
+): PriceForm => ({
   name: "",
   price: "0",
   discount: "0",
@@ -4888,8 +4142,12 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
   return {
     name: row.name ?? "",
     price: String(row.price ?? 0),
-    discount: String(row.cash_discount ?? 0), // ← read real value
-    duration: row.duration_min ? String(row.duration_min) : isService ? "30" : "",
+    discount: String(row.cash_discount ?? 0),   // ← read real value
+    duration: row.duration_min
+      ? String(row.duration_min)
+      : isService
+        ? "30"
+        : "",
     status: row.active === false ? "Inactivo" : "Activo",
     category: row.category || (isService ? "Servicios" : "Productos"),
     description: "",
@@ -4925,7 +4183,10 @@ function PriceEditorModal({
   const cashPrice = priceToCash(form.price, form.discount);
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : form.category.toLowerCase()}`;
   const availableCatalogCategories = Array.from(
-    new Set([...(form.category ? [form.category] : []), ...catalogCategories]),
+    new Set([
+      ...(form.category ? [form.category] : []),
+      ...catalogCategories,
+    ]),
   );
 
   return (
@@ -4984,7 +4245,9 @@ function PriceEditorModal({
                   type="number"
                   min={0}
                   value={form.duration}
-                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, duration: e.target.value })
+                  }
                   className={inputCls}
                 />
               </Field>
@@ -5004,11 +4267,13 @@ function PriceEditorModal({
                 <option>Inactivo</option>
               </select>
             </Field>
-            {
+            {(
               <Field label="Categoría">
                 <select
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, category: e.target.value })
+                  }
                   className={inputCls}
                 >
                   {availableCatalogCategories.map((category) => (
@@ -5016,17 +4281,22 @@ function PriceEditorModal({
                   ))}
                 </select>
               </Field>
-            }
+            )}
           </div>
 
           <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
             <div>
-              <div className="text-sm font-medium">Se puede reservar online</div>
+              <div className="text-sm font-medium">
+                Se puede reservar online
+              </div>
               <div className="text-xs text-muted-foreground">
                 Disponible para reserva/compra online
               </div>
             </div>
-            <Toggle on={form.reservable} onChange={(v) => setForm({ ...form, reservable: v })} />
+            <Toggle
+              on={form.reservable}
+              onChange={(v) => setForm({ ...form, reservable: v })}
+            />
           </label>
 
           {!isService && (
@@ -5036,7 +4306,9 @@ function PriceEditorModal({
                   <input
                     type="number"
                     value={form.stock}
-                    onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, stock: e.target.value })
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -5044,7 +4316,9 @@ function PriceEditorModal({
                   <input
                     type="number"
                     value={form.warnStock}
-                    onChange={(e) => setForm({ ...form, warnStock: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, warnStock: e.target.value })
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -5052,7 +4326,9 @@ function PriceEditorModal({
                   <input
                     type="number"
                     value={form.criticalStock}
-                    onChange={(e) => setForm({ ...form, criticalStock: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, criticalStock: e.target.value })
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -5063,7 +4339,9 @@ function PriceEditorModal({
           <Field label="Descripción (opcional)">
             <textarea
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
               className={cn(inputCls, "min-h-[100px] resize-y")}
               placeholder={
                 isService
@@ -5116,67 +4394,50 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
-  const [customCatalogCategories, setCustomCatalogCategories] =
-    useState<string[]>(defaultCatalogCategories);
-  const [customServiceCategories, setCustomServiceCategories] =
-    useState<string[]>(defaultServiceCategories);
+  const [customCatalogCategories, setCustomCatalogCategories] = useState<string[]>(defaultCatalogCategories);
+  const [customServiceCategories, setCustomServiceCategories] = useState<string[]>(defaultServiceCategories);
 
   // Load categories from Supabase schedule._categories
   useEffect(() => {
     if (!businessId) return;
-    supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle()
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const cats = (schedule._categories ?? {}) as Record<string, unknown>;
         const visibility = getPublicVisibility(schedule);
         if (isService) {
-          setServiceReservableMap(
-            normalizePublicBooleanMap(visibility.services ?? schedule._serviceReservable),
-          );
+          setServiceReservableMap(normalizePublicBooleanMap(visibility.services ?? schedule._serviceReservable));
           if (Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
         }
-        if (!isService && Array.isArray(cats.catalog))
-          setCustomCatalogCategories(cats.catalog as string[]);
+        if (!isService && Array.isArray(cats.catalog)) setCustomCatalogCategories(cats.catalog as string[]);
       });
   }, [businessId, isService]);
 
   // Save categories to Supabase (called by global save)
   const persistCategories = useCallback(async () => {
     if (!businessId) return;
-    const { data: existingRow } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle();
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
     const existingCats = (existingSchedule._categories ?? {}) as Record<string, unknown>;
     const updatedCats = isService
       ? { ...existingCats, service: customServiceCategories }
       : { ...existingCats, catalog: customCatalogCategories };
-    await supabase
-      .from("business_settings")
-      .upsert(
-        { business_id: businessId, schedule: { ...existingSchedule, _categories: updatedCats } },
-        { onConflict: "business_id" },
-      );
+    await supabase.from("business_settings").upsert(
+      { business_id: businessId, schedule: { ...existingSchedule, _categories: updatedCats } },
+      { onConflict: "business_id" },
+    );
   }, [businessId, isService, customServiceCategories, customCatalogCategories]);
 
   // Local-only category update (no Supabase until global save)
-  const saveCategories = useCallback(
-    (next: string[], type: "catalog" | "service") => {
-      const clean = Array.from(new Set(next.map((c) => c.trim()).filter(Boolean)));
-      if (type === "service") {
-        setCustomServiceCategories(clean.length ? clean : defaultServiceCategories);
-      } else {
-        setCustomCatalogCategories(clean.length ? clean : defaultCatalogCategories);
-      }
-    },
-    [isService],
-  );
+  const saveCategories = useCallback((next: string[], type: "catalog" | "service") => {
+    const clean = Array.from(new Set(next.map((c) => c.trim()).filter(Boolean)));
+    if (type === "service") {
+      setCustomServiceCategories(clean.length ? clean : defaultServiceCategories);
+    } else {
+      setCustomCatalogCategories(clean.length ? clean : defaultCatalogCategories);
+    }
+  }, [isService]);
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -5203,13 +4464,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!businessId) return;
 
     const onCatalogStockSaved = (event: Event) => {
-      const detail = (event as CustomEvent).detail as
-        | { productId?: string; stock?: number }
-        | undefined;
+      const detail = (event as CustomEvent).detail as { productId?: string; stock?: number } | undefined;
 
       if (detail?.productId && typeof detail.stock === "number") {
         setRows((prev) =>
-          prev.map((row) => (row.id === detail.productId ? { ...row, stock: detail.stock } : row)),
+          prev.map((row) =>
+            row.id === detail.productId ? { ...row, stock: detail.stock } : row,
+          ),
         );
         return;
       }
@@ -5241,21 +4502,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   // Global Save: persist pending + categories + show toast
   const persistCategoriesRef = useRef(persistCategories);
-  useEffect(() => {
-    persistCategoriesRef.current = persistCategories;
-  }, [persistCategories]);
+  useEffect(() => { persistCategoriesRef.current = persistCategories; }, [persistCategories]);
   const pendingItemsRef = useRef(pendingItems);
   const pendingDeletesRef = useRef(pendingDeletes);
   const serviceReservableMapRef = useRef(serviceReservableMap);
-  useEffect(() => {
-    pendingItemsRef.current = pendingItems;
-  }, [pendingItems]);
-  useEffect(() => {
-    pendingDeletesRef.current = pendingDeletes;
-  }, [pendingDeletes]);
-  useEffect(() => {
-    serviceReservableMapRef.current = serviceReservableMap;
-  }, [serviceReservableMap]);
+  useEffect(() => { pendingItemsRef.current = pendingItems; }, [pendingItems]);
+  useEffect(() => { pendingDeletesRef.current = pendingDeletes; }, [pendingDeletes]);
+  useEffect(() => { serviceReservableMapRef.current = serviceReservableMap; }, [serviceReservableMap]);
 
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -5278,11 +4531,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         // Flush upserts
         for (const { tempId, payload, isNew } of items) {
           if (isNew) {
-            const { data: inserted, error } = await supabase
-              .from("price_catalog")
-              .insert(payload)
-              .select("id")
-              .single();
+            const { data: inserted, error } = await supabase.from("price_catalog").insert(payload).select("id").single();
             if (error || !inserted) {
               errors.push(error?.message ?? "No se pudo crear el servicio");
             } else if (isService) {
@@ -5329,9 +4578,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           setPendingItems([]);
           setPendingDeletes(new Set());
           window.dispatchEvent(new CustomEvent("clippr:catalog-stock-saved"));
-          toast.success(
-            isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente",
-          );
+          toast.success(isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente");
           load();
         }
       }
@@ -5346,15 +4593,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     return row.duration_min == null && !category.includes("servicio");
   });
   const categories = isService
-    ? Array.from(
-        new Set([...customServiceCategories, ...visibleRows.map((r) => r.category || "Servicios")]),
-      )
-    : Array.from(
-        new Set([...customCatalogCategories, ...visibleRows.map((r) => r.category || "Productos")]),
-      );
-  const filtered = visibleRows.filter(
-    (r) => (r.category || (isService ? "Servicios" : "Productos")) === cat,
-  );
+    ? Array.from(new Set([...customServiceCategories, ...visibleRows.map((r) => r.category || "Servicios")]))
+    : Array.from(new Set([...customCatalogCategories, ...visibleRows.map((r) => r.category || "Productos")]));
+  const filtered = visibleRows.filter((r) => (r.category || (isService ? "Servicios" : "Productos")) === cat);
 
   function openNew() {
     setEditing(null);
@@ -5386,36 +4627,29 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!isService) payload.stock = Number(form.stock) || 0;
 
     if (editing) {
-      if (isService)
-        setServiceReservableMap((current) => ({ ...current, [editing.id]: form.reservable }));
+      if (isService) setServiceReservableMap((current) => ({ ...current, [editing.id]: form.reservable }));
       // Update existing row locally
-      setRows((prev) =>
-        prev.map((r) => (r.id === editing.id ? ({ ...r, ...payload } as PriceRow) : r)),
-      );
-      setPendingItems((prev) => {
-        const next = prev.filter((p) => p.tempId !== editing.id);
+      setRows(prev => prev.map(r => r.id === editing.id ? { ...r, ...payload } as PriceRow : r));
+      setPendingItems(prev => {
+        const next = prev.filter(p => p.tempId !== editing.id);
         return [...next, { tempId: editing.id, payload: { ...payload }, isNew: false }];
       });
     } else {
       // New row — temp negative id until saved
       const tempId = `new_${Date.now()}`;
-      if (isService)
-        setServiceReservableMap((current) => ({ ...current, [tempId]: form.reservable }));
-      setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
-      setPendingItems((prev) => [...prev, { tempId, payload: { ...payload }, isNew: true }]);
+      if (isService) setServiceReservableMap((current) => ({ ...current, [tempId]: form.reservable }));
+      setRows(prev => [...prev, { id: tempId, ...payload } as PriceRow]);
+      setPendingItems(prev => [...prev, { tempId, payload: { ...payload }, isNew: true }]);
     }
     setModalOpen(false);
   }
 
   function toggle(row: PriceRow) {
     const newActive = !row.active;
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, active: newActive } : r)));
-    setPendingItems((prev) => {
-      const existing = prev.find((p) => p.tempId === row.id);
-      if (existing)
-        return prev.map((p) =>
-          p.tempId === row.id ? { ...p, payload: { ...p.payload, active: newActive } } : p,
-        );
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, active: newActive } : r));
+    setPendingItems(prev => {
+      const existing = prev.find(p => p.tempId === row.id);
+      if (existing) return prev.map(p => p.tempId === row.id ? { ...p, payload: { ...p.payload, active: newActive } } : p);
       return [...prev, { tempId: row.id, payload: { active: newActive }, isNew: false }];
     });
   }
@@ -5428,19 +4662,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!confirmDelItem) return;
     const row = confirmDelItem;
     setConfirmDelItem(null);
-    setRows((prev) => prev.filter((r) => r.id !== row.id));
-    if (isService)
-      setServiceReservableMap((current) => {
-        const next = { ...current };
-        delete next[row.id];
-        return next;
-      });
+    setRows(prev => prev.filter(r => r.id !== row.id));
+    if (isService) setServiceReservableMap((current) => { const next = { ...current }; delete next[row.id]; return next; });
     // If it was a new (unsaved) item, just remove from pending
     if (row.id.startsWith("new_")) {
-      setPendingItems((prev) => prev.filter((p) => p.tempId !== row.id));
+      setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
     } else {
-      setPendingItems((prev) => prev.filter((p) => p.tempId !== row.id));
-      setPendingDeletes((prev) => new Set([...prev, row.id]));
+      setPendingItems(prev => prev.filter(p => p.tempId !== row.id));
+      setPendingDeletes(prev => new Set([...prev, row.id]));
     }
     toast.success(isService ? "Servicio eliminado" : "Producto eliminado");
   }
@@ -5452,19 +4681,17 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (direction === "down" && idx === catRows.length - 1) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     const swapRow = catRows[swapIdx];
-    setRows((prev) => {
+    setRows(prev => {
       const arr = [...prev];
-      const i = arr.findIndex((r) => r.id === row.id);
-      const j = arr.findIndex((r) => r.id === swapRow.id);
+      const i = arr.findIndex(r => r.id === row.id);
+      const j = arr.findIndex(r => r.id === swapRow.id);
       [arr[i], arr[j]] = [arr[j], arr[i]];
       return arr;
     });
   }
 
   // Inline input modal for add/rename category (avoids browser prompt())
-  const [catModal, setCatModal] = useState<{ mode: "add" | "rename"; current?: string } | null>(
-    null,
-  );
+  const [catModal, setCatModal] = useState<{ mode: "add" | "rename"; current?: string } | null>(null);
   const [catInputVal, setCatInputVal] = useState("");
 
   function addCategory() {
@@ -5479,10 +4706,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   async function submitCatModal() {
     const clean = catInputVal.trim();
-    if (!clean) {
-      setCatModal(null);
-      return;
-    }
+    if (!clean) { setCatModal(null); return; }
     if (catModal?.mode === "add") {
       if (isService) saveCategories([...customServiceCategories, clean], "service");
       else saveCategories([...customCatalogCategories, clean], "catalog");
@@ -5502,11 +4726,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           saveCategories(next, "catalog");
         }
         if (businessId) {
-          await supabase
-            .from("price_catalog")
-            .update({ category: clean })
-            .eq("business_id", businessId)
-            .eq("category", category);
+          await supabase.from("price_catalog").update({ category: clean }).eq("business_id", businessId).eq("category", category);
         }
         setCat(clean);
         toast.success("Categoría actualizada");
@@ -5527,22 +4747,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const currentCategories = categories.filter((c) => c !== category);
     if (currentCategories.length === 0) return toast.error("Debe quedar al menos una categoría");
     const targetCategory = currentCategories[0];
-    if (isService)
-      saveCategories(
-        customServiceCategories.filter((c) => c !== category),
-        "service",
-      );
-    else
-      saveCategories(
-        customCatalogCategories.filter((c) => c !== category),
-        "catalog",
-      );
+    if (isService) saveCategories(customServiceCategories.filter((c) => c !== category), "service");
+    else saveCategories(customCatalogCategories.filter((c) => c !== category), "catalog");
     if (businessId) {
-      await supabase
-        .from("price_catalog")
-        .update({ category: targetCategory })
-        .eq("business_id", businessId)
-        .eq("category", category);
+      await supabase.from("price_catalog").update({ category: targetCategory }).eq("business_id", businessId).eq("category", category);
     }
     setCat(targetCategory);
     toast.success("Categoría eliminada");
@@ -5557,18 +4765,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             {isService ? "Servicios" : "Catálogo"}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {isService ? "Servicios que ofrecés." : "Productos para la venta."}
+            {isService
+              ? "Servicios que ofrecés."
+              : "Productos para la venta."}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {
+          {(
             <button
               onClick={addCategory}
               className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
             >
               <Plus className="h-4 w-4" /> Nueva categoría
             </button>
-          }
+          )}
           <button
             onClick={openNew}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm"
@@ -5599,7 +4809,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 >
                   {category}
                 </button>
-                {
+                {(
                   <>
                     <button
                       onClick={() => renameCategory(category)}
@@ -5617,14 +4827,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                       </button>
                     )}
                   </>
-                }
+                )}
               </div>
             );
           })}
         </div>
 
         {loading ? (
-          <div className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+            Cargando…
+          </div>
         ) : filtered.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-muted-foreground">
             No hay ítems en esta sección.
@@ -5632,7 +4844,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ) : (
           <div className="divide-y divide-white/5">
             {filtered.map((row, rowIdx) => (
-              <div key={row.id} className="flex items-center gap-3 px-5 py-3">
+              <div key={row.id} className="flex items-center gap-3 px-5 py-4">
                 {/* Reorder buttons */}
                 <div className="flex flex-col gap-0.5 shrink-0">
                   <button
@@ -5655,18 +4867,18 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   <div className="font-medium text-sm">{row.name}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {row.duration_min ? `${row.duration_min} min` : ""}
-                    {typeof row.stock === "number" && !isService ? `Stock: ${row.stock}` : ""}
+                    {typeof row.stock === "number" && !isService
+                      ? `Stock: ${row.stock}`
+                      : ""}
                   </div>
                 </div>
                 {typeof row.stock === "number" && !isService && (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1",
-                      row.stock > 0
-                        ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
-                        : "bg-red-500/10 text-red-300 ring-red-400/25",
-                    )}
-                  >
+                  <span className={cn(
+                    "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1",
+                    row.stock > 0
+                      ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
+                      : "bg-red-500/10 text-red-300 ring-red-400/25"
+                  )}>
                     Stock {row.stock}
                   </span>
                 )}
@@ -5686,7 +4898,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   <span
                     className={cn(
                       "h-1.5 w-1.5 rounded-full",
-                      row.active !== false ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
+                      row.active !== false
+                        ? "bg-[oklch(0.78_0.17_140)]"
+                        : "bg-muted-foreground",
                     )}
                   />{" "}
                   {row.active !== false ? "Activo" : "Inactivo"}
@@ -5751,18 +4965,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               autoFocus
               value={catInputVal}
               onChange={(e) => setCatInputVal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitCatModal();
-                if (e.key === "Escape") setCatModal(null);
-              }}
+              onKeyDown={(e) => { if (e.key === "Enter") submitCatModal(); if (e.key === "Escape") setCatModal(null); }}
               placeholder="Nombre de la categoría"
               className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
             />
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setCatModal(null)}
-                className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition"
-              >
+              <button onClick={() => setCatModal(null)} className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition">
                 Cancelar
               </button>
               <button
@@ -5790,13 +4998,7 @@ function CatalogoSection() {
 // ─────────── Caja ───────────
 function CajaSection() {
   const { businessId } = useAuth();
-  const defaultMethods = {
-    efectivo: true,
-    transferencia: true,
-    tarjeta: true,
-    mp: true,
-    cuentaDni: false,
-  };
+  const defaultMethods = { efectivo: true, transferencia: true, tarjeta: true, mp: true, cuentaDni: false };
   const [methods, setMethods] = useState(defaultMethods);
   const [autoChange, setAutoChange] = useState(true);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
@@ -5805,11 +5007,7 @@ function CajaSection() {
 
   useEffect(() => {
     if (!businessId) return;
-    supabase
-      .from("business_settings")
-      .select("approval_mode,schedule")
-      .eq("business_id", businessId)
-      .maybeSingle()
+    supabase.from("business_settings").select("approval_mode,schedule").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
@@ -5820,11 +5018,8 @@ function CajaSection() {
 
   async function saveCajaSettings() {
     if (!businessId) return toast.error("No se encontró el negocio");
-    const { data: existingRow } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle();
+    const { data: existingRow } = await supabase.from("business_settings")
+      .select("schedule").eq("business_id", businessId).maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
     const { error } = await supabase.from("business_settings").upsert(
       {
@@ -5890,8 +5085,12 @@ function CajaSection() {
   return (
     <>
       <div>
-        <h2 className="text-xl font-display font-semibold">Caja</h2>
-        <p className="text-sm text-muted-foreground mt-1">Cobros y medios de pago.</p>
+        <h2 className="text-xl font-display font-semibold">
+          Caja
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Cobros y medios de pago.
+        </p>
       </div>
 
       <SectionCard label="Métodos de pago habilitados">
@@ -5899,7 +5098,10 @@ function CajaSection() {
           {M.map((m) => {
             const Icon = m.icon;
             return (
-              <div key={m.id} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
+              <div
+                key={m.id}
+                className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0"
+              >
                 <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
                   <Icon className={cn("h-4.5 w-4.5", m.tint)} />
                 </div>
@@ -5920,7 +5122,9 @@ function CajaSection() {
             <ArrowLeftRight className="h-4.5 w-4.5 text-muted-foreground" />
           </div>
           <div className="flex-1">
-            <div className="font-medium text-sm">Calcular vuelto automáticamente</div>
+            <div className="font-medium text-sm">
+              Calcular vuelto automáticamente
+            </div>
             <div className="text-xs text-muted-foreground mt-0.5">
               Muestra el vuelto al ingresar el monto en efectivo
             </div>
@@ -5928,11 +5132,14 @@ function CajaSection() {
           <Toggle on={autoChange} onChange={setAutoChange} />
         </div>
       </SectionCard>
+
+
     </>
   );
 }
 
 // ─────────── Page ───────────
+
 
 function SenasBlock({
   title,
@@ -5971,7 +5178,7 @@ function SenasToggleBtn({
         "rounded-xl px-5 py-2.5 text-sm font-medium ring-1 transition-all",
         active
           ? "bg-primary/20 ring-primary/50 text-foreground shadow-[0_0_16px_-4px_oklch(0.66_0.22_265/0.4)]"
-          : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]",
+          : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
       )}
     >
       {label}
@@ -5985,19 +5192,11 @@ function SenasToggleBtn({
 function SenasSection() {
   const { businessId } = useAuth();
   const [enabled, setEnabled] = React.useState(false);
-  const [services, setServices] = React.useState<
-    {
-      id: string;
-      name: string;
-      category?: string | null;
-      price?: number | null;
-      duration_min?: number | null;
-    }[]
-  >([]);
+  const [services, setServices] = React.useState<{id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]>([]);
   const [selectedSvcs, setSelectedSvcs] = React.useState<string[]>([]);
-  const [amountType, setAmountType] = React.useState<"fixed" | "percent">("fixed");
+  const [amountType, setAmountType] = React.useState<"fixed"|"percent">("fixed");
   const [amountValue, setAmountValue] = React.useState("");
-  const [lostDist, setLostDist] = React.useState<"local" | "prof" | "custom">("local");
+  const [lostDist, setLostDist] = React.useState<"local"|"prof"|"custom">("local");
   const [lostLocal, setLostLocal] = React.useState("100");
   const [lostProf, setLostProf] = React.useState("0");
   const [msg, setMsg] = React.useState(DEFAULT_SENA_MESSAGE);
@@ -6005,19 +5204,15 @@ function SenasSection() {
 
   React.useEffect(() => {
     if (!businessId) return;
-    supabase
-      .from("business_settings")
-      .select("senas_config")
-      .eq("business_id", businessId)
-      .maybeSingle()
+    supabase.from("business_settings").select("senas_config").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => {
         if (data?.senas_config) {
-          const c = data.senas_config as Record<string, unknown>;
+          const c = data.senas_config as Record<string,unknown>;
           setEnabled(!!c.enabled);
           setSelectedSvcs((c.services as string[]) ?? []);
-          setAmountType((c.amount_type as "fixed" | "percent") ?? "fixed");
+          setAmountType((c.amount_type as "fixed"|"percent") ?? "fixed");
           setAmountValue(String(c.amount_value ?? ""));
-          setLostDist((c.lost_dist as "local" | "prof" | "custom") ?? "local");
+          setLostDist((c.lost_dist as "local"|"prof"|"custom") ?? "local");
           setLostLocal(String(c.lost_local ?? "100"));
           setLostProf(String(c.lost_prof ?? "0"));
           setMsg(String(c.msg || DEFAULT_SENA_MESSAGE));
@@ -6037,19 +5232,11 @@ function SenasSection() {
           return;
         }
 
-        const servicesOnly = (data ?? []).filter(
-          (item) => item.duration_min !== null && item.duration_min !== undefined,
+        const servicesOnly = (data ?? []).filter((item) =>
+          item.duration_min !== null && item.duration_min !== undefined
         );
 
-        setServices(
-          servicesOnly as {
-            id: string;
-            name: string;
-            category?: string | null;
-            price?: number | null;
-            duration_min?: number | null;
-          }[],
-        );
+        setServices(servicesOnly as {id:string;name:string;category?:string|null;price?:number|null;duration_min?:number|null}[]);
       });
   }, [businessId]);
 
@@ -6068,33 +5255,20 @@ function SenasSection() {
     }
 
     const profPct = lostDist === "custom" ? typedProfPct : lostDist === "prof" ? 100 : 0;
-    const { error } = await supabase.from("business_settings").upsert(
-      {
-        business_id: businessId,
-        senas_config: {
-          enabled,
-          services: selectedSvcs,
-          amount_type: amountType,
-          amount_value: parsedAmount,
-          lost_dist: lostDist,
-          lost_local: localPct,
-          lost_prof: profPct,
-          msg,
-        },
-      },
-      { onConflict: "business_id" },
-    );
-    if (error) {
-      toast.error("Error guardando señas: " + error.message);
-      return;
-    }
+    const { error } = await supabase.from("business_settings").upsert({
+      business_id: businessId,
+      senas_config: {
+        enabled, services: selectedSvcs, amount_type: amountType,
+        amount_value: parsedAmount,
+        lost_dist: lostDist, lost_local: localPct, lost_prof: profPct, msg,
+      }
+    }, { onConflict: "business_id" });
+    if (error) { toast.error("Error guardando señas: " + error.message); return; }
     toast.success("Configuración de señas guardada correctamente");
   }, [businessId, enabled, selectedSvcs, amountType, amountValue, lostDist, lostLocal, msg]);
 
   const saveRef = React.useRef(save);
-  React.useEffect(() => {
-    saveRef.current = save;
-  }, [save]);
+  React.useEffect(() => { saveRef.current = save; }, [save]);
 
   React.useEffect(() => {
     const handler = (e: Event) => {
@@ -6105,8 +5279,8 @@ function SenasSection() {
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, []);
 
-  if (loading)
-    return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
+  if (loading) return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
+
 
   return (
     <div className="space-y-4">
@@ -6118,172 +5292,172 @@ function SenasSection() {
         </div>
       </SenasBlock>
 
-      {enabled && (
-        <>
-          {/* Bloque 2: Servicios */}
-          <SenasBlock title="Servicios que requieren seña">
-            <div className="space-y-2">
-              {services.length > 0 && (
-                <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
-                  <div className="text-xs text-muted-foreground">
-                    {selectedSvcs.length} de {services.length} servicios seleccionados
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSvcs(services.map((s) => s.id))}
-                      className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-foreground transition"
-                    >
-                      Marcar todos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSvcs([])}
-                      className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-muted-foreground transition"
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {services.map((s) => {
-                  const on = selectedSvcs.includes(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() =>
-                        setSelectedSvcs(
-                          on ? selectedSvcs.filter((x) => x !== s.id) : [...selectedSvcs, s.id],
-                        )
-                      }
-                      className={cn(
-                        "flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left ring-1 transition-all",
-                        on
-                          ? "bg-primary/14 ring-primary/35 shadow-[0_0_14px_-6px_oklch(0.66_0.22_265/0.45)]"
-                          : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.055]",
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{s.name}</div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                          {s.category && <span>{s.category}</span>}
-                          {typeof s.duration_min === "number" && s.duration_min > 0 && (
-                            <span>{s.duration_min} min</span>
-                          )}
-                          {typeof s.price === "number" && s.price > 0 && (
-                            <span>${Number(s.price).toLocaleString("es-AR")}</span>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full ring-1 transition",
-                          on ? "bg-primary ring-primary/40" : "bg-white/10 ring-white/10",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-5 w-5 rounded-full bg-white shadow transition-transform",
-                            on ? "translate-x-5" : "translate-x-0.5",
-                          )}
-                        />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {services.length === 0 && (
-                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground text-center">
-                  Primero cargá servicios en Configuración → Servicios.
-                </div>
-              )}
-            </div>
-          </SenasBlock>
-          {/* Bloque 4: Distribución si se pierde */}
-          <SenasBlock title="Si el cliente pierde la seña">
-            <div className="flex flex-wrap gap-3">
-              {(
-                [
-                  ["local", "100% para el local"],
-                  ["prof", "100% para el profesional"],
-                  ["custom", "Personalizado"],
-                ] as [string, string][]
-              ).map(([v, l]) => (
-                <SenasToggleBtn
-                  key={v}
-                  label={l}
-                  active={lostDist === v}
-                  onClick={() => {
-                    setLostDist(v as "local" | "prof" | "custom");
-                    if (v === "local") {
-                      setLostLocal("100");
-                      setLostProf("0");
-                    } else if (v === "prof") {
-                      setLostLocal("0");
-                      setLostProf("100");
-                    }
-                  }}
-                />
-              ))}
-            </div>
-
-            {lostDist === "custom" && (
-              <div className="mt-2 p-4 rounded-xl bg-white/[0.02] ring-1 ring-white/[0.06] space-y-3">
-                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                  Distribución personalizada
-                </div>
-                <div className="flex items-center gap-6 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground w-24">Local</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={lostLocal}
-                      onChange={(e) => setLostLocal(e.target.value)}
-                      className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground w-24">Profesional</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={lostProf}
-                      onChange={(e) => setLostProf(e.target.value)}
-                      className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                </div>
+      {enabled && (<>
+        {/* Bloque 2: Servicios */}
+        <SenasBlock title="Servicios que requieren seña">
+          <div className="space-y-2">
+            {services.length > 0 && (
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
                 <div className="text-xs text-muted-foreground">
-                  Podés escribir los porcentajes libremente. Se validan cuando tocás Guardar.
+                  {selectedSvcs.length} de {services.length} servicios seleccionados
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs(services.map((s) => s.id))}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-foreground transition"
+                  >
+                    Marcar todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs([])}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-muted-foreground transition"
+                  >
+                    Limpiar
+                  </button>
                 </div>
               </div>
             )}
-          </SenasBlock>
 
-          {/* Bloque 5: Mensaje */}
-          <SenasBlock
-            title="Mensaje para el cliente"
-            subtitle="Mensaje que verá el cliente después de reservar un turno con seña."
-          >
-            <div className="relative">
-              <textarea
-                rows={4}
-                value={msg}
-                onChange={(e) => setMsg(e.target.value)}
-                className="min-h-[360px] resize-y w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {services.map((s) => {
+                const on = selectedSvcs.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedSvcs(on ? selectedSvcs.filter((x) => x !== s.id) : [...selectedSvcs, s.id])}
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left ring-1 transition-all",
+                      on
+                        ? "bg-primary/14 ring-primary/35 shadow-[0_0_14px_-6px_oklch(0.66_0.22_265/0.45)]"
+                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.055]",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{s.name}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                        {s.category && <span>{s.category}</span>}
+                        {typeof s.duration_min === "number" && s.duration_min > 0 && <span>{s.duration_min} min</span>}
+                        {typeof s.price === "number" && s.price > 0 && <span>${Number(s.price).toLocaleString("es-AR")}</span>}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full ring-1 transition",
+                        on ? "bg-primary ring-primary/40" : "bg-white/10 ring-white/10",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-5 w-5 rounded-full bg-white shadow transition-transform",
+                          on ? "translate-x-5" : "translate-x-0.5",
+                        )}
+                      />
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="text-xs text-muted-foreground"></div>
-          </SenasBlock>
-        </>
-      )}
+
+            {services.length === 0 && (
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground text-center">
+                Primero cargá servicios en Configuración → Servicios.
+              </div>
+            )}
+          </div>
+        </SenasBlock>
+
+        {/* Bloque 3: Monto */}
+        <SenasBlock title="Monto de la seña">
+          <div className="flex gap-3">
+            <SenasToggleBtn label="Monto fijo" active={amountType==="fixed"} onClick={() => setAmountType("fixed")} />
+            <SenasToggleBtn label="Porcentaje" active={amountType==="percent"} onClick={() => setAmountType("percent")} />
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            {amountType === "fixed" && (
+              <span className="text-lg font-light text-muted-foreground">$</span>
+            )}
+            <input
+              type="text"
+              inputMode="decimal"
+              value={amountValue}
+              onChange={(e) => setAmountValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+              placeholder={amountType==="fixed" ? "Ej: 30000" : "Ej: 50"}
+              className="w-44 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-white/30 transition"
+            />
+            {amountType === "percent" && (
+              <span className="text-lg font-light text-muted-foreground">%</span>
+            )}
+            {amountValue && (
+              <span className="text-xs text-muted-foreground">
+                {amountType==="fixed"
+                  ? `$${parseInt(amountValue||"0").toLocaleString("es-AR")} fijos`
+                  : `${amountValue}% del precio del servicio`}
+              </span>
+            )}
+          </div>
+        </SenasBlock>
+
+        {/* Bloque 4: Distribución si se pierde */}
+        <SenasBlock title="Si el cliente pierde la seña">
+          <div className="flex flex-wrap gap-3">
+            {([
+              ["local",  "100% para el local"],
+              ["prof",   "100% para el profesional"],
+              ["custom", "Personalizado"],
+            ] as [string,string][]).map(([v,l]) => (
+              <SenasToggleBtn key={v} label={l} active={lostDist===v} onClick={() => {
+                setLostDist(v as "local"|"prof"|"custom");
+                if (v==="local")      { setLostLocal("100"); setLostProf("0"); }
+                else if (v==="prof")  { setLostLocal("0");   setLostProf("100"); }
+              }} />
+            ))}
+          </div>
+
+          {lostDist==="custom" && (
+            <div className="mt-2 p-4 rounded-xl bg-white/[0.02] ring-1 ring-white/[0.06] space-y-3">
+              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Distribución personalizada</div>
+              <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground w-24">Local</span>
+                  <input type="text" inputMode="decimal" value={lostLocal}
+                    onChange={e=>setLostLocal(e.target.value)}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground w-24">Profesional</span>
+                  <input type="text" inputMode="decimal" value={lostProf}
+                    onChange={e=>setLostProf(e.target.value)}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none" />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Podés escribir los porcentajes libremente. Se validan cuando tocás Guardar.
+              </div>
+            </div>
+          )}
+        </SenasBlock>
+
+        {/* Bloque 5: Mensaje */}
+        <SenasBlock title="Mensaje para el cliente" subtitle="Mensaje que verá el cliente después de reservar un turno con seña.">
+          <div className="relative">
+            <textarea
+              rows={4}
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              className="min-h-[360px] resize-y w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
+            />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            
+          </div>
+        </SenasBlock>
+      </>)}
     </div>
   );
 }
@@ -6298,18 +5472,15 @@ function SettingsPage() {
         subtitle="Tu negocio"
         action={
           <button
-            onClick={() =>
-              window.dispatchEvent(
-                new CustomEvent("clippr:save-settings", { detail: { section: active } }),
-              )
-            }
-            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
+            onClick={() => window.dispatchEvent(new CustomEvent("clippr:save-settings", { detail: { section: active } }))}
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-cyan-300 text-slate-950 shadow-[0_8px_30px_-8px_rgba(34,211,238,0.65)] hover:opacity-95 transition"
           >
             Guardar <Check className="h-4 w-4" strokeWidth={3} />
           </button>
         }
       />
       <div className="space-y-6 animate-fade-up">
+
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
           {/* Sidebar */}
           <aside className="space-y-5">
@@ -6343,16 +5514,23 @@ function SettingsPage() {
                             it.tint,
                           )}
                         >
-                          <Icon className={cn("h-4 w-4", it.tint)} strokeWidth={2} />
+                          <Icon
+                            className={cn("h-4 w-4", it.tint)}
+                            strokeWidth={2}
+                          />
                         </span>
-                        <span className={cn(isActive && "font-medium")}>{it.label}</span>
+                        <span className={cn(isActive && "font-medium")}>
+                          {it.label}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
               </div>
             ))}
-            <div className="px-3 pt-3 text-[11px] text-muted-foreground/60">Clippr v1.0.0</div>
+            <div className="px-3 pt-3 text-[11px] text-muted-foreground/60">
+              Clippr v1.0.0
+            </div>
           </aside>
 
           {/* Content */}
@@ -6364,6 +5542,7 @@ function SettingsPage() {
             {active === "servicios" && <ServiciosSection />}
             {active === "servicios" && <SenasSection />}
             {active === "catalogo" && <CatalogoSection />}
+            {active === "clientes" && <ClientesSection />}
             {active === "caja" && <CajaSection />}
             {active === "apariencia" && <AparienciaSection />}
 
@@ -6384,11 +5563,11 @@ type ClientField = {
 };
 
 const ALL_CLIENT_FIELDS: ClientField[] = [
-  { key: "nombre", label: "Nombre", required: true },
-  { key: "telefono", label: "Teléfono", required: true },
-  { key: "email", label: "Email", required: true },
+  { key: "nombre",           label: "Nombre",              required: true  },
+  { key: "telefono",         label: "Teléfono",            required: true  },
+  { key: "email",            label: "Email",               required: false },
   { key: "fecha_nacimiento", label: "Fecha de nacimiento", required: false },
-  { key: "notas", label: "Notas", required: false },
+  { key: "notas",            label: "Notas",               required: false },
 ];
 
 type ClientesConfig = {
@@ -6403,11 +5582,8 @@ type ClientesConfig = {
 
 const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
   fields: {
-    nombre: true,
-    telefono: true,
-    email: true,
-    fecha_nacimiento: true,
-    notas: false,
+    nombre: true, telefono: true, email: true,
+    fecha_nacimiento: true, notas: false,
   },
   diasInactivo: 30,
   diasPerdido: 90,
@@ -6421,12 +5597,7 @@ const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
 
 function CfgCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 space-y-4",
-        className,
-      )}
-    >
+    <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 space-y-4", className)}>
       {children}
     </div>
   );
@@ -6442,24 +5613,13 @@ function CfgSectionTitle({ label, sub }: { label: string; sub?: string }) {
 }
 
 function CfgNumInput({
-  label,
-  value,
-  onChange,
-  min = 1,
-  step = 1,
-  prefix,
+  label, value, onChange, min = 1, step = 1, prefix,
 }: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-  min?: number;
-  step?: number;
-  prefix?: string;
+  label: string; value: number; onChange: (n: number) => void;
+  min?: number; step?: number; prefix?: string;
 }) {
   const [local, setLocal] = React.useState(String(value));
-  React.useEffect(() => {
-    setLocal(String(value));
-  }, [value]);
+  React.useEffect(() => { setLocal(String(value)); }, [value]);
   const commit = () => {
     const n = Math.max(min, Number(local) || min);
     setLocal(String(n));
@@ -6475,7 +5635,7 @@ function CfgNumInput({
           min={min}
           step={step}
           value={local}
-          onChange={(e) => setLocal(e.target.value)}
+          onChange={e => setLocal(e.target.value)}
           onBlur={commit}
           className="w-24 bg-transparent text-sm text-right tabular-nums outline-none text-foreground"
         />
@@ -6494,12 +5654,10 @@ function CfgToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => vo
         enabled ? "bg-primary/70" : "bg-white/10",
       )}
     >
-      <span
-        className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-          enabled ? "translate-x-5" : "translate-x-0.5",
-        )}
-      />
+      <span className={cn(
+        "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+        enabled ? "translate-x-5" : "translate-x-0.5",
+      )} />
     </button>
   );
 }
@@ -6519,10 +5677,7 @@ function ClientesSection() {
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         if (schedule._clientes) {
-          setCfg({
-            ...DEFAULT_CLIENTES_CONFIG,
-            ...(schedule._clientes as Partial<ClientesConfig>),
-          });
+          setCfg({ ...DEFAULT_CLIENTES_CONFIG, ...(schedule._clientes as Partial<ClientesConfig>) });
         }
         setLoaded(true);
       });
@@ -6552,9 +5707,7 @@ function ClientesSection() {
 
   // Wire up global save button
   const saveRef = useRef(save);
-  useEffect(() => {
-    saveRef.current = save;
-  }, [save]);
+  useEffect(() => { saveRef.current = save; }, [save]);
   useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
@@ -6565,12 +5718,11 @@ function ClientesSection() {
   }, []);
 
   const setField = (key: string, val: boolean) =>
-    setCfg((prev) => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
+    setCfg(prev => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
 
-  if (!loaded)
-    return (
-      <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
-    );
+  if (!loaded) return (
+    <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
+  );
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -6588,7 +5740,7 @@ function ClientesSection() {
           sub="Los campos activos aparecen al crear o editar clientes y al agendar turnos."
         />
         <div className="space-y-2.5 pt-1">
-          {ALL_CLIENT_FIELDS.map((f) => {
+          {ALL_CLIENT_FIELDS.map(f => {
             const enabled = cfg.fields[f.key] ?? false;
             return (
               <div key={f.key} className="flex items-center justify-between gap-4 py-1">
@@ -6599,9 +5751,7 @@ function ClientesSection() {
                     onClick={() => !f.required && setField(f.key, !enabled)}
                     className={cn(
                       "h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition-all",
-                      enabled
-                        ? "bg-primary/80 border-primary/60"
-                        : "bg-white/[0.03] border-white/15",
+                      enabled ? "bg-primary/80 border-primary/60" : "bg-white/[0.03] border-white/15",
                       f.required && "opacity-60 cursor-not-allowed",
                     )}
                   >
@@ -6628,25 +5778,10 @@ function ClientesSection() {
         />
         <div className="grid grid-cols-3 gap-2 text-center">
           {[
-            {
-              label: "Activo",
-              color: "text-emerald-300",
-              ring: "ring-emerald-400/25 bg-emerald-400/8",
-              range: `0 – ${cfg.diasInactivo - 1} días`,
-            },
-            {
-              label: "Inactivo",
-              color: "text-cyan-300",
-              ring: "ring-cyan-400/25 bg-cyan-400/8",
-              range: `${cfg.diasInactivo} – ${cfg.diasPerdido - 1} días`,
-            },
-            {
-              label: "Perdido",
-              color: "text-rose-300",
-              ring: "ring-rose-400/25 bg-rose-400/8",
-              range: `${cfg.diasPerdido}+ días`,
-            },
-          ].map((s) => (
+            { label: "Activo",   color: "text-emerald-300", ring: "ring-emerald-400/25 bg-emerald-400/8",  range: `0 – ${cfg.diasInactivo - 1} días` },
+            { label: "Inactivo", color: "text-cyan-300",   ring: "ring-cyan-400/25 bg-cyan-400/8",      range: `${cfg.diasInactivo} – ${cfg.diasPerdido - 1} días` },
+            { label: "Perdido",  color: "text-rose-300",    ring: "ring-rose-400/25 bg-rose-400/8",        range: `${cfg.diasPerdido}+ días` },
+          ].map(s => (
             <div key={s.label} className={cn("rounded-xl ring-1 p-3", s.ring)}>
               <div className={cn("text-xs font-semibold", s.color)}>{s.label}</div>
               <div className="text-[10px] text-muted-foreground mt-0.5">{s.range}</div>
@@ -6658,17 +5793,13 @@ function ClientesSection() {
             label="Días para considerar cliente inactivo"
             value={cfg.diasInactivo}
             min={1}
-            onChange={(n) =>
-              setCfg((p) => ({ ...p, diasInactivo: Math.min(n, p.diasPerdido - 1) }))
-            }
+            onChange={n => setCfg(p => ({ ...p, diasInactivo: Math.min(n, p.diasPerdido - 1) }))}
           />
           <CfgNumInput
             label="Días para considerar cliente perdido"
             value={cfg.diasPerdido}
             min={2}
-            onChange={(n) =>
-              setCfg((p) => ({ ...p, diasPerdido: Math.max(n, p.diasInactivo + 1) }))
-            }
+            onChange={n => setCfg(p => ({ ...p, diasPerdido: Math.max(n, p.diasInactivo + 1) }))}
           />
         </div>
       </CfgCard>
@@ -6683,21 +5814,16 @@ function ClientesSection() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-foreground">VIP por visitas mensuales</div>
-              <div className="text-xs text-muted-foreground">
-                Cantidad mínima de visitas en el mes actual
-              </div>
+              <div className="text-xs text-muted-foreground">Cantidad mínima de visitas en el mes actual</div>
             </div>
-            <CfgToggle
-              enabled={cfg.vipVisitasEnabled}
-              onToggle={() => setCfg((p) => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))}
-            />
+            <CfgToggle enabled={cfg.vipVisitasEnabled} onToggle={() => setCfg(p => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))} />
           </div>
           {cfg.vipVisitasEnabled && (
             <CfgNumInput
               label="Visitas mínimas por mes"
               value={cfg.vipVisitasMin}
               min={1}
-              onChange={(n) => setCfg((p) => ({ ...p, vipVisitasMin: n }))}
+              onChange={n => setCfg(p => ({ ...p, vipVisitasMin: n }))}
             />
           )}
         </div>
@@ -6706,14 +5832,9 @@ function ClientesSection() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-foreground">VIP por gasto mensual</div>
-              <div className="text-xs text-muted-foreground">
-                Gasto mínimo acumulado en el mes actual
-              </div>
+              <div className="text-xs text-muted-foreground">Gasto mínimo acumulado en el mes actual</div>
             </div>
-            <CfgToggle
-              enabled={cfg.vipGastoEnabled}
-              onToggle={() => setCfg((p) => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))}
-            />
+            <CfgToggle enabled={cfg.vipGastoEnabled} onToggle={() => setCfg(p => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))} />
           </div>
           {cfg.vipGastoEnabled && (
             <CfgNumInput
@@ -6722,15 +5843,13 @@ function ClientesSection() {
               min={0}
               step={1000}
               prefix="$"
-              onChange={(n) => setCfg((p) => ({ ...p, vipGastoMin: n }))}
+              onChange={n => setCfg(p => ({ ...p, vipGastoMin: n }))}
             />
           )}
         </div>
         {(cfg.vipVisitasEnabled || cfg.vipGastoEnabled) && (
           <p className="text-[11px] text-muted-foreground rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-3 py-2">
-            Un cliente se marca VIP si cumple{" "}
-            <strong className="text-foreground">cualquiera</strong> de las condiciones activas
-            durante el mes en curso.
+            Un cliente se marca VIP si cumple <strong className="text-foreground">cualquiera</strong> de las condiciones activas durante el mes en curso.
           </p>
         )}
       </CfgCard>
@@ -6886,7 +6005,7 @@ function PlanSection() {
                 precio fundador congelado de por vida.
               </span>
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
               {founderPerks.map((p) => (
                 <div
                   key={p.label}
@@ -6902,7 +6021,8 @@ function PlanSection() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Users className="h-4 w-4" />
               <span>
-                <span className="text-foreground font-medium">63 / 100</span> lugares disponibles
+                <span className="text-foreground font-medium">63 / 100</span>{" "}
+                lugares disponibles
               </span>
             </div>
             <button className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-[oklch(0.72_0.22_305)] to-[oklch(0.55_0.27_285)] text-white shadow-[0_8px_30px_-10px_oklch(0.62_0.25_295/0.8)] hover:brightness-110 transition">
@@ -6913,7 +6033,7 @@ function PlanSection() {
       </div>
 
       {/* Current plan banner */}
-      <div className="glass rounded-2xl p-4 ring-1 ring-white/5 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-4 items-center">
+      <div className="glass rounded-2xl p-5 ring-1 ring-white/5 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-5 items-center">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 rounded-xl grid place-items-center bg-gradient-to-br from-[oklch(0.72_0.22_305/0.2)] to-[oklch(0.55_0.27_285/0.1)] ring-1 ring-[oklch(0.62_0.25_295/0.3)]">
             <CalendarDays className="h-5 w-5 text-[oklch(0.82_0.18_300)]" />
@@ -6921,12 +6041,19 @@ function PlanSection() {
           <div className="flex-1">
             <div className="text-sm">
               Estás disfrutando tu plan{" "}
-              <span className="text-[oklch(0.82_0.18_300)] font-medium">Pro</span>
+              <span className="text-[oklch(0.82_0.18_300)] font-medium">
+                Pro
+              </span>
             </div>
-            <div className="text-xs text-[oklch(0.82_0.18_300)] mt-0.5">Prueba gratis</div>
+            <div className="text-xs text-[oklch(0.82_0.18_300)] mt-0.5">
+              Prueba gratis
+            </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Te quedan <span className="text-foreground font-medium">{trialLeft} días</span> de
-              prueba gratis
+              Te quedan{" "}
+              <span className="text-foreground font-medium">
+                {trialLeft} días
+              </span>{" "}
+              de prueba gratis
             </div>
             <div className="h-1.5 w-full rounded-full bg-white/5 mt-2 overflow-hidden">
               <div
@@ -6940,7 +6067,9 @@ function PlanSection() {
           <button className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10">
             Ver mi plan <ChevronRight className="h-4 w-4" />
           </button>
-          <div className="text-[11px] text-muted-foreground">Finaliza el 18 de agosto, 2026</div>
+          <div className="text-[11px] text-muted-foreground">
+            Finaliza el 18 de agosto, 2026
+          </div>
         </div>
         <div className="inline-flex items-center gap-1 rounded-xl bg-white/5 ring-1 ring-white/10 p-1">
           {(["mensual", "anual"] as Billing[]).map((b) => (
@@ -6957,7 +6086,9 @@ function PlanSection() {
               {b}
             </button>
           ))}
-          <span className="px-2 text-[10px] text-emerald-400">Ahorrá 2 meses</span>
+          <span className="px-2 text-[10px] text-emerald-400">
+            Ahorrá 2 meses
+          </span>
         </div>
       </div>
 
@@ -6994,7 +6125,9 @@ function PlanSection() {
                     <plan.icon
                       className={cn(
                         "h-5 w-5",
-                        plan.highlight ? "text-[oklch(0.82_0.18_300)]" : "text-muted-foreground",
+                        plan.highlight
+                          ? "text-[oklch(0.82_0.18_300)]"
+                          : "text-muted-foreground",
                       )}
                     />
                   </div>
@@ -7008,16 +6141,22 @@ function PlanSection() {
                     <div className="text-3xl font-semibold">
                       {price === 0 ? "$0" : fmtARS(price)}
                       {price > 0 && (
-                        <span className="text-sm text-muted-foreground font-normal">{suffix}</span>
+                        <span className="text-sm text-muted-foreground font-normal">
+                          {suffix}
+                        </span>
                       )}
                     </div>
                     <div
                       className={cn(
                         "text-xs mt-1",
-                        plan.highlight ? "text-[oklch(0.82_0.18_300)]" : "text-muted-foreground",
+                        plan.highlight
+                          ? "text-[oklch(0.82_0.18_300)]"
+                          : "text-muted-foreground",
                       )}
                     >
-                      {price === 0 ? "Gratis para siempre" : "Todo desbloqueado"}
+                      {price === 0
+                        ? "Gratis para siempre"
+                        : "Todo desbloqueado"}
                     </div>
                   </div>
                 </div>
@@ -7027,13 +6166,17 @@ function PlanSection() {
                       <Check
                         className={cn(
                           "h-4 w-4 mt-0.5 shrink-0",
-                          plan.highlight ? "text-[oklch(0.82_0.18_300)]" : "text-emerald-400/80",
+                          plan.highlight
+                            ? "text-[oklch(0.82_0.18_300)]"
+                            : "text-emerald-400/80",
                         )}
                       />
                       <span>{f}</span>
                     </li>
                   ))}
-                  <li className="text-xs text-[oklch(0.82_0.18_300)] pt-1">y mucho más...</li>
+                  <li className="text-xs text-[oklch(0.82_0.18_300)] pt-1">
+                    y mucho más...
+                  </li>
                 </ul>
               </div>
               <button
@@ -7047,11 +6190,13 @@ function PlanSection() {
                       : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10",
                 )}
               >
-                {plan.cta} {!plan.ctaDisabled && <ChevronRight className="h-4 w-4" />}
+                {plan.cta}{" "}
+                {!plan.ctaDisabled && <ChevronRight className="h-4 w-4" />}
               </button>
               {!plan.ctaDisabled && (
                 <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Lock className="h-3 w-3" /> Sin permanencia. Cancelás cuando quieras.
+                  <Lock className="h-3 w-3" /> Sin permanencia. Cancelás cuando
+                  quieras.
                 </div>
               )}
             </div>
@@ -7060,7 +6205,7 @@ function PlanSection() {
       </div>
 
       {/* Trust strip */}
-      <div className="glass rounded-2xl p-4 ring-1 ring-white/5 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="glass rounded-2xl p-5 ring-1 ring-white/5 grid grid-cols-2 md:grid-cols-4 gap-4">
         {trustItems.map((t) => (
           <div key={t.title} className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl grid place-items-center bg-[oklch(0.62_0.25_295/0.12)] ring-1 ring-[oklch(0.62_0.25_295/0.3)]">
