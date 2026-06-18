@@ -282,8 +282,35 @@
     filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 24px currentColor);
   }
 
+  .donut-chart-glow {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .donut-chart-glow::before {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    border-radius: 9999px;
+    background:
+      radial-gradient(circle, rgb(6 214 240 / 0.26) 0%, rgb(6 214 240 / 0.16) 36%, rgb(79 125 255 / 0.08) 54%, transparent 72%);
+    filter: blur(22px);
+    opacity: 0.95;
+    transform: scale(1.08);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .donut-chart-glow .recharts-responsive-container,
+  .donut-chart-glow .recharts-wrapper,
+  .donut-chart-glow .recharts-surface {
+    position: relative;
+    z-index: 1;
+    overflow: visible;
+  }
+
   .donut-chart-glow .recharts-pie-sector path {
-    filter: drop-shadow(0 0 12px rgb(6 214 240 / 0.72)) drop-shadow(0 0 28px rgb(6 214 240 / 0.35));
+    filter: none;
   }
 
   .text-gradient {
