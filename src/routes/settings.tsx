@@ -2930,7 +2930,6 @@ function EquipoSection() {
   const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
-  const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [employeeOnlineMap, setEmployeeOnlineMap] = useState<Record<string, boolean>>({});
   const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
@@ -3827,54 +3826,58 @@ function EquipoSection() {
           )}
           <SectionCard label="Aprobación de cobros profesionales">
             <div className="space-y-5">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 rounded-2xl bg-white/[0.025] ring-1 ring-white/10 p-4">
                 <div className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <ShieldCheck className="h-5 w-5 text-[oklch(0.82_0.14_75)]" />
+                  <ShieldCheck className="h-5 w-5 text-violet-200" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-base">Habilitar modo de aprobación</div>
                   <div className="text-sm text-muted-foreground mt-0.5">
-                    Activá esta opción para definir si el cobro del profesional impacta automático o
-                    queda pendiente para Caja.
+                    Definí si los cobros de profesionales se registran directo en Caja o si necesitan revisión.
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setApprovalInfoOpen(true)}
-                  className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Info ?
-                </button>
                 <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
               </div>
 
               {approvalEnabled && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <button
                     type="button"
                     onClick={() => setApprovalMode("auto")}
                     className={cn(
-                      "text-left rounded-2xl p-4 ring-1 transition-all",
+                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden",
                       approvalMode === "auto"
-                        ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
-                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                        ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
+                        : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-lg font-semibold">Automático</div>
+                    <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-sky-400/10 blur-3xl" />
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                          Modo
+                        </div>
+                        <div className="mt-1 text-xl font-display font-semibold">Automático</div>
+                      </div>
                       {approvalMode === "auto" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                          ✓ Modo predeterminado
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+                          Seleccionado
                         </span>
                       )}
                     </div>
-                    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
-                      <div>✅ El profesional puede cobrar desde su panel.</div>
-                      <div>✅ El cobro impacta automáticamente en los ingresos de Caja.</div>
-                      <div>✅ No requiere revisión ni aprobación previa.</div>
-                    </div>
-                    <div className="mt-3 text-xs text-[oklch(0.82_0.14_75)]">
-                      Recomendado cuando los profesionales gestionan sus propios cobros.
+                    <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
+                      El profesional cobra desde su panel y el ingreso se registra automáticamente en Caja.
+                    </p>
+                    <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                        Ejemplo
+                      </div>
+                      <p className="mt-2 text-sm leading-relaxed text-white/78">
+                        Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
+                      </p>
+                      <p className="mt-3 text-sm leading-relaxed text-white/90">
+                        <span className="font-semibold text-white">Resultado:</span> el cobro queda registrado, aparece automáticamente en Caja y se actualizan los ingresos del día.
+                      </p>
                     </div>
                   </button>
 
@@ -3882,29 +3885,39 @@ function EquipoSection() {
                     type="button"
                     onClick={() => setApprovalMode("manual")}
                     className={cn(
-                      "text-left rounded-2xl p-4 ring-1 transition-all",
+                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden",
                       approvalMode === "manual"
-                        ? "bg-white/[0.06] ring-[oklch(0.82_0.14_75/0.45)]"
-                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.05]",
+                        ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
+                        : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-lg font-semibold">Manual</div>
+                    <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-violet-400/10 blur-3xl" />
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                          Modo
+                        </div>
+                        <div className="mt-1 text-xl font-display font-semibold">Manual</div>
+                      </div>
                       {approvalMode === "manual" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/25 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                          ✓ Modo predeterminado
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+                          Seleccionado
                         </span>
                       )}
                     </div>
-                    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground leading-relaxed">
-                      <div>
-                        ✅ El profesional envía el cobro a Caja y queda pendiente de confirmación.
+                    <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
+                      El profesional informa el cobro y Caja lo revisa antes de registrarlo oficialmente.
+                    </p>
+                    <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                        Ejemplo
                       </div>
-                      <div>✅ Caja revisa la información enviada.</div>
-                      <div>✅ El cobro se registra únicamente cuando es aprobado y confirmado.</div>
-                    </div>
-                    <div className="mt-3 text-xs text-[oklch(0.82_0.14_75)]">
-                      Recomendado cuando los cobros deben ser revisados antes de registrarse.
+                      <p className="mt-2 text-sm leading-relaxed text-white/78">
+                        Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
+                      </p>
+                      <p className="mt-3 text-sm leading-relaxed text-white/90">
+                        <span className="font-semibold text-white">Resultado:</span> el cobro queda pendiente. Caja revisa la información y, al aprobarlo, el ingreso se registra oficialmente.
+                      </p>
                     </div>
                   </button>
                 </div>
@@ -4301,104 +4314,6 @@ function EquipoSection() {
         </div>
       )}
 
-      {approvalInfoOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
-              <div>
-                <h3 className="text-lg font-semibold">¿Cómo funciona la aprobación de cobros?</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setApprovalInfoOpen(false)}
-                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4 text-sm text-muted-foreground max-h-[75vh] overflow-y-auto">
-              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
-                <h4 className="font-semibold text-foreground mb-2">Modo Automático</h4>
-                <p>Cuando un profesional registra un cobro:</p>
-                <ul className="mt-2 space-y-1">
-                  <li>✅ El ingreso se registra automáticamente en Caja.</li>
-                  <li>
-                    ✅ El movimiento impacta inmediatamente en reportes, ingresos y estadísticas.
-                  </li>
-                  <li>✅ No requiere revisión ni confirmación adicional.</li>
-                </ul>
-                <div className="mt-3 rounded-lg bg-black/20 p-3">
-                  <div className="font-medium text-foreground">Ejemplo</div>
-                  <p className="mt-1">
-                    Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
-                  </p>
-                  <p className="mt-2 text-foreground">
-                    Resultado: el cobro queda registrado, aparece automáticamente en Caja y se
-                    actualizan los ingresos del día.
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
-                <h4 className="font-semibold text-foreground mb-2">Modo Manual</h4>
-                <p>Cuando un profesional registra un cobro:</p>
-                <ul className="mt-2 space-y-1">
-                  <li>✅ El cobro se envía a Caja como pendiente.</li>
-                  <li>✅ No impacta en ingresos hasta ser aprobado.</li>
-                  <li>✅ Caja o Administración revisa y confirma el cobro.</li>
-                </ul>
-                <div className="mt-3 rounded-lg bg-black/20 p-3">
-                  <div className="font-medium text-foreground">Ejemplo</div>
-                  <p className="mt-1">
-                    Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
-                  </p>
-                  <p className="mt-2 text-foreground">
-                    Resultado: el cobro queda pendiente. Caja revisa la información y, al aprobarlo,
-                    el ingreso se registra oficialmente.
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-4">
-                <h4 className="font-semibold text-foreground mb-2">Modo Desactivado</h4>
-                <p>Cuando esta opción está desactivada:</p>
-                <ul className="mt-2 space-y-1">
-                  <li>✅ Los profesionales no pueden registrar cobros.</li>
-                  <li>✅ Todos los cobros deben realizarse desde Caja o Administración.</li>
-                  <li>✅ Sólo los usuarios autorizados pueden registrar ingresos.</li>
-                </ul>
-                <div className="mt-3 rounded-lg bg-black/20 p-3">
-                  <div className="font-medium text-foreground">Ejemplo</div>
-                  <p className="mt-1">Juan finaliza un servicio.</p>
-                  <p className="mt-2 text-foreground">
-                    Resultado: no puede cobrar desde su panel. Caja debe registrar el cobro
-                    manualmente.
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-[oklch(0.78_0.17_55/0.10)] ring-1 ring-[oklch(0.78_0.17_55/0.25)] p-4">
-                <h4 className="font-semibold text-foreground mb-2">¿Qué modo debería usar?</h4>
-                <div className="space-y-1">
-                  <div>
-                    <strong className="text-foreground">Automático:</strong> mayor velocidad y menos
-                    pasos en la operación diaria.
-                  </div>
-                  <div>
-                    <strong className="text-foreground">Manual:</strong> mayor control y validación
-                    de ambas partes.
-                  </div>
-                  <div>
-                    <strong className="text-foreground">Desactivado:</strong> control total de los
-                    cobros desde Caja o Administración.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {open && (
         <div
@@ -5789,7 +5704,6 @@ function CajaSection() {
   const [autoChange, setAutoChange] = useState(true);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
-  const [approvalInfoOpen, setApprovalInfoOpen] = useState(false);
 
   useEffect(() => {
     if (!businessId) return;
