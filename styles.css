@@ -212,6 +212,13 @@
       0 0 54px -22px oklch(0.66 0.25 286 / 0.48);
   }
 
+  /* Dark glass fill for Caja panels — same tone as Agenda .glass, so the
+     ambient glow no longer bleeds through and panels read dark like Resumen.
+     Only sets the background; borders/shadows on the element stay intact. */
+  .cash-panel-glow {
+    background: linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72)) !important;
+  }
+
 
   .dashboard-premium-shell {
     position: relative;
@@ -244,15 +251,15 @@
     top: -132px;
     left: 50%;
     width: 100vw;
-    height: 620px;
+    height: 720px;
     transform: translateX(-50%);
     z-index: -1;
     pointer-events: none;
     background:
-      radial-gradient(circle at 18% 5%, rgb(139 92 246 / 0.30), transparent 43%),
-      radial-gradient(circle at 78% 2%, rgb(79 125 255 / 0.26), transparent 42%),
-      radial-gradient(circle at 44% 88%, rgb(255 123 229 / 0.10), transparent 56%);
-    filter: blur(20px);
+      radial-gradient(circle at 18% 5%, rgb(139 92 246 / 0.46), transparent 43%),
+      radial-gradient(circle at 78% 2%, rgb(79 125 255 / 0.38), transparent 42%),
+      radial-gradient(circle at 44% 88%, rgb(255 123 229 / 0.18), transparent 56%);
+    filter: blur(18px);
   }
 
   .cash-register-page::after {
@@ -266,8 +273,8 @@
     z-index: -1;
     pointer-events: none;
     background:
-      linear-gradient(90deg, rgb(139 92 246 / 0.08), rgb(79 125 255 / 0.07), transparent 86%);
-    filter: blur(42px);
+      linear-gradient(90deg, rgb(139 92 246 / 0.20), rgb(79 125 255 / 0.16), transparent 86%);
+    filter: blur(32px);
   }
 
 
