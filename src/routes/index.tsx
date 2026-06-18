@@ -112,7 +112,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   }
 
   const dateBar = (
-    <div className="glass rounded-2xl p-3 flex items-center gap-3 flex-wrap">
+    <div className="glass dashboard-date-glow rounded-2xl p-3 flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="uppercase tracking-wider">Rango</span>
       </div>
@@ -152,7 +152,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const utilidad = data.utilidad;
 
   return (
-    <div className="space-y-5 animate-fade-up">
+    <div className="dashboard-premium-shell space-y-5 animate-fade-up">
       {dateBar}
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -256,7 +256,14 @@ function Stat({
   return (
     <div
       onClick={onClick}
-      className={cn("glass glass-hover rounded-2xl p-5 relative overflow-hidden transition-all", onClick && "cursor-pointer", active && "ring-2 ring-primary/60 shadow-[0_0_30px_-8px_oklch(0.66_0.22_265)]")}
+      className={cn(
+        "glass glass-hover rounded-2xl p-5 relative overflow-hidden transition-all",
+        tone === "primary" && "stat-glow-primary",
+        tone === "danger" && "stat-glow-danger",
+        tone === "success" && "stat-glow-success",
+        onClick && "cursor-pointer",
+        active && "ring-2 ring-primary/65 shadow-[0_0_34px_-8px_oklch(0.66_0.22_265)]"
+      )}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -376,8 +383,10 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
         : "oklch(0.72 0.2 245)";
 
   return (
-    <div className="glass rounded-2xl p-5 relative overflow-hidden h-full">
-      <div className="flex items-start justify-between mb-1">
+    <div className="glass dashboard-chart-glow rounded-2xl p-5 relative overflow-hidden h-full">
+      <div className="pointer-events-none absolute -top-20 left-1/4 h-40 w-56 rounded-full bg-primary/20 blur-[90px]" />
+      <div className="pointer-events-none absolute -bottom-24 right-1/4 h-40 w-56 rounded-full bg-cyan-400/10 blur-[90px]" />
+      <div className="relative flex items-start justify-between mb-1">
         <div>
           <div className="text-xs text-muted-foreground">{cfg.label}</div>
           <div className="font-display text-3xl font-semibold tracking-tight mt-1">
@@ -386,7 +395,7 @@ function RevenueChart({ data, activeMetric, fromStr, toStr }: {
           <div className="text-xs text-muted-foreground mt-1">{rangeLabel}</div>
         </div>
       </div>
-      <div className="h-64 sm:h-72 mt-3 -mx-2">
+      <div className="revenue-area-glow h-64 sm:h-72 mt-3 -mx-2">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart key={activeMetric} data={chart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
             <defs>
@@ -485,8 +494,10 @@ function ServicesDonut({ data }: { data: DashboardData }) {
     view === "catalog" ? "Catálogo" : view === "services" ? "Servicios" : "Todos";
 
   return (
-    <div className="glass rounded-2xl p-5 relative overflow-hidden h-full">
-      <div className="flex items-start justify-between gap-3">
+    <div className="glass dashboard-donut-glow rounded-2xl p-5 relative overflow-hidden h-full">
+      <div className="pointer-events-none absolute -top-16 right-8 h-36 w-36 rounded-full bg-cyan-400/16 blur-[72px]" />
+      <div className="pointer-events-none absolute -bottom-16 left-8 h-36 w-36 rounded-full bg-primary/14 blur-[72px]" />
+      <div className="relative flex items-start justify-between gap-3">
         <div>
           <div className="text-xs text-muted-foreground">Desglose</div>
           <div className="font-display text-xl font-semibold mt-0.5">{title}</div>
@@ -515,8 +526,8 @@ function ServicesDonut({ data }: { data: DashboardData }) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5">
-        <div className="mx-auto relative h-[170px] w-[170px]">
+      <div className="relative mt-5 grid gap-5">
+        <div className="donut-chart-glow mx-auto relative h-[170px] w-[170px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
