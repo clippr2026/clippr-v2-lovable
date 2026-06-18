@@ -7,19 +7,16 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
-  Clock3,
   Crown,
   Mail,
   MoreHorizontal,
   PauseCircle,
   MessageCircle,
-  Phone,
   Plus,
   Search,
   Sparkles,
   Star,
   Trash2,
-  TrendingUp,
   UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -260,54 +257,7 @@ function formatNextAppointment(date?: string | null) {
   });
 }
 
-function getClientRisk(c: Client | null) {
-  const days = c?.lastVisitDays;
-  if (!c || c.visits === 0 || days == null) {
-    return {
-      label: "Sin datos",
-      tone: "neutral" as const,
-      emoji: "⚪",
-      className: "text-muted-foreground bg-white/5 ring-white/10",
-      explanation: "Todavía no hay visitas suficientes para medir riesgo.",
-    };
-  }
-  if (days <= 30) {
-    return {
-      label: "Bajo",
-      tone: "low" as const,
-      emoji: "🟢",
-      className: "text-emerald-300 bg-emerald-400/10 ring-emerald-400/25",
-      explanation: "Vino hace poco. Mantené el vínculo y ofrecé su próximo turno.",
-    };
-  }
-  if (days <= 60) {
-    return {
-      label: "Medio",
-      tone: "medium" as const,
-      emoji: "🟡",
-      className: "text-amber-300 bg-amber-400/10 ring-amber-400/25",
-      explanation: "Está cerca de enfriarse. Conviene contactarlo antes de que pase más tiempo.",
-    };
-  }
-  return {
-    label: "Alto",
-    tone: "high" as const,
-    emoji: "🔴",
-    className: "text-rose-300 bg-rose-400/10 ring-rose-400/25",
-    explanation: "Hace mucho que no vuelve. Necesita una acción de reconquista.",
-  };
-}
-
-function getReturnProbability(c: Client | null) {
-  const risk = getClientRisk(c).tone;
-  if (!c || c.visits === 0) return "Sin datos";
-  if (risk === "low") return "Alta";
-  if (risk === "medium") return "Media";
-  if (risk === "high") return "Baja";
-  return "Sin datos";
-}
-
-function getClientProfileText(c: Client | null, ticket: number) {
+function getClientProfileText(c: Client | null) {
   if (!c) return "Seleccioná un cliente para ver el perfil.";
   if (c.visits === 0)
     return "Cliente nuevo. Todavía no hay historial suficiente para perfilar su comportamiento.";
@@ -319,8 +269,6 @@ function getClientProfileText(c: Client | null, ticket: number) {
     return "Hace demasiado tiempo que no vuelve. Conviene usar una acción puntual de reconquista, no un mensaje genérico.";
   if (c.status === "inactivo")
     return "Está perdiendo frecuencia. Es buen momento para contactarlo con una propuesta concreta.";
-  if (ticket > 0)
-    return "Cliente activo con historial real de consumo. Mantené la frecuencia y registrá sus preferencias.";
   return "Cliente activo. Seguí acumulando historial para mejorar las recomendaciones.";
 }
 
@@ -386,13 +334,10 @@ function ClientsPage() {
     setClientMenuOpen(false);
   }, [current?.id, current?.notes]);
   const ticket = current && current.visits ? Math.round(current.spent / current.visits) : 0;
-  const currentRisk = getClientRisk(current);
   const currentSince = formatClientSince(current?.created_at);
-  const returnProbability = getReturnProbability(current);
-  const profileText = getClientProfileText(current, ticket);
+  const profileText = getClientProfileText(current);
   const nextAppointmentLabel = formatNextAppointment(current?.nextAppointment?.date);
   const favoriteServices = current?.favoriteServices ?? [];
-  const spentLast12Months = current?.spentLast12Months ?? 0;
   const hasNote = Boolean((current?.notes ?? "").trim());
 
   function showGroup(title: string, fn: (c: Client) => boolean) {
@@ -527,8 +472,6 @@ function ClientsPage() {
             </div>
             <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-2">
               {filtered.map((c, i) => {
-                const risk = getClientRisk(c);
-                const isTopValue = sort === "gasto" && i === 0 && c.spent > 0;
                 return (
                   <button
                     key={c.id}
@@ -549,11 +492,6 @@ function ClientsPage() {
                       {c.name[0]?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      {isTopValue && (
-                        <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-amber-200">
-                          👑 Cliente más valioso
-                        </div>
-                      )}
                       <div className="flex items-center justify-between gap-2">
                         <div className="font-medium truncate">{c.name}</div>
                         <div className="text-sm font-semibold tabular-nums">
@@ -563,17 +501,8 @@ function ClientsPage() {
                       <div className="text-[11px] text-muted-foreground truncate">
                         {c.visits} visitas · {c.lastVisit ?? "sin visitas"}
                       </div>
-                      <div className="flex items-center justify-between mt-1.5">
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-[9px] font-bold ring-1",
-                            risk.className,
-                          )}
-                        >
-                          {risk.emoji} Riesgo {risk.label}
-                        </span>
-                        {statusBadge(c.status)}
-                        {vipTagBadge(c.vipTag)}
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        {c.vipTag ? vipTagBadge(c.vipTag) : statusBadge(c.status)}
                       </div>
                     </div>
                   </button>
@@ -669,16 +598,7 @@ function ClientsPage() {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        {statusBadge(current.status)}
-                        {vipTagBadge(current.vipTag)}
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-[9px] font-bold tracking-[0.12em] ring-1",
-                            currentRisk.className,
-                          )}
-                        >
-                          {currentRisk.emoji} Riesgo {currentRisk.label}
-                        </span>
+                        {current.vipTag ? vipTagBadge(current.vipTag) : statusBadge(current.status)}
                         <Rating value={current.rating} />
                       </div>
                       <div className="grid gap-2 pt-2 text-[11px] text-muted-foreground sm:grid-cols-3">
@@ -731,77 +651,20 @@ function ClientsPage() {
                   {tab === "resumen" && (
                     <>
                       <div className="rounded-2xl bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent ring-1 ring-violet-400/25 p-4 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-violet-200/90">
-                              <Sparkles className="h-3.5 w-3.5" /> Perfil IA del cliente
-                            </div>
-                            <div className="mt-2 text-sm leading-relaxed text-white/78">
-                              {profileText}
-                            </div>
-                          </div>
-                          <div
-                            className={cn(
-                              "rounded-xl px-3 py-2 text-xs font-semibold ring-1",
-                              currentRisk.className,
-                            )}
-                          >
-                            {currentRisk.emoji} Riesgo {currentRisk.label}
-                          </div>
+                        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-violet-200/90">
+                          <Sparkles className="h-3.5 w-3.5" /> Perfil del cliente
                         </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                          <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                              Probabilidad de volver
-                            </div>
-                            <div className="mt-1 text-lg font-display font-semibold">
-                              {returnProbability}
-                            </div>
-                          </div>
-                          <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                              Frecuencia
-                            </div>
-                            <div className="mt-1 text-lg font-display font-semibold">
-                              {current.lastVisitDays != null
-                                ? `${current.lastVisitDays}d desde última visita`
-                                : "Sin datos"}
-                            </div>
-                          </div>
-                          <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                              Acción sugerida
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-white/85">
-                              {currentRisk.tone === "high"
-                                ? "Reconquistar"
-                                : currentRisk.tone === "medium"
-                                  ? "Contactar esta semana"
-                                  : currentRisk.tone === "low"
-                                    ? "Mantener vínculo"
-                                    : "Registrar próxima visita"}
-                            </div>
-                          </div>
+                        <div className="mt-2 text-sm leading-relaxed text-white/78">
+                          {profileText}
                         </div>
-                        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                          {currentRisk.explanation}
-                        </p>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="rounded-xl bg-gradient-to-br from-sky-400/15 to-violet-500/8 ring-1 ring-violet-400/30 p-3">
                           <div className="text-[10px] uppercase tracking-[0.18em] text-violet-200/90">
                             Lifetime value
                           </div>
                           <div className="text-2xl font-display mt-1 tabular-nums">
                             ${current.spent.toLocaleString("es-AR")}
-                          </div>
-                        </div>
-                        <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                            Últimos 12 meses
-                          </div>
-                          <div className="text-2xl font-display mt-1 tabular-nums">
-                            ${spentLast12Months.toLocaleString("es-AR")}
                           </div>
                         </div>
                         <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
