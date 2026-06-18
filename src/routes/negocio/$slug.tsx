@@ -598,7 +598,7 @@ function PublicProfilePage() {
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
           <div className="h-44 overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl sm:h-60" style={{ background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))" }}>
             {business.cover_url ? (
-              <img src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition }} decoding="async" />
+              <img loading="lazy" src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition }} decoding="async" />
             ) : null}
           </div>
           <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
@@ -611,7 +611,7 @@ function PublicProfilePage() {
               ) : null}
               <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
                 {business.avatar_url || business.logo_url ? (
-                  <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />
+                  <img loading="lazy" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />
                 ) : (
                   business.name.slice(0, 1)
                 )}
