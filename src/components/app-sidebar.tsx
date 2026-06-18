@@ -407,7 +407,7 @@ export function AppSidebar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-white/[0.06] bg-[oklch(0.1_0.025_282)]/75 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/82 backdrop-blur-xl supports-[backdrop-filter]:bg-background/72">
         <div className="max-w-[1600px] mx-auto h-16 px-4 sm:px-6 lg:px-10 flex items-center gap-4">
           <Brand />
 
@@ -439,7 +439,7 @@ export function AppSidebar() {
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
-          <aside className="absolute right-0 top-0 h-full w-72 max-w-[85%] border-l border-white/[0.06] bg-[oklch(0.085_0.018_280)] p-4 animate-fade-up">
+          <aside className="absolute right-0 top-0 h-full w-72 max-w-[85%] border-l border-border bg-background p-4 animate-fade-up">
             <div className="flex items-center justify-between mb-6">
               <Brand />
               <button
