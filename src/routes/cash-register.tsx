@@ -487,8 +487,8 @@ function Tabs({
             className={cn(
               "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
               nuevaActive
-                ? "bg-gradient-to-r from-blue-400 to-violet-500 text-black shadow-[0_8px_30px_-8px_oklch(0.65_0.20_265/0.70)] ring-1 ring-blue-300/60"
-                : "bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-black hover:brightness-110 shadow-[0_8px_24px_-10px_oklch(0.65_0.20_265/0.55)]"
+                ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_0_26px_rgb(139_92_246/0.55),0_8px_30px_-8px_oklch(0.65_0.20_265/0.70)] ring-1 ring-blue-300/60"
+                : "bg-gradient-to-r from-blue-500/95 to-violet-500/95 text-white hover:brightness-110 shadow-[0_0_24px_rgb(139_92_246/0.50),0_8px_24px_-10px_oklch(0.65_0.20_265/0.55)]"
             )}
           >
             <span className="text-base leading-none">＋</span> Nueva venta
@@ -512,7 +512,7 @@ function Card({ className, children, ...props }: React.HTMLAttributes<HTMLDivEle
     <div
       {...props}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-card-glow",
+        "relative overflow-hidden rounded-2xl border border-blue-300/15 bg-white/[0.035] cash-card-glow",
         "shadow-[0_1px_0_oklch(1_0_0/0.04)_inset,0_20px_50px_-20px_oklch(0_0_0/0.6)]",
         "backdrop-blur-xl",
         className
