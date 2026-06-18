@@ -44,6 +44,7 @@ export type Client = {
   lastVisit?: string | null;
   lastVisitDays?: number | null;
   status: ClientStatus;
+  isNewThisMonth: boolean;
   vipTag: ClientVipTag;
   rating: number;
   history: ClientPayment[];
@@ -53,6 +54,16 @@ export type ClientStatus = "vip" | "nuevo" | "activo" | "inactivo" | "perdido";
 
 const ACTIVE_DAYS = 45;
 const LOST_FROM_DAYS = 76;
+
+function isCurrentMonth(date: string | null | undefined): boolean {
+  if (!date) return false;
+  const value = new Date(date);
+  const now = new Date();
+  return (
+    value.getFullYear() === now.getFullYear() &&
+    value.getMonth() === now.getMonth()
+  );
+}
 
 function diffDaysBetween(a: string, b: string): number {
   const start = new Date(`${a}T00:00:00`).getTime();
@@ -93,10 +104,11 @@ function computeStatus(
   visits: number,
   lastVisitDays: number | null,
   vipTag: ClientVipTag,
+  isNewThisMonth: boolean,
 ): ClientStatus {
-  if (visits <= 1) return "nuevo";
+  if (isNewThisMonth) return "nuevo";
   if (vipTag === "vip") return "vip";
-  if (lastVisitDays === null) return "nuevo";
+  if (lastVisitDays === null) return "perdido";
   if (lastVisitDays <= ACTIVE_DAYS) return "activo";
   if (lastVisitDays < LOST_FROM_DAYS) return "inactivo";
   return "perdido";
@@ -222,6 +234,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
     const nextAppointment =
       appointmentsByClientId.get(c.id) ?? appointmentsByName.get(name.trim().toLowerCase()) ?? null;
     const last = history[0]?.date ?? null;
+    const firstVisitDate = history[history.length - 1]?.date ?? null;
+    const isNewThisMonth = visits === 1 && isCurrentMonth(firstVisitDate);
     const lastVisit = formatLastVisit(last);
     const vipTag = computeVipTag(history);
 
@@ -240,8 +254,9 @@ async function loadClients(businessId: string): Promise<Client[]> {
       nextAppointment,
       lastVisit: lastVisit.label,
       lastVisitDays: lastVisit.days,
+      isNewThisMonth,
       vipTag,
-      status: computeStatus(visits, lastVisit.days, vipTag),
+      status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
       rating: computeRating(visits, spent, lastVisit.days),
       history,
     };
