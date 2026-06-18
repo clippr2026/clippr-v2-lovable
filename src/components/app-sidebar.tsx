@@ -407,7 +407,7 @@ export function AppSidebar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/82 backdrop-blur-xl supports-[backdrop-filter]:bg-background/72">
+      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-background/82 backdrop-blur-xl supports-[backdrop-filter]:bg-background/72 shadow-[0_1px_0_rgba(255,255,255,.05),0_10px_50px_rgba(79,125,255,.10)]">
         <div className="max-w-[1600px] mx-auto h-16 px-4 sm:px-6 lg:px-10 flex items-center gap-4">
           <Brand />
 
