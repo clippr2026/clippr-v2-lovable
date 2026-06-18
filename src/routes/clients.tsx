@@ -294,7 +294,6 @@ function ClientsPage() {
     name: "",
     phone: "",
     email: "",
-    birth_date: "",
     notes: "",
   });
 
@@ -345,10 +344,19 @@ function ClientsPage() {
   }
 
   async function handleCreateClient() {
-    if (!newClient.name.trim()) return toast.error("Ingresá el nombre del cliente");
+    if (!newClient.name.trim()) {
+      return toast.error("Ingresá nombre y apellido");
+    }
+    if (!newClient.phone.trim()) {
+      return toast.error("Ingresá teléfono");
+    }
+    if (!newClient.email.trim()) {
+      return toast.error("Ingresá email");
+    }
+
     await saveClient.mutateAsync(newClient);
     toast.success("Cliente guardado");
-    setNewClient({ name: "", phone: "", email: "", birth_date: "", notes: "" });
+    setNewClient({ name: "", phone: "", email: "", notes: "" });
     setNewClientOpen(false);
   }
 
@@ -816,7 +824,7 @@ function ClientsPage() {
             </div>
             <div className="p-5 space-y-4">
               <label className="block text-xs text-muted-foreground">
-                Nombre *
+                Nombre y apellido *
                 <input
                   value={newClient.name}
                   onChange={(e) => setNewClient((s) => ({ ...s, name: e.target.value }))}
@@ -825,7 +833,7 @@ function ClientsPage() {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs text-muted-foreground">
-                  Teléfono
+                  Teléfono *
                   <input
                     value={newClient.phone}
                     onChange={(e) => setNewClient((s) => ({ ...s, phone: e.target.value }))}
@@ -833,7 +841,7 @@ function ClientsPage() {
                   />
                 </label>
                 <label className="block text-xs text-muted-foreground">
-                  Email
+                  Email *
                   <input
                     value={newClient.email}
                     onChange={(e) => setNewClient((s) => ({ ...s, email: e.target.value }))}
@@ -842,16 +850,7 @@ function ClientsPage() {
                 </label>
               </div>
               <label className="block text-xs text-muted-foreground">
-                Fecha de nacimiento
-                <input
-                  type="date"
-                  value={newClient.birth_date}
-                  onChange={(e) => setNewClient((s) => ({ ...s, birth_date: e.target.value }))}
-                  className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
-                />
-              </label>
-              <label className="block text-xs text-muted-foreground">
-                Notas
+                Nota
                 <textarea
                   value={newClient.notes}
                   onChange={(e) => setNewClient((s) => ({ ...s, notes: e.target.value }))}
