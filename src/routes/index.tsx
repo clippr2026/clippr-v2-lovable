@@ -153,7 +153,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const utilidad = data.utilidad;
 
   return (
-    <div className="dashboard-premium-shell space-y-5 animate-fade-up overflow-x-clip">
+    <div className="dashboard-premium-shell space-y-5 animate-fade-up">
       {dateBar}
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
