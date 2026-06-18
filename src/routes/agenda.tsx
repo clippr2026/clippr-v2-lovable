@@ -3,7 +3,6 @@ import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
-import { Topbar } from "@/components/topbar";
 import {
   ChevronLeft,
   ChevronRight,
@@ -467,19 +466,28 @@ function AgendaPage() {
   return (
     <AppShell>
       <div className="app-premium-shell space-y-0">
-      <Topbar
-        title="Agenda"
-        subtitle={
-          data.realtimeStatus === "disconnected"
-            ? "Sin conexión. Los cambios pueden no reflejarse inmediatamente."
-            : "Sincronizada en tiempo real"
-        }
-        action={
-          <Button className="w-full sm:w-auto" onClick={() => openNew(null, cursor)}>
-            <Plus className="h-4 w-4 mr-1" /> Nuevo turno
-          </Button>
-        }
-      />
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 animate-fade-up">
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Agenda</h1>
+          <div className="mt-1.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                data.realtimeStatus === "disconnected" ? "bg-destructive" : "bg-success pulse-dot",
+              )}
+            />
+            <span>
+              {data.realtimeStatus === "disconnected"
+                ? "Sin conexión. Los cambios pueden no reflejarse inmediatamente."
+                : "Sincronizada en tiempo real"}
+            </span>
+          </div>
+        </div>
+        <Button className="w-full sm:w-auto" onClick={() => openNew(null, cursor)}>
+          <Plus className="h-4 w-4 mr-1" /> Nuevo turno
+        </Button>
+      </div>
 
       {/* Modern day-strip navigation */}
       <DayStripNav cursor={cursor} onSelect={setCursor} />
