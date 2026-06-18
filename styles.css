@@ -117,10 +117,6 @@
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Evita scroll horizontal de página / zoom forzado en móvil.
-       `clip` no crea contenedor de scroll, por lo que no rompe position: sticky.
-       Las tablas/grillas anchas siguen scrolleando dentro de sus overflow-x-auto. */
-    overflow-x: clip;
   }
 
   body {
