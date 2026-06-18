@@ -394,6 +394,42 @@
   }
   .animate-fade-up { animation: fade-up 0.42s ease-out backwards; }
 
+
+
+  /* Clippr unified app atmosphere
+     One full-viewport ambient layer for every authenticated module.
+     This prevents each page from having a different upper glow and removes
+     the rectangular/vertical edge that appeared in Dashboard. */
+  .clippr-app-main {
+    position: relative;
+    overflow-x: clip;
+  }
+
+  .clippr-app-main::before {
+    content: "";
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    height: min(520px, 62vh);
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 18% 2%, rgb(139 92 246 / 0.34), transparent 38%),
+      radial-gradient(circle at 78% 0%, rgb(79 125 255 / 0.30), transparent 37%),
+      radial-gradient(circle at 46% 100%, rgb(255 123 229 / 0.14), transparent 50%),
+      linear-gradient(180deg, rgb(12 15 38 / 0.04), transparent 82%);
+    filter: blur(16px);
+  }
+
+  .dashboard-premium-shell::before,
+  .app-premium-shell::before,
+  .cash-premium-shell::before {
+    display: none !important;
+    content: none !important;
+  }
+
+
   /* Performance helpers: fewer nested scrolls, lighter paint on mobile/tablet */
   img {
     content-visibility: auto;
