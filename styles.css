@@ -117,6 +117,10 @@
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Evita scroll horizontal de página / zoom forzado en móvil.
+       `clip` no crea contenedor de scroll, por lo que no rompe position: sticky.
+       Las tablas/grillas anchas siguen scrolleando dentro de sus overflow-x-auto. */
+    overflow-x: clip;
   }
 
   body {
@@ -314,6 +318,9 @@
   }
 
 
+  /* Atmósfera unificada: Agenda, Caja, Profesionales, Clientes, Configuración
+     y Asesor IA heredan EXACTAMENTE el shell del Dashboard (mismos glows, misma
+     intensidad). El Dashboard sigue siendo la única fuente de verdad. */
   .app-premium-shell,
   .cash-premium-shell {
     position: relative;
@@ -324,7 +331,7 @@
   .cash-premium-shell::before {
     content: "";
     position: absolute;
-    inset: -120px -64px -120px -64px;
+    inset: -120px -64px -80px -64px;
     z-index: -1;
     pointer-events: none;
     background:
@@ -332,20 +339,6 @@
       radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.30), transparent 36%),
       radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.14), transparent 50%);
     filter: blur(16px);
-  }
-
-  .app-premium-shell::after,
-  .cash-premium-shell::after {
-    content: "";
-    position: absolute;
-    inset: 82px -24px auto -24px;
-    height: 260px;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      linear-gradient(90deg, rgb(139 92 246 / 0.11), rgb(79 125 255 / 0.13), rgb(6 214 240 / 0.08));
-    filter: blur(36px);
-    opacity: 0.9;
   }
 
   .cash-card-glow {
@@ -424,6 +417,11 @@
     body {
       background-image:
         radial-gradient(ellipse 90% 35% at 50% -10%, oklch(0.5 0.24 295 / 0.26), transparent 62%);
+    }
+
+    /* Ningún medio empuja el ancho de la página en pantallas chicas */
+    img, video, canvas, iframe, embed, object {
+      max-width: 100%;
     }
 
     .glass, .glass-strong {
