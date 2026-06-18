@@ -76,12 +76,84 @@ function statusBadge(s: ClientStatus) {
   return <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold tracking-[0.18em] ring-1", c.cls)}>{c.label}</span>;
 }
 
+type ClientMetricInfo = {
+  title: string;
+  description: string;
+  bullets: string[];
+};
+
+const CLIENT_METRIC_INFO = {
+  vip: {
+    title: "Clientes VIP",
+    description: "Clientes de mayor valor para el negocio por cantidad de visitas, facturación y actividad reciente.",
+    bullets: [
+      "Sirven para detectar a quién conviene cuidar con prioridad.",
+      "Un VIP activo no debería recibir mensajes genéricos: conviene anticipar su próximo turno.",
+      "Si un VIP deja de venir, Clippr lo mueve a inactivo o perdido para que no se pierda en el listado.",
+    ],
+  },
+  nuevos: {
+    title: "Clientes nuevos",
+    description: "Personas registradas que todavía no tienen historial suficiente de visitas.",
+    bullets: [
+      "Ayuda a medir si el negocio está captando gente nueva.",
+      "Lo importante es lograr que vuelvan una segunda vez.",
+      "Después de acumular visitas, dejan de ser nuevos y pasan a activo, VIP, inactivo o perdido.",
+    ],
+  },
+  activos: {
+    title: "Clientes activos",
+    description: "Clientes que visitaron el negocio dentro del período considerado saludable.",
+    bullets: [
+      "Son la base actual del negocio.",
+      "Cuanto más alto sea este número, más estable es la facturación recurrente.",
+      "Incluye clientes VIP activos porque también forman parte de la base vigente.",
+    ],
+  },
+  inactivos: {
+    title: "Clientes inactivos",
+    description: "Clientes que dejaron pasar más tiempo del habitual desde su última visita, pero todavía pueden recuperarse con una acción simple.",
+    bullets: [
+      "Conviene contactarlos antes de que pasen a perdidos.",
+      "Un WhatsApp o beneficio puntual suele ser suficiente para probar recuperación.",
+      "No significa que el cliente se perdió; significa que está enfriándose.",
+    ],
+  },
+  perdidos: {
+    title: "Clientes perdidos",
+    description: "Clientes que llevan demasiado tiempo sin volver y ya no conviene asumir que siguen eligiendo el negocio.",
+    bullets: [
+      "Necesitan una campaña de reconquista más fuerte.",
+      "Sirven para medir clientes que el negocio dejó de retener.",
+      "No se mezclan con VIP para que no oculten una oportunidad de recuperación.",
+    ],
+  },
+  frecuencia: {
+    title: "Frecuencia promedio",
+    description: "Promedio de días transcurridos desde la última visita de los clientes con historial.",
+    bullets: [
+      "Sirve para entender cada cuánto vuelve la clientela.",
+      "Si sube demasiado, puede indicar pérdida de recurrencia.",
+      "Es una señal útil para activar campañas antes de que los clientes se enfríen.",
+    ],
+  },
+} satisfies Record<string, ClientMetricInfo>;
+
 function Rating({ value }: { value: number }) {
   return <div className="flex gap-[3px]">{Array.from({ length: 5 }).map((_, i) => <Star key={i} className={cn("h-3 w-3", i < value ? "fill-violet-300 text-violet-300 drop-shadow-[0_0_4px_rgba(139,92,246,0.6)]" : "text-white/15")} />)}</div>;
 }
 
-function StatCard({ label, value, caption, link, onLinkClick, icon, glow, featured }: {
-  label: string; value: string; caption: React.ReactNode; link?: string; onLinkClick?: () => void; icon: React.ReactNode; glow: string; featured?: boolean;
+function StatCard({ label, value, caption, link, onLinkClick, icon, glow, featured, info, onInfoClick }: {
+  label: string;
+  value: string;
+  caption: React.ReactNode;
+  link?: string;
+  onLinkClick?: () => void;
+  icon: React.ReactNode;
+  glow: string;
+  featured?: boolean;
+  info?: string;
+  onInfoClick?: () => void;
 }) {
   return (
     <div className={cn("glass relative overflow-hidden rounded-2xl p-3 sm:p-4 group transition-all hover:-translate-y-0.5 hover:ring-white/20", featured && "ring-1 ring-violet-400/30 shadow-[0_0_60px_-20px_rgba(139,92,246,0.45)]")}>
@@ -89,6 +161,19 @@ function StatCard({ label, value, caption, link, onLinkClick, icon, glow, featur
       <div className="relative flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.18em] text-muted-foreground/90 truncate">{label}</div>
+          {info && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onInfoClick?.();
+              }}
+              className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/5 text-[10px] font-bold text-muted-foreground ring-1 ring-white/10 transition hover:bg-violet-400/10 hover:text-violet-200 hover:ring-violet-300/30"
+              aria-label={`Información sobre ${label}`}
+            >
+              i
+            </button>
+          )}
         </div>
         <div className="flex items-end justify-between gap-2">
           <div className="text-2xl sm:text-3xl font-display font-light leading-none tracking-tight">{value}</div>
@@ -205,6 +290,7 @@ function ClientsPage() {
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [segmentModal, setSegmentModal] = useState<{ title: string; clients: Client[] } | null>(null);
+  const [metricInfo, setMetricInfo] = useState<ClientMetricInfo | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [newClient, setNewClient] = useState({ name: "", phone: "", email: "", birth_date: "", notes: "" });
 
@@ -276,12 +362,12 @@ function ClientsPage() {
 
       <div className="space-y-6 animate-fade-up">
         <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-          <StatCard featured label="VIP" value={String(counts.vip)} caption="" link="Ver todos" onLinkClick={() => showGroup("VIP", (c) => c.status === "vip")} icon={<Crown className="h-7 w-7 text-violet-300" />} glow="bg-violet-500/25" />
-          <StatCard label="Nuevos" value={String(counts.nuevos)} caption="" link="Ver todos" onLinkClick={() => showGroup("Nuevos", (c) => c.status === "nuevo")} icon={<Sparkles className="h-7 w-7 text-violet-300" />} glow="bg-violet-400/20" />
-          <StatCard label="Activos" value={String(counts.activos)} caption="" link="Ver todos" onLinkClick={() => showGroup("Activos", (c) => c.status === "activo" || c.status === "vip")} icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />} glow="bg-emerald-400/20" />
-          <StatCard label="Frecuencia promedio" value={avgDays ? `${avgDays}d` : "—"} caption="" icon={<CalendarDays className="h-7 w-7 text-cyan-300" />} glow="bg-cyan-400/20" />
-          {counts.inactivos > 0 && <StatCard label="Inactivos" value={String(counts.inactivos)} caption="" link="Ver todos" onLinkClick={() => showGroup("Inactivos", (c) => c.status === "inactivo")} icon={<PauseCircle className="h-7 w-7 text-muted-foreground" />} glow="bg-white/10" />}
-          {counts.perdidos > 0 && <StatCard label="Perdidos" value={String(counts.perdidos)} caption="" link="Reconquistar" onLinkClick={() => showGroup("Perdidos", (c) => c.status === "perdido")} icon={<AlertTriangle className="h-7 w-7 text-rose-300" />} glow="bg-rose-400/20" />}
+          <StatCard featured label="VIP" value={String(counts.vip)} caption="" link="Ver todos" onLinkClick={() => showGroup("VIP", (c) => c.status === "vip")} icon={<Crown className="h-7 w-7 text-violet-300" />} glow="bg-violet-500/25" info={CLIENT_METRIC_INFO.vip.description} onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.vip)} />
+          <StatCard label="Nuevos" value={String(counts.nuevos)} caption="" link="Ver todos" onLinkClick={() => showGroup("Nuevos", (c) => c.status === "nuevo")} icon={<Sparkles className="h-7 w-7 text-violet-300" />} glow="bg-violet-400/20" info={CLIENT_METRIC_INFO.nuevos.description} onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.nuevos)} />
+          <StatCard label="Activos" value={String(counts.activos)} caption="" link="Ver todos" onLinkClick={() => showGroup("Activos", (c) => c.status === "activo" || c.status === "vip")} icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />} glow="bg-emerald-400/20" info={CLIENT_METRIC_INFO.activos.description} onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.activos)} />
+          <StatCard label="Inactivos" value={String(counts.inactivos)} caption="" link="Ver todos" onLinkClick={() => showGroup("Inactivos", (c) => c.status === "inactivo")} icon={<PauseCircle className="h-7 w-7 text-amber-300" />} glow="bg-amber-400/15" info={CLIENT_METRIC_INFO.inactivos.description} onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.inactivos)} />
+          <StatCard label="Perdidos" value={String(counts.perdidos)} caption="" link="Reconquistar" onLinkClick={() => showGroup("Perdidos", (c) => c.status === "perdido")} icon={<AlertTriangle className="h-7 w-7 text-rose-300" />} glow="bg-rose-400/20" info={CLIENT_METRIC_INFO.perdidos.description} onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.perdidos)} />
+          <StatCard label="Frecuencia promedio" value={avgDays ? `${avgDays}d` : "—"} caption="" icon={<CalendarDays className="h-7 w-7 text-cyan-300" />} glow="bg-cyan-400/20" info={CLIENT_METRIC_INFO.frecuencia.description} onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.frecuencia)} />
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[400px_1fr]">
@@ -355,6 +441,8 @@ function ClientsPage() {
       </div>
 
       {newClientOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"><div className="w-full max-w-lg rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden"><div className="flex items-center justify-between p-5 border-b border-white/5"><div><div className="text-lg font-display font-semibold">Nuevo cliente</div><div className="text-xs text-muted-foreground">Guardá un cliente real en la base de datos.</div></div><button onClick={() => setNewClientOpen(false)} className="rounded-full bg-white/5 px-3 py-1.5 text-sm">Cerrar</button></div><div className="p-5 space-y-4"><label className="block text-xs text-muted-foreground">Nombre *<input value={newClient.name} onChange={(e) => setNewClient((s) => ({ ...s, name: e.target.value }))} className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground" /></label><div className="grid grid-cols-2 gap-3"><label className="block text-xs text-muted-foreground">Teléfono<input value={newClient.phone} onChange={(e) => setNewClient((s) => ({ ...s, phone: e.target.value }))} className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground" /></label><label className="block text-xs text-muted-foreground">Email<input value={newClient.email} onChange={(e) => setNewClient((s) => ({ ...s, email: e.target.value }))} className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground" /></label></div><label className="block text-xs text-muted-foreground">Fecha de nacimiento<input type="date" value={newClient.birth_date} onChange={(e) => setNewClient((s) => ({ ...s, birth_date: e.target.value }))} className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground" /></label><label className="block text-xs text-muted-foreground">Notas<textarea value={newClient.notes} onChange={(e) => setNewClient((s) => ({ ...s, notes: e.target.value }))} className="mt-1 w-full min-h-[90px] rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground" /></label></div><div className="flex justify-end gap-2 p-5 border-t border-white/5"><button onClick={() => setNewClientOpen(false)} className="rounded-xl bg-white/5 px-4 py-2 text-sm">Cancelar</button><button onClick={handleCreateClient} disabled={saveClient.isPending} className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-sm font-semibold disabled:opacity-50">Guardar cliente</button></div></div></div>}
+
+      {metricInfo && <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"><div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden"><div className="flex items-center justify-between p-5 border-b border-white/5"><div><div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">Información</div><div className="text-lg font-display font-semibold">{metricInfo.title}</div></div><button onClick={() => setMetricInfo(null)} className="rounded-full bg-white/5 px-3 py-1.5 text-sm">Cerrar</button></div><div className="p-5 space-y-4"><p className="text-sm leading-relaxed text-muted-foreground">{metricInfo.description}</p><div className="space-y-2">{metricInfo.bullets.map((point) => <div key={point} className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-white/78">{point}</div>)}</div></div></div></div>}
 
       {segmentModal && <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"><div className="w-full max-w-xl rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden"><div className="flex items-center justify-between p-5 border-b border-white/5"><div className="text-lg font-display font-semibold">{segmentModal.title}</div><button onClick={() => setSegmentModal(null)} className="rounded-full bg-white/5 px-3 py-1.5 text-sm">Cerrar</button></div><div className="max-h-[60vh] overflow-y-auto p-3 space-y-2">{segmentModal.clients.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">No hay clientes en este grupo.</div> : segmentModal.clients.map((c) => <button key={c.id} onClick={() => { setSelected(c.id); setSegmentModal(null); }} className="w-full flex items-center justify-between rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-left hover:bg-white/10"><div><div className="font-medium">{c.name}</div><div className="text-xs text-muted-foreground">{c.phone || "sin teléfono"} · {c.lastVisit || "sin visitas"}</div></div><div className="text-sm font-semibold">${c.spent.toLocaleString("es-AR")}</div></button>)}</div></div></div>}
     </AppShell>
