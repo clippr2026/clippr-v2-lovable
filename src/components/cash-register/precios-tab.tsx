@@ -83,7 +83,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground flex items-center justify-center gap-2 w-full">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground flex items-center justify-center gap-2 w-full">
         <Loader2 className="size-4 animate-spin" /> Cargando precios…
       </div>
     );
@@ -91,7 +91,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground">
         Sin precios cargados. Agregá servicios en <strong>Configuración → Servicios</strong> y productos en <strong>Configuración → Catálogo</strong>.
       </div>
     );
@@ -141,7 +141,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
           );
         })}
         {serviceRows.length === 0 && (
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-4 py-10 text-center text-sm text-muted-foreground">
             Sin servicios. Cargalos en Configuración → Servicios.
           </div>
         )}
@@ -192,7 +192,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
           );
         })}
         {catalogRows.length === 0 && (
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-4 py-10 text-center text-sm text-muted-foreground">
             Sin productos. Cargalos en Configuración → Catálogo.
           </div>
         )}

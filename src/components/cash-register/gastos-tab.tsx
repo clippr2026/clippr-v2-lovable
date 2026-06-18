@@ -93,7 +93,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
   if (createOnly) {
     return (
       <div className="max-w-3xl mx-auto w-full">
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
+        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-muted-foreground">Nuevo gasto</h3>
             {onCancel && (
@@ -170,7 +170,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
 
   return (
     <div className="max-w-3xl mx-auto w-full space-y-5">
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow p-5">
         <div className="flex items-end justify-between flex-wrap gap-2">
           <div>
             <h3 className="text-base font-semibold text-foreground">Gastos del día</h3>
@@ -198,7 +198,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
 
       {/* Formulario */}
       {showForm && (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow p-5">
         <h3 className="text-sm font-semibold text-muted-foreground mb-3">Nuevo gasto</h3>
         <div className="space-y-2.5">
           <input
@@ -260,7 +260,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
       )}
 
       {/* Lista */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow overflow-hidden">
         {loading ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
             <Loader2 className="size-4 animate-spin" /> Cargando…

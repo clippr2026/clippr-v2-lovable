@@ -95,11 +95,11 @@ export function ProfesionalesTab({
       </div>
 
       {loading ? (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
+        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
           <Loader2 className="size-4 animate-spin" /> Cargando…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground">
           Sin profesionales activos.
         </div>
       ) : (
@@ -163,7 +163,7 @@ export function ProfesionalesTab({
                   { label: "Pagado",      val: `$${pagado.toLocaleString("es-AR")}`,      cls: "text-sky-300"     },
                   { label: "Pendiente",   val: `$${pendiente.toLocaleString("es-AR")}`,   cls: pendiente > 0 ? "text-rose-300" : "text-muted-foreground" },
                 ].map(({ label, val, cls }) => (
-                  <div key={label} className="rounded-2xl bg-white/[0.035] border border-white/[0.07] p-3.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+                  <div key={label} className="rounded-2xl bg-white/[0.038] border border-white/[0.085] cash-card-glow p-3.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
                     <div className="text-[10px] text-muted-foreground/80 uppercase tracking-[0.12em]">{label}</div>
                     <div className={cn("text-lg font-bold tabular-nums mt-1", cls)}>{val}</div>
                   </div>

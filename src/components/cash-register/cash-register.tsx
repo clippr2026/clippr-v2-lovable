@@ -543,7 +543,7 @@ function CajaClosedScreen({
   return (
     <div className="mt-6 space-y-5">
       {/* Estado banner */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl px-6 py-5 flex items-center gap-5">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow backdrop-blur-xl px-6 py-5 flex items-center gap-5">
         <div className={cn(
           "h-14 w-14 rounded-2xl grid place-items-center shrink-0",
           isClosedToday
@@ -601,7 +601,7 @@ function CajaClosedScreen({
             { label: "Cobros", value: cobros.toString(), tint: "from-sky-400/25 to-sky-500/0" },
             { label: "Gastos", value: `$${gastos.toLocaleString("es-AR")}`, tint: "from-rose-400/25 to-rose-500/0" },
           ].map((s) => (
-            <div key={s.label} className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl p-4">
+            <div key={s.label} className="relative overflow-hidden rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow backdrop-blur-xl p-4">
               <div className={cn("pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-50 bg-gradient-to-br", s.tint)} />
               <p className="text-xs text-muted-foreground">{s.label}</p>
               <p className="mt-1.5 font-display text-2xl font-semibold tabular-nums text-foreground">{s.value}</p>

@@ -135,7 +135,7 @@ export function InventarioTab({
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground flex items-center justify-center gap-2 w-full">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground flex items-center justify-center gap-2 w-full">
         <Loader2 className="size-4 animate-spin" /> Cargando inventario…
       </div>
     );
@@ -143,7 +143,7 @@ export function InventarioTab({
 
   if (products.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground">
         Sin productos en el catálogo. Cargá productos en <strong>Configuración → Catálogo</strong>.
       </div>
     );
@@ -167,7 +167,7 @@ export function InventarioTab({
       </div>
 
       {/* Products in active category */}
-      <div className="max-w-3xl rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+      <div className="max-w-3xl rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow overflow-hidden">
         {filtered.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">Sin productos en esta categoría.</div>
         ) : (
@@ -215,7 +215,7 @@ export function InventarioTab({
       </div>
 
       {/* Recent movements */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+      <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="text-base font-semibold text-foreground">Últimos movimientos</h3>
           <button onClick={() => setShowHistory(true)}
