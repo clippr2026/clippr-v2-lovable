@@ -99,7 +99,7 @@ function GestionPage() {
       <div style={{ maxWidth: 440, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 24 }}>
           {p.logo ? (
-            <img src={p.logo} alt={businessName} style={{ height: 42, width: 42, borderRadius: 12, objectFit: "cover" }} />
+            <img loading="lazy" decoding="async" src={p.logo} alt={businessName} style={{ height: 42, width: 42, borderRadius: 12, objectFit: "cover" }} />
           ) : (
             <div style={{ height: 42, width: 42, borderRadius: 12, display: "grid", placeItems: "center", background: accent, color: buttonText, fontWeight: 800 }}>{businessName.slice(0, 1)}</div>
           )}

@@ -393,7 +393,7 @@ function ClientsPage() {
       />
 
       <div className="space-y-6 animate-fade-up">
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <StatCard
             featured
             label="VIP"
@@ -452,8 +452,8 @@ function ClientsPage() {
           />
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[400px_1fr]">
-          <div className="glass rounded-2xl p-4 flex flex-col gap-4 max-h-[82vh]">
+        <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div className="glass rounded-2xl p-3 sm:p-4 flex flex-col gap-3 sm:gap-4 lg:max-h-[calc(100dvh-190px)]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -655,7 +655,7 @@ function ClientsPage() {
                     ))}
                   </div>
                 </div>
-                <div className="p-6 flex-1 space-y-5">
+                <div className="p-4 sm:p-6 flex-1 space-y-4 sm:space-y-5">
                   {tab === "resumen" && (
                     <>
                       <div className="rounded-2xl bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent ring-1 ring-violet-400/25 p-4 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]">

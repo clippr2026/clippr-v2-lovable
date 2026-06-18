@@ -397,7 +397,7 @@ function PublicProfilePage() {
                     >
                       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-lg font-semibold">
                         {employee.avatar_url ? (
-                          <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
+                          <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
                         ) : (
                           employee.full_name.slice(0, 1)
                         )}
