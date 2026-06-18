@@ -278,53 +278,6 @@
       0 0 82px rgb(139 92 246 / 0.06);
   }
 
-
-  /* Caja: misma atmósfera premium del Dashboard */
-  .cash-premium-shell {
-    position: relative;
-    isolation: isolate;
-  }
-
-  .cash-premium-shell::before {
-    content: "";
-    position: absolute;
-    inset: -120px -64px -90px -64px;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 17% 4%, rgb(139 92 246 / 0.36), transparent 38%),
-      radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.32), transparent 36%),
-      radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.16), transparent 50%);
-    filter: blur(16px);
-  }
-
-  .cash-card-glow {
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.085),
-      inset 0 0 56px rgb(79 125 255 / 0.035),
-      0 0 42px rgb(79 125 255 / 0.11),
-      0 0 92px rgb(139 92 246 / 0.075),
-      0 18px 44px -30px oklch(0 0 0 / 0.9);
-  }
-
-  .cash-card-glow-strong {
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.095),
-      inset 0 0 72px rgb(79 125 255 / 0.045),
-      0 0 46px rgb(79 125 255 / 0.16),
-      0 0 105px rgb(139 92 246 / 0.10),
-      0 18px 46px -28px oklch(0 0 0 / 0.9);
-  }
-
-  .cash-table-glow {
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.085),
-      inset 0 0 64px rgb(79 125 255 / 0.035),
-      0 0 48px rgb(79 125 255 / 0.11),
-      0 0 110px rgb(255 123 229 / 0.075),
-      0 24px 70px -34px oklch(0 0 0 / 0.92);
-  }
-
   .revenue-area-glow .recharts-area-curve {
     filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 24px currentColor);
   }
@@ -358,6 +311,68 @@
 
   .donut-chart-glow .recharts-pie-sector path {
     filter: none;
+  }
+
+
+  .app-premium-shell,
+  .cash-premium-shell {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .app-premium-shell::before,
+  .cash-premium-shell::before {
+    content: "";
+    position: absolute;
+    inset: -120px -64px -120px -64px;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 17% 4%, rgb(139 92 246 / 0.34), transparent 38%),
+      radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.30), transparent 36%),
+      radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.14), transparent 50%);
+    filter: blur(16px);
+  }
+
+  .app-premium-shell::after,
+  .cash-premium-shell::after {
+    content: "";
+    position: absolute;
+    inset: 82px -24px auto -24px;
+    height: 260px;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, rgb(139 92 246 / 0.11), rgb(79 125 255 / 0.13), rgb(6 214 240 / 0.08));
+    filter: blur(36px);
+    opacity: 0.9;
+  }
+
+  .cash-card-glow {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.085),
+      0 0 34px rgb(79 125 255 / 0.13),
+      0 0 90px rgb(139 92 246 / 0.08),
+      0 18px 44px -30px oklch(0 0 0 / 0.9);
+  }
+
+  .cash-panel-glow {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      inset 0 0 56px rgb(79 125 255 / 0.035),
+      0 0 38px rgb(79 125 255 / 0.10),
+      0 0 92px rgb(139 92 246 / 0.06),
+      0 22px 58px -36px oklch(0 0 0 / 0.90);
+  }
+
+  .cash-sale-button-glow {
+    color: white !important;
+    text-shadow: 0 1px 10px rgb(255 255 255 / 0.28);
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.12) inset,
+      0 0 26px rgb(139 92 246 / 0.48),
+      0 0 46px rgb(79 125 255 / 0.34),
+      0 12px 34px -10px rgb(139 92 246 / 0.70);
   }
 
   .text-gradient {
