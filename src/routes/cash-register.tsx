@@ -373,6 +373,20 @@ function CashRegisterPage() {
   return (
     <AppShell>
       <div className="cash-premium-shell">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background: `
+            radial-gradient(circle at 20% 12%, rgba(139,92,246,0.22) 0%, transparent 35%),
+            radial-gradient(circle at 78% 8%, rgba(79,125,255,0.18) 0%, transparent 35%),
+            radial-gradient(circle at 50% 70%, rgba(255,123,229,0.08) 0%, transparent 50%)
+          `,
+          filter: "blur(80px)"
+        }}
+      />
+
+      <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.28),transparent_40%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.25),transparent_38%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.11),transparent_52%)] blur-[16px]" />
+
       <Header data={data} />
       <Tabs
         tab={tab}
