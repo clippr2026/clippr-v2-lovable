@@ -261,7 +261,7 @@ function AparienciaSection() {
                 )}
               >
                 <opt.Icon
-                  className={cn("size-7", opt.id === "dark" ? "text-white/60" : "text-black/50")}
+                  className={cn("size-7", opt.id === "dark" ? "text-white/60" : "text-white/50")}
                 />
               </div>
 
@@ -708,7 +708,7 @@ function LandingSection() {
                 className={
                   "rounded-xl px-4 py-2 text-sm font-semibold transition " +
                   (theme === mode
-                    ? "bg-white text-zinc-950"
+                    ? "bg-white text-white"
                     : "text-white/60 hover:bg-white/10 hover:text-white")
                 }
               >
@@ -771,7 +771,7 @@ function LandingSection() {
               type="button"
               onClick={addAdditionalInfo}
               disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
             >
               Agregar
             </button>
@@ -785,7 +785,7 @@ function LandingSection() {
             type="button"
             onClick={save}
             disabled={saving}
-            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:brightness-95 disabled:opacity-50"
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
           >
             {saving ? "Guardando…" : "Guardar colores"}
           </button>
@@ -1635,7 +1635,7 @@ function BrandingSection() {
                 <span
                   className={cn(
                     "shrink-0 text-xs font-semibold",
-                    benefits.length >= 12 ? "text-amber-300" : "text-white/45",
+                    benefits.length >= 12 ? "text-violet-300" : "text-white/45",
                   )}
                 >
                   {benefits.length}/12
@@ -1714,7 +1714,7 @@ function BrandingSection() {
                 </button>
               </div>
               {benefits.length >= 12 ? (
-                <p className="text-xs font-medium text-amber-300">
+                <p className="text-xs font-medium text-violet-300">
                   Has alcanzado el máximo de 12 beneficios.
                 </p>
               ) : null}
@@ -2107,7 +2107,7 @@ function BrandingSection() {
                     className={
                       "rounded-xl px-4 py-2 text-sm font-semibold transition " +
                       (theme === mode
-                        ? "bg-white text-zinc-950"
+                        ? "bg-white text-white"
                         : "text-white/60 hover:bg-white/10 hover:text-white")
                     }
                   >
@@ -2170,7 +2170,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
       className={cn(
         "relative h-6 w-11 rounded-full transition-colors ring-1",
         on
-          ? "bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] ring-[oklch(0.78_0.17_65/0.5)]"
+          ? "bg-gradient-to-r from-sky-400 to-violet-500 ring-violet-400/45"
           : "bg-white/5 ring-white/10",
       )}
     >
@@ -2234,7 +2234,7 @@ function ConfirmDialog({
               "px-4 py-2 rounded-xl text-sm font-semibold transition",
               danger
                 ? "bg-red-500/20 hover:bg-red-500/30 ring-1 ring-red-500/40 text-red-300"
-                : "bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black",
+                : "bg-gradient-to-r from-sky-400 to-violet-500 text-white",
             )}
           >
             {confirmLabel}
@@ -2871,10 +2871,7 @@ const ROLE_PERMISSION_OPTIONS: {
   },
 ];
 
-const ROLE_ACCESS_SUMMARY: Record<
-  RolePermissionId,
-  { title: string; desc: string; can: string[]; cannot: string[] }
-> = {
+const ROLE_ACCESS_SUMMARY: Record<RolePermissionId, { title: string; desc: string; can: string[]; cannot: string[] }> = {
   admin_general: {
     title: "Acceso total",
     desc: "Dueño principal del negocio. Control completo de Clippr.",
@@ -2902,7 +2899,7 @@ const ROLE_ACCESS_SUMMARY: Record<
   profesional: {
     title: "Panel profesional",
     desc: "Para que cada profesional vea su actividad y registre su trabajo.",
-    can: ["Panel profesional"],
+    can: ["Mi panel", "Mi agenda", "Mis cobros", "Mi historial"],
     cannot: ["Caja general", "Configuración", "Asesor IA", "Equipo"],
   },
 };
@@ -3719,8 +3716,7 @@ function EquipoSection() {
       ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
       : selectedRole.label;
   const accessRoleOption =
-    ROLE_PERMISSION_OPTIONS.find((role) => role.id === accessForm.role) ??
-    ROLE_PERMISSION_OPTIONS[0];
+    ROLE_PERMISSION_OPTIONS.find((role) => role.id === accessForm.role) ?? ROLE_PERMISSION_OPTIONS[0];
   const accessRoleSummary = ROLE_ACCESS_SUMMARY[accessForm.role];
 
   return (
@@ -3749,7 +3745,7 @@ function EquipoSection() {
             >
               {label}
               {active && (
-                <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)]" />
+                <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
               )}
             </button>
           );
@@ -3761,7 +3757,7 @@ function EquipoSection() {
           <div className="flex justify-end">
             <button
               onClick={openNew}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.3)]"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20"
             >
               <Plus className="h-4 w-4" /> Agregar profesional
             </button>
@@ -3791,7 +3787,7 @@ function EquipoSection() {
                     <div className="flex items-center gap-3">
                       <div
                         className={cn(
-                          "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br ring-1 ring-white/10",
+                          "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10",
                           PRO_TINTS[i % PRO_TINTS.length],
                         )}
                       >
@@ -3873,8 +3869,7 @@ function EquipoSection() {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-base">Habilitar modo de aprobación</div>
                   <div className="text-sm text-muted-foreground mt-0.5">
-                    Definí si los cobros de profesionales se registran directo en Caja o si
-                    necesitan revisión.
+                    Definí si los cobros de profesionales se registran directo en Caja o si necesitan revisión.
                   </div>
                 </div>
                 <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
@@ -3907,8 +3902,7 @@ function EquipoSection() {
                       )}
                     </div>
                     <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
-                      El profesional cobra desde su panel y el ingreso se registra automáticamente
-                      en Caja.
+                      El profesional cobra desde su panel y el ingreso se registra automáticamente en Caja.
                     </p>
                     <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
@@ -3918,9 +3912,7 @@ function EquipoSection() {
                         Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
                       </p>
                       <p className="mt-3 text-sm leading-relaxed text-white/90">
-                        <span className="font-semibold text-white">Resultado:</span> el cobro queda
-                        registrado, aparece automáticamente en Caja y se actualizan los ingresos del
-                        día.
+                        <span className="font-semibold text-white">Resultado:</span> el cobro queda registrado, aparece automáticamente en Caja y se actualizan los ingresos del día.
                       </p>
                     </div>
                   </button>
@@ -3950,8 +3942,7 @@ function EquipoSection() {
                       )}
                     </div>
                     <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
-                      El profesional informa el cobro y Caja lo revisa antes de registrarlo
-                      oficialmente.
+                      El profesional informa el cobro y Caja lo revisa antes de registrarlo oficialmente.
                     </p>
                     <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
@@ -3961,9 +3952,7 @@ function EquipoSection() {
                         Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
                       </p>
                       <p className="mt-3 text-sm leading-relaxed text-white/90">
-                        <span className="font-semibold text-white">Resultado:</span> el cobro queda
-                        pendiente. Caja revisa la información y, al aprobarlo, el ingreso se
-                        registra oficialmente.
+                        <span className="font-semibold text-white">Resultado:</span> el cobro queda pendiente. Caja revisa la información y, al aprobarlo, el ingreso se registra oficialmente.
                       </p>
                     </div>
                   </button>
@@ -3978,7 +3967,7 @@ function EquipoSection() {
         <div className="space-y-5">
           <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
             <div className="mb-5">
-              <h3 className="font-semibold">Accesos</h3>
+              <h3 className="font-semibold">Nuevo acceso</h3>
               {editingAccessUserId && (
                 <div className="mt-3 rounded-xl bg-cyan-500/10 ring-1 ring-cyan-400/20 px-3 py-2 text-xs text-cyan-200 flex items-center justify-between gap-3">
                   <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
@@ -3993,27 +3982,16 @@ function EquipoSection() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.85fr] gap-4">
               <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-4">
-                <div>
-                  <div className="text-sm font-semibold">Nuevo acceso</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Invitá usuarios y asignales un rol dentro del negocio.
-                  </div>
-                </div>
-
                 <div className="rounded-2xl bg-gradient-to-br from-white/[0.06] via-white/[0.03] to-transparent ring-1 ring-white/10 p-4">
                   <div className="flex items-start gap-3">
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
                       {accessRoleOption.icon}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
-                        Rol seleccionado
-                      </div>
-                      <div className="mt-1 text-lg font-semibold">
-                        {ROLE_LABEL_BY_ID[accessForm.role]}
-                      </div>
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">Rol seleccionado</div>
+                      <div className="mt-1 text-lg font-semibold">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
                       <div className="mt-1 text-sm text-muted-foreground leading-relaxed">
                         {accessRoleSummary.desc}
                       </div>
@@ -4166,7 +4144,7 @@ function EquipoSection() {
                   type="button"
                   onClick={saveAccessUser}
                   disabled={saving}
-                  className="w-full rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm shadow-lg shadow-[oklch(0.78_0.17_55/0.22)] disabled:opacity-60"
+                  className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 disabled:opacity-60"
                 >
                   {saving
                     ? "Procesando…"
@@ -4174,185 +4152,6 @@ function EquipoSection() {
                       ? "Guardar cambios"
                       : "Confirmar e invitar"}
                 </button>
-              </div>
-
-              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/5">
-                  <div className="font-semibold text-sm">Permisos del rol</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Clippr marca los accesos recomendados según el rol elegido.
-                  </div>
-                </div>
-
-                <div className="p-4 space-y-4">
-                  <div className="rounded-2xl bg-gradient-to-br from-white/[0.06] to-white/[0.025] ring-1 ring-white/10 p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
-                        {accessRoleOption.icon}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="font-semibold">{accessRoleSummary.title}</div>
-                          <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
-                            Recomendado
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          {accessRoleSummary.desc}
-                        </p>
-
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
-                            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
-                              Puede acceder
-                            </div>
-                            <div className="space-y-1.5">
-                              {accessRoleSummary.can.map((item) => (
-                                <div
-                                  key={item}
-                                  className="flex items-center gap-2 text-xs text-white/80"
-                                >
-                                  <Check className="h-3.5 w-3.5 text-emerald-300" />
-                                  {item}
-                                </div>
-                              ))}
-                              {accessForm.role === "profesional" && (
-                                <div className="mt-3 rounded-lg bg-black/10 ring-1 ring-white/10 p-2.5">
-                                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
-                                    Incluye
-                                  </div>
-                                  <div className="mt-2 space-y-1 text-xs text-white/70">
-                                    <div>• Mi agenda</div>
-                                    <div>• Mis cobros</div>
-                                    <div>• Mi historial</div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
-                            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
-                              No accede
-                            </div>
-                            {accessRoleSummary.cannot.length === 0 ? (
-                              <div className="text-xs text-muted-foreground">
-                                Sin restricciones.
-                              </div>
-                            ) : (
-                              <div className="space-y-1.5">
-                                {accessRoleSummary.cannot.map((item) => (
-                                  <div
-                                    key={item}
-                                    className="flex items-center gap-2 text-xs text-muted-foreground"
-                                  >
-                                    <X className="h-3.5 w-3.5 text-white/30" />
-                                    {item}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <details className="group rounded-2xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
-                      <span>Personalizar permisos</span>
-                      <span className="text-xs font-medium text-muted-foreground group-open:hidden">
-                        Opcional
-                      </span>
-                      <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">
-                        Cerrar
-                      </span>
-                    </summary>
-                    <div className="border-t border-white/5 p-4 space-y-4">
-                      <div>
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                          Accesos recomendados
-                        </div>
-                        <div className="space-y-2">
-                          {getRecommendedPermissionKeys(accessForm.role).map((key) => {
-                            const item = getPermissionItem(key);
-                            if (!item) return null;
-                            const checked = accessPermissionsForm[key];
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => toggleAccessFormPermission(key)}
-                                className={cn(
-                                  "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                  checked
-                                    ? "bg-white/[0.06] ring-white/15"
-                                    : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                )}
-                              >
-                                <div>
-                                  <div className="text-sm font-medium">{item.label}</div>
-                                  <div className="text-xs text-muted-foreground">{item.desc}</div>
-                                </div>
-                                <span
-                                  className={cn(
-                                    "h-5 w-5 rounded-full grid place-items-center ring-1",
-                                    checked
-                                      ? "bg-emerald-400/90 text-black ring-transparent"
-                                      : "bg-white/5 ring-white/15",
-                                  )}
-                                >
-                                  {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                          Adicionales
-                        </div>
-                        <div className="space-y-2">
-                          {getAdditionalPermissionKeys(accessForm.role).map((key) => {
-                            const item = getPermissionItem(key);
-                            if (!item) return null;
-                            const checked = accessPermissionsForm[key];
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => toggleAccessFormPermission(key)}
-                                className={cn(
-                                  "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                  checked
-                                    ? "bg-white/[0.06] ring-white/15"
-                                    : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                )}
-                              >
-                                <div>
-                                  <div className="text-sm font-medium">{item.label}</div>
-                                  <div className="text-xs text-muted-foreground">{item.desc}</div>
-                                </div>
-                                <span
-                                  className={cn(
-                                    "h-5 w-5 rounded-full grid place-items-center ring-1",
-                                    checked
-                                      ? "bg-emerald-400/90 text-black ring-transparent"
-                                      : "bg-white/5 ring-white/15",
-                                  )}
-                                >
-                                  {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </details>
-                </div>
               </div>
 
               <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
@@ -4420,6 +4219,157 @@ function EquipoSection() {
                     ))}
                   </div>
                 )}
+
+                <div className="mt-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="font-semibold text-sm">Permisos del rol</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Clippr marca los accesos recomendados según el rol elegido.
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    <div className="rounded-2xl bg-gradient-to-br from-white/[0.06] to-white/[0.025] ring-1 ring-white/10 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
+                          {accessRoleOption.icon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-semibold">{accessRoleSummary.title}</div>
+                            <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
+                              Recomendado
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            {accessRoleSummary.desc}
+                          </p>
+
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
+                              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">Puede acceder</div>
+                              <div className="space-y-1.5">
+                                {accessRoleSummary.can.map((item) => (
+                                  <div key={item} className="flex items-center gap-2 text-xs text-white/80">
+                                    <Check className="h-3.5 w-3.5 text-emerald-300" />
+                                    {item}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">No accede</div>
+                              {accessRoleSummary.cannot.length === 0 ? (
+                                <div className="text-xs text-muted-foreground">Sin restricciones.</div>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {accessRoleSummary.cannot.map((item) => (
+                                    <div key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <X className="h-3.5 w-3.5 text-white/30" />
+                                      {item}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <details className="group rounded-2xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
+                        <span>Personalizar permisos</span>
+                        <span className="text-xs font-medium text-muted-foreground group-open:hidden">Opcional</span>
+                        <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Cerrar</span>
+                      </summary>
+                      <div className="border-t border-white/5 p-4 space-y-4">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                            Accesos recomendados
+                          </div>
+                          <div className="space-y-2">
+                            {getRecommendedPermissionKeys(accessForm.role).map((key) => {
+                              const item = getPermissionItem(key);
+                              if (!item) return null;
+                              const checked = accessPermissionsForm[key];
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => toggleAccessFormPermission(key)}
+                                  className={cn(
+                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                    checked
+                                      ? "bg-white/[0.06] ring-white/15"
+                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                                  )}
+                                >
+                                  <div>
+                                    <div className="text-sm font-medium">{item.label}</div>
+                                    <div className="text-xs text-muted-foreground">{item.desc}</div>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                      checked
+                                        ? "bg-emerald-400/90 text-white ring-transparent"
+                                        : "bg-white/5 ring-white/15",
+                                    )}
+                                  >
+                                    {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                            Adicionales
+                          </div>
+                          <div className="space-y-2">
+                            {getAdditionalPermissionKeys(accessForm.role).map((key) => {
+                              const item = getPermissionItem(key);
+                              if (!item) return null;
+                              const checked = accessPermissionsForm[key];
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => toggleAccessFormPermission(key)}
+                                  className={cn(
+                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                    checked
+                                      ? "bg-white/[0.06] ring-white/15"
+                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                                  )}
+                                >
+                                  <div>
+                                    <div className="text-sm font-medium">{item.label}</div>
+                                    <div className="text-xs text-muted-foreground">{item.desc}</div>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                      checked
+                                        ? "bg-emerald-400/90 text-white ring-transparent"
+                                        : "bg-white/5 ring-white/15",
+                                    )}
+                                  >
+                                    {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -4472,6 +4422,7 @@ function EquipoSection() {
         </div>
       )}
 
+
       {open && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
@@ -4482,7 +4433,7 @@ function EquipoSection() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 p-4 border-b border-white/5">
-              <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-black bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
+              <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
                 {form.avatarUrl ? (
                   <img
                     src={form.avatarUrl}
@@ -4527,7 +4478,7 @@ function EquipoSection() {
                   >
                     {label}
                     {active && (
-                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)]" />
+                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
                     )}
                   </button>
                 );
@@ -4539,7 +4490,7 @@ function EquipoSection() {
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="flex items-center gap-4">
-                      <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-zinc-950 font-semibold text-xl ring-1 ring-white/10">
+                      <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-white font-semibold text-xl ring-1 ring-white/10">
                         {form.avatarUrl ? (
                           <img
                             src={form.avatarUrl}
@@ -4620,7 +4571,7 @@ function EquipoSection() {
                     <span
                       className={cn(
                         "h-5 w-9 rounded-full relative transition-colors shrink-0",
-                        form.acceptsOnline ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                        form.acceptsOnline ? "bg-primary" : "bg-white/15",
                       )}
                     >
                       <span
@@ -4662,7 +4613,7 @@ function EquipoSection() {
                             onClick={() => setDay(key, { enabled: !d.enabled })}
                             className={cn(
                               "h-5 w-9 rounded-full relative transition-colors shrink-0",
-                              d.enabled ? "bg-[oklch(0.78_0.17_55)]" : "bg-white/15",
+                              d.enabled ? "bg-primary" : "bg-white/15",
                             )}
                           >
                             <span
@@ -4793,7 +4744,7 @@ function EquipoSection() {
                                             className={cn(
                                               "h-6 w-11 rounded-full relative transition-colors shrink-0",
                                               cfg.enabled
-                                                ? "bg-[oklch(0.78_0.17_55)]"
+                                                ? "bg-primary"
                                                 : "bg-white/15",
                                             )}
                                           >
@@ -4868,7 +4819,7 @@ function EquipoSection() {
               <button
                 onClick={saveProfessional}
                 disabled={saving}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Aceptar"}
               </button>
@@ -5138,7 +5089,7 @@ function PriceEditorModal({
           <button
             onClick={onSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+            className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
           >
             {saving
               ? "Guardando…"
@@ -5631,7 +5582,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           }
           <button
             onClick={openNew}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-zinc-950 font-semibold px-4 py-2.5 text-sm"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm"
           >
             <Plus className="h-4 w-4" />{" "}
             {isService ? "Nuevo servicio" : `Nuevo ${cat.toLowerCase()}`}
@@ -5827,7 +5778,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               </button>
               <button
                 onClick={submitCatModal}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)] text-black transition"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-white transition"
               >
                 {catModal.mode === "add" ? "Agregar" : "Guardar"}
               </button>
@@ -6043,7 +5994,6 @@ function SenasToggleBtn({
 // ---------------------------------------------------------------------------
 function SenasSection() {
   const { businessId } = useAuth();
-  const [enabled, setEnabled] = React.useState(false);
   const [services, setServices] = React.useState<
     {
       id: string;
@@ -6072,7 +6022,6 @@ function SenasSection() {
       .then(({ data }) => {
         if (data?.senas_config) {
           const c = data.senas_config as Record<string, unknown>;
-          setEnabled(!!c.enabled);
           setSelectedSvcs((c.services as string[]) ?? []);
           setAmountType((c.amount_type as "fixed" | "percent") ?? "fixed");
           setAmountValue(String(c.amount_value ?? ""));
@@ -6131,7 +6080,7 @@ function SenasSection() {
       {
         business_id: businessId,
         senas_config: {
-          enabled,
+          enabled: selectedSvcs.length > 0,
           services: selectedSvcs,
           amount_type: amountType,
           amount_value: parsedAmount,
@@ -6148,7 +6097,7 @@ function SenasSection() {
       return;
     }
     toast.success("Configuración de señas guardada correctamente");
-  }, [businessId, enabled, selectedSvcs, amountType, amountValue, lostDist, lostLocal, msg]);
+  }, [businessId, selectedSvcs, amountType, amountValue, lostDist, lostLocal, lostProf, msg]);
 
   const saveRef = React.useRef(save);
   React.useEffect(() => {
@@ -6169,17 +6118,9 @@ function SenasSection() {
 
   return (
     <div className="space-y-4">
-      {/* Bloque 1: Activar */}
-      <SenasBlock title="¿Activar señas?">
-        <div className="flex gap-3">
-          <SenasToggleBtn label="Sí" active={enabled} onClick={() => setEnabled(true)} />
-          <SenasToggleBtn label="No" active={!enabled} onClick={() => setEnabled(false)} />
-        </div>
-      </SenasBlock>
-
-      {enabled && (
-        <>
-          {/* Bloque 2: Servicios */}
+      {/* Servicios con seña: si no hay servicios seleccionados, las señas quedan desactivadas. */}
+      <>
+          {/* Bloque 1: Servicios */}
           <SenasBlock title="Servicios que requieren seña">
             <div className="space-y-2">
               {services.length > 0 && (
@@ -6267,9 +6208,9 @@ function SenasSection() {
             <div className="flex flex-wrap gap-3">
               {(
                 [
-                  ["local", "100% para el local"],
-                  ["prof", "100% para el profesional"],
-                  ["custom", "Personalizado"],
+                  ["local", "🏢 Local"],
+                  ["prof", "👤 Profesional"],
+                  ["custom", "⚙️ Personalizado"],
                 ] as [string, string][]
               ).map(([v, l]) => (
                 <SenasToggleBtn
@@ -6326,7 +6267,7 @@ function SenasSection() {
             )}
           </SenasBlock>
 
-          {/* Bloque 5: Mensaje */}
+          {/* Bloque 4: Mensaje */}
           <SenasBlock
             title="Mensaje para el cliente"
             subtitle="Mensaje que verá el cliente después de reservar un turno con seña."
@@ -6341,8 +6282,7 @@ function SenasSection() {
             </div>
             <div className="text-xs text-muted-foreground"></div>
           </SenasBlock>
-        </>
-      )}
+      </>
     </div>
   );
 }
@@ -6664,7 +6604,7 @@ function ClientesSection() {
                       f.required && "opacity-60 cursor-not-allowed",
                     )}
                   >
-                    {enabled && <Check className="h-3 w-3 text-black" strokeWidth={3} />}
+                    {enabled && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
                   </button>
                   <span className="text-sm text-foreground/90">{f.label}</span>
                 </div>
