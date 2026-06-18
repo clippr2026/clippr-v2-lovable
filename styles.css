@@ -325,16 +325,7 @@
 
   .app-premium-shell::before,
   .cash-premium-shell::before {
-    content: "";
-    position: absolute;
-    inset: -120px -64px -80px -64px;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 17% 4%, rgb(139 92 246 / 0.34), transparent 38%),
-      radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.30), transparent 36%),
-      radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.14), transparent 50%);
-    filter: blur(16px);
+    content: none;
   }
 
   .cash-card-glow {
