@@ -111,9 +111,9 @@ const CLIENT_METRIC_INFO = {
   nuevos: {
     title: "Clientes nuevos",
     description:
-      "Clientes que realizaron su primera visita y todavía no regresaron una segunda vez.",
+      "Clientes del mes vigente que realizaron su primera visita y todavía no regresaron una segunda vez.",
     bullets: [
-      "La prioridad es lograr que vuelvan una segunda vez.",
+      "El contador se reinicia cada mes: si es otro mes, arranca de 0.",
       "Cuando repiten, dejan de ser nuevos y pasan a activo, inactivo, perdido o VIP según su comportamiento.",
       "Sirve para medir captación y primera retención.",
     ],
