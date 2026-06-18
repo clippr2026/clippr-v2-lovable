@@ -309,6 +309,7 @@ function ProfessionalsPage() {
   return (
     <AppShell>
       <Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
+      <div className="app-premium-shell">
       <div className="space-y-6 animate-fade-up">
       {/* Header card */}
       <div className="glass rounded-3xl p-5 md:p-6 relative overflow-hidden">
@@ -440,6 +441,7 @@ function ProfessionalsPage() {
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
+      </div>
       </div>
     </AppShell>
   );

@@ -392,6 +392,7 @@ function ClientsPage() {
         }
       />
 
+      <div className="app-premium-shell">
       <div className="space-y-6 animate-fade-up">
         <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <StatCard
@@ -954,6 +955,7 @@ function ClientsPage() {
           </div>
         </div>
       )}
+      </div>
     </AppShell>
   );
 }

@@ -465,7 +465,8 @@ function AgendaPage() {
 
   return (
     <AppShell>
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+      <div className="app-premium-shell space-y-0">
+        <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-24 left-0 h-[420px] w-[420px] rounded-full bg-violet-500/20 blur-[140px]" />
         <div className="absolute top-0 right-0 h-[420px] w-[420px] rounded-full bg-blue-500/20 blur-[140px]" />
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[320px] w-[520px] rounded-full bg-fuchsia-500/10 blur-[140px]" />
@@ -636,8 +637,10 @@ function AgendaPage() {
         onSave={saveBlock}
       />
 
+      </div>
+
       {data.businessId && (
-        <AppointmentDialog
+      <AppointmentDialog
           open={dlgOpen}
           onOpenChange={setDlgOpen}
           appointment={editing}

@@ -6308,6 +6308,7 @@ function SettingsPage() {
           </button>
         }
       />
+      <div className="app-premium-shell">
       <div className="space-y-6 animate-fade-up">
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
           {/* Sidebar */}
@@ -6369,6 +6370,7 @@ function SettingsPage() {
             {active === "plan" && <PlanSection />}
           </section>
         </div>
+      </div>
       </div>
     </AppShell>
   );
