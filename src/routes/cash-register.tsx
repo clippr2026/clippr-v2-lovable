@@ -605,6 +605,7 @@ function ResumenTab({
             <Card
               key={s.id}
               onClick={() => setActivePanel(s.id)}
+              style={{ background: "linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72))" }}
               className={cn("p-4 cursor-pointer transition-all ring-1", isActive ? ACTIVE_RING[s.id] : "ring-white/[0.06] hover:bg-white/[0.04]")}
             >
               <div className={cn("pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br", s.tint)} />
@@ -1638,7 +1639,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
   return (
     <>
-      <Card>
+      <Card style={{ background: "linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72))" }}>
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2.5 flex-wrap">
