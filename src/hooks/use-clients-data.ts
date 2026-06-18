@@ -235,7 +235,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
       appointmentsByClientId.get(c.id) ?? appointmentsByName.get(name.trim().toLowerCase()) ?? null;
     const last = history[0]?.date ?? null;
     const firstVisitDate = history[history.length - 1]?.date ?? null;
-    const isNewThisMonth = visits === 1 && isCurrentMonth(firstVisitDate);
+    // Nuevo = primera visita dentro del mes vigente, aunque haya vuelto más veces en el mismo mes.
+    const isNewThisMonth = isCurrentMonth(firstVisitDate);
     const lastVisit = formatLastVisit(last);
     const vipTag = computeVipTag(history);
 
