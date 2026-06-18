@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
-import { Topbar } from "@/components/topbar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -307,7 +306,9 @@ function CashRegisterPage() {
     return (
       <AppShell>
         <div className="cash-premium-shell">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
+          
+      <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
+<div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">Caja</h1>
               <p className="mt-2 text-sm md:text-base text-muted-foreground">Cobros, gastos y liquidaciones</p>
@@ -415,7 +416,18 @@ function CashRegisterPage() {
 }
 
 function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
-  return <Topbar title="Caja" subtitle="Cobros, gastos y liquidaciones" action={<div />} />;
+  return (
+    <div className="flex items-end justify-between gap-4 flex-wrap">
+      <div>
+        <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
+          Caja
+        </h1>
+        <p className="mt-2 text-sm md:text-base text-muted-foreground">
+          Cobros, gastos y liquidaciones
+        </p>
+      </div>
+    </div>
+  );
 }
 
 const TABS: { id: Tab; label: string }[] = [
