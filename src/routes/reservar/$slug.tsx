@@ -536,10 +536,10 @@ function PublicBookingPage() {
               isLight ? "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 36%, transparent), transparent 42%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 32%, transparent), transparent 42%)" : "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 34%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 34%)",
           }}
         />
-        {business.cover_url ? <img src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
+        {business.cover_url ? <img loading="lazy" decoding="async" src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
         <div className="relative mx-auto flex max-w-5xl items-center gap-4 px-4 py-8 sm:py-10">
           <Link to="/negocio/$slug" params={{ slug }} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white text-xl font-bold text-zinc-950">
-            {business.avatar_url || business.logo_url ? <img src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" /> : business.name.slice(0, 1)}
+            {business.avatar_url || business.logo_url ? <img loading="lazy" decoding="async" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" /> : business.name.slice(0, 1)}
           </Link>
           <div>
             <p className="text-xs uppercase tracking-[0.3em]" style={{ color: accent }}>Reserva online</p>
@@ -619,7 +619,7 @@ function PublicBookingPage() {
                   {employees.map((employee) => (
                     <button key={employee.id} type="button" onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }} className="flex w-full items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-left hover:border-white/30">
                       <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10">
-                        {employee.avatar_url ? <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-6 w-6" />}
+                        {employee.avatar_url ? <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-6 w-6" />}
                       </span>
                       <span><span className="block font-semibold">{employee.full_name}</span><span className="text-sm text-white/55">{employee.role || "Profesional"}</span></span>
                     </button>
@@ -637,7 +637,7 @@ function PublicBookingPage() {
                       title="Cambiar profesional"
                     >
                       <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/10">
-                        {selectedEmployee?.avatar_url ? <img src={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-5 w-5" />}
+                        {selectedEmployee?.avatar_url ? <img loading="lazy" decoding="async" src={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-5 w-5" />}
                       </span>
                       <span>
                         <span className="block text-base font-semibold">{selectedEmployee?.full_name ?? "Sin preferencia"}</span>
@@ -882,7 +882,7 @@ function PublicBookingPage() {
 
                     {/* Firma Clippr */}
                     <div className={cn("mt-9 flex items-center justify-center gap-2 border-t pt-6", isLight ? "border-slate-200" : "border-white/[0.08]")}>
-                      <img src={clipprMark} alt="" className="h-4 w-4 object-contain opacity-90" />
+                      <img loading="lazy" decoding="async" src={clipprMark} alt="" className="h-4 w-4 object-contain opacity-90" />
                       <span className={cn("text-xs font-medium tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Reservá fácil con Clippr</span>
                     </div>
                   </div>
