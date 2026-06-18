@@ -888,7 +888,7 @@ function PublicProfilePage() {
         <section className="mx-auto max-w-6xl px-4 pb-6">
           <GlowCard className="overflow-hidden">
             <div className="p-5 sm:p-6">
-              <h2 className="text-2xl font-semibold">Información adicional</h2>
+              <h2 className="text-2xl font-semibold">Beneficios del negocio</h2>
               <div className="mt-5 flex flex-wrap gap-3">
                 {additionalInfo.slice(0, 12).map((item) => (
                   <span
