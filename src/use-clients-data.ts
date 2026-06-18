@@ -26,17 +26,26 @@ export type Client = {
   lastVisit?: string | null;
   lastVisitDays?: number | null;
   status: ClientStatus;
+  isNewThisMonth: boolean;
   rating: number;
   history: ClientPayment[];
 };
 
 export type ClientStatus = "vip" | "nuevo" | "activo" | "inactivo" | "perdido";
 
-function computeStatus(visits: number, spent: number, lastVisitDays: number | null): ClientStatus {
-  if (visits === 0 || lastVisitDays === null) return "nuevo";
-  if ((visits >= 8 || spent >= 100000) && lastVisitDays <= 60) return "vip";
-  if (lastVisitDays <= 60) return "activo";
-  if (lastVisitDays <= 90) return "inactivo";
+function isCurrentMonth(date: string | null | undefined): boolean {
+  if (!date) return false;
+  const value = new Date(date);
+  const now = new Date();
+  return value.getFullYear() === now.getFullYear() && value.getMonth() === now.getMonth();
+}
+
+function computeStatus(visits: number, spent: number, lastVisitDays: number | null, isNewThisMonth: boolean): ClientStatus {
+  if (isNewThisMonth) return "nuevo";
+  if (lastVisitDays === null) return "perdido";
+  if ((visits >= 8 || spent >= 100000) && lastVisitDays <= 45) return "vip";
+  if (lastVisitDays <= 45) return "activo";
+  if (lastVisitDays < 76) return "inactivo";
   return "perdido";
 }
 
@@ -105,6 +114,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
     const visits = history.length;
     const spent = history.reduce((sum, p) => sum + p.amount, 0);
     const last = history[0]?.date ?? null;
+    const firstVisitDate = history[history.length - 1]?.date ?? null;
+    const isNewThisMonth = visits === 1 && isCurrentMonth(firstVisitDate);
     const lastVisit = formatLastVisit(last);
 
     return {
@@ -119,7 +130,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
       spent,
       lastVisit: lastVisit.label,
       lastVisitDays: lastVisit.days,
-      status: computeStatus(visits, spent, lastVisit.days),
+      isNewThisMonth,
+      status: computeStatus(visits, spent, lastVisit.days, isNewThisMonth),
       rating: computeRating(visits, spent, lastVisit.days),
       history,
     };
