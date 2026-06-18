@@ -873,7 +873,7 @@ function CobroModal({
               {!multiPay ? (
                 /* ── Single method: selector + amount field ── */
                 <div className="space-y-2">
-                  <div className="grid grid-cols-5 gap-1.5">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
                     {ALL_METHODS.map(m => (
                       <button key={m} type="button"
                         onClick={() => setSplits([{ method: m, amount: splits[0]?.amount ?? "" }])}

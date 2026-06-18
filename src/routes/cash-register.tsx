@@ -453,7 +453,7 @@ function Tabs({
 }) {
   const nuevaActive = tab === "nueva";
   return (
-    <div className="mt-6 flex items-end justify-between gap-3 border-b border-white/5">
+    <div className="mt-6 flex flex-wrap items-end justify-between gap-3 border-b border-white/5">
       <div className="flex gap-1 overflow-x-auto -mb-px flex-1 min-w-0">
         {TABS.map((t) => {
           const active = t.id === tab;
@@ -475,17 +475,17 @@ function Tabs({
         })}
       </div>
       {tab === "resumen" && (
-        <div className="shrink-0 mb-2 flex items-center gap-2">
+        <div className="mb-2 flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
+            className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
           >
             <span className="text-base leading-none">＋</span> Nuevo gasto
           </button>
           <button
             onClick={() => onChange("nueva")}
             className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all cash-sale-button-glow",
+              "inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all cash-sale-button-glow",
               nuevaActive
                 ? "bg-gradient-to-r from-blue-400 to-violet-500 text-white ring-1 ring-blue-300/60"
                 : "bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-white hover:brightness-110"

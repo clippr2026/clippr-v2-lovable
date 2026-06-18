@@ -112,11 +112,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   }
 
   const dateBar = (
-    <div className="glass dashboard-date-glow rounded-2xl p-3 flex items-center gap-3 flex-wrap">
+    <div className="glass dashboard-date-glow rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="uppercase tracking-wider">Rango</span>
       </div>
       <DateRangePicker
+        className="w-full sm:w-auto"
         from={fromStr}
         to={toStr}
         onChange={({ from, to }) => {

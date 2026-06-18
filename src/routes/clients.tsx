@@ -832,7 +832,7 @@ function ClientsPage() {
                   className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
                 />
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block text-xs text-muted-foreground">
                   Teléfono *
                   <input

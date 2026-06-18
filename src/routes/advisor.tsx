@@ -995,7 +995,7 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         <button
           type="button"
           onClick={onStart}
-          className="group relative inline-flex h-16 min-w-[280px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-10 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.8)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/0.95)]"
+          className="group relative inline-flex h-16 w-full max-w-sm sm:w-auto sm:max-w-none sm:min-w-[280px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-8 sm:px-10 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.8)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/0.95)]"
         >
           <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
           <Brain className="relative h-5 w-5" />
@@ -3667,7 +3667,7 @@ function GrowthRecCard({ rec, hero = false }: { rec: GrowthRec; hero?: boolean }
 
         <p className="mt-3 text-sm leading-relaxed text-white/70">{rec.problem}</p>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {rec.moneyLost > 0 ? (
             <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3">
               <div className="text-[11px] font-bold uppercase tracking-wider text-rose-200/70">Estás perdiendo</div>

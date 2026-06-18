@@ -4543,7 +4543,7 @@ function EquipoSection() {
                       placeholder="Ej: Alejandro"
                     />
                   </Field>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Teléfono">
                       <input
                         value={form.phone}
@@ -4962,7 +4962,7 @@ function PriceEditorModal({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Precio de lista">
               <input
                 type="number"
@@ -4988,7 +4988,7 @@ function PriceEditorModal({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {isService && (
               <Field label="Duración (min)">
                 <input
@@ -5042,7 +5042,7 @@ function PriceEditorModal({
 
           {!isService && (
             <SectionCard label="Stock">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Stock inicial">
                   <input
                     type="number"
