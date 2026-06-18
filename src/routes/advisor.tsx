@@ -27,6 +27,7 @@ import {
   Minus,
   ChevronDown,
   ChevronUp,
+  ArrowRight,
 } from "lucide-react";
 
 export const Route = createFileRoute("/advisor")({
@@ -2325,38 +2326,7 @@ function ReportPlaceholder({ month }: { month: string }) {
 // ─── SIMULADORES TAB ─────────────────────────────────────────────────────────
 
 function SimuladoresTab(props: SimuladorProps) {
-  const [sim, setSim] = React.useState<"precios" | "profesional">("precios");
-
-  return (
-    <div className="space-y-5">
-      {/* Selector interno */}
-      <div className="flex gap-2">
-        {(
-          [
-            { key: "precios", label: "💰 Simulador de precios" },
-            { key: "profesional", label: "🧑‍💼 Sumar un profesional" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setSim(t.key)}
-            className={cn(
-              "rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all",
-              sim === t.key
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {sim === "precios" && <SimuladorPrecios {...props} />}
-      {sim === "profesional" && <SimuladorProfesional {...props} />}
-    </div>
-  );
+  return <LaboratorioDecisiones {...props} />;
 }
 
 // ─── SIMULADOR DE PRECIOS ────────────────────────────────────────────────────
@@ -3823,6 +3793,581 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
 
       <p className="px-2 text-center text-xs text-white/35">
         Recomendaciones calculadas con los datos reales de tu negocio (clientes, agenda y servicios de los últimos 90 días). Los montos son estimaciones con supuestos conservadores indicados en cada tarjeta.
+      </p>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  LABORATORIO DE DECISIONES — 7 simuladores para barberías y peluquerías.
+//  Reemplaza la experiencia de "Simuladores". Cálculos deterministas e
+//  instantáneos con datos reales donde existen (servicios, clientes, agenda,
+//  horarios) + supuestos claros y editables. No toca el resto de la app.
+// ══════════════════════════════════════════════════════════════════════════
+
+const LAB_MARGIN = 0.45; // utilidad estimada sobre facturación (editable conceptualmente)
+const LAB_PRODUCT_MARGIN = 0.55; // los productos suelen dejar más margen
+const LAB_TURNOS_POR_HORA = 1.3; // ~45 min por servicio promedio
+
+type LabData = {
+  loading: boolean;
+  avgTicket: number;
+  monthlyClients: number;
+  monthlyVisits: number;
+  avgTurnosPerDay: number;
+  openDaysPerWeek: number;
+  sundayOpen: boolean;
+  inactivos: number;
+  inactivosValue: number;
+  services: ServicioReal[];
+};
+
+const LAB_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+function useLabData(businessId: string | null | undefined, fallbackTicket: number, fallbackClients: number): LabData {
+  const clientsQuery = useClientsData(businessId ?? null);
+  const { servicios, loading: loadingServices } = useServicesData(businessId);
+  const [appts, setAppts] = React.useState<{ starts_at: string; status: string; client_id: string | null }[]>([]);
+  const [openDays, setOpenDays] = React.useState<boolean[]>([false, true, true, true, true, true, false]);
+  const [loadingExtra, setLoadingExtra] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!businessId) {
+      setLoadingExtra(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingExtra(true);
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      try {
+        const [apptRes, settRes] = await Promise.all([
+          supabase
+            .from("appointments")
+            .select("starts_at,status,client_id")
+            .eq("business_id", businessId)
+            .gte("starts_at", since.toISOString()),
+          supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
+        ]);
+        if (cancelled) return;
+        setAppts(apptRes.error ? [] : ((apptRes.data ?? []) as { starts_at: string; status: string; client_id: string | null }[]));
+        const schedule = (settRes.data as { schedule?: Record<string, { enabled?: boolean }> } | null)?.schedule;
+        if (schedule && typeof schedule === "object") {
+          setOpenDays(LAB_DAY_KEYS.map((k) => schedule[k]?.enabled !== false && !!schedule[k]));
+        }
+      } catch {
+        /* degradar con elegancia */
+      } finally {
+        if (!cancelled) setLoadingExtra(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
+
+  const clients = clientsQuery.data ?? [];
+  const totalVisits = clients.reduce((s, c) => s + c.visits, 0);
+  const totalSpent = clients.reduce((s, c) => s + c.spent, 0);
+  const svcAvg = servicios.length > 0 ? Math.round(servicios.reduce((s, x) => s + x.precio, 0) / servicios.length) : 0;
+  const avgTicket = totalVisits > 0 ? Math.round(totalSpent / totalVisits) : svcAvg || fallbackTicket;
+
+  const done = appts.filter((a) => DONE_STATUSES.includes(a.status));
+  const monthlyVisits = done.length || Math.round(fallbackClients * 1.5);
+  const monthlyClients = new Set(done.map((a) => a.client_id).filter(Boolean)).size || fallbackClients;
+
+  const inactivosList = clients.filter((c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180);
+  const inactivos = inactivosList.length;
+  const inactivosValue = inactivosList.reduce((s, c) => s + (c.visits > 0 ? Math.round(c.spent / c.visits) : avgTicket), 0);
+
+  const openDaysPerWeek = openDays.filter(Boolean).length || 6;
+  const sundayOpen = openDays[0] === true;
+  const avgTurnosPerDay = Math.max(1, Math.round(monthlyVisits / (openDaysPerWeek * 4.3)));
+
+  return {
+    loading: clientsQuery.isLoading || loadingServices || loadingExtra,
+    avgTicket,
+    monthlyClients,
+    monthlyVisits,
+    avgTurnosPerDay,
+    openDaysPerWeek,
+    sundayOpen,
+    inactivos,
+    inactivosValue,
+    services: servicios,
+  };
+}
+
+// ── Bloques visuales compartidos ───────────────────────────────────────────
+
+function LabScenario({
+  currentLabel,
+  currentValue,
+  projectedLabel,
+  projectedValue,
+}: {
+  currentLabel: string;
+  currentValue: React.ReactNode;
+  projectedLabel: string;
+  projectedValue: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">{currentLabel}</div>
+        <div className="mt-1 text-2xl font-bold text-white/85">{currentValue}</div>
+      </div>
+      <div className="grid place-items-center text-white/30">
+        <ArrowRight className="h-5 w-5" />
+      </div>
+      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.07] p-4">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">{projectedLabel}</div>
+        <div className="mt-1 text-2xl font-bold text-emerald-200">{projectedValue}</div>
+      </div>
+    </div>
+  );
+}
+
+function LabImpact({ facturacion, utilidad, extra }: { facturacion: number; utilidad: number; extra?: { label: string; value: string } }) {
+  return (
+    <div className={cn("grid gap-2", extra ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+      <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] p-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-200/70">Facturación extra / mes</div>
+        <div className="mt-0.5 text-xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
+      </div>
+      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] p-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">Utilidad extra / mes</div>
+        <div className="mt-0.5 text-xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
+      </div>
+      {extra ? (
+        <div className="rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] p-3">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-violet-200/70">{extra.label}</div>
+          <div className="mt-0.5 text-xl font-extrabold text-violet-200">{extra.value}</div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: string }) {
+  const meta = nivelMeta[nivel];
+  return (
+    <div className={cn("rounded-2xl border p-4", meta.cls)}>
+      <div className={cn("flex items-center gap-2 text-sm font-bold", meta.titleCls)}>
+        <span>{meta.emoji}</span> Recomendación IA · {meta.label}
+      </div>
+      <p className="mt-1.5 text-sm leading-relaxed text-white/80">{text}</p>
+    </div>
+  );
+}
+
+function LabChips({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (k: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          className={cn(
+            "rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all",
+            value === o.key
+              ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100 shadow-[0_0_24px_-8px_rgba(34,211,238,0.6)]"
+              : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white hover:border-white/20",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Simuladores ────────────────────────────────────────────────────────────
+
+function LabPrecios({ data }: { data: LabData }) {
+  const services = data.services.length > 0 ? data.services : [];
+  const [svcId, setSvcId] = React.useState<string | null>(null);
+  const svc = services.find((s) => s.id === svcId) ?? services[0] ?? null;
+  const [aumento, setAumento] = React.useState(1000);
+
+  if (data.loading) return <LabSkeleton />;
+  if (services.length === 0) {
+    return (
+      <LabEmpty text="Todavía no hay servicios cargados con precio. Cargá tus servicios (Corte, Corte + Barba, Color…) en Configuración para simular aumentos reales." />
+    );
+  }
+
+  const precioActual = svc?.precio ?? 0;
+  const mensual = svc?.mensual ?? 0;
+  const precioNuevo = precioActual + aumento;
+  const diferenciaMensual = mensual * aumento;
+  const pct = precioActual > 0 ? (aumento / precioActual) * 100 : 0;
+  // Clientes que podés perder manteniendo la misma facturación del servicio.
+  const perdibles = precioNuevo > 0 ? Math.max(0, mensual - Math.ceil((mensual * precioActual) / precioNuevo)) : 0;
+  const avgPrice = services.length > 0 ? Math.round(services.reduce((s, x) => s + x.precio, 0) / services.length) : 0;
+
+  const nivel: keyof typeof nivelMeta = pct > 30 ? "alto_riesgo" : pct <= 12 ? "recomendado" : pct <= 20 ? "progresivo" : "evaluar";
+  const verdict =
+    pct > 30
+      ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% de golpe: demasiado. Hacelo en dos etapas para no asustar clientes.`
+      : `Podés aumentar ${fmtAR(aumento)} y seguir siendo competitivo. Aunque pierdas hasta ${perdibles} clientes por mes en este servicio, tu facturación se mantiene o crece.`;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Elegí el servicio</div>
+        <LabChips options={services.map((s) => ({ key: s.id, label: s.nombre }))} value={svc?.id ?? ""} onChange={setSvcId} />
+      </div>
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Aumento a probar</span>
+          <span className="text-sm font-bold text-cyan-200">+{fmtAR(aumento)}</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={Math.max(5000, Math.round(precioActual))}
+          step={100}
+          value={aumento}
+          onChange={(e) => setAumento(Number(e.target.value))}
+          className="w-full accent-cyan-400"
+        />
+      </div>
+      <LabScenario currentLabel="Precio actual" currentValue={fmtAR(precioActual)} projectedLabel="Precio sugerido" projectedValue={fmtAR(precioNuevo)} />
+      <LabImpact
+        facturacion={Math.max(0, diferenciaMensual)}
+        utilidad={Math.round(Math.max(0, diferenciaMensual) * 0.9)}
+        extra={{ label: "Vs. tu precio promedio", value: `${precioNuevo >= avgPrice ? "+" : ""}${fmtAR(precioNuevo - avgPrice)}` }}
+      />
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/55">
+        Este servicio se vende ~<span className="font-semibold text-white/80">{mensual}</span> veces por mes. Podés perder hasta <span className="font-semibold text-rose-200">{perdibles}</span> clientes/mes sin bajar la facturación.
+      </div>
+      <LabVerdict nivel={nivel} text={verdict} />
+    </div>
+  );
+}
+
+function LabProfesional({ data, ocupacion }: { data: LabData; ocupacion: number }) {
+  const [inversion, setInversion] = React.useState(200000);
+  if (data.loading) return <LabSkeleton />;
+
+  const serviciosExtra = Math.round(data.monthlyVisits * 0.6); // un profesional nuevo llega a ~60% del promedio
+  const facturacionAdic = serviciosExtra * data.avgTicket;
+  const utilidadAdic = Math.round(facturacionAdic * (LAB_MARGIN - 0.05)); // descontá su comisión
+  const dias = utilidadAdic > 0 ? Math.max(1, Math.round(inversion / (utilidadAdic / 30))) : 0;
+
+  const nivel: keyof typeof nivelMeta = ocupacion >= 75 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
+  const verdict =
+    ocupacion >= 75
+      ? `Tu ocupación está alta (${ocupacion}%): ya estás rechazando demanda. Incorporar un profesional podría generar hasta ${fmtAR(facturacionAdic)} adicionales por mes y recuperar la inversión en ~${dias} días.`
+      : ocupacion >= 60
+        ? `Ocupación media (${ocupacion}%). Conviene primero llenar la agenda actual; si seguís creciendo, sumá un profesional en 1-2 meses.`
+        : `Con ${ocupacion}% de ocupación todavía tenés sillones libres. Sumar gente ahora divide tu demanda. Primero llená la agenda actual.`;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/60">
+        Ocupación actual: <span className="font-bold text-white">{ocupacion}%</span> · Servicios/mes: <span className="font-bold text-white">{data.monthlyVisits}</span>
+      </div>
+      <LabScenario
+        currentLabel="Servicios / mes hoy"
+        currentValue={String(data.monthlyVisits)}
+        projectedLabel="Con +1 profesional"
+        projectedValue={`+${serviciosExtra}`}
+      />
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Inversión inicial (sillón, herramientas, alta)</span>
+          <span className="text-sm font-bold text-cyan-200">{fmtAR(inversion)}</span>
+        </div>
+        <input type="range" min={0} max={800000} step={20000} value={inversion} onChange={(e) => setInversion(Number(e.target.value))} className="w-full accent-cyan-400" />
+      </div>
+      <LabImpact
+        facturacion={facturacionAdic}
+        utilidad={utilidadAdic}
+        extra={{ label: "Recuperás la inversión en", value: `${dias} días` }}
+      />
+      <LabVerdict nivel={nivel} text={verdict} />
+    </div>
+  );
+}
+
+function LabHorario({ data }: { data: LabData }) {
+  const [scenario, setScenario] = React.useState("1h");
+  if (data.loading) return <LabSkeleton />;
+  const extraHours: Record<string, { h: number; label: string }> = {
+    "1h": { h: 1, label: "Abrir 1 hora más" },
+    "2h": { h: 2, label: "Abrir 2 horas más" },
+    antes: { h: 1, label: "Abrir antes" },
+    tarde: { h: 1, label: "Cerrar más tarde" },
+  };
+  const sel = extraHours[scenario];
+  const turnosAdic = Math.round(sel.h * data.openDaysPerWeek * 4.3 * LAB_TURNOS_POR_HORA);
+  const facturacion = turnosAdic * data.avgTicket;
+  const utilidad = Math.round(facturacion * LAB_MARGIN);
+  const nivel: keyof typeof nivelMeta = "evaluar";
+
+  return (
+    <div className="space-y-4">
+      <LabChips
+        options={[
+          { key: "1h", label: "🕐 +1 hora" },
+          { key: "2h", label: "🕑 +2 horas" },
+          { key: "antes", label: "🌅 Abrir antes" },
+          { key: "tarde", label: "🌙 Cerrar más tarde" },
+        ]}
+        value={scenario}
+        onChange={setScenario}
+      />
+      <LabScenario
+        currentLabel="Turnos / mes hoy"
+        currentValue={String(Math.round(data.monthlyVisits))}
+        projectedLabel="Turnos adicionales"
+        projectedValue={`+${turnosAdic}`}
+      />
+      <LabImpact facturacion={facturacion} utilidad={utilidad} />
+      <LabVerdict
+        nivel={nivel}
+        text={`${sel.label} suma unos ${turnosAdic} turnos por mes (${fmtAR(facturacion)} de facturación). Probalo 3 semanas: si la franja nueva se llena más del 50%, dejala fija.`}
+      />
+    </div>
+  );
+}
+
+function LabDomingos({ data }: { data: LabData }) {
+  if (data.loading) return <LabSkeleton />;
+  // Un domingo rinde como un día típico (turnos promedio por día).
+  const turnosAdic = data.avgTurnosPerDay * 4; // 4 domingos al mes
+  const ingreso = turnosAdic * data.avgTicket;
+  const utilidad = Math.round(ingreso * LAB_MARGIN);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/60">
+        En tu barbería un día típico rinde <span className="font-bold text-white">{data.avgTurnosPerDay}</span> turnos. Los domingos suelen tener alta demanda en este rubro.
+      </div>
+      <LabScenario currentLabel="Domingos hoy" currentValue="Cerrado" projectedLabel="Turnos / mes" projectedValue={`+${turnosAdic}`} />
+      <LabImpact facturacion={ingreso} utilidad={utilidad} />
+      <LabVerdict
+        nivel="recomendado"
+        text={`Abrir los domingos podría sumar ~${turnosAdic} turnos y ${fmtAR(ingreso)} por mes. Empezá con medio día (mañana) y un solo profesional; si se llena, ampliás.`}
+      />
+    </div>
+  );
+}
+
+function LabRecuperar({ data }: { data: LabData }) {
+  const [pct, setPct] = React.useState(20);
+  if (data.loading) return <LabSkeleton />;
+  if (data.inactivos === 0) {
+    return <LabEmpty text="¡Buenas noticias! No detectamos clientes perdidos hace más de 45 días para recuperar." />;
+  }
+  const recuperables = Math.round((data.inactivos * pct) / 100);
+  const ticketProm = data.inactivos > 0 ? Math.round(data.inactivosValue / data.inactivos) : data.avgTicket;
+  const facturacion = recuperables * ticketProm;
+  const utilidad = Math.round(facturacion * LAB_MARGIN);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/60">
+        Tenés <span className="font-bold text-white">{data.inactivos}</span> clientes que no vienen hace más de 45 días. Valen <span className="font-bold text-emerald-200">{fmtAR(data.inactivosValue)}</span> si volvieran todos.
+      </div>
+      <LabChips
+        options={[
+          { key: "10", label: "Recuperar 10%" },
+          { key: "20", label: "Recuperar 20%" },
+          { key: "30", label: "Recuperar 30%" },
+        ]}
+        value={String(pct)}
+        onChange={(k) => setPct(Number(k))}
+      />
+      <LabScenario currentLabel="Clientes perdidos" currentValue={String(data.inactivos)} projectedLabel="Recuperás" projectedValue={`${recuperables}`} />
+      <LabImpact facturacion={facturacion} utilidad={utilidad} />
+      <LabVerdict
+        nivel={pct <= 20 ? "recomendado" : "progresivo"}
+        text={`Recuperar el ${pct}% (${recuperables} clientes) suma ${fmtAR(facturacion)} por mes. Es realista con una campaña de WhatsApp con beneficio por tiempo limitado. Empezá por los que más gastaban.`}
+      />
+    </div>
+  );
+}
+
+function LabProductos({ data }: { data: LabData }) {
+  const [actual, setActual] = React.useState(6);
+  const [target, setTarget] = React.useState("10");
+  if (data.loading) return <LabSkeleton />;
+  const targetPct = Number(target);
+  const productPrice = Math.round(data.avgTicket * 0.45);
+  const extraClients = Math.max(0, Math.round((data.monthlyClients * (targetPct - actual)) / 100));
+  const facturacion = extraClients * productPrice;
+  const utilidad = Math.round(facturacion * LAB_PRODUCT_MARGIN);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">% de clientes que compran productos hoy</span>
+          <span className="text-sm font-bold text-cyan-200">{actual}%</span>
+        </div>
+        <input type="range" min={0} max={30} step={1} value={actual} onChange={(e) => setActual(Number(e.target.value))} className="w-full accent-cyan-400" />
+      </div>
+      <div>
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Meta a alcanzar</div>
+        <LabChips
+          options={[
+            { key: "5", label: "Llegar a 5%" },
+            { key: "10", label: "Llegar a 10%" },
+            { key: "15", label: "Llegar a 15%" },
+          ]}
+          value={target}
+          onChange={setTarget}
+        />
+      </div>
+      <LabScenario currentLabel="Compran producto hoy" currentValue={`${actual}%`} projectedLabel="Meta" projectedValue={`${targetPct}%`} />
+      <LabImpact facturacion={facturacion} utilidad={utilidad} />
+      <LabVerdict
+        nivel={targetPct - actual <= 5 ? "recomendado" : "progresivo"}
+        text={`Pasar del ${actual}% al ${targetPct}% son ${extraClients} ventas extra de producto por mes (${fmtAR(facturacion)}). Se logra ofreciendo el producto en el sillón al terminar el corte: "esto es lo que te puse, ¿te lo llevás?".`}
+      />
+    </div>
+  );
+}
+
+function LabFidelizacion({ data }: { data: LabData }) {
+  const [freqActual, setFreqActual] = React.useState(35);
+  const [freqSim, setFreqSim] = React.useState(30);
+  if (data.loading) return <LabSkeleton />;
+  const visitasActualMes = (data.monthlyClients * 30) / freqActual;
+  const visitasSimMes = (data.monthlyClients * 30) / freqSim;
+  const visitasAdic = Math.max(0, Math.round(visitasSimMes - visitasActualMes));
+  const facturacion = visitasAdic * data.avgTicket;
+  const utilidad = Math.round(facturacion * LAB_MARGIN);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Frecuencia actual</span>
+            <span className="text-sm font-bold text-white/70">{freqActual} días</span>
+          </div>
+          <input type="range" min={20} max={60} step={1} value={freqActual} onChange={(e) => setFreqActual(Number(e.target.value))} className="w-full accent-white/40" />
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">Frecuencia objetivo</span>
+            <span className="text-sm font-bold text-emerald-200">{freqSim} días</span>
+          </div>
+          <input type="range" min={15} max={freqActual} step={1} value={Math.min(freqSim, freqActual)} onChange={(e) => setFreqSim(Number(e.target.value))} className="w-full accent-emerald-400" />
+        </div>
+      </div>
+      <LabScenario currentLabel="Vuelven cada" currentValue={`${freqActual} días`} projectedLabel="Si vuelven cada" projectedValue={`${Math.min(freqSim, freqActual)} días`} />
+      <LabImpact facturacion={facturacion} utilidad={utilidad} extra={{ label: "Visitas extra / mes", value: `+${visitasAdic}` }} />
+      <LabVerdict
+        nivel="recomendado"
+        text={`Si tus clientes vuelven cada ${Math.min(freqSim, freqActual)} días en vez de ${freqActual}, sumás ~${visitasAdic} visitas por mes (${fmtAR(facturacion)}). Se logra con recordatorio de WhatsApp y un programa de puntos: el corte 5 con descuento.`}
+      />
+    </div>
+  );
+}
+
+function LabSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-20 animate-pulse rounded-2xl bg-white/[0.04]" />
+      ))}
+    </div>
+  );
+}
+
+function LabEmpty({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-white/60">{text}</div>
+  );
+}
+
+const LAB_SIMS = [
+  { key: "precios", icon: "💰", label: "Subir precios", sub: "Probá un aumento sin perder clientes" },
+  { key: "profesional", icon: "✂️", label: "Sumar un profesional", sub: "¿Conviene contratar?" },
+  { key: "horario", icon: "📅", label: "Extender horario", sub: "Abrir antes o cerrar más tarde" },
+  { key: "domingos", icon: "📆", label: "Abrir domingos", sub: "El día de mayor demanda" },
+  { key: "recuperar", icon: "🔥", label: "Recuperar clientes", sub: "Traer de vuelta a los perdidos" },
+  { key: "productos", icon: "🧴", label: "Venta de productos", sub: "Ticket extra sin más turnos" },
+  { key: "fidelizacion", icon: "🎁", label: "Fidelización", sub: "Que vuelvan más seguido" },
+] as const;
+
+function LaboratorioDecisiones(props: SimuladorProps) {
+  const data = useLabData(props.businessId, props.ticket, props.clientes);
+  const [sim, setSim] = React.useState<(typeof LAB_SIMS)[number]["key"]>("precios");
+
+  // Ocultar "Abrir domingos" si la barbería ya abre domingos.
+  const sims = LAB_SIMS.filter((s) => !(s.key === "domingos" && data.sundayOpen));
+  const current = sims.find((s) => s.key === sim) ?? sims[0];
+
+  return (
+    <div className="space-y-5">
+      {/* Encabezado del laboratorio */}
+      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#070b18]/80 p-6 shadow-[0_30px_90px_-50px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
+        <div className="pointer-events-none absolute -top-24 left-1/4 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-violet-500/15 blur-3xl" />
+        <div className="relative flex items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/10 text-2xl ring-1 ring-white/15">🧪</span>
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Laboratorio de decisiones</span>
+            <h2 className="text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">Probá la decisión antes de tomarla</h2>
+            <p className="mt-0.5 text-sm text-white/55">Elegí un escenario y mirá al instante cuánto ganás, cuánto riesgo tiene y si te conviene.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Selector de simuladores */}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {sims.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setSim(s.key)}
+            className={cn(
+              "group flex items-center gap-3 rounded-2xl border p-3 text-left transition-all",
+              sim === s.key
+                ? "border-cyan-300/40 bg-cyan-400/[0.1] shadow-[0_0_30px_-10px_rgba(34,211,238,0.6)]"
+                : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]",
+            )}
+          >
+            <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xl ring-1", sim === s.key ? "bg-white/15 ring-white/20" : "bg-white/[0.06] ring-white/10")}>{s.icon}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-bold text-white">{s.label}</span>
+              <span className="block truncate text-xs text-white/45">{s.sub}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Simulador activo */}
+      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#080b16]/80 p-5 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] backdrop-blur-2xl sm:p-6">
+        <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent blur-3xl" />
+        <div className="relative">
+          <div className="mb-4 flex items-center gap-3 border-b border-white/8 pb-4">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{current.icon}</span>
+            <div>
+              <h3 className="text-lg font-bold text-white">{current.label}</h3>
+              <p className="text-xs text-white/45">{current.sub}</p>
+            </div>
+          </div>
+          {sim === "precios" && <LabPrecios data={data} />}
+          {sim === "profesional" && <LabProfesional data={data} ocupacion={props.ocupacion} />}
+          {sim === "horario" && <LabHorario data={data} />}
+          {sim === "domingos" && <LabDomingos data={data} />}
+          {sim === "recuperar" && <LabRecuperar data={data} />}
+          {sim === "productos" && <LabProductos data={data} />}
+          {sim === "fidelizacion" && <LabFidelizacion data={data} />}
+        </div>
+      </div>
+
+      <p className="px-2 text-center text-xs text-white/35">
+        Los simuladores usan tus datos reales (servicios, clientes, agenda y horarios). Las proyecciones son estimaciones con supuestos conservadores: utilidad ~{Math.round(LAB_MARGIN * 100)}% sobre facturación y ~{Math.round(LAB_PRODUCT_MARGIN * 100)}% en productos.
       </p>
     </div>
   );
