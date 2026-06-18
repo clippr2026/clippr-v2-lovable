@@ -188,7 +188,7 @@ export function DateRangePicker({ from, to, onChange, className }: {
       <button
         type="button"
         onClick={() => { setOpen(o => !o); setStep("from"); }}
-        className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition"
+        className="flex w-full justify-center sm:inline-flex sm:w-auto sm:justify-start items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition"
         style={{
           background: "oklch(0.15 0.04 275)",
           boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
