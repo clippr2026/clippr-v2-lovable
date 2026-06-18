@@ -219,6 +219,7 @@ function AdvisorRoute() {
 
   return (
     <AppShell>
+      <div className="app-premium-shell">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
         {analysisStarted && !isAnalyzing && (
@@ -303,6 +304,7 @@ function AdvisorRoute() {
         isAnalyzing={isAnalyzing}
         setIsAnalyzing={setIsAnalyzing}
       />
+      </div>
     </AppShell>
   );
 }
