@@ -198,22 +198,28 @@ const TONE = {
   primary: {
     ring: "ring-primary/20",
     bg: "bg-primary/10",
+    tile: "icon-tile-blue",
+    glowActive: "ring-2 ring-sky-400/50 shadow-[0_24px_60px_-26px_rgba(79,125,255,0.55)]",
     icon: "text-primary",
     fillFrom: "oklch(0.66 0.22 265 / 0.3)",
     fillTo: "oklch(0.66 0.22 265 / 0)",
     stroke: "oklch(0.66 0.22 265)",
   },
   danger: {
-    ring: "ring-rose-400/20",
-    bg: "bg-rose-400/10",
-    icon: "text-rose-400",
-    fillFrom: "rgb(251 113 133 / 0.3)",
-    fillTo: "rgb(251 113 133 / 0)",
-    stroke: "rgb(251 113 133)",
+    ring: "ring-orange-400/20",
+    bg: "bg-orange-400/10",
+    tile: "icon-tile-amber",
+    glowActive: "ring-2 ring-orange-400/50 shadow-[0_24px_60px_-26px_rgba(245,158,44,0.50)]",
+    icon: "text-orange-400",
+    fillFrom: "rgb(251 146 60 / 0.3)",
+    fillTo: "rgb(251 146 60 / 0)",
+    stroke: "rgb(249 146 60)",
   },
   success: {
     ring: "ring-emerald-400/20",
     bg: "bg-emerald-400/10",
+    tile: "icon-tile-green",
+    glowActive: "ring-2 ring-emerald-400/50 shadow-[0_24px_60px_-26px_rgba(45,190,110,0.50)]",
     icon: "text-emerald-400",
     fillFrom: "rgb(52 211 153 / 0.3)",
     fillTo: "rgb(52 211 153 / 0)",
@@ -222,6 +228,8 @@ const TONE = {
   neutral: {
     ring: "ring-white/10",
     bg: "bg-white/5",
+    tile: "icon-tile-violet",
+    glowActive: "ring-2 ring-violet-400/50 shadow-[0_24px_60px_-26px_rgba(124,92,255,0.50)]",
     icon: "text-muted-foreground",
     fillFrom: "rgb(255 255 255 / 0.15)",
     fillTo: "rgb(255 255 255 / 0)",
@@ -256,20 +264,20 @@ function Stat({
   return (
     <div
       onClick={onClick}
-      className={cn("glass glass-hover rounded-2xl p-5 relative overflow-hidden transition-all", onClick && "cursor-pointer", active && "ring-2 ring-primary/60 shadow-[0_0_30px_-8px_oklch(0.66_0.22_265)]")}
+      className={cn("glass glass-hover rounded-2xl p-5 relative overflow-hidden transition-all", onClick && "cursor-pointer", active && t.glowActive)}
     >
       <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className={`h-9 w-9 rounded-xl grid place-items-center ring-1 ${t.ring} ${t.bg}`}>
-            <Icon className={`h-4 w-4 ${t.icon}`} />
+        <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+          <div className={cn("h-10 w-10 icon-tile", t.tile)}>
+            <Icon className="h-5 w-5" />
           </div>
-          <span className="text-sm">{label}</span>
+          <span className="text-sm font-medium">{label}</span>
         </div>
       </div>
       <div className="mt-4 flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-display text-3xl font-semibold tracking-tight truncate">{value}</div>
-          <div className="text-xs text-muted-foreground mt-1.5">{sub}</div>
+          <div className="font-display text-[2.1rem] leading-none font-semibold tracking-tight truncate">{value}</div>
+          <div className="text-xs text-muted-foreground mt-2">{sub}</div>
         </div>
         {hasSpark && (
           <div className="h-12 w-28 shrink-0 opacity-90">

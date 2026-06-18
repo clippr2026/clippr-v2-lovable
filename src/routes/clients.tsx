@@ -169,6 +169,7 @@ function StatCard({
   link,
   onLinkClick,
   icon,
+  tile,
   glow,
   featured,
   info,
@@ -180,6 +181,7 @@ function StatCard({
   link?: string;
   onLinkClick?: () => void;
   icon: React.ReactNode;
+  tile?: string;
   glow: string;
   featured?: boolean;
   info?: string;
@@ -221,7 +223,7 @@ function StatCard({
           <div className="text-2xl sm:text-3xl font-display font-light leading-none tracking-tight">
             {value}
           </div>
-          <div className="text-xl sm:text-2xl opacity-90 shrink-0">{icon}</div>
+          <div className={cn("h-11 w-11 sm:h-12 sm:w-12 icon-tile shrink-0 [&_svg]:h-6 [&_svg]:w-6", tile ?? "icon-tile-violet")}>{icon}</div>
         </div>
         {caption && <div className="text-[11px] text-muted-foreground leading-snug">{caption}</div>}
         {link && (
@@ -402,6 +404,7 @@ function ClientsPage() {
             link="Ver todos"
             onLinkClick={() => showGroup("VIP", (c) => c.status === "vip")}
             icon={<Crown className="h-7 w-7 text-violet-300" />}
+            tile="icon-tile-pink"
             glow="bg-violet-500/25"
             info={CLIENT_METRIC_INFO.vip.description}
             onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.vip)}
@@ -413,6 +416,7 @@ function ClientsPage() {
             link="Ver todos"
             onLinkClick={() => showGroup("Nuevos", (c) => c.status === "nuevo")}
             icon={<Sparkles className="h-7 w-7 text-violet-300" />}
+            tile="icon-tile-violet"
             glow="bg-violet-400/20"
             info={CLIENT_METRIC_INFO.nuevos.description}
             onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.nuevos)}
@@ -424,6 +428,7 @@ function ClientsPage() {
             link="Ver todos"
             onLinkClick={() => showGroup("Activos", (c) => c.status === "activo")}
             icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />}
+            tile="icon-tile-green"
             glow="bg-emerald-400/20"
             info={CLIENT_METRIC_INFO.activos.description}
             onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.activos)}
@@ -435,6 +440,7 @@ function ClientsPage() {
             link="Ver todos"
             onLinkClick={() => showGroup("Inactivos", (c) => c.status === "inactivo")}
             icon={<PauseCircle className="h-7 w-7 text-amber-300" />}
+            tile="icon-tile-amber"
             glow="bg-amber-400/15"
             info={CLIENT_METRIC_INFO.inactivos.description}
             onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.inactivos)}
@@ -446,6 +452,7 @@ function ClientsPage() {
             link="Reconquistar"
             onLinkClick={() => showGroup("Perdidos", (c) => c.status === "perdido")}
             icon={<AlertTriangle className="h-7 w-7 text-rose-300" />}
+            tile="icon-tile-rose"
             glow="bg-rose-400/20"
             info={CLIENT_METRIC_INFO.perdidos.description}
             onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.perdidos)}
