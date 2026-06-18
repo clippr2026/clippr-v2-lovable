@@ -1,26 +1,20 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Loader2, BarChart3, X, CalendarDays } from "lucide-react";
+import { Loader2, BarChart3, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { DateRangePicker } from "@/components/date-range-picker";
 
 /**
  * Portado de cjLoadProfesionales / cjPagarProf / cjConfirmarPagoProf /
  * cjVerPagosProf / cjVerProduccion (app.js ~9755-10130).
- * Tablas: employees (commission_pct), payments (total/amount, employee_id),
- *         professional_payouts (amount, date, method, note, created_by).
- *
- * KPIs por profesional (en rango from..to):
- *   facturacion = Σ payments.total||amount
- *   comision    = round(facturacion * commission_pct / 100)
- *   pagado      = Σ professional_payouts.amount
- *   pendiente   = max(0, comision - pagado)
  */
 
 type Employee = {
   id: string;
   full_name: string;
   commission_pct: number | null;
+  commission_fixed: number | null;
   is_active?: boolean | null;
 };
 
@@ -42,36 +36,8 @@ type Payout = {
   method: string | null;
   note: string | null;
   created_by: string | null;
+  created_at?: string | null;
 };
-
-const RANGES = [
-  { id: "hoy", label: "Hoy" },
-  { id: "semana", label: "Esta semana" },
-  { id: "mes", label: "Este mes" },
-  { id: "mes_ant", label: "Mes anterior" },
-] as const;
-
-function computeRange(preset: (typeof RANGES)[number]["id"]) {
-  const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  if (preset === "hoy") return { from: iso(now), to: iso(now) };
-  if (preset === "semana") {
-    const day = now.getDay() || 7;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - (day - 1));
-    return { from: iso(monday), to: iso(now) };
-  }
-  if (preset === "mes") {
-    return {
-      from: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
-      to: iso(now),
-    };
-  }
-  // mes_ant
-  const firstPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastPrev = new Date(now.getFullYear(), now.getMonth(), 0);
-  return { from: iso(firstPrev), to: iso(lastPrev) };
-}
 
 export function ProfesionalesTab({
   businessId,
@@ -88,184 +54,120 @@ export function ProfesionalesTab({
   const [payments, setPayments] = React.useState<Payment[]>([]);
   const [payouts, setPayouts] = React.useState<Payout[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [payModal, setPayModal] = React.useState<{
-    emp: Employee;
-    pendiente: number;
-  } | null>(null);
-  const [detailModal, setDetailModal] = React.useState<{
-    type: "pagos" | "produccion";
-    emp: Employee;
-  } | null>(null);
+  const [payModal, setPayModal] = React.useState<{ emp: Employee; pendiente: number } | null>(null);
+  const [detailModal, setDetailModal] = React.useState<{ type: "pagos" | "produccion"; emp: Employee } | null>(null);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
-    const fromISO = from + "T00:00:00";
-    const toISO = to + "T23:59:59";
     const [empRes, payRes, poRes] = await Promise.allSettled([
-      supabase
-        .from("employees")
-        .select("id,full_name,commission_pct,is_active")
-        .eq("business_id", businessId)
-        .order("full_name"),
-      supabase
-        .from("payments")
-        .select("employee_id,total,amount,payment_method,service_name,client_name,created_at")
-        .eq("business_id", businessId)
-        .gte("created_at", fromISO)
-        .lte("created_at", toISO),
-      supabase
-        .from("professional_payouts")
-        .select("id,employee_id,amount,date,method,note,created_by")
-        .eq("business_id", businessId)
-        .gte("date", from)
-        .lte("date", to)
-        .order("date", { ascending: false }),
+      supabase.from("employees").select("id,full_name,commission_pct,commission_fixed,is_active").eq("business_id", businessId).order("full_name"),
+      supabase.from("payments").select("employee_id,total,amount,payment_method,service_name,client_name,created_at").eq("business_id", businessId).gte("created_at", from + "T00:00:00").lte("created_at", to + "T23:59:59"),
+      supabase.from("professional_payouts").select("id,employee_id,amount,date,method,note,created_by,created_at").eq("business_id", businessId).gte("date", from).lte("date", to).order("date", { ascending: false }),
     ]);
-
-    setEmployees(
-      empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Employee[]).filter((e) => e.is_active !== false)
-        : []
-    );
-    setPayments(
-      payRes.status === "fulfilled" && !payRes.value.error
-        ? ((payRes.value.data ?? []) as Payment[])
-        : []
-    );
-    setPayouts(
-      poRes.status === "fulfilled" && !poRes.value.error
-        ? ((poRes.value.data ?? []) as Payout[])
-        : []
-    );
+    setEmployees(empRes.status === "fulfilled" && !empRes.value.error ? ((empRes.value.data ?? []) as Employee[]).filter((e) => e.is_active !== false) : []);
+    setPayments(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
+    setPayouts(poRes.status === "fulfilled" && !poRes.value.error ? ((poRes.value.data ?? []) as Payout[]) : []);
     setLoading(false);
   }, [businessId, from, to]);
 
-  React.useEffect(() => {
-    load();
-  }, [load]);
+  React.useEffect(() => { load(); }, [load]);
 
   const filtered = empId === "all" ? employees : employees.filter((e) => e.id === empId);
 
   return (
     <div className="space-y-5">
-      {/* Filtros */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <select
-            value={empId}
-            onChange={(e) => setEmpId(e.target.value)}
-            className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-300/50"
-          >
-            <option value="all">Todos los profesionales</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.full_name}
-              </option>
-            ))}
-          </select>
-          <label className="group relative min-w-[170px] flex-1 sm:flex-none">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Desde
-            </span>
-            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-blue-200">
-              <CalendarDays className="size-4" />
-            </span>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              onClick={(e) => e.currentTarget.showPicker?.()}
-              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-300/50"
-            />
-          </label>
-          <label className="group relative min-w-[170px] flex-1 sm:flex-none">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Hasta
-            </span>
-            <span className="pointer-events-none absolute left-3 bottom-2.5 text-muted-foreground group-focus-within:text-blue-200">
-              <CalendarDays className="size-4" />
-            </span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              onClick={(e) => e.currentTarget.showPicker?.()}
-              className="w-full cursor-pointer bg-white/[0.04] border border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-300/50"
-            />
-          </label>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => {
-                const range = computeRange(r.id);
-                setFrom(range.from);
-                setTo(range.to);
-              }}
-              className="px-3 py-1 rounded-md border border-white/10 text-xs text-muted-foreground hover:text-foreground hover:border-white/20"
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+      {/* Filtros — solo profesional + rango de fechas */}
+      <div className="flex flex-wrap items-end gap-3">
+        <select
+          value={empId}
+          onChange={(e) => setEmpId(e.target.value)}
+          className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-blue-400/50 h-[38px]"
+        >
+          <option value="all">Todos los profesionales</option>
+          {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+        </select>
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={(r) => { setFrom(r.from); setTo(r.to); }}
+        />
       </div>
 
       {loading ? (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
+        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
           <Loader2 className="size-4 animate-spin" /> Cargando…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow px-5 py-12 text-center text-sm text-muted-foreground">
           Sin profesionales activos.
         </div>
       ) : (
         filtered.map((emp) => {
-          const commPct = Number(emp.commission_pct ?? 0);
           const empPays = payments.filter((p) => p.employee_id === emp.id);
           const facturacion = empPays.reduce(
-            (s, p) => s + Number(p.total ?? p.amount ?? 0),
-            0
+            (s, p) => s + Number(p.total ?? p.amount ?? 0), 0
           );
-          const comision = Math.round((facturacion * commPct) / 100);
+          // Commission: fixed amount takes priority over percentage
+          const commFixed = Number(emp.commission_fixed ?? 0);
+          const commPct   = Number(emp.commission_pct ?? 0);
+          const comision = commFixed > 0
+            ? commFixed * empPays.length          // fixed per service
+            : Math.round((facturacion * commPct) / 100);
           const empPayouts = payouts.filter((p) => p.employee_id === emp.id);
           const pagado = empPayouts.reduce((s, p) => s + Number(p.amount ?? 0), 0);
           const pendiente = Math.max(0, comision - pagado);
+
+          const commLabel = commFixed > 0
+            ? `$${commFixed.toLocaleString("es-AR")} fijo/servicio`
+            : commPct > 0
+              ? `${commPct}% de ventas`
+              : "Sin comisión";
+
           return (
-            <div
-              key={emp.id}
-              className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-4"
-            >
-              <div className="flex items-center gap-4 flex-wrap">
-                {/* Name */}
-                <div className="flex-1 min-w-[120px]">
-                  <h3 className="text-sm font-semibold text-foreground">{emp.full_name}</h3>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{commPct}% comisión</p>
+            <div key={emp.id} className="relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.028] cash-panel-glow p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="absolute -right-12 -top-16 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" />
+              <div className="relative flex items-center justify-between flex-wrap gap-3 mb-4">
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">{emp.full_name}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {empPays.length} venta{empPays.length === 1 ? "" : "s"}
+                  </p>
                 </div>
-                {/* KPIs inline */}
-                <div className="flex items-center gap-6 flex-wrap">
-                  {[
-                    { label: "Facturación", value: `$${facturacion.toLocaleString("es-AR")}`, color: "text-emerald-300" },
-                    { label: "Comisión",    value: `$${comision.toLocaleString("es-AR")}`,    color: "text-foreground" },
-                    { label: "Pagado",      value: `$${pagado.toLocaleString("es-AR")}`,      color: "text-sky-300" },
-                    { label: "Pendiente",   value: `$${pendiente.toLocaleString("es-AR")}`,   color: pendiente > 0 ? "text-blue-300" : "text-muted-foreground" },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="text-center min-w-[70px]">
-                      <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">{label}</div>
-                      <div className={cn("text-sm font-semibold tabular-nums mt-0.5", color)}>{value}</div>
-                    </div>
-                  ))}
-                </div>
-                {/* Actions */}
-                <div className="flex gap-2 ml-auto">
+                <div className="flex gap-2">
                   <button
                     onClick={() => setDetailModal({ type: "produccion", emp })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-muted-foreground text-xs hover:text-foreground hover:border-white/20 transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-muted-foreground text-xs hover:bg-white/[0.07] hover:text-foreground transition"
                   >
-                    <BarChart3 className="size-3.5" /> Ver detalle
+                    <BarChart3 className="size-3.5" /> Producción
                   </button>
+                  <button
+                    onClick={() => setDetailModal({ type: "pagos", emp })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-muted-foreground text-xs hover:bg-white/[0.07] hover:text-foreground transition"
+                  >
+                    Historial de pagos
+                  </button>
+                  {pendiente > 0 && (
+                    <button
+                      onClick={() => setPayModal({ emp, pendiente })}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-200 text-xs hover:bg-blue-500/25 transition shadow-[0_10px_28px_-18px_rgba(251,191,36,0.8)]"
+                    >
+                      Pagar comisión
+                    </button>
+                  )}
                 </div>
+              </div>
+              <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {[
+                  { label: "Comisión",    val: `$${comision.toLocaleString("es-AR")}`,    cls: "text-blue-300"   },
+                  { label: "Pagado",      val: `$${pagado.toLocaleString("es-AR")}`,      cls: "text-sky-300"     },
+                  { label: "Pendiente",   val: `$${pendiente.toLocaleString("es-AR")}`,   cls: pendiente > 0 ? "text-rose-300" : "text-muted-foreground" },
+                ].map(({ label, val, cls }) => (
+                  <div key={label} className="rounded-2xl bg-white/[0.038] border border-white/[0.085] cash-card-glow p-3.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+                    <div className="text-[10px] text-muted-foreground/80 uppercase tracking-[0.12em]">{label}</div>
+                    <div className={cn("text-lg font-bold tabular-nums mt-1", cls)}>{val}</div>
+                  </div>
+                ))}
               </div>
             </div>
           );
@@ -362,7 +264,7 @@ function PayModal({
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-lg font-semibold text-foreground mt-1 focus:outline-none focus:border-blue-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-lg font-semibold text-foreground mt-1 focus:outline-none focus:border-blue-400/50"
             />
           </div>
           <div>
@@ -370,7 +272,7 @@ function PayModal({
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-400/50"
             >
               {["Efectivo", "Transferencia", "Débito", "Crédito", "Mercado Pago"].map((m) => (
                 <option key={m}>{m}</option>
@@ -383,7 +285,7 @@ function PayModal({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Ej: Pago parcial mayo"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-300/50"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground mt-1 focus:outline-none focus:border-blue-400/50"
             />
           </div>
         </div>
@@ -397,7 +299,7 @@ function PayModal({
           <button
             disabled={saving}
             onClick={save}
-            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-blue-400 to-violet-500 text-white font-semibold text-sm disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-lg bg-gradient-to-b from-blue-500 to-violet-500 text-zinc-950 font-semibold text-sm disabled:opacity-50"
           >
             {saving ? "Guardando…" : "Guardar pago"}
           </button>
@@ -428,7 +330,7 @@ function DetailModal({
     if (type === "pagos") {
       supabase
         .from("professional_payouts")
-        .select("id,employee_id,amount,date,method,note,created_by")
+        .select("id,employee_id,amount,date,method,note,created_by,created_at")
         .eq("business_id", businessId)
         .eq("employee_id", emp.id)
         .order("date", { ascending: false })
@@ -469,26 +371,28 @@ function DetailModal({
           ) : data.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">Sin datos.</div>
           ) : type === "pagos" ? (
-            (data as Payout[]).map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between py-2 border-b border-white/5"
-              >
-                <div>
-                  <div className="text-sm text-foreground">
-                    {new Date(p.date + "T12:00:00").toLocaleDateString("es-AR")}
+            (data as Payout[]).map((p) => {
+              const dt = p.created_at ? new Date(p.created_at) : new Date(p.date + "T12:00:00");
+              const fecha = dt.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" }).replace(".", "");
+              const hora = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-2 border-b border-white/5"
+                >
+                  <div>
+                    <div className="text-sm text-foreground capitalize">{fecha}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {hora} · {p.created_by ?? "Caja"} pagó · {p.method ?? "Sin método"}
+                      {p.note ? ` · ${p.note}` : ""}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {p.method ?? "—"}
-                    {p.note ? ` · ${p.note}` : ""}
-                    {p.created_by ? ` · ${p.created_by}` : ""}
+                  <div className="text-sm font-bold text-emerald-300 tabular-nums">
+                    ${Number(p.amount).toLocaleString("es-AR")}
                   </div>
                 </div>
-                <div className="text-sm font-bold text-emerald-300 tabular-nums">
-                  ${Number(p.amount).toLocaleString("es-AR")}
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             (data as Payment[]).map((p, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-white/5">
