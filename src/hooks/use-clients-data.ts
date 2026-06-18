@@ -13,6 +13,19 @@ export type ClientPayment = {
   amount: number;
 };
 
+export type ClientAppointment = {
+  id: string;
+  date: string;
+  service: string;
+  status: string;
+};
+
+export type ClientFavoriteService = {
+  service: string;
+  count: number;
+  amount: number;
+};
+
 export type Client = {
   id: string;
   name: string;
@@ -23,6 +36,9 @@ export type Client = {
   created_at: string;
   visits: number;
   spent: number;
+  spentLast12Months: number;
+  favoriteServices: ClientFavoriteService[];
+  nextAppointment?: ClientAppointment | null;
   lastVisit?: string | null;
   lastVisitDays?: number | null;
   status: ClientStatus;
@@ -75,14 +91,26 @@ async function loadClients(businessId: string): Promise<Client[]> {
   if (error) throw new Error("Error cargando clientes: " + error.message);
   if (!rawClients?.length) return [];
 
-  const { data: payments, error: paymentsError } = await supabase
-    .from("payments")
-    .select("id,client_name,service_name,total,amount,created_at")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false });
+  const [{ data: payments, error: paymentsError }, { data: appointments, error: appointmentsError }] =
+    await Promise.all([
+      supabase
+        .from("payments")
+        .select("id,client_name,service_name,total,amount,created_at")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("appointments")
+        .select("id,client_id,client_name,service_name,starts_at,status")
+        .eq("business_id", businessId)
+        .gte("starts_at", new Date().toISOString())
+        .neq("status", "cancelled")
+        .order("starts_at", { ascending: true }),
+    ]);
 
   if (paymentsError)
     throw new Error("Error cargando historial de clientes: " + paymentsError.message);
+  if (appointmentsError)
+    throw new Error("Error cargando próximos turnos de clientes: " + appointmentsError.message);
 
   const paymentsByName = new Map<string, ClientPayment[]>();
 
@@ -99,11 +127,51 @@ async function loadClients(businessId: string): Promise<Client[]> {
     });
   });
 
+  const appointmentsByClientId = new Map<string, ClientAppointment>();
+  const appointmentsByName = new Map<string, ClientAppointment>();
+
+  (appointments ?? []).forEach((a) => {
+    const item: ClientAppointment = {
+      id: a.id,
+      date: a.starts_at,
+      service: a.service_name || "Servicio",
+      status: a.status || "pending",
+    };
+    if (a.client_id && !appointmentsByClientId.has(a.client_id)) {
+      appointmentsByClientId.set(a.client_id, item);
+    }
+    const key = (a.client_name ?? "").trim().toLowerCase();
+    if (key && !appointmentsByName.has(key)) {
+      appointmentsByName.set(key, item);
+    }
+  });
+
   return rawClients.map((c) => {
     const name = c.full_name ?? "Sin nombre";
     const history = paymentsByName.get(name.trim().toLowerCase()) ?? [];
     const visits = history.length;
     const spent = history.reduce((sum, p) => sum + p.amount, 0);
+    const last12Cutoff = new Date();
+    last12Cutoff.setMonth(last12Cutoff.getMonth() - 12);
+    const spentLast12Months = history
+      .filter((p) => new Date(p.date).getTime() >= last12Cutoff.getTime())
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    const favoriteServiceMap = new Map<string, { count: number; amount: number }>();
+    history.forEach((p) => {
+      const service = p.service || "Servicio";
+      const current = favoriteServiceMap.get(service) ?? { count: 0, amount: 0 };
+      favoriteServiceMap.set(service, {
+        count: current.count + 1,
+        amount: current.amount + p.amount,
+      });
+    });
+    const favoriteServices = Array.from(favoriteServiceMap.entries())
+      .map(([service, values]) => ({ service, ...values }))
+      .sort((a, b) => b.count - a.count || b.amount - a.amount)
+      .slice(0, 3);
+
+    const nextAppointment = appointmentsByClientId.get(c.id) ?? appointmentsByName.get(name.trim().toLowerCase()) ?? null;
     const last = history[0]?.date ?? null;
     const lastVisit = formatLastVisit(last);
 
@@ -117,6 +185,9 @@ async function loadClients(businessId: string): Promise<Client[]> {
       created_at: c.created_at,
       visits,
       spent,
+      spentLast12Months,
+      favoriteServices,
+      nextAppointment,
       lastVisit: lastVisit.label,
       lastVisitDays: lastVisit.days,
       status: computeStatus(visits, spent, lastVisit.days),
