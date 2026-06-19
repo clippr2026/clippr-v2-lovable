@@ -369,8 +369,7 @@ Deno.serve(async (req) => {
       permissions,
       professional_id: professionalId,
       branch_id: branchId,
-      status: authUserId ? "active" : "invited",
-    });
+status: "active",    });
 
     if (insErr) return json({ error: insErr.message }, 400);
     return json({ ok: true, auth_user_id: authUserId });
