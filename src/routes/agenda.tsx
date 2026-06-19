@@ -100,7 +100,7 @@ const STATUS_META: Record<
 // Helpers de fechas
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
-const ROW_PX = 98;
+const ROW_PX = 88;
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -465,28 +465,25 @@ function AgendaPage() {
 
   return (
     <AppShell>
-      <div className="app-premium-shell space-y-0">
+      <div className="app-premium-shell -mt-4 sm:-mt-6 lg:-mt-8 space-y-0">
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-{/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 animate-fade-up">
-        <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Agenda</h1>
-          <div className="mt-1.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                data.realtimeStatus === "disconnected" ? "bg-destructive" : "bg-success pulse-dot",
-              )}
-            />
-            <span>
-              {data.realtimeStatus === "disconnected"
-                ? "Sin conexión. Los cambios pueden no reflejarse inmediatamente."
-                : "Sincronizada en tiempo real"}
-            </span>
-          </div>
+{/* Header compacto */}
+      <div className="flex items-center justify-between gap-3 mb-2 animate-fade-up">
+        <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              data.realtimeStatus === "disconnected" ? "bg-destructive" : "bg-success pulse-dot",
+            )}
+          />
+          <span>
+            {data.realtimeStatus === "disconnected"
+              ? "Sin conexión. Los cambios pueden no reflejarse inmediatamente."
+              : "Sincronizada en tiempo real"}
+          </span>
         </div>
-        <Button className="w-full sm:w-auto" onClick={() => openNew(null, cursor)}>
+        <Button className="shrink-0 h-9 px-4" onClick={() => openNew(null, cursor)}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo turno
         </Button>
       </div>
@@ -495,7 +492,7 @@ function AgendaPage() {
       <DayStripNav cursor={cursor} onSelect={setCursor} />
 
       {/* Status pills — compact single row */}
-      <div className="flex items-center gap-2 flex-wrap mb-4 animate-fade-up">
+      <div className="flex items-center gap-2 flex-wrap mb-3 animate-fade-up">
         {([
           ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
           ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
@@ -683,7 +680,7 @@ function DayStripNav({
     const cursorStr = cursor.toISOString().slice(0, 10);
     const idx = days.findIndex(d => d.toISOString().slice(0, 10) === cursorStr);
     if (idx === -1) return;
-    const itemWidth = 56;
+    const itemWidth = 48;
     container.scrollTo({ left: Math.max(0, idx * itemWidth - container.clientWidth / 2 + itemWidth / 2), behavior: "smooth" });
   }, [cursor, days]);
 
@@ -693,9 +690,9 @@ function DayStripNav({
   const todayStr = today.toISOString().slice(0, 10);
 
   return (
-    <div className="glass rounded-2xl mb-4 overflow-hidden animate-fade-up">
+    <div className="glass rounded-2xl mb-3 overflow-hidden animate-fade-up mx-auto w-full max-w-5xl">
       {/* Month label + today button */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+      <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
         <div className="flex items-center gap-2">
           <button
             onClick={() => onSelect(startOfDay(new Date(cursor.getFullYear(), cursor.getMonth() - 1, cursor.getDate())))}
@@ -724,7 +721,7 @@ function DayStripNav({
       {/* Scrollable day strip */}
       <div
         ref={scrollRef}
-        className="flex gap-1 overflow-x-auto px-3 pb-3 scroll-smooth"
+        className="flex gap-1 overflow-x-auto px-2 pb-2 scroll-smooth"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {days.map((d) => {
@@ -737,7 +734,7 @@ function DayStripNav({
               key={dStr}
               onClick={() => onSelect(startOfDay(d))}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-2xl py-2 transition-all shrink-0 w-[52px]",
+                "flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-all shrink-0 w-[44px]",
                 isSelected
                   ? "text-white"
                   : isToday
@@ -929,13 +926,13 @@ function DayView({
   }
 
   return (
-    <section className="glass rounded-2xl p-4">
+    <section className="glass rounded-2xl p-2 sm:p-3">
       <div className="overflow-x-auto">
         <div
-          className="grid min-w-[800px]"
-          style={{ gridTemplateColumns: `64px repeat(${employees.length}, minmax(180px,1fr))` }}
+          className="grid min-w-[860px]"
+          style={{ gridTemplateColumns: `58px repeat(${employees.length}, minmax(170px,1fr))` }}
         >
-          <div />
+          <div className="sticky left-0 z-30 bg-background/80 backdrop-blur-xl" />
           {employees.map((e) => {
             const total = dayAppts.filter((a) => a.employee_id === e.id).length;
             const inSvc = dayAppts.filter(
@@ -950,7 +947,7 @@ function DayView({
             return (
               <div
                 key={e.id}
-                className="px-3 pb-3 pt-1 border-l border-white/[0.04] flex items-center gap-2.5"
+                className="px-2.5 pb-2 pt-1 border-l border-white/[0.04] flex items-center gap-2"
               >
                 {e.avatar_url ? (
                   <img
@@ -982,11 +979,11 @@ function DayView({
             );
           })}
 
-          <div className="relative">
+          <div className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
             {HOURS.map((h) => (
               <div
                 key={h}
-                className="text-[11px] text-muted-foreground pr-2 text-right"
+                className="text-[11px] text-muted-foreground pr-2 text-right select-none"
                 style={{ height: ROW_PX }}
               >
                 <span className="relative -top-2">{String(h).padStart(2, "0")}:00</span>
@@ -1604,7 +1601,7 @@ function WeekView({
   const HOURS = openDays.length ? Array.from({ length: Math.max(0, hourEnd - hourStart) }, (_, i) => hourStart + i) : [];
 
   return (
-    <section className="glass rounded-2xl p-4">
+    <section className="glass rounded-2xl p-2 sm:p-3">
       <div className="overflow-x-auto">
         <div
           className="grid min-w-[900px]"
@@ -1638,11 +1635,11 @@ function WeekView({
             );
           })}
 
-          <div className="relative">
+          <div className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
             {HOURS.map((h) => (
               <div
                 key={h}
-                className="text-[11px] text-muted-foreground pr-2 text-right"
+                className="text-[11px] text-muted-foreground pr-2 text-right select-none"
                 style={{ height: ROW_PX }}
               >
                 <span className="relative -top-2">{String(h).padStart(2, "0")}:00</span>
@@ -1762,7 +1759,7 @@ function MonthView({
   });
 
   return (
-    <section className="glass rounded-2xl p-4">
+    <section className="glass rounded-2xl p-2 sm:p-3">
       <div className="grid grid-cols-7 gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
         {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
           <div key={d} className="px-2 py-1.5 text-center">
