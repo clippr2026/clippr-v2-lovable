@@ -3541,7 +3541,12 @@ function EquipoSection() {
       email,
       full_name: name,
       role: accessForm.role,
-      status: accessForm.status === "inactive" ? "suspended" : "active",
+      status:
+  editingAccessUserId && accessUsers.find((user) => user.id === editingAccessUserId)?.status === "invited"
+    ? "invited"
+    : accessForm.status === "inactive"
+      ? "suspended"
+      : "active",
       professional_id: accessForm.role === "profesional" ? (selectedEmployee?.id ?? null) : null,
       branch_id: accessForm.branch_id ?? null,
       permissions: accessPermissionsForm,
