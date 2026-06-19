@@ -393,7 +393,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        const { error: reactivateErr } = await admin
+       const { error: reactivateErr } = await admin
   .from("team_members")
   .update({
     auth_user_id: authUserId,
@@ -403,11 +403,10 @@ Deno.serve(async (req) => {
     permissions,
     professional_id: professionalId,
     branch_id: branchId,
-    status: authUserId ? "active" : "invited",
+    status: "active",
   })
-          .eq("id", existing.id)
-          .eq("business_id", businessId);
-
+  .eq("id", existing.id)
+  .eq("business_id", businessId);
         if (reactivateErr) return json({ error: reactivateErr.message }, 400);
         return json({ ok: true, reactivated: true, auth_user_id: authUserId });
       }
