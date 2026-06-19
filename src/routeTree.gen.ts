@@ -18,6 +18,7 @@ import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AgendaRouteImport } from './routes/agenda'
@@ -71,6 +72,11 @@ const InventoryRoute = InventoryRouteImport.update({
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CashRegisterRoute = CashRegisterRouteImport.update({
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
+  '/dashboard': typeof DashboardRoute
   '/inventory': typeof InventoryRoute
   '/login': typeof LoginRoute
   '/marketing': typeof MarketingRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
+  '/dashboard': typeof DashboardRoute
   '/inventory': typeof InventoryRoute
   '/login': typeof LoginRoute
   '/marketing': typeof MarketingRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
   '/clients': typeof ClientsRoute
+  '/dashboard': typeof DashboardRoute
   '/inventory': typeof InventoryRoute
   '/login': typeof LoginRoute
   '/marketing': typeof MarketingRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/appointments'
     | '/cash-register'
     | '/clients'
+    | '/dashboard'
     | '/inventory'
     | '/login'
     | '/marketing'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/appointments'
     | '/cash-register'
     | '/clients'
+    | '/dashboard'
     | '/inventory'
     | '/login'
     | '/marketing'
@@ -231,6 +242,7 @@ export interface FileRouteTypes {
     | '/appointments'
     | '/cash-register'
     | '/clients'
+    | '/dashboard'
     | '/inventory'
     | '/login'
     | '/marketing'
@@ -252,6 +264,7 @@ export interface RootRouteChildren {
   AppointmentsRoute: typeof AppointmentsRoute
   CashRegisterRoute: typeof CashRegisterRoute
   ClientsRoute: typeof ClientsRoute
+  DashboardRoute: typeof DashboardRoute
   InventoryRoute: typeof InventoryRoute
   LoginRoute: typeof LoginRoute
   MarketingRoute: typeof MarketingRoute
@@ -329,6 +342,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cash-register': {
       id: '/cash-register'
       path: '/cash-register'
@@ -404,6 +424,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppointmentsRoute: AppointmentsRoute,
   CashRegisterRoute: CashRegisterRoute,
   ClientsRoute: ClientsRoute,
+  DashboardRoute: DashboardRoute,
   InventoryRoute: InventoryRoute,
   LoginRoute: LoginRoute,
   MarketingRoute: MarketingRoute,
