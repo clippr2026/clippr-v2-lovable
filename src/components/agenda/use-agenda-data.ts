@@ -168,9 +168,10 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .eq("business_id", businessId)
         .order("full_name", { ascending: true }),
       supabase
-        .from("services")
-        .select("id,name,price,duration_min,is_active")
+        .from("price_catalog")
+        .select("id,name,price,duration_min,active,category")
         .eq("business_id", businessId)
+        .not("duration_min", "is", null)
         .order("name"),
       supabase
         .from("clients")
@@ -202,9 +203,18 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     );
     const svc =
       sRes.status === "fulfilled" && !sRes.value.error
-        ? ((sRes.value.data ?? []) as unknown as (Service & { is_active?: boolean })[])
+        ? ((sRes.value.data ?? []) as unknown as (Service & { active?: boolean | null; duration_min?: number | null })[])
         : [];
-    setServices(svc.filter((s) => s.is_active !== false));
+    setServices(
+      svc
+        .filter((s) => s.active !== false && s.duration_min != null)
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          price: Number(s.price) || 0,
+          duration: Number(s.duration_min) || 30,
+        })),
+    );
     setClients(
       cRes.status === "fulfilled" && !cRes.value.error
         ? ((cRes.value.data ?? []) as Client[])
@@ -233,6 +243,18 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           event: "*",
           schema: "public",
           table: "appointments",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => {
+          load();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "price_catalog",
           filter: `business_id=eq.${businessId}`,
         },
         () => {
