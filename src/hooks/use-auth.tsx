@@ -109,6 +109,8 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
   // ¿Este usuario es un miembro del equipo invitado? Si lo es, hereda el negocio
   // del que lo invitó y NO debemos crearle un negocio nuevo.
   type TeamMemberRow = {
+    id: string;
+    email: string | null;
     role: string | null;
     permissions: Record<string, boolean> | null;
     status: string | null;
@@ -116,25 +118,55 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     full_name: string | null;
     professional_id: string | null;
   };
+  const TM_COLS = "id, email, role, permissions, status, business_id, full_name, professional_id";
   let teamMember: TeamMemberRow | null = null;
   try {
-    const { data } = await supabase
+    // 1) Por auth_user_id (enlace ya realizado en un login anterior).
+    const { data: byUid } = await supabase
       .from("team_members")
-      .select("role, permissions, status, business_id, full_name, professional_id")
+      .select(TM_COLS)
       .eq("auth_user_id", uid)
       .maybeSingle();
-    teamMember = (data as TeamMemberRow | null) ?? null;
+    teamMember = (byUid as TeamMemberRow | null) ?? null;
+
+    // 2) Fallback por email. Cubre al invitado cuyo auth_user_id todavía no fue
+    //    enlazado: aún no completó set-password, el RPC accept_team_invitation
+    //    falló, o entró directo por la pantalla de login. Sin este fallback el
+    //    usuario cae en la rama "crear negocio" y ve un negocio vacío fantasma.
+    if (!teamMember && email) {
+      const { data: byEmail } = await supabase
+        .from("team_members")
+        .select(TM_COLS)
+        .ilike("email", email)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const row = (byEmail?.[0] as TeamMemberRow | undefined) ?? null;
+      if (row) {
+        teamMember = row;
+        // Self-heal idempotente: enlazar auth_user_id para acelerar próximos
+        // logins. Si RLS lo bloquea no pasa nada: el match por email se repite.
+        try {
+          await supabase.from("team_members").update({ auth_user_id: uid }).eq("id", row.id);
+        } catch (e) {
+          console.warn("[AUTH] team_member self-link:", (e as Error).message);
+        }
+      }
+    }
+
     console.log(
       "[link] auth.uid:", uid,
       "| team_member:", teamMember
-        ? JSON.stringify({ role: teamMember.role, status: teamMember.status, professional_id: teamMember.professional_id })
+        ? JSON.stringify({ role: teamMember.role, status: teamMember.status, professional_id: teamMember.professional_id, business_id: teamMember.business_id })
         : null,
     );
   } catch (e) {
     console.warn("[AUTH] team_member fetch:", (e as Error).message);
   }
 
-  let bizId: string | null = profile?.business_id ?? teamMember?.business_id ?? null;
+  // Prioridad CRÍTICA: el business_id del team_member SIEMPRE manda sobre el del
+  // profile. Esto repara usuarios que en un login previo (sin el enlace listo)
+  // quedaron con un profile.business_id apuntando a un negocio vacío fantasma.
+  let bizId: string | null = teamMember?.business_id ?? profile?.business_id ?? null;
 
   // Solo el flujo de dueño (sin team_member) busca/crea businesses.
   if (!bizId && !teamMember) {
