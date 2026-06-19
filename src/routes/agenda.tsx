@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   MessageCircle,
   UserRound,
-  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -24,8 +23,6 @@ import {
   useAgendaData,
   cancelAppointment,
   setAppointmentStatus,
-  checkOverlap,
-  checkSchedule,
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
@@ -100,7 +97,7 @@ const STATUS_META: Record<
 // Helpers de fechas
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
-const ROW_PX = 88;
+const ROW_PX = 98;
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -131,7 +128,7 @@ function fmtShortDow(d: Date) {
   return d.toLocaleDateString("es-AR", { weekday: "short" });
 }
 function fmtTime(d: Date) {
-  return `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
+  return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
 // ---------------------------------------------------------------------------
@@ -200,18 +197,6 @@ function AgendaPage() {
     startsAt?: Date | null;
   }>({});
   const [filterModal, setFilterModal] = React.useState<string | null>(null);
-  const [slotMenu, setSlotMenu] = React.useState<{
-    employeeId: string | null;
-    startsAt: Date;
-    x: number;
-    y: number;
-  } | null>(null);
-  const [blockDialog, setBlockDialog] = React.useState<{
-    employeeId: string | null;
-    startsAt: Date;
-    appointment?: Appointment | null;
-  } | null>(null);
-
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
     const target = startsAt ?? cursor;
@@ -220,132 +205,16 @@ function AgendaPage() {
       toast.error("Negocio cerrado este día.");
       return;
     }
-    setSlotMenu(null);
     setEditing(null);
     setDlgDefaults({ employeeId, startsAt });
     setDlgOpen(true);
   };
-
-  const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
-    const schedule = getScheduleForDate(data.schedule, startsAt);
-    if (!schedule?.enabled) {
-      toast.error("Negocio cerrado este día.");
-      return;
-    }
-
-    setSlotMenu({
-      employeeId,
-      startsAt,
-      x: event.clientX,
-      y: event.clientY,
-    });
-  };
-
-  const openBlockDialog = (employeeId: string | null, startsAt: Date, appointment?: Appointment | null) => {
-    setSlotMenu(null);
-    setBlockDialog({ employeeId, startsAt, appointment });
-  };
-
-  const saveBlock = async (payload: {
-    appointmentId?: string | null;
-    employeeId: string | null;
-    startsAt: Date;
-    endsAt: Date;
-    label: string;
-    repeatEnabled: boolean;
-    repeatEvery: number;
-    repeatCount: number;
-  }) => {
-    if (!data.businessId) {
-      toast.error("No se encontró el negocio.");
-      return;
-    }
-
-    const durationMin = Math.max(15, Math.round((payload.endsAt.getTime() - payload.startsAt.getTime()) / 60_000));
-    if (durationMin <= 0) {
-      toast.error("La hora de fin debe ser posterior a la hora de inicio.");
-      return;
-    }
-
-    try {
-      if (payload.appointmentId) {
-        const { error } = await supabase
-          .from("appointments")
-          .update({
-            client_name: payload.label || "Horario bloqueado",
-            employee_id: payload.employeeId,
-            service_name: "Bloqueo de horario",
-            service_price: 0,
-            starts_at: payload.startsAt.toISOString(),
-            ends_at: payload.endsAt.toISOString(),
-            duration_min: durationMin,
-            status: "blocked",
-            notes: payload.label ? `Horario bloqueado: ${payload.label}` : "Horario bloqueado desde Agenda",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", payload.appointmentId);
-        if (error) throw new Error(error.message);
-      } else {
-        const repeatTotal = payload.repeatEnabled ? Math.max(1, payload.repeatCount) : 1;
-        const repeatEvery = Math.max(1, payload.repeatEvery);
-        const rows = Array.from({ length: repeatTotal }, (_, index) => {
-          const startsAt = new Date(payload.startsAt);
-          startsAt.setDate(startsAt.getDate() + index * repeatEvery);
-          const endsAt = new Date(payload.endsAt);
-          endsAt.setDate(endsAt.getDate() + index * repeatEvery);
-          return {
-            business_id: data.businessId,
-            client_id: null,
-            client_name: payload.label || "Horario bloqueado",
-            employee_id: payload.employeeId,
-            service_name: "Bloqueo de horario",
-            service_price: 0,
-            starts_at: startsAt.toISOString(),
-            ends_at: endsAt.toISOString(),
-            duration_min: durationMin,
-            status: "blocked",
-            notes: payload.label ? `Horario bloqueado: ${payload.label}` : "Horario bloqueado desde Agenda",
-            created_by_name: profile?.full_name ?? null,
-            created_by_role: profile?.role ?? null,
-            updated_at: new Date().toISOString(),
-          };
-        });
-
-        const { error } = await supabase.from("appointments").insert(rows);
-        if (error) throw new Error(error.message);
-      }
-
-      setBlockDialog(null);
-      data.refresh();
-      toast.success(payload.appointmentId ? "Bloqueo actualizado" : "Horario bloqueado");
-    } catch (error) {
-      toast.error((error as Error).message);
-    }
-  };
-
-  const releaseBlock = async (a: Appointment) => {
-    try {
-      const { error } = await supabase.from("appointments").delete().eq("id", a.id);
-      if (error) throw new Error(error.message);
-      setDetailOpen(false);
-      setSelected(null);
-      data.refresh();
-      toast.success("Horario liberado");
-    } catch (error) {
-      toast.error((error as Error).message);
-    }
-  };
-
   const openDetail = (a: Appointment) => {
     setSelected(a);
     setDetailOpen(true);
   };
   const openEdit = (a: Appointment) => {
     setDetailOpen(false);
-    if (a.status === "blocked") {
-      openBlockDialog(a.employee_id ?? null, new Date(a.starts_at), a);
-      return;
-    }
     setEditing(a);
     setDlgDefaults({});
     setDlgOpen(true);
@@ -458,59 +327,98 @@ function AgendaPage() {
     cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
   };
 
-  // Always day view — navigation via the strip
   const move = (delta: number) => {
-    setCursor((c) => new Date(c.getTime() + delta * DAY_MS));
+    const step = view === "day" ? 1 : view === "week" ? 7 : 30;
+    setCursor((c) => new Date(c.getTime() + delta * step * DAY_MS));
   };
+
+  const headerLabel =
+    view === "day"
+      ? fmtDate(cursor)
+      : view === "month"
+        ? cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" })
+        : `${range.start.toLocaleDateString("es-AR")} – ${range.end.toLocaleDateString("es-AR")}`;
 
   return (
     <AppShell>
-      <div className="app-premium-shell -mt-4 sm:-mt-6 lg:-mt-8 space-y-0">
-      
-      <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-{/* Header compacto */}
-      <div className="flex items-center justify-between gap-3 mb-2 animate-fade-up">
-        <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              data.realtimeStatus === "disconnected" ? "bg-destructive" : "bg-success pulse-dot",
-            )}
-          />
-          <span>
-            {data.realtimeStatus === "disconnected"
-              ? "Sin conexión. Los cambios pueden no reflejarse inmediatamente."
-              : "Sincronizada en tiempo real"}
-          </span>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 animate-fade-up">
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Agenda</h1>
+
+        {/* All nav controls grouped together */}
+        <div className="flex items-center gap-1.5 glass rounded-2xl px-2 py-1.5">
+          {/* Hoy — leftmost */}
+          <button
+            onClick={() => setCursor(startOfDay(new Date()))}
+            className="px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition"
+          >
+            Hoy
+          </button>
+          <div className="h-4 w-px bg-white/10 mx-1" />
+          {/* Date label */}
+          <div className="inline-flex items-center gap-1.5 px-2 text-sm">
+            <CalendarIcon className="h-3.5 w-3.5 text-primary" />
+            <span className="capitalize text-sm font-medium">{headerLabel}</span>
+          </div>
+          <div className="h-4 w-px bg-white/10 mx-1" />
+          {/* View selector */}
+          {(["day", "week", "month"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-medium transition",
+                view === v
+                  ? "text-white shadow-[0_4px_16px_-6px_oklch(0.65_0.28_290/0.7)]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+              )}
+              style={view === v ? { background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))" } : undefined}
+            >
+              {v === "day" ? "Día" : v === "week" ? "Semana" : "Mes"}
+            </button>
+          ))}
+          <div className="h-4 w-px bg-white/10 mx-1" />
+          {/* Prev / Next */}
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => move(-1)}>
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => move(1)}>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
         </div>
-        <Button className="shrink-0 h-9 px-4" onClick={() => openNew(null, cursor)}>
+
+        <Button onClick={() => openNew(null, cursor)}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo turno
         </Button>
       </div>
 
-      {/* Modern day-strip navigation */}
-      <DayStripNav cursor={cursor} onSelect={setCursor} />
-
-      {/* Status pills — compact single row */}
-      <div className="flex items-center gap-2 flex-wrap mb-3 animate-fade-up">
+      {/* Quick stats */}
+      <section className="glass rounded-2xl px-5 py-3 mb-4 flex items-center gap-8 flex-wrap animate-fade-up">
         {([
-          ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
-          ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
-          ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
-          ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
-        ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
-          <button
-            key={k}
-            onClick={() => setFilterModal(k)}
-            className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110"
-            style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
-          >
-            <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
-            <span className="opacity-80">{label}</span>
-          </button>
+          ["pending",   "Pendientes",   "oklch(0.72 0.2 245)"],
+          ["confirmed", "Confirmados",  "oklch(0.72 0.26 305)"],
+          ["charged",   "Finalizados",  "oklch(0.76 0.2 155)"],
+          ["cancelled", "Cancelados",   "oklch(0.65 0.2 25)"],
+        ] as [string,string,string][]).map(([k, label, color]) => (
+          <div key={k} className="flex items-center gap-2.5 group py-1">
+            <span className="font-display text-xl font-semibold tabular-nums" style={{ color }}>
+              {(counts as Record<string,number>)[k] ?? 0}
+            </span>
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <button
+              onClick={() => setFilterModal(k)}
+              className="text-[10px] text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              →
+            </button>
+          </div>
         ))}
-        {data.loading && <span className="text-xs text-muted-foreground">Cargando…</span>}
-      </div>
+        {data.loading && (
+          <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
+            <Loader2 className="size-3 animate-spin" /> Cargando…
+          </div>
+        )}
+      </section>
 
       {/* Filter modal */}
       {filterModal && (() => {
@@ -556,54 +464,36 @@ function AgendaPage() {
         );
       })()}
 
-      {/* Always day view */}
-      <DayView
-        date={cursor}
-        data={data}
-        schedule={getScheduleForDate(data.schedule, cursor)}
-        onSlotClick={openSlotMenu}
-        onApptClick={openDetail}
-        onChangeStatus={onChangeStatus}
-        onCobrar={goToCobro}
-      />
-
-      {slotMenu ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default"
-            onClick={() => setSlotMenu(null)}
-            aria-label="Cerrar opciones de casillero"
-          />
-          <div
-            className="fixed z-50 w-56 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
-            style={{
-              left: Math.min(slotMenu.x, window.innerWidth - 240),
-              top: Math.min(slotMenu.y, window.innerHeight - 150),
-            }}
-          >
-            <div className="border-b border-white/10 px-3 py-2 text-xs text-muted-foreground">
-              {slotMenu.startsAt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · {fmtTime(slotMenu.startsAt)}
-            </div>
-            <button
-              type="button"
-              onClick={() => openNew(slotMenu.employeeId, slotMenu.startsAt)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-            >
-              <CalendarIcon className="h-4 w-4 text-primary" />
-              Agregar turno
-            </button>
-            <button
-              type="button"
-              onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-            >
-              <XCircle className="h-4 w-4 text-amber-300" />
-              Bloquear horario
-            </button>
-          </div>
-        </>
-      ) : null}
+      {/* Calendar */}
+      {view === "day" ? (
+        <DayView
+          date={cursor}
+          data={data}
+          schedule={getScheduleForDate(data.schedule, cursor)}
+          onSlotClick={openNew}
+          onApptClick={openDetail}
+          onChangeStatus={onChangeStatus}
+          onCobrar={goToCobro}
+        />
+      ) : view === "week" ? (
+        <WeekView
+          start={startOfWeek(cursor)}
+          appointments={data.appointments}
+          schedule={data.schedule}
+          onApptClick={openDetail}
+          onSlotClick={(date) => openNew(null, date)}
+        />
+      ) : (
+        <MonthView
+          cursor={cursor}
+          appointments={data.appointments}
+          onApptClick={openDetail}
+          onPickDay={(d) => {
+            setCursor(d);
+            setView("day");
+          }}
+        />
+      )}
 
       <AppointmentDetailDialog
         open={detailOpen}
@@ -618,23 +508,10 @@ function AgendaPage() {
         onChangeStatus={onChangeStatus}
         onMarkDeposit={onMarkDeposit}
         onCancelWithDeposit={onCancelWithDeposit}
-        onReleaseBlock={releaseBlock}
       />
-
-      <BlockHoursDialog
-        open={Boolean(blockDialog)}
-        onOpenChange={(open) => { if (!open) setBlockDialog(null); }}
-        employees={data.employees}
-        initialEmployeeId={blockDialog?.employeeId ?? null}
-        initialStartsAt={blockDialog?.startsAt ?? cursor}
-        appointment={blockDialog?.appointment ?? null}
-        onSave={saveBlock}
-      />
-
-      </div>
 
       {data.businessId && (
-      <AppointmentDialog
+        <AppointmentDialog
           open={dlgOpen}
           onOpenChange={setDlgOpen}
           appointment={editing}
@@ -647,114 +524,9 @@ function AgendaPage() {
           createdByName={profile?.full_name}
           createdByRole={profile?.role}
           onSaved={data.refresh}
-          schedule={data.schedule}
         />
       )}
     </AppShell>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// DayStripNav — modern horizontal day navigation (shared by Agenda & Mi Agenda)
-// ---------------------------------------------------------------------------
-function DayStripNav({
-  cursor,
-  onSelect,
-}: {
-  cursor: Date;
-  onSelect: (d: Date) => void;
-}) {
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-  const today = startOfDay(new Date());
-
-  // Pool: 180 days centered on cursor (90 before/after) — regenerates when cursor moves month
-  const days = React.useMemo(() => {
-    const base = startOfDay(cursor);
-    return Array.from({ length: 181 }, (_, i) => new Date(base.getTime() + (i - 90) * DAY_MS));
-  }, [cursor.getFullYear(), cursor.getMonth()]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Scroll selected day into center
-  React.useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const cursorStr = cursor.toISOString().slice(0, 10);
-    const idx = days.findIndex(d => d.toISOString().slice(0, 10) === cursorStr);
-    if (idx === -1) return;
-    const itemWidth = 48;
-    container.scrollTo({ left: Math.max(0, idx * itemWidth - container.clientWidth / 2 + itemWidth / 2), behavior: "smooth" });
-  }, [cursor, days]);
-
-  // Month label always tracks the selected cursor date
-  const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-  const cursorStr = cursor.toISOString().slice(0, 10);
-  const todayStr = today.toISOString().slice(0, 10);
-
-  return (
-    <div className="glass rounded-2xl mb-3 overflow-hidden animate-fade-up mx-auto w-full max-w-5xl">
-      {/* Month label + today button */}
-      <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onSelect(startOfDay(new Date(cursor.getFullYear(), cursor.getMonth() - 1, cursor.getDate())))}
-            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <span className="text-sm font-semibold capitalize">{monthLabel}</span>
-          <button
-            onClick={() => onSelect(startOfDay(new Date(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate())))}
-            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        {cursorStr !== todayStr && (
-          <button
-            onClick={() => onSelect(startOfDay(new Date()))}
-            className="text-xs font-medium text-primary hover:text-primary/80 transition"
-          >
-            Hoy
-          </button>
-        )}
-      </div>
-
-      {/* Scrollable day strip */}
-      <div
-        ref={scrollRef}
-        className="flex gap-1 overflow-x-auto px-2 pb-2 scroll-smooth"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-      >
-        {days.map((d) => {
-          const dStr = d.toISOString().slice(0, 10);
-          const isSelected = dStr === cursorStr;
-          const isToday = dStr === todayStr;
-          const dow = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "").slice(0, 3);
-          return (
-            <button
-              key={dStr}
-              onClick={() => onSelect(startOfDay(d))}
-              className={cn(
-                "flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-all shrink-0 w-[44px]",
-                isSelected
-                  ? "text-white"
-                  : isToday
-                    ? "text-primary ring-1 ring-primary/30 bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
-              )}
-              style={isSelected ? {
-                background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
-                color: "white",
-              } : undefined}
-            >
-              <span className="text-[10px] uppercase tracking-wider font-medium">{dow}</span>
-              <span className="text-base font-semibold leading-none tabular-nums">
-                {d.getDate()}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -824,7 +596,7 @@ function DayView({
   date: Date;
   data: ReturnType<typeof useAgendaData>;
   schedule: ReturnType<typeof getScheduleForDate>;
-  onSlotClick: (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => void;
+  onSlotClick: (employeeId: string | null, startsAt: Date) => void;
   onApptClick: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
@@ -865,32 +637,11 @@ function DayView({
     newStart.setHours(hour, 0, 0, 0);
     const dur = Number(appt.duration_min ?? 30);
     const newEnd = new Date(newStart.getTime() + dur * 60000);
-    const targetEmpId = empId === "__none__" ? null : empId;
     try {
-      // Schedule validation before moving
-      const schedErr = checkSchedule(data.schedule, newStart, dur);
-      if (schedErr) { toast.error(schedErr); return; }
-
-      // Overlap check before moving
-      if (targetEmpId) {
-        const conflict = await checkOverlap(
-          targetEmpId,
-          newStart.toISOString(),
-          dur,
-          apptId, // exclude self
-        );
-        if (conflict) {
-          const conflictTime = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-          toast.error(
-            `Este profesional ya tiene un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`,
-          );
-          return;
-        }
-      }
       const { error } = await supabase.from("appointments").update({
         starts_at: newStart.toISOString(),
         ends_at: newEnd.toISOString(),
-        employee_id: targetEmpId,
+        employee_id: empId === "__none__" ? null : empId,
       }).eq("id", apptId);
       if (error) throw new Error(error.message);
       data.refresh();
@@ -926,13 +677,13 @@ function DayView({
   }
 
   return (
-    <section className="glass rounded-2xl p-2 sm:p-3">
+    <section className="glass rounded-2xl p-4">
       <div className="overflow-x-auto">
         <div
-          className="grid min-w-[860px]"
-          style={{ gridTemplateColumns: `58px repeat(${employees.length}, minmax(170px,1fr))` }}
+          className="grid min-w-[800px]"
+          style={{ gridTemplateColumns: `64px repeat(${employees.length}, minmax(180px,1fr))` }}
         >
-          <div className="sticky left-0 z-30 bg-background/80 backdrop-blur-xl" />
+          <div />
           {employees.map((e) => {
             const total = dayAppts.filter((a) => a.employee_id === e.id).length;
             const inSvc = dayAppts.filter(
@@ -947,7 +698,7 @@ function DayView({
             return (
               <div
                 key={e.id}
-                className="px-2.5 pb-2 pt-1 border-l border-white/[0.04] flex items-center gap-2"
+                className="px-3 pb-3 pt-1 border-l border-white/[0.04] flex items-center gap-2.5"
               >
                 {e.avatar_url ? (
                   <img
@@ -979,11 +730,11 @@ function DayView({
             );
           })}
 
-          <div className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
+          <div className="relative">
             {HOURS.map((h) => (
               <div
                 key={h}
-                className="text-[11px] text-muted-foreground pr-2 text-right select-none"
+                className="text-[11px] text-muted-foreground pr-2 text-right"
                 style={{ height: ROW_PX }}
               >
                 <span className="relative -top-2">{String(h).padStart(2, "0")}:00</span>
@@ -1000,10 +751,10 @@ function DayView({
                   style={{ height: ROW_PX }}
                   onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }}
                   onDrop={(ev) => handleDrop(ev, e.id, h)}
-                  onClick={(event) => {
+                  onClick={() => {
                     const dt = new Date(date);
                     dt.setHours(h, 0, 0, 0);
-                    onSlotClick(e.id === "__none__" ? null : e.id, dt, event);
+                    onSlotClick(e.id === "__none__" ? null : e.id, dt);
                   }}
                 />
               ))}
@@ -1138,216 +889,6 @@ function IconBtn({
   );
 }
 
-
-function dateInputValue(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function timeParts(date: Date) {
-  return {
-    hour: String(date.getHours()).padStart(2, "0"),
-    minute: String(date.getMinutes()).padStart(2, "0"),
-  };
-}
-
-function combineLocalDateTime(date: string, hour: string, minute: string) {
-  return new Date(`${date}T${hour}:${minute}:00`);
-}
-
-function BlockHoursDialog({
-  open,
-  onOpenChange,
-  employees,
-  initialEmployeeId,
-  initialStartsAt,
-  appointment,
-  onSave,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  employees: ReturnType<typeof useAgendaData>["employees"];
-  initialEmployeeId: string | null;
-  initialStartsAt: Date;
-  appointment: Appointment | null;
-  onSave: (payload: {
-    appointmentId?: string | null;
-    employeeId: string | null;
-    startsAt: Date;
-    endsAt: Date;
-    label: string;
-    repeatEnabled: boolean;
-    repeatEvery: number;
-    repeatCount: number;
-  }) => void;
-}) {
-  const start = appointment ? new Date(appointment.starts_at) : initialStartsAt;
-  const end = appointment?.ends_at
-    ? new Date(appointment.ends_at)
-    : new Date(start.getTime() + 60 * 60_000);
-  const startTime = timeParts(start);
-  const endTime = timeParts(end);
-  const [label, setLabel] = React.useState(appointment?.client_name === "Horario bloqueado" ? "" : appointment?.client_name ?? "");
-  const [employeeId, setEmployeeId] = React.useState(initialEmployeeId ?? "");
-  const [startDate, setStartDate] = React.useState(dateInputValue(start));
-  const [startHour, setStartHour] = React.useState(startTime.hour);
-  const [startMinute, setStartMinute] = React.useState(startTime.minute);
-  const [endDate, setEndDate] = React.useState(dateInputValue(end));
-  const [endHour, setEndHour] = React.useState(endTime.hour);
-  const [endMinute, setEndMinute] = React.useState(endTime.minute);
-  const [repeatEnabled, setRepeatEnabled] = React.useState(false);
-  const [repeatEvery, setRepeatEvery] = React.useState("1");
-  const [repeatCount, setRepeatCount] = React.useState("5");
-
-  React.useEffect(() => {
-    if (!open) return;
-    const nextStart = appointment ? new Date(appointment.starts_at) : initialStartsAt;
-    const nextEnd = appointment?.ends_at
-      ? new Date(appointment.ends_at)
-      : new Date(nextStart.getTime() + 60 * 60_000);
-    const nextStartTime = timeParts(nextStart);
-    const nextEndTime = timeParts(nextEnd);
-    setLabel(appointment?.client_name === "Horario bloqueado" ? "" : appointment?.client_name ?? "");
-    setEmployeeId((appointment?.employee_id ?? initialEmployeeId) || "");
-    setStartDate(dateInputValue(nextStart));
-    setStartHour(nextStartTime.hour);
-    setStartMinute(nextStartTime.minute);
-    setEndDate(dateInputValue(nextEnd));
-    setEndHour(nextEndTime.hour);
-    setEndMinute(nextEndTime.minute);
-    setRepeatEnabled(false);
-    setRepeatEvery("1");
-    setRepeatCount("5");
-  }, [open, appointment, initialEmployeeId, initialStartsAt]);
-
-  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
-  const minutes = ["00", "15", "30", "45"];
-
-  const inputClass = "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
-  const selectClass = "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl p-0 overflow-hidden" aria-describedby={undefined}>
-        <DialogHeader className="px-6 py-5 border-b border-white/10 bg-white/[0.025]">
-          <DialogTitle>{appointment ? "Editar bloqueo de horas" : "Bloqueo de horas"}</DialogTitle>
-        </DialogHeader>
-
-        <div className="max-h-[70vh] overflow-y-auto p-6 space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-            <label className="block text-sm font-semibold">
-              Motivo/Etiqueta
-              <input
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="Ej: Almuerzo, trámite, capacitación"
-                className={`${inputClass} mt-2 w-full`}
-              />
-            </label>
-            <label className="block text-sm font-semibold">
-              Profesional
-              <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                <option value="">Sin asignar</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.full_name ?? employee.name ?? "Profesional"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-            <div className="grid grid-cols-[1fr_120px_120px] gap-3 items-end">
-              <label className="block text-sm font-semibold">
-                Fecha de inicio
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
-              </label>
-              <label className="block text-sm font-semibold">
-                Hora
-                <select value={startHour} onChange={(e) => setStartHour(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                &nbsp;
-                <select value={startMinute} onChange={(e) => setStartMinute(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
-            </div>
-            <div className="grid grid-cols-[1fr_120px_120px] gap-3 items-end">
-              <label className="block text-sm font-semibold">
-                Fecha de fin
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
-              </label>
-              <label className="block text-sm font-semibold">
-                Hora
-                <select value={endHour} onChange={(e) => setEndHour(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                &nbsp;
-                <select value={endMinute} onChange={(e) => setEndMinute(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
-            </div>
-          </div>
-
-          {!appointment && (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-              <label className="flex items-center gap-3 text-sm font-semibold">
-                <input type="checkbox" checked={repeatEnabled} onChange={(e) => setRepeatEnabled(e.target.checked)} />
-                Repetir bloqueo
-              </label>
-              {repeatEnabled && (
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block text-sm font-semibold">
-                    Cada
-                    <div className="mt-2 flex items-center gap-2">
-                      <input type="number" min="1" value={repeatEvery} onChange={(e) => setRepeatEvery(e.target.value)} className={`${inputClass} w-20`} />
-                      <span className="text-sm text-muted-foreground">día(s)</span>
-                    </div>
-                  </label>
-                  <label className="block text-sm font-semibold">
-                    Finaliza después de
-                    <div className="mt-2 flex items-center gap-2">
-                      <input type="number" min="1" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} className={`${inputClass} w-24`} />
-                      <span className="text-sm text-muted-foreground">repeticiones</span>
-                    </div>
-                  </label>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-4">
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button
-            onClick={() => onSave({
-              appointmentId: appointment?.id,
-              employeeId: employeeId || null,
-              startsAt: combineLocalDateTime(startDate, startHour, startMinute),
-              endsAt: combineLocalDateTime(endDate, endHour, endMinute),
-              label: label.trim(),
-              repeatEnabled,
-              repeatEvery: Number(repeatEvery || 1),
-              repeatCount: Number(repeatCount || 1),
-            })}
-          >
-            {appointment ? "Guardar cambios" : "Guardar bloqueo"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function AppointmentDetailDialog({
   open,
   onOpenChange,
@@ -1361,7 +902,6 @@ function AppointmentDetailDialog({
   onChangeStatus,
   onMarkDeposit,
   onCancelWithDeposit,
-  onReleaseBlock,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -1375,7 +915,6 @@ function AppointmentDetailDialog({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return") => void;
-  onReleaseBlock: (a: Appointment) => void;
 }) {
   if (!appointment) return null;
 
@@ -1389,58 +928,45 @@ function AppointmentDetailDialog({
   const email = client?.email ?? null;
   const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
   const requiresDeposit = Boolean(appointment.deposit_status && appointment.deposit_status !== "none");
-  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
-  const statusLabel = appointment.status === "charged"
-    ? "Cobrado"
-    : appointment.status === "confirmed"
-      ? "Confirmado"
-      : appointment.status === "cancelled"
-        ? "Cancelado"
-        : appointment.status === "in_service"
-          ? "En servicio"
-          : "Pendiente";
+  const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })} · ${fmtTime(start)} a ${fmtTime(end)}`;
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border-white/10 bg-[#08070f]/95 shadow-[0_28px_90px_-28px_rgba(0,0,0,0.95)] backdrop-blur-2xl" aria-describedby={undefined}>
-        <DialogHeader className="relative px-5 pt-5 pb-4 border-b border-white/10 bg-white/[0.025]">
-          <div className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-25 blur-3xl" style={{ background: meta.dot }} />
-          <div className="relative flex items-start justify-between gap-3">
+      <DialogContent className="sm:max-w-xl p-0 overflow-hidden" aria-describedby={undefined}>
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-white/10 bg-white/[0.025]">
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: meta.dot }}>
-                <span className="size-1.5 rounded-full" style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }} />
-                {statusLabel}
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cliente</div>
+              <DialogTitle className="mt-1 text-2xl font-display truncate">{appointment.client_name || "Sin cliente"}</DialogTitle>
+              <div className="mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1" style={{ color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}`, background: meta.bg }}>
+                {meta.label}
               </div>
-              <DialogTitle className="text-[28px] leading-none font-display tracking-tight truncate">
-                {appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}
-              </DialogTitle>
             </div>
             <div className="flex gap-2 pr-6">
-              <Button size="sm" variant="secondary" className="h-8 rounded-full border-white/10 bg-white/[0.06] px-3 text-xs hover:bg-white/[0.1]" onClick={() => onFicha(appointment)}>
+              <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onFicha(appointment)}>
                 <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
               </Button>
-              <Button size="sm" variant="secondary" className="h-8 rounded-full border-white/10 bg-white/[0.06] px-3 text-xs hover:bg-white/[0.1]" onClick={() => onEdit(appointment)}>
+              <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => onEdit(appointment)}>
                 Editar
               </Button>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-3.5 p-5">
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="space-y-4 p-6">
+          <div className="rounded-2xl p-4 ring-1 ring-white/10" style={{ background: meta.bg }}>
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">Turno</div>
-                <div className="mt-1.5 text-lg font-semibold leading-tight truncate">{appointment.service_name || "Servicio"}</div>
-                <div className="mt-2 text-sm text-white/70">{dateText}</div>
-                <div className="mt-1 text-sm text-white/45">
-                  Profesional: <span className="text-white/85">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+              <div>
+                <div className="text-lg font-semibold">{appointment.service_name || "Servicio"}</div>
+                <div className="mt-2 text-sm text-foreground/80 capitalize">{dateText}</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Profesional: <span className="text-foreground">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
                 </div>
               </div>
               {appointment.service_price ? (
-                <div className="shrink-0 text-right text-2xl font-display font-semibold tracking-tight">
+                <div className="text-right text-2xl font-display font-semibold">
                   ${Number(appointment.service_price).toLocaleString("es-AR")}
                 </div>
               ) : null}
@@ -1473,65 +999,43 @@ function AppointmentDetailDialog({
 
           <div className="grid gap-2 text-sm">
             {phone && (
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-2.5">
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">Teléfono</div>
-                  <div className="mt-0.5 truncate text-white/85">{phone}</div>
-                </div>
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
+                <span>{phone}</span>
                 {whatsappHref && (
-                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition">
+                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-500/30 transition">
                     <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
                   </a>
                 )}
               </div>
             )}
-            {email && (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-2.5">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">Email</div>
-                <div className="mt-0.5 truncate text-white/85">{email}</div>
-              </div>
-            )}
+            {email && <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">{email}</div>}
             {appointment.notes && (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-2.5">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35 mb-1">Notas</div>
-                <div className="text-white/80">{appointment.notes}</div>
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Notas</div>
+                {appointment.notes}
               </div>
             )}
           </div>
 
-          {appointment.status === "blocked" ? (
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={() => onEdit(appointment)}>Editar bloqueo</Button>
-              <Button variant="destructive" onClick={() => onReleaseBlock(appointment)}>Liberar horario</Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                onClick={() => onCobrar(appointment)}
-                disabled={appointment.status === "charged"}
-                className={appointment.status === "charged"
-                  ? "rounded-2xl border-white/10 bg-white/[0.06] text-white/45"
-                  : "rounded-2xl border-0 bg-emerald-500/90 text-white hover:bg-emerald-400 shadow-[0_12px_30px_-16px_rgba(16,185,129,0.9)]"}
-              >
-                <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={() => onCobrar(appointment)} disabled={appointment.status === "charged"}>
+              <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
+            </Button>
+            {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
+              <Button variant="destructive" onClick={() => onCancel(appointment)}>
+                Cancelar turno
               </Button>
-              {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
-                <Button variant="destructive" onClick={() => onCancel(appointment)} className="rounded-2xl bg-rose-500/90 hover:bg-rose-400 text-white border-0 shadow-[0_12px_30px_-16px_rgba(244,63,94,0.9)]">
-                  Cancelar turno
+            ) : (
+              requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
+                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
+                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
                 </Button>
-              ) : (
-                requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
-                  <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
-                    <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
-                  </Button>
-                )
-              )}
-            </div>
-          )}
+              )
+            )}
+          </div>
 
-          {appointment.status !== "blocked" && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
-            <div className="text-[10px] uppercase tracking-[0.18em] mb-2 text-white/35">Cambiar estado</div>
+          <div className="rounded-2xl bg-white/[0.025] ring-1 ring-white/10 p-3">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Cambiar estado</div>
             <div className="flex flex-wrap gap-2">
               {([
                 ["pending", "Pendiente"],
@@ -1543,11 +1047,11 @@ function AppointmentDetailDialog({
                   <button
                     key={status}
                     onClick={() => onChangeStatus(appointment, status)}
-                    className="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition"
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition"
                     style={{
-                      background: isActive ? `${sMeta.dot}18` : "rgba(255,255,255,0.035)",
+                      background: isActive ? sMeta.bg : "rgba(255,255,255,0.03)",
                       color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
-                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.dot}55` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.border}, 0 0 12px -4px ${sMeta.dot}` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
                     }}
                   >
                     {label}
@@ -1556,7 +1060,6 @@ function AppointmentDetailDialog({
               })}
             </div>
           </div>
-          )}
 
           {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status === "paid" && (
             <div className="space-y-3 rounded-2xl bg-rose-500/5 ring-1 ring-rose-400/20 p-4">
@@ -1601,7 +1104,7 @@ function WeekView({
   const HOURS = openDays.length ? Array.from({ length: Math.max(0, hourEnd - hourStart) }, (_, i) => hourStart + i) : [];
 
   return (
-    <section className="glass rounded-2xl p-2 sm:p-3">
+    <section className="glass rounded-2xl p-4">
       <div className="overflow-x-auto">
         <div
           className="grid min-w-[900px]"
@@ -1635,11 +1138,11 @@ function WeekView({
             );
           })}
 
-          <div className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
+          <div className="relative">
             {HOURS.map((h) => (
               <div
                 key={h}
-                className="text-[11px] text-muted-foreground pr-2 text-right select-none"
+                className="text-[11px] text-muted-foreground pr-2 text-right"
                 style={{ height: ROW_PX }}
               >
                 <span className="relative -top-2">{String(h).padStart(2, "0")}:00</span>
@@ -1759,7 +1262,7 @@ function MonthView({
   });
 
   return (
-    <section className="glass rounded-2xl p-2 sm:p-3">
+    <section className="glass rounded-2xl p-4">
       <div className="grid grid-cols-7 gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
         {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
           <div key={d} className="px-2 py-1.5 text-center">
