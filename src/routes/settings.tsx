@@ -94,7 +94,6 @@ type SectionId =
   | "catalogo"
   | "caja"
   | "senas"
-  | "apariencia"
   | "plan";
 
 type NavItem = {
@@ -160,13 +159,6 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Banknote,
         tint: "text-[oklch(0.80_0.18_45)]",
         glow: "from-[oklch(0.80_0.18_45/0.25)] to-[oklch(0.75_0.2_35/0.05)]",
-      },
-      {
-        id: "apariencia" as const,
-        label: "Apariencia",
-        icon: Palette,
-        tint: "text-[oklch(0.78_0.18_310)]",
-        glow: "from-[oklch(0.78_0.18_310/0.25)] to-[oklch(0.65_0.22_295/0.05)]",
       },
     ],
   },
@@ -6352,8 +6344,6 @@ function SettingsPage() {
             
             {active === "catalogo" && <CatalogoSection />}
             {active === "caja" && <CajaSection />}
-            {active === "apariencia" && <AparienciaSection />}
-
             {active === "plan" && <PlanSection />}
           </section>
         </div>

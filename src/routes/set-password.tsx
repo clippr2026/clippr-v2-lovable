@@ -24,28 +24,72 @@ function SetPasswordPage() {
   const [saving, setSaving] = React.useState(false);
   const [done, setDone] = React.useState(false);
 
-  // La sesión llega en el hash de la URL (detectSessionInUrl, activo por defecto).
+  // La invitación puede llegar como hash (#access_token=...) o como code (?code=...).
+  // En móvil algunos navegadores no disparan detectSessionInUrl de forma consistente,
+  // por eso procesamos la URL manualmente y evitamos que quede eternamente en "Validando".
   React.useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      if (data.session?.user) {
-        setEmail(data.session.user.email ?? null);
-        setReady(true);
+    let validationTimer: ReturnType<typeof setTimeout> | null = null;
+
+    async function hydrateInvitationSession() {
+      try {
+        setError(null);
+
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
+        }
+
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const accessToken = hash.get("access_token");
+        const refreshToken = hash.get("refresh_token");
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        const { data } = await supabase.auth.getSession();
+        if (!active) return;
+        if (data.session?.user) {
+          setEmail(data.session.user.email ?? null);
+          setReady(true);
+        }
+      } catch (err) {
+        if (!active) return;
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No pudimos validar la invitación. Volvé a abrir el enlace desde el correo.",
+        );
       }
-    });
+    }
+
+    hydrateInvitationSession();
+
+    validationTimer = setTimeout(() => {
+      if (!active || ready) return;
+      setError("No pudimos validar la invitación. Volvé a abrir el enlace desde el correo.");
+    }, 5000);
+
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
       if (session?.user) {
         setEmail(session.user.email ?? null);
         setReady(true);
+        setError(null);
       }
     });
+
     return () => {
       active = false;
+      if (validationTimer) clearTimeout(validationTimer);
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [ready]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +113,7 @@ function SetPasswordPage() {
     await supabase.rpc("accept_team_invitation");
     setSaving(false);
     setDone(true);
-    setTimeout(() => navigate({ to: "/dashboard", replace: true }), 1300);
+    setTimeout(() => navigate({ to: "/", replace: true }), 1300);
   }
 
   const inputCls =
@@ -101,9 +145,9 @@ function SetPasswordPage() {
 
         {!ready && !done && (
           <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-center text-sm text-muted-foreground">
-            Validando tu invitación…
-            <div className="mt-2 text-xs text-muted-foreground/70">
-              Si esto no avanza, volvé a abrir el enlace del email de invitación.
+            {error ? "No pudimos validar tu invitación" : "Validando tu invitación…"}
+            <div className={`mt-2 text-xs ${error ? "text-red-300" : "text-muted-foreground/70"}`}>
+              {error || "Si esto no avanza, volvé a abrir el enlace del email de invitación."}
             </div>
           </div>
         )}
