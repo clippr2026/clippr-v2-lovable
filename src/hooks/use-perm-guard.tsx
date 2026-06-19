@@ -4,7 +4,7 @@ import { useAuth, type PermKey } from "@/hooks/use-auth";
 import { AppShell } from "@/components/app-shell";
 
 const PERM_ROUTES: Array<{ key: PermKey; to: string }> = [
-  { key: "dashboard", to: "/" },
+  { key: "dashboard", to: "/dashboard" },
   { key: "agenda", to: "/agenda" },
   { key: "caja", to: "/cash-register" },
   { key: "profesionales", to: "/professionals" },
