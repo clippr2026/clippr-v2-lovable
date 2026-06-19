@@ -3552,7 +3552,20 @@ function EquipoSection() {
     });
     setSaving(false);
 
-    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    let errMsg = (data as { error?: string } | null)?.error ?? null;
+    if (error) {
+      try {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          const body = await ctx.json();
+          errMsg = body?.error ?? errMsg ?? error.message;
+        } else {
+          errMsg = errMsg ?? error.message;
+        }
+      } catch {
+        errMsg = errMsg ?? error.message;
+      }
+    }
     if (errMsg) return toast.error("Error: " + errMsg);
 
     toast.success(
