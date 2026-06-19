@@ -3552,20 +3552,7 @@ function EquipoSection() {
     });
     setSaving(false);
 
-    let errMsg = (data as { error?: string } | null)?.error ?? null;
-    if (error) {
-      try {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx && typeof ctx.json === "function") {
-          const body = await ctx.json();
-          errMsg = body?.error ?? errMsg ?? error.message;
-        } else {
-          errMsg = errMsg ?? error.message;
-        }
-      } catch {
-        errMsg = errMsg ?? error.message;
-      }
-    }
+    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
     if (errMsg) return toast.error("Error: " + errMsg);
 
     toast.success(
@@ -3608,21 +3595,20 @@ function EquipoSection() {
       setPendingDeleteUser(null);
       return toast.error("El administrador principal no se puede eliminar.");
     }
+
     setDeletingAccess(true);
-    // Soft-delete determinístico: conservamos la fila como "tombstone" con
-    // status='deleted' y desvinculamos auth_user_id. Esto revoca el acceso real:
-    //  • resolveBusinessId ignora estados revocados → el usuario queda sin negocio.
-    //  • impide que reviva por email o por profile.business_id.
-    //  • la fila tombstone marca que NO es un dueño nuevo, así no se le crea un
-    //    "negocio fantasma" al volver a entrar.
-    const { error } = await supabase
-      .from("team_members")
-      .update({ status: "deleted", auth_user_id: null })
-      .eq("id", id)
-      .eq("business_id", businessId);
+    const { data, error } = await supabase.functions.invoke("invite-team-member", {
+      body: {
+        action: "delete",
+        business_id: businessId,
+        member_id: id,
+      },
+    });
     setDeletingAccess(false);
     setPendingDeleteUser(null);
-    if (error) return toast.error(error.message);
+
+    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    if (errMsg) return toast.error("Error eliminando acceso: " + errMsg);
 
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
     if (editingAccessUserId === id) cancelEditAccessUser();
