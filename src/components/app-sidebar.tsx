@@ -38,7 +38,7 @@ const ALL_NAV: Array<{
   permKey?: PermKey;
   badge?: string;
 }> = [
-  { label: "Dashboard", to: "/", icon: LayoutDashboard, permKey: "dashboard" },
+  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, permKey: "dashboard" },
   { label: "Agenda", to: "/agenda", icon: Calendar, permKey: "agenda" },
   { label: "Caja", to: "/cash-register", icon: Wallet, permKey: "caja" },
   { label: "Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
@@ -71,7 +71,7 @@ export function useSidebarToggle() {
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2.5 shrink-0">
+    <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
       <div
         className="h-9 w-9 rounded-xl grid place-items-center font-display text-lg text-white"
         style={{
