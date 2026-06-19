@@ -74,6 +74,10 @@ const ALL_FALSE_PERMS: Record<PermKey, boolean> = ALL_PERM_KEYS.reduce(
   {} as Record<PermKey, boolean>,
 );
 
+// Estados de team_member que NO otorgan acceso (acceso revocado o inactivo).
+// Un miembro en cualquiera de estos estados se trata como SIN negocio.
+const REVOKED_STATUSES = new Set(["suspended", "deleted", "removed", "inactive", "blocked"]);
+
 type AuthState = {
   loading: boolean;
   session: Session | null;
@@ -143,12 +147,15 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
       const row = (byEmail?.[0] as TeamMemberRow | undefined) ?? null;
       if (row) {
         teamMember = row;
-        // Self-heal idempotente: enlazar auth_user_id para acelerar próximos
-        // logins. Si RLS lo bloquea no pasa nada: el match por email se repite.
-        try {
-          await supabase.from("team_members").update({ auth_user_id: uid }).eq("id", row.id);
-        } catch (e) {
-          console.warn("[AUTH] team_member self-link:", (e as Error).message);
+        const rowRevoked = REVOKED_STATUSES.has(String(row.status ?? "active").toLowerCase());
+        // Self-heal idempotente SOLO si el acceso sigue vigente. Un acceso
+        // revocado (eliminado/suspendido) NUNCA debe re-enlazarse a este auth uid.
+        if (!rowRevoked) {
+          try {
+            await supabase.from("team_members").update({ auth_user_id: uid }).eq("id", row.id);
+          } catch (e) {
+            console.warn("[AUTH] team_member self-link:", (e as Error).message);
+          }
         }
       }
     }
@@ -163,30 +170,41 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     console.warn("[AUTH] team_member fetch:", (e as Error).message);
   }
 
-  // Prioridad CRÍTICA: el business_id del team_member SIEMPRE manda sobre el del
-  // profile. Esto repara usuarios que en un login previo (sin el enlace listo)
-  // quedaron con un profile.business_id apuntando a un negocio vacío fantasma.
-  let bizId: string | null = teamMember?.business_id ?? profile?.business_id ?? null;
+  // ── Resolución del negocio ────────────────────────────────────────────────
+  // ¿El miembro está vigente? Un acceso revocado (eliminado/suspendido) no da
+  // negocio aunque la fila tombstone siga existiendo.
+  const memberActive =
+    !!teamMember && !REVOKED_STATUSES.has(String(teamMember.status ?? "active").toLowerCase());
 
-  // Solo el flujo de dueño (sin team_member) busca/crea businesses.
-  if (!bizId && !teamMember) {
+  // ¿El usuario es DUEÑO de un negocio? Independiente del profile/tombstone, para
+  // que un dueño nunca quede bloqueado. Solo se busca si no es miembro activo.
+  let ownedBizId: string | null = null;
+  if (!memberActive) {
     const searches: Array<{ col: string; val: string | null }> = [
       { col: "owner_id", val: uid },
       { col: "owner_email", val: email },
       { col: "user_id", val: uid },
     ];
     for (const s of searches) {
-      if (bizId || !s.val) continue;
+      if (ownedBizId || !s.val) continue;
       try {
         const { data } = await supabase.from("businesses").select("id").eq(s.col, s.val).maybeSingle();
-        if (data?.id) bizId = data.id;
+        if (data?.id) ownedBizId = data.id;
       } catch {
         /* columna puede no existir */
       }
     }
   }
 
-  if (!bizId && !teamMember) {
+  // Prioridad: miembro activo → su negocio; si no, dueño → su negocio; si no → null.
+  // NUNCA usamos profile.business_id como fuente: eso es lo que "revivía" accesos
+  // ya eliminados y los dejaba pegados a un negocio.
+  let bizId: string | null = memberActive ? teamMember!.business_id : (ownedBizId ?? null);
+
+  // Crear negocio SOLO para un dueño nuevo genuino: nunca fue invitado (no hay
+  // fila en team_members, ni siquiera tombstone) y no posee negocio. Así un
+  // acceso eliminado no genera un "negocio fantasma" al volver a entrar.
+  if (!bizId && !teamMember && !ownedBizId) {
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
     const bizName =
       (meta.business_name as string | undefined) || email?.split("@")[0] || "Mi Negocio";
@@ -228,21 +246,21 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
   };
 
   // Permisos reales del usuario: si es team_member, salen de su fila.
-  // Suspendido → sin permisos. Dueño (sin team_member) → null (usa defaults de rol).
+  // Revocado/suspendido → sin permisos. Dueño (sin team_member) → null (defaults de rol).
   let teamPermissions: Record<PermKey, boolean> | null = null;
   if (teamMember) {
-    teamPermissions =
-      teamMember.status === "suspended"
-        ? { ...ALL_FALSE_PERMS }
-        : mapTeamPermissions(teamMember.permissions);
+    teamPermissions = !memberActive
+      ? { ...ALL_FALSE_PERMS }
+      : mapTeamPermissions(teamMember.permissions);
   }
 
-  if (bizId) {
-    try {
-      await supabase.from("profiles").upsert(profileData, { onConflict: "id" });
-    } catch (e) {
-      console.warn("[AUTH] profile upsert:", (e as Error).message);
-    }
+  // Persistimos el profile SIEMPRE (incluso con bizId null): así un acceso
+  // revocado queda DESVINCULADO del negocio en la base (business_id = null) y no
+  // "revive" en el próximo login.
+  try {
+    await supabase.from("profiles").upsert(profileData, { onConflict: "id" });
+  } catch (e) {
+    console.warn("[AUTH] profile upsert:", (e as Error).message);
   }
 
   return { businessId: bizId, profile: profileData, teamPermissions };
