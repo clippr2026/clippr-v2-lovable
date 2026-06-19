@@ -394,18 +394,17 @@ Deno.serve(async (req) => {
         }
 
         const { error: reactivateErr } = await admin
-          .from("team_members")
-          .update({
-            auth_user_id: authUserId,
-            email,
-            full_name: fullName,
-            role,
-            permissions,
-            professional_id: professionalId,
-            branch_id: branchId,
-            status: authUserId ? "active" : "invited",
-            updated_at: new Date().toISOString(),
-          })
+  .from("team_members")
+  .update({
+    auth_user_id: authUserId,
+    email,
+    full_name: fullName,
+    role,
+    permissions,
+    professional_id: professionalId,
+    branch_id: branchId,
+    status: authUserId ? "active" : "invited",
+  })
           .eq("id", existing.id)
           .eq("business_id", businessId);
 
