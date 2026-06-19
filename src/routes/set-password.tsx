@@ -69,7 +69,7 @@ function SetPasswordPage() {
     await supabase.rpc("accept_team_invitation");
     setSaving(false);
     setDone(true);
-    setTimeout(() => navigate({ to: "/", replace: true }), 1300);
+    setTimeout(() => navigate({ to: "/dashboard", replace: true }), 1300);
   }
 
   const inputCls =

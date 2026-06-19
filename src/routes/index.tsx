@@ -1,654 +1,311 @@
 import * as React from "react";
-import { cn } from "@/lib/utils";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AppShell } from "@/components/app-shell";
-import { Topbar } from "@/components/topbar";
-import { useAuth } from "@/hooks/use-auth";
-import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
-import { supabase } from "@/integrations/supabase/client";
-import { DateRangePicker } from "@/components/date-range-picker";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  useDashboardData,
-  fmtAR,
-  type DashboardData,
-  type RecentCancellation,
-} from "@/components/dashboard/use-dashboard-data";
-import {
-  DollarSign,
-  ArrowDownCircle,
-  Wallet,
-  XCircle,
+  ArrowRight,
+  Brain,
+  CalendarDays,
+  ChartNoAxesCombined,
+  CheckCircle2,
+  CircleDollarSign,
+  Crown,
+  Menu,
+  Smartphone,
+  Sparkles,
+  Users,
+  WalletCards,
+  X,
 } from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ReferenceLine,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import dashboardImg from "@/assets/landing/dashboard.jpeg";
+import advisorImg from "@/assets/landing/advisor.jpeg";
+import agendaImg from "@/assets/landing/agenda.jpeg";
+import cashImg from "@/assets/landing/cash.jpeg";
+import clientsImg from "@/assets/landing/clients.jpeg";
+import professionalsImg from "@/assets/landing/professionals.jpeg";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Panel — Clippr" },
-      { name: "description", content: "Panel premium para barberías y salones." },
+      { title: "Clippr — Software para barberías que quieren crecer" },
+      {
+        name: "description",
+        content:
+          "Agenda, caja, clientes, profesionales y Asesor IA para administrar tu barbería como una empresa.",
+      },
     ],
   }),
-  component: DashboardRoute,
+  component: LandingPage,
 });
 
-function DashboardRoute() {
-  const hasAccess = usePermGuard("dashboard");
-  const { loading, session, businessId, profile } = useAuth();
-  const navigate = useNavigate();
-
-  React.useEffect(() => {
-    if (!loading && !session) navigate({ to: "/login", replace: true });
-  }, [loading, session, navigate]);
-
-  if (!hasAccess) return <AccessDenied />;
-
-  if (loading || !session) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-background">
-        <div className="text-sm text-muted-foreground">Cargando…</div>
-      </div>
-    );
-  }
-
-  const firstName = (profile?.full_name ?? "Usuario").split(" ")[0];
-
-  return (
-    <AppShell>
-      <Topbar
-        title="Dashboard"
-        subtitle="Resumen del negocio"
-        action={<div />}
-      />
-      <DashboardContent businessId={businessId} />
-    </AppShell>
-  );
-}
-
-function DashboardContent({ businessId }: { businessId: string | null }) {
-  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [fromStr, setFromStr] = React.useState(todayStr);
-  const [toStr, setToStr] = React.useState(todayStr);
-
-  const range = React.useMemo(() => {
-    const MIN = new Date("2000-01-01");
-    const MAX = new Date("2099-12-31");
-    const from = new Date(fromStr + "T00:00:00");
-    const to   = new Date(toStr   + "T23:59:59");
-    // If either date is invalid or out of range, return null to show zeros
-    if (isNaN(from.getTime()) || isNaN(to.getTime()) || from < MIN || to > MAX) return null;
-    if (to < from) return { from: to, to: from };
-    return { from, to };
-  }, [fromStr, toStr]);
-
-  const { data, isLoading, error } = useDashboardData(businessId, range ?? null);
-  const [activeMetric, setActiveMetric] = React.useState<"ingresos"|"gastos"|"utilidad">("ingresos");
-
-  const setQuickRange = (days: number) => {
-    const to = new Date();
-    const from = new Date();
-    from.setDate(to.getDate() - (days - 1));
-    setFromStr(from.toISOString().slice(0, 10));
-    setToStr(to.toISOString().slice(0, 10));
-  };
-
-  if (!businessId) {
-    return (
-      <div className="glass rounded-2xl p-6 text-sm text-muted-foreground">
-        No se encontró un negocio asignado a esta cuenta.
-      </div>
-    );
-  }
-
-  const dateBar = (
-    <div className="glass dashboard-date-glow rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="uppercase tracking-wider">Rango</span>
-      </div>
-      <DateRangePicker
-        className="w-full sm:w-auto"
-        from={fromStr}
-        to={toStr}
-        onChange={({ from, to }) => {
-          setFromStr(from);
-          setToStr(to);
-        }}
-      />
-    </div>
-  );
-
-  if (isLoading || !data) {
-    return (
-      <div className="space-y-4">
-        {dateBar}
-        <div className="glass rounded-2xl p-6 text-sm text-muted-foreground">
-          Cargando datos del rango…
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-4">
-        {dateBar}
-        <div className="glass rounded-2xl p-6 text-sm text-destructive">
-          Error cargando dashboard: {(error as Error).message}
-        </div>
-      </div>
-    );
-  }
-
-  const utilidad = data.utilidad;
-
-  return (
-    <div className="dashboard-premium-shell space-y-5 animate-fade-up">
-      {dateBar}
-      {/* Top stat cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        <Stat
-          active={activeMetric === "ingresos"}
-          onClick={() => setActiveMetric("ingresos")}
-          label="Ingresos"
-          value={fmtAR(data.revHoy)}
-          icon={DollarSign}
-          tone="primary"
-          spark={data.revByDay}
-        />
-        <Stat
-          active={activeMetric === "gastos"}
-          onClick={() => setActiveMetric("gastos")}
-          label="Gastos"
-          value={fmtExpenseAR(data.totalGastos)}
-          icon={ArrowDownCircle}
-          tone="danger"
-          spark={data.gastosByDay}
-        />
-        <Stat
-          active={activeMetric === "utilidad"}
-          onClick={() => setActiveMetric("utilidad")}
-          label="Utilidad"
-          value={fmtAR(utilidad)}
-          icon={Wallet}
-          tone="success"
-          spark={data.revByDay.map((v, i) => v - (data.gastosByDay?.[i] ?? 0))}
-        />
-      </section>
-{/* Revenue chart + breakdown */}
-      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)] gap-4 items-stretch">
-        <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
-        <ServicesDonut data={data} />
-      </section>
-
-    </div>
-  );
-}
-
-const TONE = {
-  primary: {
-    ring: "ring-primary/20",
-    bg: "bg-primary/10",
-    icon: "text-primary",
-    fillFrom: "oklch(0.66 0.22 265 / 0.3)",
-    fillTo: "oklch(0.66 0.22 265 / 0)",
-    stroke: "oklch(0.66 0.22 265)",
+const sections = [
+  {
+    eyebrow: "Asesor IA",
+    title: "Descubrí qué está frenando el crecimiento de tu negocio",
+    text: "Clippr analiza ventas, clientes, ocupación, utilidad y rendimiento para mostrarte acciones concretas todos los días.",
+    cta: "Conocer Asesor IA",
+    icon: Brain,
+    image: advisorImg,
+    tone: "from-blue-500/25 via-violet-500/20 to-fuchsia-500/25",
   },
-  danger: {
-    ring: "ring-rose-400/20",
-    bg: "bg-rose-400/10",
-    icon: "text-rose-400",
-    fillFrom: "rgb(251 113 133 / 0.3)",
-    fillTo: "rgb(251 113 133 / 0)",
-    stroke: "rgb(251 113 133)",
+  {
+    eyebrow: "Agenda",
+    title: "Nunca más pierdas un turno",
+    text: "Reservas online, agenda sincronizada en tiempo real, estados claros y control completo del día de cada profesional.",
+    cta: "Ver agenda",
+    icon: CalendarDays,
+    image: agendaImg,
+    tone: "from-sky-500/25 via-blue-500/15 to-violet-500/25",
   },
-  success: {
-    ring: "ring-emerald-400/20",
-    bg: "bg-emerald-400/10",
-    icon: "text-emerald-400",
-    fillFrom: "rgb(52 211 153 / 0.3)",
-    fillTo: "rgb(52 211 153 / 0)",
-    stroke: "rgb(52 211 153)",
+  {
+    eyebrow: "Caja",
+    title: "Sabé exactamente cuánto ganás",
+    text: "Controlá ingresos, pendientes, gastos, comisiones, inventario y liquidaciones sin mezclar cuentas.",
+    cta: "Ver caja",
+    icon: CircleDollarSign,
+    image: cashImg,
+    tone: "from-violet-500/25 via-blue-500/15 to-emerald-500/20",
   },
-  neutral: {
-    ring: "ring-white/10",
-    bg: "bg-white/5",
-    icon: "text-muted-foreground",
-    fillFrom: "rgb(255 255 255 / 0.15)",
-    fillTo: "rgb(255 255 255 / 0)",
-    stroke: "rgb(255 255 255 / 0.4)",
+  {
+    eyebrow: "Clientes",
+    title: "Fidelizá y recuperá clientes",
+    text: "Identificá VIP, nuevos, activos, inactivos y perdidos para saber a quién cuidar, recuperar o premiar.",
+    cta: "Ver clientes",
+    icon: Users,
+    image: clientsImg,
+    tone: "from-fuchsia-500/25 via-violet-500/15 to-amber-400/20",
   },
-} as const;
-
-function Stat({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  tone = "neutral",
-  spark,
-  active = false,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ComponentType<{ className?: string }>;
-  tone?: keyof typeof TONE;
-  spark?: number[];
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const t = TONE[tone];
-  const id = React.useId().replace(/:/g, "");
-  const sparkData = (spark ?? []).map((v, i) => ({ i, v }));
-  const hasSpark = sparkData.some((d) => d.v > 0);
-
-  return (
-    <div
-      onClick={onClick}
-      className={cn(
-        "glass glass-hover rounded-2xl p-5 relative overflow-hidden transition-all",
-        tone === "primary" && "stat-glow-primary",
-        tone === "danger" && "stat-glow-danger",
-        tone === "success" && "stat-glow-success",
-        onClick && "cursor-pointer",
-        active && "ring-2 ring-primary/65 shadow-[0_0_34px_-8px_oklch(0.66_0.22_265)]"
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className={`h-9 w-9 rounded-xl grid place-items-center ring-1 ${t.ring} ${t.bg}`}>
-            <Icon className={`h-4 w-4 ${t.icon}`} />
-          </div>
-          <span className="text-sm">{label}</span>
-        </div>
-      </div>
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-display text-3xl font-semibold tracking-tight truncate">{value}</div>
-          <div className="text-xs text-muted-foreground mt-1.5">{sub}</div>
-        </div>
-        {hasSpark && (
-          <div className="h-12 w-28 shrink-0 opacity-90">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparkData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id={`g${id}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={t.fillFrom} />
-                    <stop offset="100%" stopColor={t.fillTo} />
-                  </linearGradient>
-                </defs>
-                <Area
-                  type="monotone"
-                  dataKey="v"
-                  stroke={t.stroke}
-                  strokeWidth={2}
-                  fill={`url(#g${id})`}
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Revenue chart (7d)
-// ---------------------------------------------------------------------------
-function fmtExpenseAR(value: number) {
-  const abs = Math.abs(Math.round(value || 0));
-  return abs > 0 ? `-$${abs.toLocaleString("es-AR")}` : "$0";
-}
-
-function RevenueChart({ data, activeMetric, fromStr, toStr }: {
-  data: DashboardData;
-  activeMetric: "ingresos" | "gastos" | "utilidad";
-  fromStr: string;
-  toStr: string;
-}) {
-  const isSingleDay = fromStr === toStr;
-
-  const rawHourlyGastos = data.hoursGastosValues ?? data.hoursValues.map(() => 0);
-  const rawDailyGastos = data.gastosByDay ?? data.revByDay.map(() => 0);
-
-  // Si el gasto no tiene hora real, no lo dejamos en 0: lo ubicamos al inicio del día.
-  // Así "Gastos" muestra el total real y "Utilidad" resta correctamente.
-  const hourlyGastos =
-    isSingleDay && data.totalGastos > 0 && rawHourlyGastos.every((v) => Number(v || 0) === 0)
-      ? rawHourlyGastos.map((_, i) => (i === 0 ? data.totalGastos : 0))
-      : rawHourlyGastos;
-
-  const dailyGastos =
-    !isSingleDay && data.totalGastos > 0 && rawDailyGastos.every((v) => Number(v || 0) === 0)
-      ? rawDailyGastos.map((_, i) => (i === 0 ? data.totalGastos : 0))
-      : rawDailyGastos;
-
-  const metricConfig: Record<"ingresos" | "gastos" | "utilidad", { label: string; values: number[]; fmt: (v: number) => string; total: number }> = {
-    ingresos: {
-      label: "Ingresos",
-      values: isSingleDay ? data.hoursValues : data.revByDay,
-      fmt: fmtAR,
-      total: data.revHoy,
-    },
-    gastos: {
-      label: "Gastos",
-      values: isSingleDay ? hourlyGastos : dailyGastos,
-      fmt: fmtExpenseAR,
-      total: data.totalGastos,
-    },
-    utilidad: {
-      label: "Utilidad",
-      values: isSingleDay
-        ? data.hoursValues.map((v, i) => v - (hourlyGastos[i] ?? 0))
-        : data.revByDay.map((v, i) => v - (dailyGastos[i] ?? 0)),
-      fmt: fmtAR,
-      total: data.utilidad,
-    },
-  };
-
-  const cfg = metricConfig[activeMetric] ?? metricConfig.ingresos;
-
-  const chart = isSingleDay
-    ? data.hoursLabels.map((h, i) => ({
-        day: h,
-        value: cfg.values[i] ?? 0,
-      }))
-    : data.days7.map((d, i) => ({
-        day: new Date(d + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
-        value: cfg.values[i] ?? 0,
-      }));
-
-  const rangeLabel = isSingleDay
-    ? `Hoy · ${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}`
-    : `${new Date(fromStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} al ${new Date(toStr + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
-
-  const strokeColor =
-    activeMetric === "gastos"
-      ? "rgb(251 113 133)"
-      : activeMetric === "utilidad"
-        ? "rgb(52 211 153)"
-        : "oklch(0.72 0.2 245)";
-
-  return (
-    <div className="glass dashboard-chart-glow rounded-2xl p-5 relative overflow-hidden h-full">
-      <div className="pointer-events-none absolute -top-20 left-1/4 h-40 w-56 rounded-full bg-primary/20 blur-[90px]" />
-      <div className="pointer-events-none absolute -bottom-24 right-1/4 h-40 w-56 rounded-full bg-cyan-400/10 blur-[90px]" />
-      <div className="relative flex items-start justify-between mb-1">
-        <div>
-          <div className="text-xs text-muted-foreground">{cfg.label}</div>
-          <div className="font-display text-3xl font-semibold tracking-tight mt-1">
-            {cfg.fmt(cfg.total)}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">{rangeLabel}</div>
-        </div>
-      </div>
-      <div className="revenue-area-glow h-64 sm:h-72 mt-3 -mx-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart key={activeMetric} data={chart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id={`chart-grad-${activeMetric}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={strokeColor} stopOpacity={0.42} />
-                <stop offset="100%" stopColor={strokeColor} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="oklch(1 0 0 / 0.05)" vertical={false} />
-            <XAxis
-              dataKey="day"
-              tickLine={false}
-              axisLine={false}
-              interval={2}
-              tick={{ fill: "oklch(0.65 0.025 270)", fontSize: 11 }}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: "oklch(0.65 0.025 270)", fontSize: 11 }}
-              width={58}
-              domain={activeMetric === "utilidad" ? ["auto", "auto"] : [0, "auto"]}
-              tickFormatter={(v) => {
-                const n = Number(v);
-                const sign = n < 0 ? "-" : "";
-                const abs = Math.abs(n);
-                return abs >= 1000 ? `${sign}${Math.round(abs / 1000)}k` : `${sign}${abs}`;
-              }}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "oklch(0.14 0.03 282)",
-                border: "1px solid oklch(1 0 0 / 0.08)",
-                borderRadius: 12,
-                fontSize: 12,
-              }}
-              labelStyle={{ color: "oklch(0.85 0 0)" }}
-              formatter={(v: number) => [cfg.fmt(Number(v)), cfg.label]}
-            />
-            {activeMetric === "utilidad" ? (
-              <ReferenceLine y={0} stroke="oklch(1 0 0 / 0.18)" strokeDasharray="4 4" />
-            ) : null}
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke={strokeColor}
-              strokeWidth={2.5}
-              fill={`url(#chart-grad-${activeMetric})`}
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Services donut
-// ---------------------------------------------------------------------------
-const DONUT_COLORS = [
-  "oklch(0.82 0.16 200)", // cyan
-  "oklch(0.72 0.26 305)", // purple
-  "oklch(0.76 0.2 155)", // green
-  "oklch(0.78 0.17 55)", // orange
-  "oklch(0.72 0.2 245)", // blue
-  "oklch(0.66 0.24 25)", // red
+  {
+    eyebrow: "Equipo",
+    title: "Medí el rendimiento de tus profesionales",
+    text: "Cada profesional tiene agenda, ventas, historial, pagos y métricas para ordenar el trabajo del equipo.",
+    cta: "Ver equipo",
+    icon: Crown,
+    image: professionalsImg,
+    tone: "from-cyan-500/20 via-violet-500/15 to-fuchsia-500/20",
+  },
 ];
 
-function ServicesDonut({ data }: { data: DashboardData }) {
-  const [view, setView] = React.useState<"all" | "services" | "catalog">("all");
+const benefits = [
+  "Sin Excel",
+  "Sin turnos duplicados",
+  "Con IA para decidir mejor",
+  "Todo desde el celular",
+];
 
-  const serviceItems = data.topServices.length
-    ? data.topServices
-    : [];
-
-  // Por ahora el dashboard solo recibe servicios desde useDashboardData.
-  // Cuando se conecten ventas de catálogo/productos, se pueden mapear acá.
-  const catalogItems: Array<{ name: string; rev: number; count: number; pct: number }> = [];
-
-  const sourceItems =
-    view === "catalog" ? catalogItems : serviceItems;
-
-  const total = sourceItems.reduce((sum, item) => sum + Number(item.rev || 0), 0);
-
-  const items = sourceItems.length
-    ? sourceItems.map((item) => ({
-        ...item,
-        pct: total > 0 ? Math.round((Number(item.rev || 0) / total) * 100) : 0,
-      }))
-    : [{ name: view === "catalog" ? "Sin datos de catálogo" : "Sin datos", rev: 1, count: 0, pct: 100 }];
-
-  const displayTotal = sourceItems.length ? total : 0;
-
-  const title =
-    view === "catalog" ? "Catálogo" : view === "services" ? "Servicios" : "Todos";
+function LandingPage() {
+  const [menuOpen, setMenuOpen] = React.useState(false);
 
   return (
-    <div className="glass dashboard-donut-glow rounded-2xl p-5 relative overflow-hidden h-full">
-      <div className="pointer-events-none absolute -top-16 right-8 h-36 w-36 rounded-full bg-cyan-400/16 blur-[72px]" />
-      <div className="pointer-events-none absolute -bottom-16 left-8 h-36 w-36 rounded-full bg-primary/14 blur-[72px]" />
-      <div className="relative flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-muted-foreground">Desglose</div>
-          <div className="font-display text-xl font-semibold mt-0.5">{title}</div>
-        </div>
-
-        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
-          {[
-            ["all", "Todos"],
-            ["services", "Servicios"],
-            ["catalog", "Catálogo"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setView(key as "all" | "services" | "catalog")}
-              className={cn(
-                "rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
-                view === key
-                  ? "bg-primary text-white shadow-[0_8px_20px_-14px_oklch(0.65_0.28_290/0.8)]"
-                  : "text-muted-foreground hover:text-white",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+    <main className="min-h-screen overflow-hidden bg-[#05040b] text-white selection:bg-blue-500/40">
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-blue-500/25 blur-[120px]" />
+        <div className="absolute top-[16%] -left-40 h-[520px] w-[520px] rounded-full bg-violet-600/25 blur-[130px]" />
+        <div className="absolute top-[46%] -right-44 h-[520px] w-[520px] rounded-full bg-fuchsia-500/20 blur-[130px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(5,4,11,.72)_42%,#05040b_100%)]" />
       </div>
 
-      <div className="relative mt-5 grid gap-5">
-        <div className="donut-chart-glow mx-auto relative h-[170px] w-[170px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={items}
-                dataKey="rev"
-                nameKey="name"
-                innerRadius={58}
-                outerRadius={82}
-                paddingAngle={2}
-                stroke="none"
-                isAnimationActive={false}
-              >
-                {items.map((_, i) => (
-                  <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="absolute inset-0 grid place-items-center pointer-events-none">
-            <div className="text-center">
-              <div className="font-display text-lg font-semibold leading-none">
-                {fmtAR(displayTotal)}
-              </div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-                Total
-              </div>
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#070612]/75 backdrop-blur-2xl">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Link to="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-blue-400 to-fuchsia-500 font-display text-xl font-bold shadow-[0_0_34px_rgba(124,85,255,.55)]">
+              C
+            </div>
+            <span className="font-display text-2xl font-semibold tracking-tight">Clippr</span>
+          </Link>
+          <nav className="hidden items-center gap-8 text-sm font-medium text-white/70 md:flex">
+            <a href="#ia" className="transition hover:text-white">Asesor IA</a>
+            <a href="#funciones" className="transition hover:text-white">Funciones</a>
+            <a href="#app" className="transition hover:text-white">App</a>
+            <Link to="/login" className="transition hover:text-white">Ingresar</Link>
+          </nav>
+          <div className="hidden items-center gap-3 md:flex">
+            <Link
+              to="/login"
+              className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white/85 transition hover:border-white/25 hover:bg-white/5"
+            >
+              Iniciar sesión
+            </Link>
+            <Link
+              to="/login"
+              className="rounded-full bg-[#4f7dff] px-6 py-3 text-sm font-bold text-white shadow-[0_16px_38px_-18px_rgba(79,125,255,.9)] transition hover:brightness-110"
+            >
+              Empezar gratis
+            </Link>
+          </div>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/5 md:hidden"
+            aria-label="Abrir menú"
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+        {menuOpen && (
+          <div className="border-t border-white/10 bg-[#070612] px-5 py-5 md:hidden">
+            <div className="grid gap-3 text-lg font-semibold">
+              <a href="#ia" onClick={() => setMenuOpen(false)}>Asesor IA</a>
+              <a href="#funciones" onClick={() => setMenuOpen(false)}>Funciones</a>
+              <a href="#app" onClick={() => setMenuOpen(false)}>App</a>
+              <Link to="/login" onClick={() => setMenuOpen(false)}>Ingresar</Link>
+              <Link to="/login" className="mt-2 rounded-full bg-[#4f7dff] px-5 py-3 text-center">Empezar gratis</Link>
+            </div>
+          </div>
+        )}
+      </header>
+
+      <section className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-16 text-center sm:px-8 lg:pb-28 lg:pt-24">
+        <div className="mx-auto mb-8 inline-flex items-center gap-3 rounded-full border border-fuchsia-300/50 bg-fuchsia-500/15 px-4 py-2 text-sm font-semibold text-fuchsia-100 shadow-[0_0_40px_rgba(232,121,249,.2)]">
+          <Sparkles className="h-4 w-4" />
+          Presentamos Clippr IA
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-fuchsia-400 text-black">
+            <ArrowRight className="h-4 w-4" />
+          </span>
+        </div>
+        <h1 className="mx-auto max-w-5xl font-display text-5xl font-black uppercase leading-[0.95] tracking-[-0.05em] sm:text-7xl lg:text-8xl">
+          El software para barberías que quieren crecer
+        </h1>
+        <p className="mx-auto mt-7 max-w-3xl text-xl leading-relaxed text-white/70 sm:text-2xl">
+          Controlá agenda, caja, clientes, equipo y rentabilidad desde un solo lugar. Con IA que analiza tu negocio y te dice qué mejorar.
+        </p>
+        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link
+            to="/login"
+            className="inline-flex min-h-14 items-center justify-center rounded-full bg-[#4f7dff] px-8 text-base font-bold text-white shadow-[0_20px_48px_-20px_rgba(79,125,255,.95)] transition hover:scale-[1.02] hover:brightness-110"
+          >
+            Empezar gratis
+          </Link>
+          <a
+            href="#funciones"
+            className="inline-flex min-h-14 items-center justify-center rounded-full border border-white/15 bg-white/5 px-8 text-base font-bold text-white transition hover:border-white/30 hover:bg-white/10"
+          >
+            Ver cómo funciona
+          </a>
+        </div>
+        <div className="mt-7 flex flex-wrap justify-center gap-3 text-sm text-white/60">
+          {benefits.map((benefit) => (
+            <span key={benefit} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[.03] px-4 py-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-300" /> {benefit}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative mx-auto mt-16 max-w-[980px]">
+          <div className="absolute left-1/2 top-10 h-[78%] w-[82%] -translate-x-1/2 rounded-[3rem] bg-gradient-to-br from-blue-500/35 to-fuchsia-500/30 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[2.4rem] border border-white/15 bg-white/[.04] p-3 shadow-[0_50px_120px_-50px_rgba(79,125,255,.6)] backdrop-blur">
+            <img src={advisorImg} alt="Asesor IA de Clippr" className="mx-auto max-h-[720px] w-full rounded-[1.8rem] object-cover object-top" />
+          </div>
+        </div>
+      </section>
+
+      <section id="funciones" className="relative z-10 space-y-20 pb-20 lg:space-y-28 lg:pb-28">
+        {sections.map((section, index) => (
+          <FeatureBlock key={section.title} {...section} reverse={index % 2 === 1} id={index === 0 ? "ia" : undefined} />
+        ))}
+      </section>
+
+      <section id="app" className="relative z-10 mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28">
+        <div className="grid items-center gap-10 lg:grid-cols-[1fr_.95fr]">
+          <div>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-fuchsia-300/35 bg-fuchsia-500/10 px-4 py-2 text-sm font-bold text-fuchsia-100">
+              <Smartphone className="h-4 w-4" /> App de reservas
+            </div>
+            <h2 className="font-display text-5xl font-black uppercase leading-none tracking-[-0.05em] sm:text-7xl">
+              Tu barbería en el teléfono de tus clientes
+            </h2>
+            <p className="mt-6 max-w-xl text-xl leading-relaxed text-white/68">
+              Tus clientes pueden reservar desde una página pública premium y volver cuando quieran desde su celular. Menos mensajes, menos errores, más turnos.
+            </p>
+            <Link to="/login" className="mt-8 inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/5 px-7 py-4 text-lg font-bold transition hover:bg-white/10">
+              Sé un ícono <span className="grid h-9 w-9 place-items-center rounded-full bg-fuchsia-400 text-black"><ArrowRight className="h-5 w-5" /></span>
+            </Link>
+          </div>
+          <div className="relative min-h-[560px]">
+            <div className="absolute inset-x-8 top-10 h-[390px] rounded-[2rem] bg-fuchsia-300" />
+            <div className="absolute left-1/2 top-0 w-[70%] -translate-x-1/2 overflow-hidden rounded-[1.6rem] border border-white/25 bg-white/10 shadow-2xl">
+              <img src={dashboardImg} alt="Dashboard Clippr" className="h-[420px] w-full object-cover object-top opacity-95" />
+            </div>
+            <div className="absolute bottom-4 left-1/2 w-[72%] -translate-x-1/2 rounded-[2rem] border border-white/20 bg-[#06040c]/95 p-7 shadow-[0_28px_80px_-30px_rgba(0,0,0,.9)]">
+              <div className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-[1.7rem] bg-gradient-to-br from-blue-400 to-fuchsia-500 text-4xl font-bold shadow-[0_0_46px_rgba(168,85,247,.55)]">C</div>
+              <h3 className="font-display text-4xl font-black uppercase leading-none">Fidelizá a tus clientes</h3>
+              <p className="mt-3 text-white/60">Reservas simples, experiencia premium y tu marca siempre presente.</p>
             </div>
           </div>
         </div>
+      </section>
 
-        <ul className="space-y-2 min-w-0">
-          {items.slice(0, 5).map((s, i) => (
-            <li key={s.name} className="flex items-center gap-2 text-xs">
-              <span
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }}
-              />
-              <span className="truncate text-foreground/90 flex-1">{s.name}</span>
-              <span className="text-muted-foreground tabular-nums">{displayTotal ? fmtAR(s.rev) : fmtAR(0)}</span>
-              <span className="text-foreground/80 tabular-nums w-9 text-right">{displayTotal ? s.pct : 0}%</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+      <section className="relative z-10 mx-auto max-w-7xl px-5 py-20 text-center sm:px-8 lg:py-28">
+        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-white/[.04] px-6 py-16 backdrop-blur-2xl sm:px-12 lg:py-24">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-violet-500/10 to-fuchsia-500/20" />
+          <div className="relative">
+            <h2 className="mx-auto max-w-4xl font-display text-5xl font-black uppercase leading-none tracking-[-0.05em] sm:text-7xl">
+              Administrá tu barbería como una empresa
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-xl text-white/68">
+              Turnos, clientes, ventas, profesionales y decisiones más inteligentes en un solo sistema.
+            </p>
+            <Link to="/login" className="mt-9 inline-flex min-h-16 items-center justify-center rounded-full bg-[#4f7dff] px-10 text-lg font-black uppercase tracking-wide shadow-[0_24px_58px_-24px_rgba(79,125,255,.95)] transition hover:scale-[1.02] hover:brightness-110">
+              Crear cuenta gratis
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <footer className="relative z-10 border-t border-white/10 px-5 py-10 sm:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 text-white/55 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 text-white">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-400 to-fuchsia-500 font-bold">C</div>
+            <span className="font-display text-xl font-semibold">Clippr</span>
+          </div>
+          <div className="text-sm">© 2026 Clippr. Todos los derechos reservados.</div>
+        </div>
+      </footer>
+    </main>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Cancellations
-// ---------------------------------------------------------------------------
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.max(1, Math.round(diff / 60000));
-  if (m < 60) return `Hace ${m} min`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `Hace ${h} h`;
-  return `Hace ${Math.round(h / 24)} d`;
-}
-
-function CancellationsPanel({ items }: { items: RecentCancellation[] }) {
-  const count = items.length;
-  const perdida = items.reduce((s, a) => s + Number(a.service_price ?? 0), 0);
-
+function FeatureBlock({
+  eyebrow,
+  title,
+  text,
+  cta,
+  icon: Icon,
+  image,
+  tone,
+  reverse,
+  id,
+}: {
+  eyebrow: string;
+  title: string;
+  text: string;
+  cta: string;
+  icon: React.ComponentType<{ className?: string }>;
+  image: string;
+  tone: string;
+  reverse?: boolean;
+  id?: string;
+}) {
   return (
-    <div className="glass rounded-2xl p-5">
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg grid place-items-center bg-destructive/15 ring-1 ring-destructive/30">
-            <XCircle className="h-4 w-4 text-destructive" />
+    <article id={id} className="mx-auto max-w-7xl px-5 sm:px-8">
+      <div className={cn("grid items-center gap-10 lg:grid-cols-2", reverse && "lg:[&>*:first-child]:order-2")}>
+        <div className="relative">
+          <div className={cn("absolute inset-x-8 top-12 h-[72%] rounded-[2rem] bg-gradient-to-br blur-2xl", tone)} />
+          <div className="relative mx-auto max-w-[420px] overflow-hidden rounded-[2rem] border border-white/15 bg-white/[.04] p-2 shadow-[0_42px_100px_-42px_rgba(79,125,255,.55)] backdrop-blur">
+            <img src={image} alt={title} className="h-[640px] w-full rounded-[1.45rem] object-cover object-top" />
           </div>
-          <h3 className="font-display text-base font-semibold">Cancelaciones</h3>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">❌</span>
-            <span className="font-display text-lg font-semibold text-destructive">{count}</span>
-            <span className="text-xs text-muted-foreground">cancelaciones</span>
+        <div className="text-center lg:text-left">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[.05] px-4 py-2 text-sm font-bold text-white/75">
+            <Icon className="h-4 w-4 text-blue-300" /> {eyebrow}
           </div>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">💸</span>
-            <span className="font-display text-lg font-semibold text-destructive">{fmtAR(perdida)}</span>
-            <span className="text-xs text-muted-foreground">pérdida est.</span>
-          </div>
+          <h2 className="font-display text-5xl font-black uppercase leading-none tracking-[-0.05em] sm:text-7xl">
+            {title}
+          </h2>
+          <p className="mt-6 text-xl leading-relaxed text-white/68">{text}</p>
+          <Link to="/login" className="mt-8 inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/5 px-7 py-4 text-lg font-bold transition hover:bg-white/10">
+            {cta} <span className="grid h-9 w-9 place-items-center rounded-full bg-[#4f7dff] text-white"><ArrowRight className="h-5 w-5" /></span>
+          </Link>
         </div>
       </div>
-
-      {count === 0 ? (
-        <p className="text-sm text-muted-foreground">Sin cancelaciones en el período.</p>
-      ) : (
-        <ul className="space-y-3">
-          {items.map((a) => (
-            <li key={a.id} className="flex items-center gap-3">
-              <div className="h-7 w-7 rounded-full grid place-items-center bg-destructive/15 ring-1 ring-destructive/30 shrink-0">
-                <XCircle className="h-3.5 w-3.5 text-destructive" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium truncate">
-                  {a.client_name || "Cliente"}
-                  {a.service_name && (
-                    <>
-                      <span className="text-muted-foreground font-normal"> · </span>
-                      <span className="text-foreground/80">{a.service_name}</span>
-                    </>
-                  )}
-                </div>
-                {a.service_price ? (
-                  <div className="text-xs text-destructive/70">{fmtAR(a.service_price)} perdido</div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">Turno cancelado</div>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground shrink-0 tabular-nums">
-                {timeAgo(a.starts_at)}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    </article>
   );
 }

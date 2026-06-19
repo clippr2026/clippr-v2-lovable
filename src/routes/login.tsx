@@ -30,7 +30,7 @@ function LoginPage() {
   }, []);
 
   React.useEffect(() => {
-    if (!loading && session) navigate({ to: "/", replace: true });
+    if (!loading && session) navigate({ to: "/dashboard", replace: true });
   }, [loading, session, navigate]);
 
   async function onSubmit(e: React.FormEvent) {
