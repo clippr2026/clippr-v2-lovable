@@ -3542,11 +3542,11 @@ function EquipoSection() {
       full_name: name,
       role: accessForm.role,
       status:
-  editingAccessUserId && accessUsers.find((user) => user.id === editingAccessUserId)?.status === "invited"
-    ? "invited"
-    : accessForm.status === "inactive"
-      ? "suspended"
-      : "active",
+        editingAccessUserId && accessUsers.find((user) => user.id === editingAccessUserId)?.status === "invited"
+          ? "invited"
+          : accessForm.status === "inactive"
+            ? "suspended"
+            : "active",
       professional_id: accessForm.role === "profesional" ? (selectedEmployee?.id ?? null) : null,
       branch_id: accessForm.branch_id ?? null,
       permissions: accessPermissionsForm,
@@ -3558,15 +3558,10 @@ function EquipoSection() {
     setSaving(false);
 
     const rawErrMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
-
-const friendlyErrMsg =
-  rawErrMsg?.includes("non-2xx status code")
-    ? "Ese correo ya está registrado o tiene una invitación pendiente."
-    : rawErrMsg;
-
-if (friendlyErrMsg) {
-  return toast.error(friendlyErrMsg);
-}
+    const friendlyErrMsg = rawErrMsg?.includes("non-2xx status code")
+      ? "No se pudo crear el acceso. Revisá si ese correo ya existe o tiene una invitación pendiente."
+      : rawErrMsg;
+    if (friendlyErrMsg) return toast.error(friendlyErrMsg);
 
     toast.success(
       editingAccessUserId ? "Acceso actualizado correctamente" : "Invitación enviada por email",
@@ -3976,41 +3971,43 @@ if (friendlyErrMsg) {
       )}
 
       {tab === "users" && (
-        <div className="space-y-5">
-          <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
-            <div className="mb-5">
-              <h3 className="font-semibold">Nuevo acceso</h3>
-              {editingAccessUserId && (
-                <div className="mt-3 rounded-xl bg-cyan-500/10 ring-1 ring-cyan-400/20 px-3 py-2 text-xs text-cyan-200 flex items-center justify-between gap-3">
-                  <span>Modo edición · Editando acceso: {accessForm.email || "sin email"}</span>
-                  <button
-                    type="button"
-                    onClick={cancelEditAccessUser}
-                    className="rounded-lg bg-white/10 hover:bg-white/15 px-2 py-1 text-[11px] text-foreground"
-                  >
-                    Cancelar edición
-                  </button>
-                </div>
-              )}
+        <div className="-mt-2 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-lg font-display font-semibold">Accesos del equipo</h3>
+              <p className="text-sm text-muted-foreground">
+                Invitá y administrá quién puede entrar a Clippr.
+              </p>
             </div>
+            {editingAccessUserId && (
+              <div className="rounded-xl bg-cyan-500/10 ring-1 ring-cyan-400/20 px-3 py-2 text-xs text-cyan-200 flex items-center justify-between gap-3">
+                <span>Editando: {accessForm.email || "sin email"}</span>
+                <button
+                  type="button"
+                  onClick={cancelEditAccessUser}
+                  className="rounded-lg bg-white/10 hover:bg-white/15 px-2 py-1 text-[11px] text-foreground"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.85fr] gap-4">
-              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-4">
-                <div className="rounded-2xl bg-gradient-to-br from-white/[0.06] via-white/[0.03] to-transparent ring-1 ring-white/10 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
-                      {accessRoleOption.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">Rol seleccionado</div>
-                      <div className="mt-1 text-lg font-semibold">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
-                      <div className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                        {accessRoleSummary.desc}
-                      </div>
-                    </div>
+          <div className="grid grid-cols-1 xl:grid-cols-[0.78fr_1fr] gap-3">
+            <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
+                  {accessRoleOption.icon}
+                </div>
+                <div>
+                  <div className="text-sm font-semibold">Nuevo acceso</div>
+                  <div className="text-xs text-muted-foreground">
+                    {editingAccessUserId ? "Actualizá el acceso seleccionado." : "El usuario recibirá una invitación por email."}
                   </div>
                 </div>
+              </div>
 
+              <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Rol">
                     <select
@@ -4087,40 +4084,24 @@ if (friendlyErrMsg) {
                   </div>
                 )}
 
-                {accessForm.role !== "profesional" && (
-                  <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                      Acceso
-                    </div>
-                    <div className="mt-1 text-sm font-medium">
-                      {ROLE_LABEL_BY_ID[accessForm.role]}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Este acceso se creará con el rol seleccionado.
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <Field
-                    label="Nombre"
-                    hint={
-                      accessForm.role === "profesional"
-                        ? "Si lo dejás vacío se toma del profesional."
-                        : undefined
-                    }
-                  >
-                    <input
-                      type="text"
-                      autoComplete="off"
-                      name="clippr-access-name"
-                      value={accessForm.name}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
-                      className={inputCls}
-                      placeholder="Nombre del usuario"
-                    />
-                  </Field>
-                </div>
+                <Field
+                  label="Nombre"
+                  hint={
+                    accessForm.role === "profesional"
+                      ? "Si lo dejás vacío se toma del profesional."
+                      : undefined
+                  }
+                >
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    name="clippr-access-name"
+                    value={accessForm.name}
+                    onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
+                    className={inputCls}
+                    placeholder="Nombre del usuario"
+                  />
+                </Field>
 
                 <div>
                   <Field label="Correo electrónico">
@@ -4146,10 +4127,7 @@ if (friendlyErrMsg) {
 
                 <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
                   <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                  <span>
-                    No se asignan contraseñas. Al confirmar, se envía una invitación por email para
-                    que la persona cree su propia contraseña.
-                  </span>
+                  <span>La persona crea su contraseña desde la invitación que recibe por email.</span>
                 </div>
 
                 <button
@@ -4165,222 +4143,216 @@ if (friendlyErrMsg) {
                       : "Confirmar e invitar"}
                 </button>
               </div>
+            </div>
 
-              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-                <div className="text-sm font-semibold mb-3">Usuarios y accesos</div>
-                {accessUsers.length === 0 ? (
-                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-sm text-muted-foreground text-center">
-                    Todavía no hay accesos creados.
+            <div className="glass rounded-2xl p-4 ring-1 ring-white/5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Usuarios y accesos</div>
+                  <div className="text-xs text-muted-foreground">
+                    {accessUsers.length} {accessUsers.length === 1 ? "acceso creado" : "accesos creados"}
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {accessUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
-                      >
-                        <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
-                          {(user.name[0] || "A").toUpperCase()}
+                </div>
+              </div>
+
+              {accessUsers.length === 0 ? (
+                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-5 text-sm text-muted-foreground text-center">
+                  Todavía no hay accesos creados.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {accessUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
+                    >
+                      <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                        {(user.name[0] || "A").toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{user.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {user.email} · {ROLE_LABEL_BY_ID[user.role]}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{user.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {user.email} · {ROLE_LABEL_BY_ID[user.role]}
-                          </div>
-                        </div>
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-1 text-[10px] ring-1",
-                            user.status === "active"
-                              ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
-                              : user.status === "invited"
-                                ? "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
-                                : "bg-white/5 text-muted-foreground ring-white/10",
-                          )}
-                        >
-                          {user.status === "active"
-                            ? "Activo"
+                      </div>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-1 text-[10px] ring-1",
+                          user.status === "active"
+                            ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
                             : user.status === "invited"
-                              ? "Pendiente"
-                              : "Inactivo"}
+                              ? "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
+                              : "bg-white/5 text-muted-foreground ring-white/10",
+                        )}
+                      >
+                        {user.status === "active"
+                          ? "Activo"
+                          : user.status === "invited"
+                            ? "Pendiente"
+                            : "Inactivo"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => editAccessUser(user)}
+                        className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                      >
+                        Editar
+                      </button>
+                      {user.id === principalAdminId ? (
+                        <span
+                          className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
+                          title="El administrador principal no se puede eliminar"
+                        >
+                          Principal
                         </span>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => editAccessUser(user)}
-                          className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                          onClick={() => setPendingDeleteUser(user)}
+                          className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
                         >
-                          Editar
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                        {user.id === principalAdminId ? (
-                          <span
-                            className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
-                            title="El administrador principal no se puede eliminar"
-                          >
-                            Principal
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setPendingDeleteUser(user)}
-                            className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-                <div className="mt-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/5">
-                    <div className="font-semibold text-sm">Permisos del rol</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Clippr marca los accesos recomendados según el rol elegido.
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-sm">Permisos incluidos</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Según el rol seleccionado: {ROLE_LABEL_BY_ID[accessForm.role]}.
+                    </div>
+                  </div>
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
+                    {accessRoleOption.icon}
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">Puede acceder</div>
+                      <div className="space-y-1.5">
+                        {accessRoleSummary.can.map((item) => (
+                          <div key={item} className="flex items-center gap-2 text-xs text-white/80">
+                            <Check className="h-3.5 w-3.5 text-emerald-300" />
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">No accede</div>
+                      {accessRoleSummary.cannot.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">Sin restricciones.</div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {accessRoleSummary.cannot.map((item) => (
+                            <div key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <X className="h-3.5 w-3.5 text-white/30" />
+                              {item}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-4 space-y-4">
-                    <div className="rounded-2xl bg-gradient-to-br from-white/[0.06] to-white/[0.025] ring-1 ring-white/10 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
-                          {accessRoleOption.icon}
+                  <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
+                      <span>Personalizar permisos</span>
+                      <span className="text-xs font-medium text-muted-foreground group-open:hidden">Opcional</span>
+                      <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Cerrar</span>
+                    </summary>
+                    <div className="border-t border-white/5 p-4 space-y-4">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                          Accesos recomendados
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-semibold">{accessRoleSummary.title}</div>
-                            <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
-                              Recomendado
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                            {accessRoleSummary.desc}
-                          </p>
-
-                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
-                              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">Puede acceder</div>
-                              <div className="space-y-1.5">
-                                {accessRoleSummary.can.map((item) => (
-                                  <div key={item} className="flex items-center gap-2 text-xs text-white/80">
-                                    <Check className="h-3.5 w-3.5 text-emerald-300" />
-                                    {item}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
-                              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">No accede</div>
-                              {accessRoleSummary.cannot.length === 0 ? (
-                                <div className="text-xs text-muted-foreground">Sin restricciones.</div>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {accessRoleSummary.cannot.map((item) => (
-                                    <div key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <X className="h-3.5 w-3.5 text-white/30" />
-                                      {item}
-                                    </div>
-                                  ))}
+                        <div className="space-y-2">
+                          {getRecommendedPermissionKeys(accessForm.role).map((key) => {
+                            const item = getPermissionItem(key);
+                            if (!item) return null;
+                            const checked = accessPermissionsForm[key];
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => toggleAccessFormPermission(key)}
+                                className={cn(
+                                  "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                  checked
+                                    ? "bg-white/[0.06] ring-white/15"
+                                    : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                                )}
+                              >
+                                <div>
+                                  <div className="text-sm font-medium">{item.label}</div>
+                                  <div className="text-xs text-muted-foreground">{item.desc}</div>
                                 </div>
-                              )}
-                            </div>
-                          </div>
+                                <span
+                                  className={cn(
+                                    "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                    checked
+                                      ? "bg-emerald-400/90 text-white ring-transparent"
+                                      : "bg-white/5 ring-white/15",
+                                  )}
+                                >
+                                  {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                          Adicionales
+                        </div>
+                        <div className="space-y-2">
+                          {getAdditionalPermissionKeys(accessForm.role).map((key) => {
+                            const item = getPermissionItem(key);
+                            if (!item) return null;
+                            const checked = accessPermissionsForm[key];
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => toggleAccessFormPermission(key)}
+                                className={cn(
+                                  "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                  checked
+                                    ? "bg-white/[0.06] ring-white/15"
+                                    : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                                )}
+                              >
+                                <div>
+                                  <div className="text-sm font-medium">{item.label}</div>
+                                  <div className="text-xs text-muted-foreground">{item.desc}</div>
+                                </div>
+                                <span
+                                  className={cn(
+                                    "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                    checked
+                                      ? "bg-emerald-400/90 text-white ring-transparent"
+                                      : "bg-white/5 ring-white/15",
+                                  )}
+                                >
+                                  {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
-
-                    <details className="group rounded-2xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
-                        <span>Personalizar permisos</span>
-                        <span className="text-xs font-medium text-muted-foreground group-open:hidden">Opcional</span>
-                        <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Cerrar</span>
-                      </summary>
-                      <div className="border-t border-white/5 p-4 space-y-4">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                            Accesos recomendados
-                          </div>
-                          <div className="space-y-2">
-                            {getRecommendedPermissionKeys(accessForm.role).map((key) => {
-                              const item = getPermissionItem(key);
-                              if (!item) return null;
-                              const checked = accessPermissionsForm[key];
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  onClick={() => toggleAccessFormPermission(key)}
-                                  className={cn(
-                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                    checked
-                                      ? "bg-white/[0.06] ring-white/15"
-                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                  )}
-                                >
-                                  <div>
-                                    <div className="text-sm font-medium">{item.label}</div>
-                                    <div className="text-xs text-muted-foreground">{item.desc}</div>
-                                  </div>
-                                  <span
-                                    className={cn(
-                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
-                                      checked
-                                        ? "bg-emerald-400/90 text-white ring-transparent"
-                                        : "bg-white/5 ring-white/15",
-                                    )}
-                                  >
-                                    {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                            Adicionales
-                          </div>
-                          <div className="space-y-2">
-                            {getAdditionalPermissionKeys(accessForm.role).map((key) => {
-                              const item = getPermissionItem(key);
-                              if (!item) return null;
-                              const checked = accessPermissionsForm[key];
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  onClick={() => toggleAccessFormPermission(key)}
-                                  className={cn(
-                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                    checked
-                                      ? "bg-white/[0.06] ring-white/15"
-                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                  )}
-                                >
-                                  <div>
-                                    <div className="text-sm font-medium">{item.label}</div>
-                                    <div className="text-xs text-muted-foreground">{item.desc}</div>
-                                  </div>
-                                  <span
-                                    className={cn(
-                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
-                                      checked
-                                        ? "bg-emerald-400/90 text-white ring-transparent"
-                                        : "bg-white/5 ring-white/15",
-                                    )}
-                                  >
-                                    {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </details>
-                  </div>
+                  </details>
                 </div>
               </div>
             </div>
