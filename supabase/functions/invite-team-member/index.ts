@@ -348,13 +348,13 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
-    // ---- CREATE (invitación) ----------------------------------------------
+    // ---- CREATE (invitación / reactivación) -------------------------------
     if (!email) return json({ error: "Email requerido" }, 400);
 
-    // Importante: antes se bloqueaba cualquier fila existente, incluso si estaba
-    // status='deleted'. Eso obligaba a borrar registros manualmente en Supabase.
-    // Ahora solo bloqueamos accesos realmente vigentes; si está deleted/suspended,
-    // lo reactivamos y reutilizamos la misma fila.
+    // Importante: los accesos eliminados quedan como tombstone con status='deleted'.
+    // Si el mismo negocio vuelve a crear ese email desde Clippr, NO debe fallar:
+    // se reactiva/actualiza la misma fila. Así el dueño puede crear, eliminar y
+    // volver a crear sin entrar a Supabase.
     const { data: existing, error: existingErr } = await admin
       .from("team_members")
       .select("id, status, auth_user_id")
@@ -363,41 +363,84 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (existingErr) return json({ error: existingErr.message }, 400);
 
-    const existingStatus = String(existing?.status ?? "").toLowerCase();
-    const canReuseExisting = existing && ["deleted", "suspended", "removed"].includes(existingStatus);
+    if (existing) {
+      const existingStatus = String(existing.status ?? "").toLowerCase();
 
-    if (existing && !canReuseExisting) {
-      return json({
-        error: "Ya existe un acceso con ese email en este negocio",
-        code: "ACCESS_ALREADY_EXISTS",
-        status: existingStatus || null,
-      }, 409);
+      if (["deleted", "removed", "suspended", "inactive"].includes(existingStatus)) {
+        let authUserId: string | null = existing.auth_user_id as string | null;
+
+        // Si el tombstone no tiene auth_user_id, buscamos el usuario existente en Auth.
+        // Si no existe, enviamos invitación normal.
+        if (!authUserId) {
+          const existingAuthUser = await findAuthUserByEmail(admin, email);
+          if (existingAuthUser) {
+            authUserId = existingAuthUser.id;
+          } else {
+            const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
+              data: { full_name: fullName, business_id: businessId, role },
+              redirectTo: `${SITE_URL}/set-password`,
+            });
+
+            if (inviteErr) {
+              const fallbackUser = await findAuthUserByEmail(admin, email);
+              if (!fallbackUser) {
+                return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
+              }
+              authUserId = fallbackUser.id;
+            } else {
+              authUserId = invited?.user?.id ?? null;
+            }
+          }
+        }
+
+        const { error: reactivateErr } = await admin
+          .from("team_members")
+          .update({
+            auth_user_id: authUserId,
+            email,
+            full_name: fullName,
+            role,
+            permissions,
+            professional_id: professionalId,
+            branch_id: branchId,
+            status: authUserId ? "active" : "invited",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+          .eq("business_id", businessId);
+
+        if (reactivateErr) return json({ error: reactivateErr.message }, 400);
+        return json({ ok: true, reactivated: true, auth_user_id: authUserId });
+      }
+
+      return json({ error: "Ya existe un acceso activo o invitado con ese email en este negocio" }, 409);
     }
 
-    let authUserId: string | null = (existing?.auth_user_id as string | null) ?? null;
+    let authUserId: string | null = null;
 
-    // Si ya tenemos auth_user_id de una fila reactivada, no hace falta invitar otra vez.
-    // Si no lo tenemos, intentamos invitar; si Auth dice que el usuario ya existe,
-    // lo buscamos y lo enlazamos.
-    if (!authUserId) {
-      const { data: invited, error: inviteErr } = await admin.auth.admin
-        .inviteUserByEmail(email, {
-          data: { full_name: fullName, business_id: businessId, role },
-          redirectTo: `${SITE_URL}/set-password`,
-        });
+    // Primero buscamos si el usuario ya existe en Auth. Esto evita errores tipo
+    // "A user with this email address has already been registered".
+    const existingAuthUser = await findAuthUserByEmail(admin, email);
+    if (existingAuthUser) {
+      authUserId = existingAuthUser.id;
+    } else {
+      const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { full_name: fullName, business_id: businessId, role },
+        redirectTo: `${SITE_URL}/set-password`,
+      });
 
       if (inviteErr) {
-        const existingUser = await findAuthUserByEmail(admin, email);
-        if (!existingUser) {
+        const fallbackUser = await findAuthUserByEmail(admin, email);
+        if (!fallbackUser) {
           return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
         }
-        authUserId = existingUser.id;
+        authUserId = fallbackUser.id;
       } else {
         authUserId = invited?.user?.id ?? null;
       }
     }
 
-    const memberPayload = {
+    const { error: insErr } = await admin.from("team_members").insert({
       business_id: businessId,
       auth_user_id: authUserId,
       email,
@@ -406,23 +449,11 @@ Deno.serve(async (req) => {
       permissions,
       professional_id: professionalId,
       branch_id: branchId,
-      status: "invited",
-    };
-
-    if (canReuseExisting) {
-      const { error: updErr } = await admin
-        .from("team_members")
-        .update(memberPayload)
-        .eq("id", existing.id)
-        .eq("business_id", businessId);
-      if (updErr) return json({ error: updErr.message }, 400);
-      return json({ ok: true, auth_user_id: authUserId, reused: true });
-    }
-
-    const { error: insErr } = await admin.from("team_members").insert(memberPayload);
+      status: authUserId ? "active" : "invited",
+    });
     if (insErr) return json({ error: insErr.message }, 400);
 
-    return json({ ok: true, auth_user_id: authUserId, reused: false });
+    return json({ ok: true, auth_user_id: authUserId });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
