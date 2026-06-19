@@ -3557,8 +3557,16 @@ function EquipoSection() {
     });
     setSaving(false);
 
-    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
-    if (errMsg) return toast.error("Error: " + errMsg);
+    const rawErrMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+
+const friendlyErrMsg =
+  rawErrMsg?.includes("non-2xx status code")
+    ? "Ese correo ya está registrado o tiene una invitación pendiente."
+    : rawErrMsg;
+
+if (friendlyErrMsg) {
+  return toast.error(friendlyErrMsg);
+}
 
     toast.success(
       editingAccessUserId ? "Acceso actualizado correctamente" : "Invitación enviada por email",
