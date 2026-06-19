@@ -3035,7 +3035,12 @@ function EquipoSection() {
       toast.error("Error cargando accesos: " + error.message);
       return;
     }
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // Excluimos los tombstones de accesos eliminados (status deleted/removed):
+    // la fila se conserva en la base para bloquear el re-acceso, pero NO debe
+    // mostrarse en la lista de accesos.
+    const rows = ((data ?? []) as Array<Record<string, unknown>>).filter(
+      (r) => !["deleted", "removed"].includes(String(r.status ?? "").toLowerCase()),
+    );
     const users: AccessUser[] = rows.map((r) => {
       const rawStatus = String(r.status ?? "invited");
       const status: AccessStatus =
@@ -3586,30 +3591,25 @@ function EquipoSection() {
 
   async function removeAccessUser(id: string) {
     if (!businessId) return;
-    setDeletingAccess(true);
-    const { data, error } = await supabase.functions.invoke("invite-team-member", {
-      body: { action: "delete", member_id: id, business_id: businessId },
-    });
-    setDeletingAccess(false);
-
-    let errMsg = (data as { error?: string } | null)?.error ?? null;
-    if (error) {
-      // FunctionsHttpError: el mensaje específico viene en error.context (Response)
-      try {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx && typeof ctx.json === "function") {
-          const body = await ctx.json();
-          errMsg = body?.error ?? errMsg ?? error.message;
-        } else {
-          errMsg = errMsg ?? error.message;
-        }
-      } catch {
-        errMsg = errMsg ?? error.message;
-      }
+    if (id === principalAdminId) {
+      setPendingDeleteUser(null);
+      return toast.error("El administrador principal no se puede eliminar.");
     }
-
+    setDeletingAccess(true);
+    // Soft-delete determinístico: conservamos la fila como "tombstone" con
+    // status='deleted' y desvinculamos auth_user_id. Esto revoca el acceso real:
+    //  • resolveBusinessId ignora estados revocados → el usuario queda sin negocio.
+    //  • impide que reviva por email o por profile.business_id.
+    //  • la fila tombstone marca que NO es un dueño nuevo, así no se le crea un
+    //    "negocio fantasma" al volver a entrar.
+    const { error } = await supabase
+      .from("team_members")
+      .update({ status: "deleted", auth_user_id: null })
+      .eq("id", id)
+      .eq("business_id", businessId);
+    setDeletingAccess(false);
     setPendingDeleteUser(null);
-    if (errMsg) return toast.error(errMsg);
+    if (error) return toast.error(error.message);
 
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
     if (editingAccessUserId === id) cancelEditAccessUser();
