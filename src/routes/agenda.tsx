@@ -488,32 +488,31 @@ function AgendaPage() {
         </Button>
       </div>
 
-      {
-      {/* Unified agenda banner */}
-      <div className="mb-2 animate-fade-up rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl px-4 py-3">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <span className="text-cyan-400 font-semibold">{counts.pending} Pendientes</span>
-            <span className="text-fuchsia-400 font-semibold">{counts.confirmed} Confirmados</span>
-            <span className="text-emerald-400 font-semibold">{counts.charged} Cobrados</span>
-            <span className="text-red-400 font-semibold">{counts.cancelled} Cancelados</span>
-          </div>
+      {/* Modern day-strip navigation */}
+      <DayStripNav cursor={cursor} onSelect={setCursor} />
 
-          <div className="mx-auto flex items-center gap-3">
-            <span className="opacity-70">Hoy</span>
-            <button onClick={() => setCursor(addDays(cursor,-1))}>◀</button>
-            <span className="font-semibold">{cursor.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span>
-            <button onClick={() => setCursor(addDays(cursor,1))}>▶</button>
-          </div>
-
-          <Button className="ml-auto h-9 px-4" onClick={() => openNew(null, cursor)}>
-            <Plus className="h-4 w-4 mr-1" /> Nuevo turno
-          </Button>
-          {data.loading && <span className="text-xs text-muted-foreground">Cargando…</span>}
-        </div>
+      {/* Status pills — compact single row */}
+      <div className="flex items-center gap-2 flex-wrap mb-3 animate-fade-up">
+        {([
+          ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
+          ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
+          ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
+          ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
+        ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
+          <button
+            key={k}
+            onClick={() => setFilterModal(k)}
+            className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110"
+            style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
+          >
+            <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
+            <span className="opacity-80">{label}</span>
+          </button>
+        ))}
+        {data.loading && <span className="text-xs text-muted-foreground">Cargando…</span>}
       </div>
 
-/* Filter modal */}
+      {/* Filter modal */}
       {filterModal && (() => {
         const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", charged:"charged", cancelled:"cancelled" };
         const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", charged:"Finalizados", cancelled:"Cancelados" };
