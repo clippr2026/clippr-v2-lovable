@@ -21,11 +21,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  useClientsData,
+  useClientsPage,
+  useClientSegmentSummary,
+  useClientDetail,
   useDeleteClient,
   useSaveClient,
   useUpdateClientNotes,
   type Client,
+  type ClientListRow,
   type ClientStatus,
 } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
@@ -274,7 +277,6 @@ function getClientProfileText(c: Client | null) {
 
 function ClientsPage() {
   const { businessId } = useAuth();
-  const { data: rawClients = [], isLoading } = useClientsData(businessId);
   const saveClient = useSaveClient(businessId);
   const deleteClient = useDeleteClient(businessId);
   const updateNotes = useUpdateClientNotes(businessId);
@@ -285,7 +287,7 @@ function ClientsPage() {
   const [tab, setTab] = useState<"resumen" | "historial">("resumen");
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
-  const [segmentModal, setSegmentModal] = useState<{ title: string; clients: Client[] } | null>(
+  const [segmentModal, setSegmentModal] = useState<{ title: string; clients: ClientListRow[] } | null>(
     null,
   );
   const [metricInfo, setMetricInfo] = useState<ClientMetricInfo | null>(null);
@@ -297,37 +299,61 @@ function ClientsPage() {
     notes: "",
   });
 
-  const clients = rawClients;
+  // Debounce the search so we don't hit the server on every keystroke.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 280);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Server-side: sort by name/recientes (gasto is sorted client-side over the
+  // already-loaded pages, since spend is an aggregate).
+  const serverSort = sort === "recientes" ? "recientes" : "nombre";
+  const {
+    data: pageData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useClientsPage(businessId, debouncedQuery, serverSort);
+
+  const { data: summary } = useClientSegmentSummary(businessId);
+  const { data: currentDetail, isLoading: detailLoading } = useClientDetail(businessId, selected);
+
+  const clients = useMemo<ClientListRow[]>(
+    () => (pageData?.pages ?? []).flatMap((p) => p.rows),
+    [pageData],
+  );
+  const total = pageData?.pages?.[0]?.total ?? 0;
 
   useEffect(() => {
     if (!selected && clients.length > 0) setSelected(clients[0].id);
   }, [clients, selected]);
 
   const filtered = useMemo(() => {
-    let list = clients.filter((c) =>
-      [c.name, c.phone, c.email].some((x) => (x ?? "").toLowerCase().includes(query.toLowerCase())),
-    );
-    if (sort === "gasto") list = [...list].sort((a, b) => b.spent - a.spent);
-    if (sort === "nombre") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
-    if (sort === "recientes")
-      list = [...list].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
-    return list;
-  }, [clients, query, sort]);
+    // Search + nombre/recientes sorting happen server-side. "gasto" is an
+    // aggregate, so we sort the already-loaded pages by spend on the client.
+    if (sort === "gasto") return [...clients].sort((a, b) => b.spent - a.spent);
+    return clients;
+  }, [clients, sort]);
 
   const counts = useMemo(
     () => ({
-      vip: clients.filter((c) => c.status === "vip").length,
-      nuevos: clients.filter((c) => c.status === "nuevo").length,
-      activos: clients.filter((c) => c.status === "activo").length,
-      inactivos: clients.filter((c) => c.status === "inactivo").length,
-      perdidos: clients.filter((c) => c.status === "perdido").length,
+      vip: summary?.counts.vip ?? 0,
+      nuevos: summary?.counts.nuevo ?? 0,
+      activos: summary?.counts.activo ?? 0,
+      inactivos: summary?.counts.inactivo ?? 0,
+      perdidos: summary?.counts.perdido ?? 0,
     }),
-    [clients],
+    [summary],
   );
 
-  const current = clients.find((c) => c.id === selected) ?? null;
+  const allSummaryClients = useMemo<ClientListRow[]>(
+    () => (summary ? Object.values(summary.byStatus).flat() : []),
+    [summary],
+  );
+
+  const current = currentDetail ?? null;
   useEffect(() => {
     setNoteDraft(current?.notes ?? "");
     setClientMenuOpen(false);
@@ -339,8 +365,8 @@ function ClientsPage() {
   const favoriteServices = current?.favoriteServices ?? [];
   const hasNote = Boolean((current?.notes ?? "").trim());
 
-  function showGroup(title: string, fn: (c: Client) => boolean) {
-    setSegmentModal({ title, clients: clients.filter(fn) });
+  function showGroup(title: string, fn: (c: ClientListRow) => boolean) {
+    setSegmentModal({ title, clients: allSummaryClients.filter(fn) });
   }
 
   async function handleCreateClient() {
@@ -467,7 +493,7 @@ function ClientsPage() {
               />
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{filtered.length} clientes</span>
+              <span>{total} cliente{total === 1 ? "" : "s"}</span>
               <div className="flex items-center gap-2">
                 <span>Ordenar:</span>
                 <select
@@ -526,7 +552,21 @@ function ClientsPage() {
               )}
               {!isLoading && filtered.length === 0 && (
                 <div className="text-center text-sm text-muted-foreground py-10">
-                  Sin clientes para mostrar.
+                  {debouncedQuery ? "Sin resultados para la búsqueda." : "Sin clientes para mostrar."}
+                </div>
+              )}
+              {!isLoading && hasNextPage && sort !== "gasto" && (
+                <button
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="w-full mt-2 rounded-xl bg-white/5 ring-1 ring-white/10 py-2.5 text-sm hover:bg-white/[0.08] transition disabled:opacity-50"
+                >
+                  {isFetchingNextPage ? "Cargando…" : `Cargar más (${clients.length} de ${total})`}
+                </button>
+              )}
+              {!isLoading && hasNextPage && sort === "gasto" && (
+                <div className="text-center text-[11px] text-muted-foreground/70 py-2">
+                  Mostrando {clients.length} de {total}. Cambiá el orden a "Nombre" o "Recientes" para cargar más.
                 </div>
               )}
             </div>
@@ -799,8 +839,17 @@ function ClientsPage() {
             ) : (
               <div className="h-full grid place-items-center p-6">
                 <div className="text-center space-y-3">
-                  <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
-                  <div className="text-lg font-display">Seleccioná un cliente</div>
+                  {selected && detailLoading ? (
+                    <>
+                      <UserRound className="mx-auto h-8 w-8 text-muted-foreground animate-pulse" />
+                      <div className="text-lg font-display text-muted-foreground">Cargando cliente…</div>
+                    </>
+                  ) : (
+                    <>
+                      <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
+                      <div className="text-lg font-display">Seleccioná un cliente</div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
