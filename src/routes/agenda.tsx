@@ -201,8 +201,11 @@ function AgendaPage() {
     return Math.round(price * senasConfig.amount_value / 100);
   };
 
-  const [dlgOpen, setDlgOpen] = React.useState(false);
-  const [detailOpen, setDetailOpen] = React.useState(false);
+  // Single source of truth: only ONE lateral drawer can be active at a time.
+  // Opening any drawer switches this; closing sets it to null. No stacking.
+  const [activeDrawer, setActiveDrawer] = React.useState<
+    "detail" | "new" | "edit" | "block" | null
+  >(null);
   const [selected, setSelected] = React.useState<Appointment | null>(null);
   const [editing, setEditing] = React.useState<Appointment | null>(null);
   const [dlgDefaults, setDlgDefaults] = React.useState<{
@@ -234,7 +237,7 @@ function AgendaPage() {
     setSlotMenu(null);
     setEditing(null);
     setDlgDefaults({ employeeId, startsAt });
-    setDlgOpen(true);
+    setActiveDrawer("new");
   };
 
   const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
@@ -255,6 +258,7 @@ function AgendaPage() {
   const openBlockDialog = (employeeId: string | null, startsAt: Date, appointment?: Appointment | null) => {
     setSlotMenu(null);
     setBlockDialog({ employeeId, startsAt, appointment });
+    setActiveDrawer("block");
   };
 
   const saveBlock = async (payload: {
@@ -326,7 +330,7 @@ function AgendaPage() {
         if (error) throw new Error(error.message);
       }
 
-      setBlockDialog(null);
+      setActiveDrawer(null);
       data.refresh();
       toast.success(payload.appointmentId ? "Bloqueo actualizado" : "Horario bloqueado");
     } catch (error) {
@@ -338,7 +342,7 @@ function AgendaPage() {
     try {
       const { error } = await supabase.from("appointments").delete().eq("id", a.id);
       if (error) throw new Error(error.message);
-      setDetailOpen(false);
+      setActiveDrawer(null);
       data.refresh();
       toast.success("Horario liberado");
     } catch (error) {
@@ -348,17 +352,16 @@ function AgendaPage() {
 
   const openDetail = (a: Appointment) => {
     setSelected(a);
-    setDetailOpen(true);
+    setActiveDrawer("detail");
   };
   const openEdit = (a: Appointment) => {
-    setDetailOpen(false);
     if (a.status === "blocked") {
       openBlockDialog(a.employee_id ?? null, new Date(a.starts_at), a);
       return;
     }
     setEditing(a);
     setDlgDefaults({});
-    setDlgOpen(true);
+    setActiveDrawer("edit");
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
@@ -446,7 +449,7 @@ function AgendaPage() {
         toast.success("Seña marcada como perdida");
       } catch (e) { toast.error((e as Error).message); return; }
     }
-    setDetailOpen(false);
+    setActiveDrawer(null);
     data.refresh();
   };
 
@@ -699,8 +702,8 @@ function AgendaPage() {
       ) : null}
 
       <AppointmentDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
+        open={activeDrawer === "detail"}
+        onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
         appointment={selected}
         employees={memoData.employees}
         clients={memoData.clients}
@@ -715,8 +718,8 @@ function AgendaPage() {
       />
 
       <BlockHoursDialog
-        open={Boolean(blockDialog)}
-        onOpenChange={(open) => { if (!open) setBlockDialog(null); }}
+        open={activeDrawer === "block"}
+        onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
         employees={data.employees}
         initialEmployeeId={blockDialog?.employeeId ?? null}
         initialStartsAt={blockDialog?.startsAt ?? cursor}
@@ -728,8 +731,8 @@ function AgendaPage() {
 
       {data.businessId && (
       <AppointmentDialog
-          open={dlgOpen}
-          onOpenChange={setDlgOpen}
+          open={activeDrawer === "new" || activeDrawer === "edit"}
+          onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
           appointment={editing}
           defaultEmployeeId={dlgDefaults.employeeId}
           defaultStartsAt={dlgDefaults.startsAt}
