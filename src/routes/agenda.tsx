@@ -457,36 +457,10 @@ function AgendaPage() {
     data.refresh();
   };
 
-  if (authLoading || !session) {
-    return (
-      <AppShell>
-        <div className="flex items-center justify-center py-32 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin mr-2" /> Cargando…
-        </div>
-      </AppShell>
-    );
-  }
-
-  const counts = {
-    pending: data.appointments.filter((a) => a.status === "pending").length,
-    confirmed: data.appointments.filter((a) => a.status === "confirmed").length,
-    seña: data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || "")).length,
-    charged: data.appointments.filter((a) => a.status === "charged").length,
-    cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
-  };
-
-  // Always day view — navigation via the banner arrows
-  const move = (delta: number) => {
-    setCursor((c) => new Date(c.getTime() + delta * DAY_MS));
-  };
-
-  // Full date label for the unified banner — "Sábado, 20 de Junio de 2026"
-  const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
-  const fullDate = `${cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))}, ${cursor.getDate()} de ${cap(cursor.toLocaleDateString("es-AR", { month: "long" }))} de ${cursor.getFullYear()}`;
-  const isCursorToday = startOfDay(cursor).getTime() === startOfDay(new Date()).getTime();
-
   // ── Performance: stable references so memoized children (DayView, drawer)
   //    don't re-render when unrelated state (e.g. opening a turno) changes.
+  //    NOTE: these hooks MUST run before the auth guard below — otherwise the
+  //    hook count changes between renders (React error #310).
   // useAgendaData returns a fresh object every render but its arrays are
   // stable (useState); memoize the wrapper so identity only changes on real data.
   const memoData = React.useMemo(
@@ -514,6 +488,34 @@ function AgendaPage() {
   const handleMarkDeposit = useStableCallback(onMarkDeposit);
   const handleCancelWithDeposit = useStableCallback(onCancelWithDeposit);
   const handleReleaseBlock = useStableCallback(releaseBlock);
+
+  if (authLoading || !session) {
+    return (
+      <AppShell>
+        <div className="flex items-center justify-center py-32 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin mr-2" /> Cargando…
+        </div>
+      </AppShell>
+    );
+  }
+
+  const counts = {
+    pending: data.appointments.filter((a) => a.status === "pending").length,
+    confirmed: data.appointments.filter((a) => a.status === "confirmed").length,
+    seña: data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || "")).length,
+    charged: data.appointments.filter((a) => a.status === "charged").length,
+    cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
+  };
+
+  // Always day view — navigation via the banner arrows
+  const move = (delta: number) => {
+    setCursor((c) => new Date(c.getTime() + delta * DAY_MS));
+  };
+
+  // Full date label for the unified banner — "Sábado, 20 de Junio de 2026"
+  const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+  const fullDate = `${cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))}, ${cursor.getDate()} de ${cap(cursor.toLocaleDateString("es-AR", { month: "long" }))} de ${cursor.getFullYear()}`;
+  const isCursorToday = startOfDay(cursor).getTime() === startOfDay(new Date()).getTime();
 
   return (
     <AppShell>
