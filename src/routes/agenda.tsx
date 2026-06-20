@@ -1417,7 +1417,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent forceMount side="right" className="w-full sm:max-w-[420px] p-0 overflow-y-auto border-white/10 bg-[#08070f]/95 backdrop-blur-md data-[state=closed]:hidden" aria-describedby={undefined}>
+      <SheetContent forceMount side="right" overlayClassName="bg-black/40 backdrop-blur-sm" className="w-full sm:max-w-[420px] p-0 overflow-y-auto border-white/10 bg-[#08070f]/95 backdrop-blur-md data-[state=closed]:hidden" aria-describedby={undefined}>
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
           <div className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl" style={{ background: meta.dot }} />
           <div className="relative flex items-start justify-between gap-3">
