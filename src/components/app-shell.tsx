@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <div className="flex flex-col min-h-dvh w-full">
         <AppSidebar />
-        <main className="clippr-app-main flex-1 min-w-0 w-full max-w-[1440px] mx-auto px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-7">
+        <main className="clippr-app-main flex-1 min-w-0 w-full max-w-[1440px] mx-auto px-3 py-2 sm:px-5 sm:py-3 lg:px-6 lg:py-4">
           <div className="relative z-10">
             {children}
           </div>

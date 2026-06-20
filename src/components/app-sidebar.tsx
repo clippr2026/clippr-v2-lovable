@@ -73,7 +73,7 @@ function Brand() {
   return (
     <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
       <div
-        className="h-9 w-9 rounded-xl grid place-items-center font-display text-lg text-white"
+        className="h-8 w-8 rounded-xl grid place-items-center font-display text-base text-white"
         style={{
           background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
           boxShadow: "0 8px 24px -6px oklch(0.65 0.27 290 / 0.55)",
@@ -81,7 +81,7 @@ function Brand() {
       >
         C
       </div>
-      <div className="font-display text-lg font-semibold leading-none tracking-tight">Clippr</div>
+      <div className="font-display text-base font-semibold leading-none tracking-tight">Clippr</div>
     </Link>
   );
 }
@@ -106,7 +106,7 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
             to={item.to}
             onClick={onNavigate}
             className={cn(
-              "relative flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all whitespace-nowrap",
+              "relative flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm font-medium transition-all whitespace-nowrap",
               active
                 ? "text-foreground bg-gradient-to-r from-primary/20 to-accent/15 ring-1 ring-primary/30 shadow-[0_4px_18px_-8px_oklch(0.7_0.25_290/0.6)]"
                 : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
@@ -257,7 +257,7 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Cuenta"
-          className="h-10 w-10 rounded-xl grid place-items-center text-sm font-semibold text-white ring-1 ring-white/10 hover:brightness-110 transition"
+          className="h-8 w-8 rounded-xl grid place-items-center text-sm font-semibold text-white ring-1 ring-white/10 hover:brightness-110 transition"
           style={{
             background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
           }}
@@ -362,7 +362,7 @@ function PublicSiteMenu() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Sitio web público"
-          className="h-10 w-10 rounded-xl grid place-items-center ring-1 ring-white/10 glass glass-hover text-muted-foreground hover:text-white transition"
+          className="h-8 w-8 rounded-xl grid place-items-center ring-1 ring-white/10 bg-white/[0.04] text-muted-foreground hover:text-white transition"
         >
           <Globe className="h-4.5 w-4.5" />
         </button>
@@ -407,8 +407,8 @@ export function AppSidebar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-background/82 backdrop-blur-xl supports-[backdrop-filter]:bg-background/72 shadow-[0_1px_0_rgba(255,255,255,.05),0_10px_50px_rgba(79,125,255,.10)]">
-        <div className="max-w-[1600px] mx-auto h-16 px-4 sm:px-6 lg:px-10 flex items-center gap-4">
+      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-black shadow-[0_1px_0_rgba(255,255,255,.05)]">
+        <div className="max-w-[1600px] mx-auto h-12 px-4 sm:px-6 lg:px-8 flex items-center gap-3">
           <Brand />
 
           {/* Desktop nav */}
