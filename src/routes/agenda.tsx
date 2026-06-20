@@ -488,8 +488,11 @@ function AgendaPage() {
         </Button>
       </div>
 
-      {/* Header ultra compacto agenda */}
-      <div className="flex items-center justify-between gap-3 mb-1 animate-fade-up">
+      {/* Modern day-strip navigation */}
+      <DayStripNav cursor={cursor} onSelect={setCursor} />
+
+      {/* Status pills — compact single row */}
+      <div className="flex items-center gap-2 flex-wrap mb-3 animate-fade-up">
         {([
           ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
           ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
@@ -506,10 +509,6 @@ function AgendaPage() {
             <span className="opacity-80">{label}</span>
           </button>
         ))}
-        <div className="text-sm font-medium text-foreground ml-auto">
-          HOY · Sábado 20 de junio de 2026
-        </div>
-
         {data.loading && <span className="text-xs text-muted-foreground">Cargando…</span>}
       </div>
 
