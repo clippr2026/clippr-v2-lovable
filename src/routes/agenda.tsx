@@ -211,6 +211,7 @@ function AgendaPage() {
     startsAt: Date;
     appointment?: Appointment | null;
   } | null>(null);
+  const [newMenu, setNewMenu] = React.useState(false);
 
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
@@ -470,7 +471,7 @@ function AgendaPage() {
 
   return (
     <AppShell>
-      <div className="app-premium-shell mt-0 space-y-0">
+      <div className="app-premium-shell -mt-1 sm:-mt-2 space-y-0">
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
 {/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno) */}
@@ -532,10 +533,35 @@ function AgendaPage() {
 
         <div className="h-5 w-px bg-white/10 shrink-0" />
 
-        {/* Nuevo turno — far right */}
-        <Button className="shrink-0 h-7 px-3" onClick={() => openNew(null, cursor)}>
-          <Plus className="h-4 w-4 mr-1" /> Nuevo turno
-        </Button>
+        {/* Nuevo — square button with menu (Agregar turno / Bloquear horario) */}
+        <div className="relative shrink-0">
+          <Button
+            className="h-7 w-7 p-0"
+            aria-label="Nuevo"
+            onClick={() => setNewMenu((v) => !v)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          {newMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setNewMenu(false)} />
+              <div className="absolute right-0 mt-1.5 z-50 w-44 glass-strong rounded-xl p-1 animate-fade-up">
+                <button
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  onClick={() => { setNewMenu(false); openNew(null, cursor); }}
+                >
+                  <CalendarIcon className="h-4 w-4 text-primary" /> Agregar turno
+                </button>
+                <button
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  onClick={() => { setNewMenu(false); openBlockDialog(null, cursor); }}
+                >
+                  <XCircle className="h-4 w-4 text-amber-300" /> Bloquear horario
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Filter modal */}
@@ -888,25 +914,25 @@ function DayView({
             return (
               <div
                 key={e.id}
-                className="px-2.5 pb-2 pt-1 border-l border-white/[0.04] flex items-center gap-2"
+                className="px-2.5 pb-1.5 pt-1 border-l border-white/[0.04] flex items-center gap-2"
               >
                 {e.avatar_url ? (
                   <img
                     src={e.avatar_url}
                     alt={e.full_name ?? ""}
-                    className="h-9 w-9 rounded-full object-cover ring-1 ring-white/10 shrink-0"
+                    className="h-7 w-7 rounded-full object-cover ring-1 ring-white/10 shrink-0"
                   />
                 ) : (
                   <div
-                    className="h-9 w-9 rounded-full grid place-items-center text-xs font-semibold text-white ring-1 ring-white/10 shrink-0"
+                    className="h-7 w-7 rounded-full grid place-items-center text-[10px] font-semibold text-white ring-1 ring-white/10 shrink-0"
                     style={{ background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))" }}
                   >
                     {initials || "?"}
                   </div>
                 )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold truncate">{e.full_name ?? e.name}</div>
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <div className="min-w-0 flex-1 leading-tight">
+                  <div className="text-[13px] font-semibold truncate leading-none">{e.full_name ?? e.name}</div>
+                  <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
                     <span
                       className="h-1.5 w-1.5 rounded-full"
                       style={{
@@ -1037,16 +1063,13 @@ function ApptCard({
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
-      {/* Time · client name (same line) + status badge */}
+      {/* Time · client name (same line) */}
       <div className="flex items-center gap-1 min-w-0 leading-tight">
         <span className="text-[10px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
           {fmtTime(start)}
         </span>
         <span className="text-[9px] opacity-40 shrink-0 leading-none">•</span>
         <span className="text-[10px] font-semibold truncate flex-1 min-w-0 leading-none">{a.client_name || "Sin nombre"}</span>
-        <span className="shrink-0 text-[8px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
-          {meta.label}
-        </span>
       </div>
       {/* Service */}
       {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-[1.05] mt-0.5">{a.service_name}</div>}
