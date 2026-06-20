@@ -1,13 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import {
   Select,
   SelectContent,
@@ -557,15 +550,22 @@ export function AppointmentDialog({
     : clientName.trim();
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[88vh] overflow-y-auto">
-        <DialogHeader className="space-y-1 pb-1">
-          <div className="flex items-center justify-between gap-3 pr-6">
-            <DialogTitle>{isEdit ? "Editar reserva" : "Nueva reserva"}</DialogTitle>
-          </div>
-        </DialogHeader>
-
-        <div className="grid gap-3 py-1">
+    <>
+    <AgendaDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEdit ? "Editar reserva" : "Nueva reserva"}
+      footer={
+        <>
+          <Button variant="ghost" className="h-9" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
+          <Button className="h-9" onClick={() => submit(false)} disabled={busy}>
+            {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
+            {isEdit ? "Guardar cambios" : "Guardar reserva"}
+          </Button>
+        </>
+      }
+    >
+        <div className="grid gap-3">
           {/* Fecha y hora — compact */}
           <section className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2.5">
             <div className="flex items-center justify-between gap-3">
@@ -720,22 +720,21 @@ export function AppointmentDialog({
           </div>
         )}
 
-        <DialogFooter className="gap-2 sm:gap-2 pt-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
-          <Button onClick={() => submit(false)} disabled={busy}>
-            {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
-            {isEdit ? "Guardar cambios" : "Guardar reserva"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+    </AgendaDrawer>
 
-      <Dialog open={repeatOpen} onOpenChange={setRepeatOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Repetir turno</DialogTitle>
-            <DialogDescription>Configurá los días y hasta cuándo se repite esta reserva.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-5 py-2">
+      <AgendaDrawer
+        open={repeatOpen}
+        onOpenChange={setRepeatOpen}
+        title="Repetir turno"
+        subtitle="Configurá los días y hasta cuándo se repite esta reserva."
+        footer={
+          <>
+            <Button variant="ghost" className="h-9" onClick={() => setRepeatOpen(false)}>Cancelar</Button>
+            <Button className="h-9" onClick={() => { setRepeat((r) => ({ ...r, enabled: true })); setRepeatOpen(false); }}>Aceptar</Button>
+          </>
+        }
+      >
+          <div className="grid gap-5">
             <div className="grid gap-2">
               <Label>Se repite el</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -774,12 +773,7 @@ export function AppointmentDialog({
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setRepeatOpen(false)}>Cancelar</Button>
-            <Button onClick={() => { setRepeat((r) => ({ ...r, enabled: true })); setRepeatOpen(false); }}>Aceptar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Dialog>
+      </AgendaDrawer>
+    </>
   );
 }
