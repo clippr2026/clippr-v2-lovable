@@ -473,33 +473,11 @@ function AgendaPage() {
       <div className="app-premium-shell -mt-4 sm:-mt-6 lg:-mt-8 space-y-0">
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-{/* Unified glass banner — counts · Hoy · date nav · Nuevo turno (single row) */}
+{/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno) */}
       <div
-        className="glass rounded-2xl mb-3 px-3 py-2 animate-fade-up flex items-center gap-3 flex-nowrap overflow-x-auto"
+        className="glass rounded-xl mb-2 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap overflow-x-auto"
         style={{ scrollbarWidth: "none" }}
       >
-        {/* Status counts (clickable filters) */}
-        <div className="flex items-center gap-2 shrink-0">
-          {([
-            ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
-            ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
-            ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
-            ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
-          ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
-            <button
-              key={k}
-              onClick={() => setFilterModal(k)}
-              className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all hover:brightness-110 shrink-0"
-              style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
-            >
-              <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
-              <span className="opacity-80">{label}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="h-6 w-px bg-white/10 shrink-0" />
-
         {/* Hoy */}
         <button
           onClick={() => setCursor(startOfDay(new Date()))}
@@ -509,22 +487,22 @@ function AgendaPage() {
           Hoy
         </button>
 
-        <div className="h-6 w-px bg-white/10 shrink-0" />
+        <div className="h-5 w-px bg-white/10 shrink-0" />
 
         {/* Date navigation — prev/next one day */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => move(-1)}
             aria-label="Día anterior"
-            className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+            className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-semibold whitespace-nowrap min-w-[210px] text-center">{fullDate}</span>
+          <span className="text-sm font-semibold whitespace-nowrap min-w-[205px] text-center">{fullDate}</span>
           <button
             onClick={() => move(1)}
             aria-label="Día siguiente"
-            className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+            className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -532,8 +510,30 @@ function AgendaPage() {
 
         {data.loading && <span className="text-xs text-muted-foreground shrink-0">Cargando…</span>}
 
+        {/* Status counts (clickable filters) — pushed right */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {([
+            ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
+            ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
+            ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
+            ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
+          ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
+            <button
+              key={k}
+              onClick={() => setFilterModal(k)}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0"
+              style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
+            >
+              <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
+              <span className="opacity-80">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="h-5 w-px bg-white/10 shrink-0" />
+
         {/* Nuevo turno — far right */}
-        <Button className="shrink-0 h-8 px-3 ml-auto" onClick={() => openNew(null, cursor)}>
+        <Button className="shrink-0 h-7 px-3" onClick={() => openNew(null, cursor)}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo turno
         </Button>
       </div>
@@ -768,6 +768,25 @@ function DayView({
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
 
+  // ── Dynamic row height — fills available viewport so the last configured
+  //    hour lands at the bottom edge. rowPx = freeSpace / numberOfHours.
+  const gridBodyRef = React.useRef<HTMLDivElement>(null);
+  const [rowPx, setRowPx] = React.useState(ROW_PX);
+  React.useLayoutEffect(() => {
+    const recompute = () => {
+      const body = gridBodyRef.current;
+      if (!body || HOURS.length === 0) return;
+      const top = body.getBoundingClientRect().top;        // where the hour rows begin
+      const BOTTOM_GAP = 18;                                 // breathing room under the last row
+      const available = window.innerHeight - top - BOTTOM_GAP;
+      const per = available / HOURS.length;
+      setRowPx(Math.max(52, per));                           // clamp: never cramp below 52px (grid scrolls if it must)
+    };
+    const raf = requestAnimationFrame(recompute);
+    window.addEventListener("resize", recompute);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", recompute); };
+  }, [HOURS.length, employees.length]);
+
   const handleDrop = async (e: React.DragEvent, empId: string, hour: number, dropDate?: Date) => {
     e.preventDefault();
     const apptId = e.dataTransfer.getData("apptId");
@@ -832,7 +851,7 @@ function DayView({
   const isToday = startOfDay(now).getTime() === startOfDay(date).getTime();
   const nowHour = now.getHours() + now.getMinutes() / 60;
   const showNowLine = isToday && !isClosed && nowHour >= HOUR_START && nowHour <= HOUR_END;
-  const nowLineTop = (nowHour - HOUR_START) * ROW_PX;
+  const nowLineTop = (nowHour - HOUR_START) * rowPx;
 
   if (isClosed) {
     return (
@@ -901,12 +920,12 @@ function DayView({
             );
           })}
 
-          <div className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
+          <div ref={gridBodyRef} className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
             {HOURS.map((h) => (
               <div
                 key={h}
                 className="text-[11px] text-muted-foreground pr-2 text-right select-none"
-                style={{ height: ROW_PX }}
+                style={{ height: rowPx }}
               >
                 <span className="relative -top-2">{String(h).padStart(2, "0")}:00</span>
               </div>
@@ -919,7 +938,7 @@ function DayView({
                 <div
                   key={h}
                   className="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
-                  style={{ height: ROW_PX }}
+                  style={{ height: rowPx }}
                   onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }}
                   onDrop={(ev) => handleDrop(ev, e.id, h)}
                   onClick={(event) => {
@@ -949,6 +968,7 @@ function DayView({
                     layout={layouts.get(a.id)}
                     hourStart={HOUR_START}
                     hourEnd={HOUR_END}
+                    rowPx={rowPx}
                     onClick={() => onApptClick(a)}
                     onChangeStatus={(s) => onChangeStatus(a, s)}
                     onCobrar={() => onCobrar(a)}
@@ -971,6 +991,7 @@ function ApptCard({
   layout,
   hourStart,
   hourEnd,
+  rowPx,
 }: {
   a: Appointment;
   onClick: () => void;
@@ -979,13 +1000,14 @@ function ApptCard({
   layout?: ApptLayout;
   hourStart: number;
   hourEnd: number;
+  rowPx: number;
 }) {
   const start = new Date(a.starts_at);
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
-  const top = (startH - hourStart) * ROW_PX + 2;
-  const height = Math.max(dur * ROW_PX - 4, 38);
-  if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
+  const top = (startH - hourStart) * rowPx + 2;
+  const height = Math.max(dur * rowPx - 4, 38);
+  if (top < 0 || top > (hourEnd - hourStart) * rowPx) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
   const isMovable = a.status !== "charged";
   const laneCount = layout?.laneCount ?? 1;
@@ -1015,17 +1037,17 @@ function ApptCard({
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
-      {/* Time + status */}
-      <div className="flex items-center justify-between gap-1 min-w-0 leading-none">
-        <span className="text-[9px] font-bold tabular-nums truncate leading-none" style={{ color: meta.dot }}>
-          {fmtTime(start)}{a.duration_min ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min)*60000))}` : ""}
+      {/* Time · client name (same line) + status badge */}
+      <div className="flex items-center gap-1 min-w-0 leading-tight">
+        <span className="text-[10px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
+          {fmtTime(start)}
         </span>
+        <span className="text-[9px] opacity-40 shrink-0 leading-none">•</span>
+        <span className="text-[10px] font-semibold truncate flex-1 min-w-0 leading-none">{a.client_name || "Sin nombre"}</span>
         <span className="shrink-0 text-[8px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.dot, boxShadow: `inset 0 0 0 1px ${meta.border}` }}>
           {meta.label}
         </span>
       </div>
-      {/* Client */}
-      <div className="text-[10px] font-semibold leading-[1.05] truncate mt-0.5">{a.client_name || "Sin nombre"}</div>
       {/* Service */}
       {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-[1.05] mt-0.5">{a.service_name}</div>}
       {/se(ñ|n)a/i.test(a.notes || "") && (
