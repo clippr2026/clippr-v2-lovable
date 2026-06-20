@@ -24,7 +24,6 @@ import {
   useAgendaData,
   cancelAppointment,
   setAppointmentStatus,
-  checkOverlap,
   checkSchedule,
   type Appointment,
   type ApptStatus,
@@ -880,16 +879,14 @@ const DayView = React.memo(function DayView({
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", recompute); };
   }, [HOURS.length, employees.length]);
 
-  const handleDrop = async (e: React.DragEvent, empId: string, hour: number, dropDate?: Date) => {
+  // Drop is handled at the COLUMN level (not per hour-cell) so it works whether
+  // you release over an empty slot or on top of another card. The minute is
+  // derived from the cursor's Y within the column, snapped to DRAG_SNAP_MIN.
+  const handleDrop = async (e: React.DragEvent, empId: string) => {
     e.preventDefault();
-    // Snap the drop to a real minute based on the cursor's Y inside the cell
-    // (not just the whole hour), so :15/:30/:45 are valid targets.
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const frac = rect.height > 0 ? Math.min(0.999, Math.max(0, (e.clientY - rect.top) / rect.height)) : 0;
-    const snappedMin = Math.round((hour * 60 + frac * 60) / DRAG_SNAP_MIN) * DRAG_SNAP_MIN;
     setDragPreview(null);
+    const apptId = e.dataTransfer.getData("apptId") || draggedApptRef.current?.id || "";
     draggedApptRef.current = null;
-    const apptId = e.dataTransfer.getData("apptId");
     if (!apptId) return;
     const appt = data.appointments.find((a) => a.id === apptId);
     if (!appt) return;
@@ -901,33 +898,51 @@ const DayView = React.memo(function DayView({
       toast.error("Negocio cerrado este día.");
       return;
     }
-    const targetDate = dropDate ?? date;
-    const newStart = new Date(targetDate);
-    newStart.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
     const dur = Number(appt.duration_min ?? 30);
+    // Keep the appointment inside the grid; checkSchedule validates real hours.
+    const maxStart = HOUR_END * 60 - dur;
+    const snappedMin = Math.max(
+      HOUR_START * 60,
+      Math.min(maxStart, Math.round(rawMin / DRAG_SNAP_MIN) * DRAG_SNAP_MIN),
+    );
+
+    const newStart = new Date(date);
+    newStart.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
     const newEnd = new Date(newStart.getTime() + dur * 60000);
     const targetEmpId = empId === "__none__" ? null : empId;
-    try {
-      // Schedule validation before moving
-      const schedErr = checkSchedule(data.schedule, newStart, dur);
-      if (schedErr) { toast.error(schedErr); return; }
 
-      // Overlap check before moving
-      if (targetEmpId) {
-        const conflict = await checkOverlap(
-          targetEmpId,
-          newStart.toISOString(),
-          dur,
-          apptId, // exclude self
-        );
-        if (conflict) {
-          const conflictTime = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-          toast.error(
-            `Este profesional ya tiene un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`,
-          );
-          return;
-        }
-      }
+    // 1) Working hours (business schedule)
+    const schedErr = checkSchedule(data.schedule, newStart, dur);
+    if (schedErr) { toast.error(schedErr); return; }
+
+    // 2) Real-range overlap against the SAME in-memory data the grid shows, in
+    //    the SAME column. Consistent by construction: if the slot looks free,
+    //    the move is allowed. Touching endpoints (11:30 end vs 11:30 start) are OK.
+    const conflict = data.appointments.find((o) => {
+      if (o.id === apptId) return false;                 // never compare against itself
+      if (o.status === "cancelled") return false;        // cancelled don't occupy
+      const sameColumn = targetEmpId ? o.employee_id === targetEmpId : !o.employee_id;
+      if (!sameColumn) return false;
+      const oStart = new Date(o.starts_at);
+      const oEnd = getApptEnd(o);
+      return oStart < newEnd && oEnd > newStart;
+    });
+    if (conflict) {
+      const t = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      toast.error(
+        conflict.status === "blocked"
+          ? `Horario bloqueado (${t}).`
+          : `Profesional ocupado: ya tiene un turno a las ${t}${conflict.client_name ? ` · ${conflict.client_name}` : ""}.`,
+      );
+      return;
+    }
+
+    // 3) Persist
+    try {
       const { error } = await supabase.from("appointments").update({
         starts_at: newStart.toISOString(),
         ends_at: newEnd.toISOString(),
@@ -936,7 +951,9 @@ const DayView = React.memo(function DayView({
       if (error) throw new Error(error.message);
       data.refresh();
       toast.success("Turno movido");
-    } catch (ex) { toast.error((ex as Error).message); }
+    } catch (ex) {
+      toast.error(`Error al guardar: ${(ex as Error).message}`);
+    }
   };
 
   const dayAppts = React.useMemo(
@@ -963,14 +980,19 @@ const DayView = React.memo(function DayView({
   const showNowLine = isToday && !isClosed && nowHour >= HOUR_START && nowHour <= HOUR_END;
   const nowLineTop = (nowHour - HOUR_START) * rowPx;
 
-  // Reuse the same snap math as the drop, off the cursor Y within an hour cell.
-  const previewFromCell = (cell: HTMLElement, clientY: number, hour: number, empId: string) => {
+  // Reuse the same snap math as the drop, off the cursor Y within the column.
+  const previewFromColumn = (col: HTMLElement, clientY: number, empId: string) => {
     const appt = draggedApptRef.current;
     if (!appt) return;
     const durMin = Number(appt.duration_min ?? 30);
-    const rect = cell.getBoundingClientRect();
-    const frac = rect.height > 0 ? Math.min(0.999, Math.max(0, (clientY - rect.top) / rect.height)) : 0;
-    const snappedMin = Math.round((hour * 60 + frac * 60) / DRAG_SNAP_MIN) * DRAG_SNAP_MIN;
+    const rect = col.getBoundingClientRect();
+    const y = clientY - rect.top;
+    const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
+    const maxStart = HOUR_END * 60 - durMin;
+    const snappedMin = Math.max(
+      HOUR_START * 60,
+      Math.min(maxStart, Math.round(rawMin / DRAG_SNAP_MIN) * DRAG_SNAP_MIN),
+    );
     const top = (snappedMin / 60 - HOUR_START) * rowPx;
     const height = Math.max((durMin / 60) * rowPx, 18);
     const s = new Date(date); s.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
@@ -1062,18 +1084,21 @@ const DayView = React.memo(function DayView({
           </div>
 
           {columnRender.map(({ e, columnAppts, layouts }) => (
-            <div key={e.id} className="relative border-l border-white/[0.04]">
+            <div
+              key={e.id}
+              className="relative border-l border-white/[0.04]"
+              onDragOver={(ev) => {
+                ev.preventDefault();
+                ev.dataTransfer.dropEffect = "move";
+                previewFromColumn(ev.currentTarget as HTMLElement, ev.clientY, e.id);
+              }}
+              onDrop={(ev) => handleDrop(ev, e.id)}
+            >
               {HOURS.map((h) => (
                 <div
                   key={h}
                   className="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
                   style={{ height: rowPx }}
-                  onDragOver={(ev) => {
-                    ev.preventDefault();
-                    ev.dataTransfer.dropEffect = "move";
-                    previewFromCell(ev.currentTarget as HTMLElement, ev.clientY, h, e.id);
-                  }}
-                  onDrop={(ev) => handleDrop(ev, e.id, h)}
                   onClick={(event) => {
                     const dt = new Date(date);
                     dt.setHours(h, 0, 0, 0);
