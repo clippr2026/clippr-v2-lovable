@@ -47,6 +47,17 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
+/**
+ * Stable callback identity that always invokes the latest closure.
+ * Lets us pass handlers to memoized children without breaking React.memo
+ * and without dependency-array juggling (the "useEvent" pattern).
+ */
+function useStableCallback<T extends (...args: any[]) => any>(fn: T): T {
+  const ref = React.useRef(fn);
+  React.useLayoutEffect(() => { ref.current = fn; });
+  return React.useCallback(((...args: any[]) => ref.current(...args)) as T, []);
+}
+
 export const Route = createFileRoute("/agenda")({
   head: () => ({
     meta: [
@@ -335,7 +346,6 @@ function AgendaPage() {
       const { error } = await supabase.from("appointments").delete().eq("id", a.id);
       if (error) throw new Error(error.message);
       setDetailOpen(false);
-      setSelected(null);
       data.refresh();
       toast.success("Horario liberado");
     } catch (error) {
@@ -474,6 +484,36 @@ function AgendaPage() {
   const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
   const fullDate = `${cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))}, ${cursor.getDate()} de ${cap(cursor.toLocaleDateString("es-AR", { month: "long" }))} de ${cursor.getFullYear()}`;
   const isCursorToday = startOfDay(cursor).getTime() === startOfDay(new Date()).getTime();
+
+  // ── Performance: stable references so memoized children (DayView, drawer)
+  //    don't re-render when unrelated state (e.g. opening a turno) changes.
+  // useAgendaData returns a fresh object every render but its arrays are
+  // stable (useState); memoize the wrapper so identity only changes on real data.
+  const memoData = React.useMemo(
+    () => data,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.realtimeStatus, data.businessId, data.refresh],
+  );
+  const daySchedule = React.useMemo(
+    () => getScheduleForDate(data.schedule, cursor),
+    [data.schedule, cursor],
+  );
+
+  // Stable handlers passed to the (memoized) DayView grid.
+  const handleSlotClick = useStableCallback(openSlotMenu);
+  const handleApptClick = useStableCallback(openDetail);
+  const handleChangeStatus = useStableCallback(onChangeStatus);
+  const handleCobrar = useStableCallback(goToCobro);
+
+  // Stable handlers passed to the (memoized) detail drawer.
+  const handleEdit = useStableCallback(openEdit);
+  const handleCancel = useStableCallback((a: Appointment) => {
+    if (window.confirm("¿Cancelar este turno? No se puede deshacer.")) onChangeStatus(a, "cancelled");
+  });
+  const handleFicha = useStableCallback(() => navigate({ to: "/clients" }));
+  const handleMarkDeposit = useStableCallback(onMarkDeposit);
+  const handleCancelWithDeposit = useStableCallback(onCancelWithDeposit);
+  const handleReleaseBlock = useStableCallback(releaseBlock);
 
   return (
     <AppShell>
@@ -617,12 +657,12 @@ function AgendaPage() {
       {/* Always day view */}
       <DayView
         date={cursor}
-        data={data}
-        schedule={getScheduleForDate(data.schedule, cursor)}
-        onSlotClick={openSlotMenu}
-        onApptClick={openDetail}
-        onChangeStatus={onChangeStatus}
-        onCobrar={goToCobro}
+        data={memoData}
+        schedule={daySchedule}
+        onSlotClick={handleSlotClick}
+        onApptClick={handleApptClick}
+        onChangeStatus={handleChangeStatus}
+        onCobrar={handleCobrar}
       />
 
       {slotMenu ? (
@@ -667,16 +707,16 @@ function AgendaPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         appointment={selected}
-        employees={data.employees}
-        clients={data.clients}
-        onEdit={openEdit}
-        onCancel={(a) => { if (window.confirm("¿Cancelar este turno? No se puede deshacer.")) onChangeStatus(a, "cancelled"); }}
-        onCobrar={goToCobro}
-        onFicha={() => navigate({ to: "/clients" })}
-        onChangeStatus={onChangeStatus}
-        onMarkDeposit={onMarkDeposit}
-        onCancelWithDeposit={onCancelWithDeposit}
-        onReleaseBlock={releaseBlock}
+        employees={memoData.employees}
+        clients={memoData.clients}
+        onEdit={handleEdit}
+        onCancel={handleCancel}
+        onCobrar={handleCobrar}
+        onFicha={handleFicha}
+        onChangeStatus={handleChangeStatus}
+        onMarkDeposit={handleMarkDeposit}
+        onCancelWithDeposit={handleCancelWithDeposit}
+        onReleaseBlock={handleReleaseBlock}
       />
 
       <BlockHoursDialog
@@ -766,7 +806,7 @@ function computeOverlapLayouts(appts: Appointment[]) {
 // ---------------------------------------------------------------------------
 // Day view: columnas por profesional
 // ---------------------------------------------------------------------------
-function DayView({
+const DayView = React.memo(function DayView({
   date,
   data,
   schedule,
@@ -1013,9 +1053,9 @@ function DayView({
       </div>
     </section>
   );
-}
+});
 
-function ApptCard({
+const ApptCard = React.memo(function ApptCard({
   a,
   onClick,
   onChangeStatus,
@@ -1089,7 +1129,7 @@ function ApptCard({
       {/* Quick actions removed — use detail modal instead */}
     </div>
   );
-}
+});
 
 function IconBtn({
   title,
@@ -1321,7 +1361,7 @@ function BlockHoursDialog({
   );
 }
 
-function AppointmentDetailDialog({
+const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   open,
   onOpenChange,
   appointment,
@@ -1377,7 +1417,7 @@ function AppointmentDetailDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-[420px] p-0 overflow-y-auto border-white/10 bg-[#08070f]/95 backdrop-blur-md" aria-describedby={undefined}>
+      <SheetContent forceMount side="right" className="w-full sm:max-w-[420px] p-0 overflow-y-auto border-white/10 bg-[#08070f]/95 backdrop-blur-md data-[state=closed]:hidden" aria-describedby={undefined}>
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
           <div className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl" style={{ background: meta.dot }} />
           <div className="relative flex items-start justify-between gap-3">
@@ -1549,7 +1589,7 @@ function AppointmentDetailDialog({
       </SheetContent>
     </Sheet>
   );
-}
+});
 
 
 function WeekView({
