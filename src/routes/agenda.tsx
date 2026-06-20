@@ -204,7 +204,7 @@ function AgendaPage() {
   // Single source of truth: only ONE lateral drawer can be active at a time.
   // Opening any drawer switches this; closing sets it to null. No stacking.
   const [activeDrawer, setActiveDrawer] = React.useState<
-    "detail" | "new" | "edit" | "block" | null
+    "detail" | "new" | "edit" | "block" | "filter" | null
   >(null);
   const [selected, setSelected] = React.useState<Appointment | null>(null);
   const [editing, setEditing] = React.useState<Appointment | null>(null);
@@ -565,7 +565,7 @@ function AgendaPage() {
           ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
             <button
               key={k}
-              onClick={() => setFilterModal(k)}
+              onClick={() => { setFilterModal(k); setActiveDrawer("filter"); }}
               className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0"
               style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
             >
@@ -616,39 +616,42 @@ function AgendaPage() {
           ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
           : data.appointments.filter((a) => a.status === statusMap[filterModal]);
         return (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-4 pt-16 overflow-y-auto" onClick={() => setFilterModal(null)}>
-            <div className="glass-strong rounded-3xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between p-5 border-b border-white/5">
-                <h3 className="font-display text-lg font-semibold">{labels[filterModal]} ({filtered.length})</h3>
-                <button onClick={() => setFilterModal(null)} className="text-muted-foreground hover:text-foreground text-xl">×</button>
-              </div>
-              <div className="p-3 max-h-[60vh] overflow-y-auto">
-                {filtered.length === 0 ? (
-                  <div className="text-center text-sm text-muted-foreground py-8">Sin turnos en este estado.</div>
-                ) : filtered.map((a) => {
-                  const m = STATUS_META[a.status] ?? STATUS_META.pending;
-                  const emp = data.employees.find((e) => e.id === a.employee_id);
-                  return (
-                    <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.03] transition">
-                      <div className="h-8 w-8 rounded-full grid place-items-center ring-1 ring-white/10 shrink-0" style={{ background: m.bg }}>
-                        <span className="text-[10px] font-bold" style={{ color: m.dot }}>
-                          {(a.client_name || "?")[0]?.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{a.client_name || "Sin cliente"}</div>
-                        <div className="text-xs text-muted-foreground truncate">{emp?.full_name ?? emp?.name ?? "—"} · {a.service_name || "—"}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs tabular-nums">{new Date(a.starts_at).toLocaleDateString("es-AR",{day:"2-digit",month:"short"})} {fmtTime(new Date(a.starts_at))}</div>
-                        {a.service_price ? <div className="text-xs text-muted-foreground">${Number(a.service_price).toLocaleString("es-AR")}</div> : null}
-                      </div>
+          <AgendaDrawer
+            open={activeDrawer === "filter"}
+            onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
+            lockOutside={false}
+            title={`${labels[filterModal] ?? "Turnos"} (${filtered.length})`}
+          >
+            <div className="space-y-1">
+              {filtered.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-8">Sin turnos en este estado.</div>
+              ) : filtered.map((a) => {
+                const m = STATUS_META[a.status] ?? STATUS_META.pending;
+                const emp = data.employees.find((e) => e.id === a.employee_id);
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => openDetail(a)}
+                    className="w-full text-left flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.05] transition"
+                  >
+                    <div className="h-8 w-8 rounded-full grid place-items-center ring-1 ring-white/10 shrink-0" style={{ background: m.bg }}>
+                      <span className="text-[10px] font-bold" style={{ color: m.dot }}>
+                        {(a.client_name || "?")[0]?.toUpperCase()}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{a.client_name || "Sin cliente"}</div>
+                      <div className="text-xs text-muted-foreground truncate">{emp?.full_name ?? emp?.name ?? "—"} · {a.service_name || "—"}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs tabular-nums">{fmtHM(new Date(a.starts_at))}</div>
+                      {a.service_price ? <div className="text-xs text-muted-foreground">${Number(a.service_price).toLocaleString("es-AR")}</div> : null}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </AgendaDrawer>
         );
       })()}
 
