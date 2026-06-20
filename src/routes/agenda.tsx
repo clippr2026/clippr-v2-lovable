@@ -31,14 +31,8 @@ import {
   parseScheduleTime,
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
+import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -1341,13 +1335,32 @@ function BlockHoursDialog({
   const selectClass = "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl p-0 overflow-hidden" aria-describedby={undefined}>
-        <DialogHeader className="px-6 py-5 border-b border-white/10 bg-white/[0.025]">
-          <DialogTitle>{appointment ? "Editar bloqueo de horas" : "Bloqueo de horas"}</DialogTitle>
-        </DialogHeader>
-
-        <div className="max-h-[70vh] overflow-y-auto p-6 space-y-4">
+    <AgendaDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={appointment ? "Editar bloqueo de horas" : "Bloqueo de horas"}
+      footer={
+        <>
+          <Button variant="secondary" className="h-9" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button
+            className="h-9"
+            onClick={() => onSave({
+              appointmentId: appointment?.id,
+              employeeId: employeeId || null,
+              startsAt: combineLocalDateTime(startDate, startHour, startMinute),
+              endsAt: combineLocalDateTime(endDate, endHour, endMinute),
+              label: label.trim(),
+              repeatEnabled,
+              repeatEvery: Number(repeatEvery || 1),
+              repeatCount: Number(repeatCount || 1),
+            })}
+          >
+            {appointment ? "Guardar cambios" : "Guardar bloqueo"}
+          </Button>
+        </>
+      }
+    >
+        <div className="space-y-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
             <label className="block text-sm font-semibold">
               Motivo/Etiqueta
@@ -1372,7 +1385,7 @@ function BlockHoursDialog({
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-            <div className="grid grid-cols-[1fr_120px_120px] gap-3 items-end">
+            <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
               <label className="block text-sm font-semibold">
                 Fecha de inicio
                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
@@ -1390,7 +1403,7 @@ function BlockHoursDialog({
                 </select>
               </label>
             </div>
-            <div className="grid grid-cols-[1fr_120px_120px] gap-3 items-end">
+            <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
               <label className="block text-sm font-semibold">
                 Fecha de fin
                 <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
@@ -1437,26 +1450,7 @@ function BlockHoursDialog({
             </div>
           )}
         </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-4">
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button
-            onClick={() => onSave({
-              appointmentId: appointment?.id,
-              employeeId: employeeId || null,
-              startsAt: combineLocalDateTime(startDate, startHour, startMinute),
-              endsAt: combineLocalDateTime(endDate, endHour, endMinute),
-              label: label.trim(),
-              repeatEnabled,
-              repeatEvery: Number(repeatEvery || 1),
-              repeatCount: Number(repeatCount || 1),
-            })}
-          >
-            {appointment ? "Guardar cambios" : "Guardar bloqueo"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    </AgendaDrawer>
   );
 }
 
