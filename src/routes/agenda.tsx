@@ -458,58 +458,84 @@ function AgendaPage() {
     cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
   };
 
-  // Always day view — navigation via the strip
+  // Always day view — navigation via the banner arrows
   const move = (delta: number) => {
     setCursor((c) => new Date(c.getTime() + delta * DAY_MS));
   };
+
+  // Full date label for the unified banner — "Sábado, 20 de Junio de 2026"
+  const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+  const fullDate = `${cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))}, ${cursor.getDate()} de ${cap(cursor.toLocaleDateString("es-AR", { month: "long" }))} de ${cursor.getFullYear()}`;
+  const isCursorToday = startOfDay(cursor).getTime() === startOfDay(new Date()).getTime();
 
   return (
     <AppShell>
       <div className="app-premium-shell -mt-4 sm:-mt-6 lg:-mt-8 space-y-0">
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-{/* Header compacto */}
-      <div className="flex items-center justify-between gap-3 mb-2 animate-fade-up">
-        <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              data.realtimeStatus === "disconnected" ? "bg-destructive" : "bg-success pulse-dot",
-            )}
-          />
-          <span>
-            {data.realtimeStatus === "disconnected"
-              ? "Sin conexión. Los cambios pueden no reflejarse inmediatamente."
-              : "Sincronizada en tiempo real"}
-          </span>
+{/* Unified glass banner — counts · Hoy · date nav · Nuevo turno (single row) */}
+      <div
+        className="glass rounded-2xl mb-3 px-3 py-2 animate-fade-up flex items-center gap-3 flex-nowrap overflow-x-auto"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {/* Status counts (clickable filters) */}
+        <div className="flex items-center gap-2 shrink-0">
+          {([
+            ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
+            ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
+            ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
+            ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
+          ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
+            <button
+              key={k}
+              onClick={() => setFilterModal(k)}
+              className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all hover:brightness-110 shrink-0"
+              style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
+            >
+              <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
+              <span className="opacity-80">{label}</span>
+            </button>
+          ))}
         </div>
-        <Button className="shrink-0 h-9 px-4" onClick={() => openNew(null, cursor)}>
+
+        <div className="h-6 w-px bg-white/10 shrink-0" />
+
+        {/* Hoy */}
+        <button
+          onClick={() => setCursor(startOfDay(new Date()))}
+          disabled={isCursorToday}
+          className="text-xs font-medium text-primary hover:text-primary/80 transition shrink-0 disabled:opacity-40 disabled:hover:text-primary"
+        >
+          Hoy
+        </button>
+
+        <div className="h-6 w-px bg-white/10 shrink-0" />
+
+        {/* Date navigation — prev/next one day */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => move(-1)}
+            aria-label="Día anterior"
+            className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-semibold whitespace-nowrap min-w-[210px] text-center">{fullDate}</span>
+          <button
+            onClick={() => move(1)}
+            aria-label="Día siguiente"
+            className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {data.loading && <span className="text-xs text-muted-foreground shrink-0">Cargando…</span>}
+
+        {/* Nuevo turno — far right */}
+        <Button className="shrink-0 h-8 px-3 ml-auto" onClick={() => openNew(null, cursor)}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo turno
         </Button>
-      </div>
-
-      {/* Modern day-strip navigation */}
-      <DayStripNav cursor={cursor} onSelect={setCursor} />
-
-      {/* Status pills — compact single row */}
-      <div className="flex items-center gap-2 flex-wrap mb-3 animate-fade-up">
-        {([
-          ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
-          ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
-          ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
-          ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
-        ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
-          <button
-            key={k}
-            onClick={() => setFilterModal(k)}
-            className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110"
-            style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
-          >
-            <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
-            <span className="opacity-80">{label}</span>
-          </button>
-        ))}
-        {data.loading && <span className="text-xs text-muted-foreground">Cargando…</span>}
       </div>
 
       {/* Filter modal */}
@@ -651,110 +677,6 @@ function AgendaPage() {
         />
       )}
     </AppShell>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// DayStripNav — modern horizontal day navigation (shared by Agenda & Mi Agenda)
-// ---------------------------------------------------------------------------
-function DayStripNav({
-  cursor,
-  onSelect,
-}: {
-  cursor: Date;
-  onSelect: (d: Date) => void;
-}) {
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-  const today = startOfDay(new Date());
-
-  // Pool: 180 days centered on cursor (90 before/after) — regenerates when cursor moves month
-  const days = React.useMemo(() => {
-    const base = startOfDay(cursor);
-    return Array.from({ length: 181 }, (_, i) => new Date(base.getTime() + (i - 90) * DAY_MS));
-  }, [cursor.getFullYear(), cursor.getMonth()]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Scroll selected day into center
-  React.useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const cursorStr = cursor.toISOString().slice(0, 10);
-    const idx = days.findIndex(d => d.toISOString().slice(0, 10) === cursorStr);
-    if (idx === -1) return;
-    const itemWidth = 48;
-    container.scrollTo({ left: Math.max(0, idx * itemWidth - container.clientWidth / 2 + itemWidth / 2), behavior: "smooth" });
-  }, [cursor, days]);
-
-  // Month label always tracks the selected cursor date
-  const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-  const cursorStr = cursor.toISOString().slice(0, 10);
-  const todayStr = today.toISOString().slice(0, 10);
-
-  return (
-    <div className="glass rounded-2xl mb-3 overflow-hidden animate-fade-up mx-auto w-full max-w-5xl">
-      {/* Month label + today button */}
-      <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onSelect(startOfDay(new Date(cursor.getFullYear(), cursor.getMonth() - 1, cursor.getDate())))}
-            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <span className="text-sm font-semibold capitalize">{monthLabel}</span>
-          <button
-            onClick={() => onSelect(startOfDay(new Date(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate())))}
-            className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        {cursorStr !== todayStr && (
-          <button
-            onClick={() => onSelect(startOfDay(new Date()))}
-            className="text-xs font-medium text-primary hover:text-primary/80 transition"
-          >
-            Hoy
-          </button>
-        )}
-      </div>
-
-      {/* Scrollable day strip */}
-      <div
-        ref={scrollRef}
-        className="flex gap-1 overflow-x-auto px-2 pb-2 scroll-smooth"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-      >
-        {days.map((d) => {
-          const dStr = d.toISOString().slice(0, 10);
-          const isSelected = dStr === cursorStr;
-          const isToday = dStr === todayStr;
-          const dow = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "").slice(0, 3);
-          return (
-            <button
-              key={dStr}
-              onClick={() => onSelect(startOfDay(d))}
-              className={cn(
-                "flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-all shrink-0 w-[44px]",
-                isSelected
-                  ? "text-white"
-                  : isToday
-                    ? "text-primary ring-1 ring-primary/30 bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
-              )}
-              style={isSelected ? {
-                background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
-                color: "white",
-              } : undefined}
-            >
-              <span className="text-[10px] uppercase tracking-wider font-medium">{dow}</span>
-              <span className="text-base font-semibold leading-none tabular-nums">
-                {d.getDate()}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
