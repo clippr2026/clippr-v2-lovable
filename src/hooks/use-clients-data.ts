@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -273,6 +273,242 @@ export function useClientsData(businessId: string | null) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Paginated + server-side searched list (uses the trigram indexes via ILIKE).
+// Only the requested page of clients is enriched, so we never load every client
+// (and their full payment history) just to open the module.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ClientListRow = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  created_at: string;
+  visits: number;
+  spent: number;
+  lastVisit: string | null;
+  lastVisitDays: number | null;
+  status: ClientStatus;
+  vipTag: ClientVipTag;
+};
+
+export type ClientsPage = { rows: ClientListRow[]; total: number };
+
+function rowFromHistory(
+  c: { id: string; full_name: string | null; phone: string | null; email: string | null; created_at: string },
+  history: ClientPayment[],
+): ClientListRow {
+  const visits = history.length;
+  const spent = history.reduce((s, p) => s + p.amount, 0);
+  const last = history[0]?.date ?? null;
+  const firstVisitDate = history[history.length - 1]?.date ?? null;
+  const isNewThisMonth = isCurrentMonth(firstVisitDate);
+  const lastVisit = formatLastVisit(last);
+  const vipTag = computeVipTag(history);
+  return {
+    id: c.id,
+    name: c.full_name ?? "Sin nombre",
+    phone: c.phone,
+    email: c.email,
+    created_at: c.created_at,
+    visits,
+    spent,
+    lastVisit: lastVisit.label,
+    lastVisitDays: lastVisit.days,
+    vipTag,
+    status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
+  };
+}
+
+const PAGE_SIZE = 30;
+
+async function loadClientsPage(
+  businessId: string,
+  opts: { search: string; pageParam: number; sort: "nombre" | "recientes" },
+): Promise<ClientsPage> {
+  const from = opts.pageParam * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  let q = supabase
+    .from("clients")
+    .select("id,full_name,phone,email,created_at", { count: "exact" })
+    .eq("business_id", businessId);
+
+  const search = opts.search.trim();
+  if (search) {
+    const s = search.replace(/[%,()]/g, " ").trim();
+    // ILIKE across name/phone/email — accelerated by the pg_trgm GIN indexes.
+    q = q.or(`full_name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%`);
+  }
+
+  q = opts.sort === "recientes"
+    ? q.order("created_at", { ascending: false })
+    : q.order("full_name", { ascending: true });
+
+  const { data: rawClients, error, count } = await q.range(from, to);
+  if (error) throw new Error("Error cargando clientes: " + error.message);
+  const rows = rawClients ?? [];
+  if (!rows.length) return { rows: [], total: count ?? 0 };
+
+  // Enrich ONLY this page's clients with their payment history (matched by name).
+  const names = Array.from(new Set(rows.map((c) => c.full_name).filter(Boolean))) as string[];
+  const { data: payments } = await supabase
+    .from("payments")
+    .select("id,client_name,service_name,total,amount,created_at")
+    .eq("business_id", businessId)
+    .in("client_name", names)
+    .order("created_at", { ascending: false });
+
+  const byName = new Map<string, ClientPayment[]>();
+  (payments ?? []).forEach((p) => {
+    const key = (p.client_name ?? "").trim().toLowerCase();
+    if (!key) return;
+    if (!byName.has(key)) byName.set(key, []);
+    byName.get(key)!.push({
+      id: p.id,
+      date: p.created_at,
+      service: p.service_name || "Servicio",
+      amount: Number(p.total ?? p.amount ?? 0),
+    });
+  });
+
+  return {
+    rows: rows.map((c) => rowFromHistory(c, byName.get((c.full_name ?? "").trim().toLowerCase()) ?? [])),
+    total: count ?? rows.length,
+  };
+}
+
+export function useClientsPage(
+  businessId: string | null,
+  search: string,
+  sort: "nombre" | "recientes",
+) {
+  return useInfiniteQuery({
+    queryKey: ["clients-page", businessId, search, sort],
+    enabled: !!businessId,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => loadClientsPage(businessId!, { search, pageParam: pageParam as number, sort }),
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.rows.length, 0);
+      return loaded < lastPage.total ? pages.length : undefined;
+    },
+    staleTime: 30_000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lightweight segment summary for the top stat cards (VIP/Nuevos/…) and the
+// "ver todos" groups. Loads minimal columns for ALL clients + minimal payment
+// columns to compute status, without building the full rich Client objects.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SegmentSummary = {
+  counts: Record<ClientStatus, number>;
+  byStatus: Record<ClientStatus, ClientListRow[]>;
+};
+
+async function loadSegmentSummary(businessId: string): Promise<SegmentSummary> {
+  const [{ data: clients, error: cErr }, { data: payments, error: pErr }] = await Promise.all([
+    supabase.from("clients").select("id,full_name,phone,email,created_at").eq("business_id", businessId),
+    supabase.from("payments").select("client_name,total,amount,created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
+  ]);
+  if (cErr) throw new Error("Error cargando resumen de clientes: " + cErr.message);
+  if (pErr) throw new Error("Error cargando resumen de pagos: " + pErr.message);
+
+  const byName = new Map<string, ClientPayment[]>();
+  (payments ?? []).forEach((p) => {
+    const key = (p.client_name ?? "").trim().toLowerCase();
+    if (!key) return;
+    if (!byName.has(key)) byName.set(key, []);
+    byName.get(key)!.push({ id: "", date: p.created_at, service: "", amount: Number(p.total ?? p.amount ?? 0) });
+  });
+
+  const counts: Record<ClientStatus, number> = { vip: 0, nuevo: 0, activo: 0, inactivo: 0, perdido: 0 };
+  const byStatus: Record<ClientStatus, ClientListRow[]> = { vip: [], nuevo: [], activo: [], inactivo: [], perdido: [] };
+
+  (clients ?? []).forEach((c) => {
+    const row = rowFromHistory(c, byName.get((c.full_name ?? "").trim().toLowerCase()) ?? []);
+    counts[row.status] += 1;
+    byStatus[row.status].push(row);
+  });
+
+  return { counts, byStatus };
+}
+
+export function useClientSegmentSummary(businessId: string | null) {
+  return useQuery({
+    queryKey: ["clients-summary", businessId],
+    queryFn: () => loadSegmentSummary(businessId!),
+    enabled: !!businessId,
+    staleTime: 30_000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// On-demand full enrichment for the selected client (detail panel).
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadClientDetail(businessId: string, clientId: string): Promise<Client | null> {
+  const { data: c, error } = await supabase
+    .from("clients")
+    .select("id,full_name,phone,email,notes,birth_date,created_at")
+    .eq("business_id", businessId)
+    .eq("id", clientId)
+    .maybeSingle();
+  if (error) throw new Error("Error cargando cliente: " + error.message);
+  if (!c) return null;
+
+  const name = c.full_name ?? "Sin nombre";
+  const [{ data: payments }, { data: appointments }] = await Promise.all([
+    supabase.from("payments").select("id,client_name,service_name,total,amount,created_at")
+      .eq("business_id", businessId).eq("client_name", name).order("created_at", { ascending: false }),
+    supabase.from("appointments").select("id,client_id,client_name,service_name,starts_at,status")
+      .eq("business_id", businessId).eq("client_id", clientId)
+      .gte("starts_at", new Date().toISOString()).neq("status", "cancelled")
+      .order("starts_at", { ascending: true }).limit(1),
+  ]);
+
+  const history: ClientPayment[] = (payments ?? []).map((p) => ({
+    id: p.id, date: p.created_at, service: p.service_name || "Servicio", amount: Number(p.total ?? p.amount ?? 0),
+  }));
+  const visits = history.length;
+  const spent = history.reduce((s, p) => s + p.amount, 0);
+  const last12Cutoff = new Date(); last12Cutoff.setMonth(last12Cutoff.getMonth() - 12);
+  const spentLast12Months = history.filter((p) => new Date(p.date).getTime() >= last12Cutoff.getTime()).reduce((s, p) => s + p.amount, 0);
+  const favMap = new Map<string, { count: number; amount: number }>();
+  history.forEach((p) => {
+    const cur = favMap.get(p.service) ?? { count: 0, amount: 0 };
+    favMap.set(p.service, { count: cur.count + 1, amount: cur.amount + p.amount });
+  });
+  const favoriteServices = Array.from(favMap.entries()).map(([service, v]) => ({ service, ...v }))
+    .sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 3);
+  const appt = appointments?.[0];
+  const nextAppointment = appt ? { id: appt.id, date: appt.starts_at, service: appt.service_name || "Servicio", status: appt.status || "pending" } : null;
+  const lastDate = history[0]?.date ?? null;
+  const firstVisitDate = history[history.length - 1]?.date ?? null;
+  const isNewThisMonth = isCurrentMonth(firstVisitDate);
+  const lastVisit = formatLastVisit(lastDate);
+  const vipTag = computeVipTag(history);
+
+  return {
+    id: c.id, name, phone: c.phone, email: c.email, notes: c.notes, birth_date: c.birth_date, created_at: c.created_at,
+    visits, spent, spentLast12Months, favoriteServices, nextAppointment,
+    lastVisit: lastVisit.label, lastVisitDays: lastVisit.days, isNewThisMonth, vipTag,
+    status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
+    rating: computeRating(visits, spent, lastVisit.days), history,
+  };
+}
+
+export function useClientDetail(businessId: string | null, clientId: string | null) {
+  return useQuery({
+    queryKey: ["client-detail", businessId, clientId],
+    queryFn: () => loadClientDetail(businessId!, clientId!),
+    enabled: !!businessId && !!clientId,
+    staleTime: 15_000,
+  });
+}
+
 export type NewClientInput = {
   name: string;
   phone?: string;
@@ -302,7 +538,9 @@ export function useSaveClient(businessId: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clients", businessId] });
-      qc.refetchQueries({ queryKey: ["clients", businessId] });
+      qc.invalidateQueries({ queryKey: ["clients-page", businessId] });
+      qc.invalidateQueries({ queryKey: ["clients-summary", businessId] });
+      qc.invalidateQueries({ queryKey: ["client-detail", businessId] });
     },
   });
 }
@@ -325,7 +563,9 @@ export function useDeleteClient(businessId: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clients", businessId] });
-      qc.refetchQueries({ queryKey: ["clients", businessId] });
+      qc.invalidateQueries({ queryKey: ["clients-page", businessId] });
+      qc.invalidateQueries({ queryKey: ["clients-summary", businessId] });
+      qc.invalidateQueries({ queryKey: ["client-detail", businessId] });
     },
   });
 }
@@ -352,7 +592,9 @@ export function useUpdateClientNotes(businessId: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clients", businessId] });
-      qc.refetchQueries({ queryKey: ["clients", businessId] });
+      qc.invalidateQueries({ queryKey: ["clients-page", businessId] });
+      qc.invalidateQueries({ queryKey: ["clients-summary", businessId] });
+      qc.invalidateQueries({ queryKey: ["client-detail", businessId] });
     },
   });
 }
