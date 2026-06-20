@@ -756,6 +756,14 @@ function AgendaPage() {
 
 type ApptLayout = { lane: number; laneCount: number };
 
+// Drag & drop tuning + helpers (shared by the grid and cards).
+const DRAG_SNAP_MIN = 15; // drop snaps to 15-minute increments
+const fmtHM = (d: Date) =>
+  d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+// Tracks the appointment currently being dragged so onDragOver (which cannot
+// read dataTransfer for security reasons) knows its duration for the preview.
+const draggedApptRef: { current: Appointment | null } = { current: null };
+
 function getApptEnd(a: Appointment) {
   if (a.ends_at) return new Date(a.ends_at);
   return new Date(new Date(a.starts_at).getTime() + Number(a.duration_min ?? 30) * 60_000);
@@ -846,6 +854,17 @@ const DayView = React.memo(function DayView({
   //    hour lands at the bottom edge. rowPx = freeSpace / numberOfHours.
   const gridBodyRef = React.useRef<HTMLDivElement>(null);
   const [rowPx, setRowPx] = React.useState(ROW_PX);
+
+  // Drag preview ghost (target time range while dragging). Lightweight: only
+  // stored in state, no Supabase calls, no grid recompute.
+  const [dragPreview, setDragPreview] = React.useState<
+    { empId: string; top: number; height: number; label: string } | null
+  >(null);
+  React.useEffect(() => {
+    const clear = () => { draggedApptRef.current = null; setDragPreview(null); };
+    window.addEventListener("dragend", clear);
+    return () => window.removeEventListener("dragend", clear);
+  }, []);
   React.useLayoutEffect(() => {
     const recompute = () => {
       const body = gridBodyRef.current;
@@ -863,6 +882,13 @@ const DayView = React.memo(function DayView({
 
   const handleDrop = async (e: React.DragEvent, empId: string, hour: number, dropDate?: Date) => {
     e.preventDefault();
+    // Snap the drop to a real minute based on the cursor's Y inside the cell
+    // (not just the whole hour), so :15/:30/:45 are valid targets.
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const frac = rect.height > 0 ? Math.min(0.999, Math.max(0, (e.clientY - rect.top) / rect.height)) : 0;
+    const snappedMin = Math.round((hour * 60 + frac * 60) / DRAG_SNAP_MIN) * DRAG_SNAP_MIN;
+    setDragPreview(null);
+    draggedApptRef.current = null;
     const apptId = e.dataTransfer.getData("apptId");
     if (!apptId) return;
     const appt = data.appointments.find((a) => a.id === apptId);
@@ -877,7 +903,7 @@ const DayView = React.memo(function DayView({
     }
     const targetDate = dropDate ?? date;
     const newStart = new Date(targetDate);
-    newStart.setHours(hour, 0, 0, 0);
+    newStart.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
     const dur = Number(appt.duration_min ?? 30);
     const newEnd = new Date(newStart.getTime() + dur * 60000);
     const targetEmpId = empId === "__none__" ? null : empId;
@@ -913,19 +939,48 @@ const DayView = React.memo(function DayView({
     } catch (ex) { toast.error((ex as Error).message); }
   };
 
-  const sameDay = (iso: string) => {
-    const d = new Date(iso);
-    return (
-      d.getFullYear() === date.getFullYear() &&
-      d.getMonth() === date.getMonth() &&
-      d.getDate() === date.getDate()
-    );
-  };
-  const dayAppts = data.appointments.filter((a) => sameDay(a.starts_at) && a.status !== "cancelled");
+  const dayAppts = React.useMemo(
+    () => data.appointments.filter((a) => {
+      const d = new Date(a.starts_at);
+      return d.getFullYear() === date.getFullYear()
+        && d.getMonth() === date.getMonth()
+        && d.getDate() === date.getDate()
+        && a.status !== "cancelled";
+    }),
+    [data.appointments, date],
+  );
+  // Precompute each column's appointments + overlap layout once per data/day,
+  // so dragging (which only updates dragPreview state) never recomputes this.
+  const columnRender = React.useMemo(
+    () => employees.map((e) => {
+      const columnAppts = dayAppts.filter((a) => (e.id === "__none__" ? !a.employee_id : a.employee_id === e.id));
+      return { e, columnAppts, layouts: computeOverlapLayouts(columnAppts) };
+    }),
+    [employees, dayAppts],
+  );
   const isToday = startOfDay(now).getTime() === startOfDay(date).getTime();
   const nowHour = now.getHours() + now.getMinutes() / 60;
   const showNowLine = isToday && !isClosed && nowHour >= HOUR_START && nowHour <= HOUR_END;
   const nowLineTop = (nowHour - HOUR_START) * rowPx;
+
+  // Reuse the same snap math as the drop, off the cursor Y within an hour cell.
+  const previewFromCell = (cell: HTMLElement, clientY: number, hour: number, empId: string) => {
+    const appt = draggedApptRef.current;
+    if (!appt) return;
+    const durMin = Number(appt.duration_min ?? 30);
+    const rect = cell.getBoundingClientRect();
+    const frac = rect.height > 0 ? Math.min(0.999, Math.max(0, (clientY - rect.top) / rect.height)) : 0;
+    const snappedMin = Math.round((hour * 60 + frac * 60) / DRAG_SNAP_MIN) * DRAG_SNAP_MIN;
+    const top = (snappedMin / 60 - HOUR_START) * rowPx;
+    const height = Math.max((durMin / 60) * rowPx, 18);
+    const s = new Date(date); s.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
+    const label = `${fmtHM(s)} - ${fmtHM(new Date(s.getTime() + durMin * 60000))}`;
+    setDragPreview((prev) =>
+      prev && prev.empId === empId && prev.top === top && prev.label === label
+        ? prev
+        : { empId, top, height, label },
+    );
+  };
 
   if (isClosed) {
     return (
@@ -1006,14 +1061,18 @@ const DayView = React.memo(function DayView({
             ))}
           </div>
 
-          {employees.map((e) => (
+          {columnRender.map(({ e, columnAppts, layouts }) => (
             <div key={e.id} className="relative border-l border-white/[0.04]">
               {HOURS.map((h) => (
                 <div
                   key={h}
                   className="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
                   style={{ height: rowPx }}
-                  onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }}
+                  onDragOver={(ev) => {
+                    ev.preventDefault();
+                    ev.dataTransfer.dropEffect = "move";
+                    previewFromCell(ev.currentTarget as HTMLElement, ev.clientY, h, e.id);
+                  }}
                   onDrop={(ev) => handleDrop(ev, e.id, h)}
                   onClick={(event) => {
                     const dt = new Date(date);
@@ -1032,23 +1091,29 @@ const DayView = React.memo(function DayView({
                 </div>
               )}
 
-              {(() => {
-                const columnAppts = dayAppts.filter((a) => (e.id === "__none__" ? !a.employee_id : a.employee_id === e.id));
-                const layouts = computeOverlapLayouts(columnAppts);
-                return columnAppts.map((a) => (
-                  <ApptCard
-                    key={a.id}
-                    a={a}
-                    layout={layouts.get(a.id)}
-                    hourStart={HOUR_START}
-                    hourEnd={HOUR_END}
-                    rowPx={rowPx}
-                    onClick={() => onApptClick(a)}
-                    onChangeStatus={(s) => onChangeStatus(a, s)}
-                    onCobrar={() => onCobrar(a)}
-                  />
-                ));
-              })()}
+              {/* Drag preview ghost — target time range before dropping */}
+              {dragPreview && dragPreview.empId === e.id && (
+                <div
+                  className="pointer-events-none absolute left-1 right-1 z-30 rounded-lg border-2 border-dashed border-primary/70 bg-primary/10 backdrop-blur-[1px] px-2 py-0.5 overflow-hidden"
+                  style={{ top: dragPreview.top, height: dragPreview.height }}
+                >
+                  <span className="text-[10px] font-bold tabular-nums text-primary leading-none">{dragPreview.label}</span>
+                </div>
+              )}
+
+              {columnAppts.map((a) => (
+                <ApptCard
+                  key={a.id}
+                  a={a}
+                  layout={layouts.get(a.id)}
+                  hourStart={HOUR_START}
+                  hourEnd={HOUR_END}
+                  rowPx={rowPx}
+                  onClick={() => onApptClick(a)}
+                  onChangeStatus={(s) => onChangeStatus(a, s)}
+                  onCobrar={() => onCobrar(a)}
+                />
+              ))}
             </div>
           ))}
         </div>
@@ -1077,6 +1142,8 @@ const ApptCard = React.memo(function ApptCard({
   rowPx: number;
 }) {
   const start = new Date(a.starts_at);
+  const end = getApptEnd(a);
+  const firstName = (a.client_name || "Sin nombre").trim().split(/\s+/)[0] || "Sin nombre";
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - hourStart) * rowPx + 2;
@@ -1098,6 +1165,10 @@ const ApptCard = React.memo(function ApptCard({
     }
     e.dataTransfer.setData("apptId", a.id);
     e.dataTransfer.effectAllowed = "move";
+    draggedApptRef.current = a;
+  };
+  const handleDragEnd = () => {
+    draggedApptRef.current = null;
   };
 
   return (
@@ -1109,15 +1180,16 @@ const ApptCard = React.memo(function ApptCard({
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
       draggable={isMovable}
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
-      {/* Time · client name (same line) */}
+      {/* Time range · first name (same line) */}
       <div className="flex items-center gap-1 min-w-0 leading-tight">
         <span className="text-[10px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
-          {fmtTime(start)}
+          {fmtHM(start)} - {fmtHM(end)}
         </span>
-        <span className="text-[9px] opacity-40 shrink-0 leading-none">•</span>
-        <span className="text-[10px] font-semibold truncate flex-1 min-w-0 leading-none">{a.client_name || "Sin nombre"}</span>
+        <span className="text-[9px] opacity-40 shrink-0 leading-none">·</span>
+        <span className="text-[10px] font-semibold truncate flex-1 min-w-0 leading-none">{firstName}</span>
       </div>
       {/* Service */}
       {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-[1.05] mt-0.5">{a.service_name}</div>}
