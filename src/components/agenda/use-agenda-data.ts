@@ -223,6 +223,39 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     setLoading(false);
   }, [businessId, startIso, endIso]);
 
+  // Narrow reloads used by realtime so a single appointment change does NOT
+  // refetch employees, services, clients and schedule on every event.
+  const loadAppointments = React.useCallback(async () => {
+    if (!businessId) return;
+    const { data, error } = await supabase
+      .from("appointments")
+      .select(
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
+      )
+      .eq("business_id", businessId)
+      .gte("starts_at", startIso)
+      .lte("starts_at", endIso)
+      .order("starts_at");
+    if (!error) setAppointments((data ?? []) as Appointment[]);
+  }, [businessId, startIso, endIso]);
+
+  const loadServices = React.useCallback(async () => {
+    if (!businessId) return;
+    const { data, error } = await supabase
+      .from("price_catalog")
+      .select("id,name,price,duration_min,active,category")
+      .eq("business_id", businessId)
+      .not("duration_min", "is", null)
+      .order("name");
+    if (error) return;
+    const svc = (data ?? []) as unknown as (Service & { active?: boolean | null; duration_min?: number | null })[];
+    setServices(
+      svc
+        .filter((s) => s.active !== false && s.duration_min != null)
+        .map((s) => ({ id: s.id, name: s.name, price: Number(s.price) || 0, duration: Number(s.duration_min) || 30 })),
+    );
+  }, [businessId]);
+
   React.useEffect(() => {
     load();
   }, [load]);
@@ -246,7 +279,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           filter: `business_id=eq.${businessId}`,
         },
         () => {
-          load();
+          loadAppointments();
         },
       )
       .on(
@@ -258,7 +291,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           filter: `business_id=eq.${businessId}`,
         },
         () => {
-          load();
+          loadServices();
         },
       )
       .subscribe((status) => {
@@ -280,7 +313,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       window.removeEventListener("offline", handleOffline);
       supabase.removeChannel(channel);
     };
-  }, [businessId, load]);
+  }, [businessId, loadAppointments, loadServices]);
 
   return {
     loading,
