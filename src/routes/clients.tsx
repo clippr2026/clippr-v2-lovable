@@ -24,6 +24,7 @@ import {
   useClientsPage,
   useClientSegmentSummary,
   useClientDetail,
+  fetchClientsByStatus,
   useDeleteClient,
   useSaveClient,
   useUpdateClientNotes,
@@ -287,7 +288,7 @@ function ClientsPage() {
   const [tab, setTab] = useState<"resumen" | "historial">("resumen");
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
-  const [segmentModal, setSegmentModal] = useState<{ title: string; clients: ClientListRow[] } | null>(
+  const [segmentModal, setSegmentModal] = useState<{ title: string; clients: ClientListRow[]; loading?: boolean } | null>(
     null,
   );
   const [metricInfo, setMetricInfo] = useState<ClientMetricInfo | null>(null);
@@ -308,14 +309,14 @@ function ClientsPage() {
 
   // Server-side: sort by name/recientes (gasto is sorted client-side over the
   // already-loaded pages, since spend is an aggregate).
-  const serverSort = sort === "recientes" ? "recientes" : "nombre";
+  // All three sorts (incl. "gasto") are now resolved server-side by the RPC.
   const {
     data: pageData,
     isLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useClientsPage(businessId, debouncedQuery, serverSort);
+  } = useClientsPage(businessId, debouncedQuery, sort);
 
   const { data: summary } = useClientSegmentSummary(businessId);
   const { data: currentDetail, isLoading: detailLoading } = useClientDetail(businessId, selected);
@@ -330,12 +331,8 @@ function ClientsPage() {
     if (!selected && clients.length > 0) setSelected(clients[0].id);
   }, [clients, selected]);
 
-  const filtered = useMemo(() => {
-    // Search + nombre/recientes sorting happen server-side. "gasto" is an
-    // aggregate, so we sort the already-loaded pages by spend on the client.
-    if (sort === "gasto") return [...clients].sort((a, b) => b.spent - a.spent);
-    return clients;
-  }, [clients, sort]);
+  // Search + sorting (nombre/recientes/gasto) all happen server-side now.
+  const filtered = clients;
 
   const counts = useMemo(
     () => ({
@@ -345,11 +342,6 @@ function ClientsPage() {
       inactivos: summary?.counts.inactivo ?? 0,
       perdidos: summary?.counts.perdido ?? 0,
     }),
-    [summary],
-  );
-
-  const allSummaryClients = useMemo<ClientListRow[]>(
-    () => (summary ? Object.values(summary.byStatus).flat() : []),
     [summary],
   );
 
@@ -365,8 +357,10 @@ function ClientsPage() {
   const favoriteServices = current?.favoriteServices ?? [];
   const hasNote = Boolean((current?.notes ?? "").trim());
 
-  function showGroup(title: string, fn: (c: ClientListRow) => boolean) {
-    setSegmentModal({ title, clients: allSummaryClients.filter(fn) });
+  async function showGroup(title: string, status: ClientStatus) {
+    setSegmentModal({ title, clients: [], loading: true });
+    const rows = businessId ? await fetchClientsByStatus(businessId, status) : [];
+    setSegmentModal({ title, clients: rows, loading: false });
   }
 
   async function handleCreateClient() {
@@ -429,7 +423,7 @@ function ClientsPage() {
             value={String(counts.vip)}
             caption=""
             link="Ver todos"
-            onLinkClick={() => showGroup("VIP", (c) => c.status === "vip")}
+            onLinkClick={() => showGroup("VIP", "vip")}
             icon={<Crown className="h-7 w-7 text-violet-300" />}
             glow="bg-violet-500/25"
             info={CLIENT_METRIC_INFO.vip.description}
@@ -440,7 +434,7 @@ function ClientsPage() {
             value={String(counts.nuevos)}
             caption=""
             link="Ver todos"
-            onLinkClick={() => showGroup("Nuevos", (c) => c.status === "nuevo")}
+            onLinkClick={() => showGroup("Nuevos", "nuevo")}
             icon={<Sparkles className="h-7 w-7 text-violet-300" />}
             glow="bg-violet-400/20"
             info={CLIENT_METRIC_INFO.nuevos.description}
@@ -451,7 +445,7 @@ function ClientsPage() {
             value={String(counts.activos)}
             caption=""
             link="Ver todos"
-            onLinkClick={() => showGroup("Activos", (c) => c.status === "activo")}
+            onLinkClick={() => showGroup("Activos", "activo")}
             icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />}
             glow="bg-emerald-400/20"
             info={CLIENT_METRIC_INFO.activos.description}
@@ -462,7 +456,7 @@ function ClientsPage() {
             value={String(counts.inactivos)}
             caption=""
             link="Ver todos"
-            onLinkClick={() => showGroup("Inactivos", (c) => c.status === "inactivo")}
+            onLinkClick={() => showGroup("Inactivos", "inactivo")}
             icon={<PauseCircle className="h-7 w-7 text-amber-300" />}
             glow="bg-amber-400/15"
             info={CLIENT_METRIC_INFO.inactivos.description}
@@ -473,7 +467,7 @@ function ClientsPage() {
             value={String(counts.perdidos)}
             caption=""
             link="Reconquistar"
-            onLinkClick={() => showGroup("Perdidos", (c) => c.status === "perdido")}
+            onLinkClick={() => showGroup("Perdidos", "perdido")}
             icon={<AlertTriangle className="h-7 w-7 text-rose-300" />}
             glow="bg-rose-400/20"
             info={CLIENT_METRIC_INFO.perdidos.description}
@@ -555,7 +549,7 @@ function ClientsPage() {
                   {debouncedQuery ? "Sin resultados para la búsqueda." : "Sin clientes para mostrar."}
                 </div>
               )}
-              {!isLoading && hasNextPage && sort !== "gasto" && (
+              {!isLoading && hasNextPage && (
                 <button
                   onClick={() => fetchNextPage()}
                   disabled={isFetchingNextPage}
@@ -563,11 +557,6 @@ function ClientsPage() {
                 >
                   {isFetchingNextPage ? "Cargando…" : `Cargar más (${clients.length} de ${total})`}
                 </button>
-              )}
-              {!isLoading && hasNextPage && sort === "gasto" && (
-                <div className="text-center text-[11px] text-muted-foreground/70 py-2">
-                  Mostrando {clients.length} de {total}. Cambiá el orden a "Nombre" o "Recientes" para cargar más.
-                </div>
               )}
             </div>
           </div>
@@ -978,7 +967,11 @@ function ClientsPage() {
               </button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto p-3 space-y-2">
-              {segmentModal.clients.length === 0 ? (
+              {segmentModal.loading ? (
+                <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">
+                  Cargando clientes…
+                </div>
+              ) : segmentModal.clients.length === 0 ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">
                   No hay clientes en este grupo.
                 </div>
