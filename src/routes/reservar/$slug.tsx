@@ -210,6 +210,12 @@ function PublicBookingPage() {
   const [showDatePicker, setShowDatePicker] = React.useState(false);
   const selectedDay = availableDays[selectedDayIndex] ?? availableDays[0] ?? null;
 
+  const selectedSlotRef = React.useRef<typeof selectedSlot>(null);
+  React.useEffect(() => {
+    selectedSlotRef.current = selectedSlot;
+  }, [selectedSlot]);
+
+
   React.useEffect(() => {
     setSelectedDayIndex(0);
   }, [selectedEmployeeId, selectedServiceIds.join(","), totalDuration]);
@@ -353,6 +359,46 @@ function PublicBookingPage() {
       .lte("starts_at", end);
     if (!res.error) setAppointments((res.data ?? []) as Appointment[]);
   }, [business?.id]);
+
+
+  // Realtime público: si otro cliente reserva/cancela desde otra pestaña o dispositivo,
+  // actualiza los horarios visibles sin recargar la página.
+  React.useEffect(() => {
+    if (!business?.id) return;
+
+    const channel = supabase
+      .channel(`public-booking-appointments-${business.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+          filter: `business_id=eq.${business.id}`,
+        },
+        (payload) => {
+          const row = ((payload.new && Object.keys(payload.new).length > 0 ? payload.new : payload.old) ?? {}) as {
+            employee_id?: string | null;
+            starts_at?: string | null;
+            status?: string | null;
+          };
+
+          // Si el cliente ya eligió un horario y ese profesional cambió, lo libero para evitar
+          // que intente confirmar un turno que otro acaba de tomar.
+          const selected = selectedSlotRef.current;
+          if (selected && row.employee_id === selected.employeeId) {
+            setSelectedSlot(null);
+          }
+
+          void refreshAppointments();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [business?.id, refreshAppointments]);
 
   async function submitBooking() {
     if (!business || selectedServices.length === 0 || !selectedSlot) return;
