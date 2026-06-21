@@ -5,6 +5,43 @@ import { loadCajaSession } from "@/components/cash-register/session-actions";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
+export type ClientLiteResult = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email?: string | null;
+  birth_date?: string | null;
+};
+
+/**
+ * Server-side client search for the Caja cobro picker. Replaces loading every
+ * client up front: searches by name/phone/email with ILIKE (accelerated by the
+ * pg_trgm indexes) and returns only the top matches.
+ */
+export async function searchClientsLite(
+  businessId: string,
+  query: string,
+  limit = 8,
+): Promise<ClientLiteResult[]> {
+  const s = query.trim().replace(/[%,()]/g, " ").trim();
+  if (!s) return [];
+  const { data, error } = await supabase
+    .from("clients")
+    .select("id,full_name,phone,email,birth_date")
+    .eq("business_id", businessId)
+    .or(`full_name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%`)
+    .order("full_name")
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    name: (r as { full_name?: string | null }).full_name ?? "Sin nombre",
+    phone: r.phone,
+    email: r.email,
+    birth_date: r.birth_date,
+  }));
+}
+
 type LocalManualPendingCharge = {
   id: string;
   business_id: string;
@@ -147,7 +184,6 @@ export function useCajaData() {
   });
   const [services, setServices] = React.useState<Service[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
-  const [clients, setClients] = React.useState<ClientLite[]>([]);
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
   const [cashSessionId, setCashSessionId] = React.useState<string | null>(null);
@@ -198,11 +234,9 @@ export function useCajaData() {
         .select("approval_mode,schedule")
         .eq("business_id", businessId)
         .maybeSingle(),
-      supabase
-        .from("clients")
-        .select("id,full_name,phone,email,birth_date")
-        .eq("business_id", businessId)
-        .order("full_name"),
+      // Clients are searched on demand in the cobro picker (server-side ILIKE),
+      // so we no longer load every client here.
+      Promise.resolve({ data: null, error: null }),
       supabase
         .from("appointments")
         .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status")
@@ -232,14 +266,6 @@ export function useCajaData() {
       empRes.status === "fulfilled" && !empRes.value.error
         ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; avatar_url?: string | null; commission_pct: number | null }>)
             .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null, avatar_url: r.avatar_url ?? null }))
-        : []
-    );
-
-    // Clients
-    setClients(
-      cliRes.status === "fulfilled" && !cliRes.value.error
-        ? ((cliRes.value.data ?? []) as Array<{ id: string; full_name?: string | null; phone: string | null; email?: string | null; birth_date?: string | null }>)
-            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", phone: r.phone, email: r.email, birth_date: r.birth_date }))
         : []
     );
 
@@ -414,7 +440,7 @@ export function useCajaData() {
     loading, businessId, profileId: profile?.id ?? null,
     approvalMode, setApprovalMode, approvalModeEnabled,
     paymentMethods,
-    services, employees, clients,
+    services, employees,
     paymentsToday, expensesToday, cashSessionId,
     cajaStatus,
     revHoy, cobros, ticket, totalGastos,
