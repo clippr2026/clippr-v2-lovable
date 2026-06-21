@@ -338,6 +338,22 @@ function PublicBookingPage() {
     setStep("professional");
   }
 
+  // Re-lee la disponibilidad real desde la base (misma ventana que la carga
+  // inicial). Se usa tras crear un turno y, sobre todo, cuando otro cliente
+  // tomó el horario primero: así el slot ocupado desaparece de inmediato.
+  const refreshAppointments = React.useCallback(async () => {
+    if (!business?.id) return;
+    const start = startOfDay(new Date()).toISOString();
+    const end = addMinutes(startOfDay(new Date()), 14 * 24 * 60).toISOString();
+    const res = await supabase
+      .from("public_booking_appointments")
+      .select("id,employee_id,starts_at,ends_at,duration_min,status")
+      .eq("business_id", business.id)
+      .gte("starts_at", start)
+      .lte("starts_at", end);
+    if (!res.error) setAppointments((res.data ?? []) as Appointment[]);
+  }, [business?.id]);
+
   async function submitBooking() {
     if (!business || selectedServices.length === 0 || !selectedSlot) return;
     if (!clientName.trim()) return toast.error("Ingresá tu nombre.");
@@ -404,7 +420,22 @@ function PublicBookingPage() {
 
       if (bookingResult.error) {
         console.error("Public booking RPC error", bookingResult.error);
-        const rpcMessage = (bookingResult.error as any)?.message;
+        const err = bookingResult.error as any;
+        // Conflicto de horario: la exclusion constraint (o el chequeo del RPC)
+        // rechazó el turno porque el profesional ya tiene algo en ese rango.
+        const isConflict =
+          err?.code === "23P01" ||
+          /appointments_no_overlap|exclusion|overlap|solap|ocupad|ya no est|no disponible|disponible/i.test(
+            String(err?.message ?? ""),
+          );
+        if (isConflict) {
+          await refreshAppointments();
+          toast.error("Ese horario ya no está disponible. Elegí otro turno.");
+          setSelectedSlot(null);
+          setStep("datetime");
+          return;
+        }
+        const rpcMessage = err?.message;
         throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v3 en Supabase.");
       }
 
@@ -426,6 +457,8 @@ function PublicBookingPage() {
       setConfirmedBooking(confirmationSnapshot);
       setStep("done");
       toast.success("Turno reservado correctamente");
+      // Reconciliar disponibilidad con la base (además del append optimista).
+      void refreshAppointments();
 
       // Correo de confirmación (no bloquea la reserva: si el envío falla,
       // el turno igual queda confirmado).
