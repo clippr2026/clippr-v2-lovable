@@ -1723,6 +1723,38 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               ); })()}
 
               {/* Cancelado */}
+              {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return (
+                <button
+                  onClick={() => { if (!cancelled) setConfirmCancel(true); }}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                  style={{ background: cancelled ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: cancelled ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  {cancelled && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
+                  Cancelado
+                </button>
+              ); })()}
+
+              {/* Cobrado */}
+              {(() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
+                <button
+                  onClick={() => { if (!charged) onCobrar(appointment); }}
+                  disabled={charged}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
+                  style={{ background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: charged ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  {charged && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
+                  Cobrado
+                </button>
+              ); })()}
+
+              {/* Cobrar seña (si aplica) */}
+              {requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
+                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
+                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+                </Button>
+              )}
+
+              {/* Cancelado — con confirmación */}
               {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return cancelled ? (
                 <div
                   className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
@@ -1757,28 +1789,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   Cancelado
                 </button>
               ); })()}
-
-              {/* Cobrado */}
-              {(() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
-                <button
-                  onClick={() => { if (!charged) onCobrar(appointment); }}
-                  disabled={charged}
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
-                  style={{ background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: charged ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
-                >
-                  {charged && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
-                  Cobrado
-                </button>
-              ); })()}
-
-              {/* Cobrar seña (si aplica) */}
-              {requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
-                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
-                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
-                </Button>
-              )}
-
-
             </div>
           )}
         </div>
