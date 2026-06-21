@@ -211,6 +211,24 @@ function CashRegisterPage() {
   );
   const [pendingToCharge, setPendingToCharge] = useState<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(null);
 
+  const routePendingCharge = React.useMemo<ReturnType<typeof useCajaData>["pendingCharges"][number] | null>(() => {
+    if (!search.appointmentId) return null;
+
+    const totalFromSearch = Number(search.finalAmount ?? search.totalPrice ?? 0);
+    return {
+      id: search.appointmentId,
+      client_name: search.clientName ?? null,
+      service_name: search.serviceName ?? null,
+      service_price: Number.isFinite(totalFromSearch) && totalFromSearch > 0 ? totalFromSearch : null,
+      employee_id: search.employeeId ?? null,
+      starts_at: new Date().toISOString(),
+      notes: null,
+      status: "confirmed",
+    };
+  }, [search.appointmentId, search.clientName, search.serviceName, search.finalAmount, search.totalPrice, search.employeeId]);
+
+  const activePendingCharge = pendingToCharge ?? routePendingCharge;
+
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
@@ -415,7 +433,7 @@ function CashRegisterPage() {
         {tab === "nueva" && (
           <NuevaVentaTab
             data={data}
-            pendingCharge={pendingToCharge}
+            pendingCharge={activePendingCharge}
             onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
           />
         )}
