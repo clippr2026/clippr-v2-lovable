@@ -2289,28 +2289,6 @@ function NuevaVentaTab({
 
   return (
     <div className="max-w-3xl mx-auto w-full space-y-5">
-      {pendingCharge && (
-        <Card className="px-5 py-3 flex items-center gap-3 border-blue-300/30 bg-blue-300/[0.06]">
-          <Clock className="size-4 text-blue-300 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-blue-200">Continuando cobro pendiente</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {pendingCharge.client_name ?? "Sin cliente"} · {pendingCharge.service_name ?? "Servicio"} · ${Number(pendingCharge.service_price ?? 0).toLocaleString("es-AR")}
-            </p>
-            {getManualPendingNote(pendingCharge.notes) && (
-              <p className="mt-1 text-xs text-blue-100/90 truncate">
-                Nota del profesional: {getManualPendingNote(pendingCharge.notes)}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => onPendingDone?.()}
-            className="text-xs text-muted-foreground hover:text-foreground transition shrink-0"
-          >
-            Cancelar
-          </button>
-        </Card>
-      )}
       <Card className="p-1.5">
         <div className="grid grid-cols-4 gap-1">
           {stepItems.map((s) => {
