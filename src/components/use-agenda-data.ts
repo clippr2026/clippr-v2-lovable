@@ -11,7 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
  *     service_price, starts_at, ends_at?, duration_min?, status, employee_id,
  *     notes,    
  *     created_by_name, created_by_role, updated_at
- *   status ∈ pending | confirmed | completed | cancelled | charged | blocked
+ *   En edición manual del turno se usan solamente: pending | confirmed.
+ *   Los otros estados quedan reservados para flujos internos de caja/cancelación.
  */
 
 export type ApptStatus =
@@ -38,6 +39,9 @@ export type Appointment = {
   created_by_name: string | null;
   created_by_role: string | null;
   updated_at: string | null;
+  deposit_status?: string | null;
+  deposit_amount?: number | null;
+  deposit_paid?: number | null;
 };
 
 export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null };
@@ -81,6 +85,31 @@ export function getScheduleForDate(schedule: ScheduleMap | null, date: Date): Da
   return schedule[DAY_KEYS[date.getDay()]] ?? null;
 }
 
+/**
+ * Returns an error message if the proposed slot falls outside the business
+ * schedule, or null if OK.
+ */
+export function checkSchedule(
+  schedule: ScheduleMap | null,
+  startsAt: Date,
+  durationMin: number,
+): string | null {
+  if (!schedule) return null;
+  const dayKey = DAY_KEYS[startsAt.getDay()];
+  const day = schedule[dayKey];
+  if (!day || !day.enabled) {
+    return "El horario seleccionado está fuera del horario laboral configurado.";
+  }
+  const slotStart = startsAt.getHours() + startsAt.getMinutes() / 60;
+  const slotEnd   = slotStart + (durationMin || 30) / 60;
+  const open  = parseScheduleTime(day.start);
+  const close = parseScheduleTime(day.end);
+  if (slotStart < open || slotEnd > close) {
+    return "El horario seleccionado está fuera del horario laboral configurado.";
+  }
+  return null;
+}
+
 function normalizeSchedule(value: unknown): ScheduleMap | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, any>;
@@ -111,6 +140,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const [services, setServices] = React.useState<Service[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = React.useState<"connecting" | "connected" | "disconnected">("connecting");
 
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
@@ -134,13 +164,14 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("starts_at"),
       supabase
         .from("employees")
-        .select("id,full_name")
+        .select("id,full_name,avatar_url")
         .eq("business_id", businessId)
         .order("full_name", { ascending: true }),
       supabase
-        .from("services")
-        .select("id,name,price,duration_min,is_active")
+        .from("price_catalog")
+        .select("id,name,price,duration_min,active,category")
         .eq("business_id", businessId)
+        .not("duration_min", "is", null)
         .order("name"),
       supabase
         .from("clients")
@@ -172,9 +203,18 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     );
     const svc =
       sRes.status === "fulfilled" && !sRes.value.error
-        ? ((sRes.value.data ?? []) as (Service & { is_active?: boolean })[])
+        ? ((sRes.value.data ?? []) as unknown as (Service & { active?: boolean | null; duration_min?: number | null })[])
         : [];
-    setServices(svc.filter((s) => s.is_active !== false));
+    setServices(
+      svc
+        .filter((s) => s.active !== false && s.duration_min != null)
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          price: Number(s.price) || 0,
+          duration: Number(s.duration_min) || 30,
+        })),
+    );
     setClients(
       cRes.status === "fulfilled" && !cRes.value.error
         ? ((cRes.value.data ?? []) as Client[])
@@ -183,9 +223,97 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     setLoading(false);
   }, [businessId, startIso, endIso]);
 
+  // Narrow reloads used by realtime so a single appointment change does NOT
+  // refetch employees, services, clients and schedule on every event.
+  const loadAppointments = React.useCallback(async () => {
+    if (!businessId) return;
+    const { data, error } = await supabase
+      .from("appointments")
+      .select(
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
+      )
+      .eq("business_id", businessId)
+      .gte("starts_at", startIso)
+      .lte("starts_at", endIso)
+      .order("starts_at");
+    if (!error) setAppointments((data ?? []) as Appointment[]);
+  }, [businessId, startIso, endIso]);
+
+  const loadServices = React.useCallback(async () => {
+    if (!businessId) return;
+    const { data, error } = await supabase
+      .from("price_catalog")
+      .select("id,name,price,duration_min,active,category")
+      .eq("business_id", businessId)
+      .not("duration_min", "is", null)
+      .order("name");
+    if (error) return;
+    const svc = (data ?? []) as unknown as (Service & { active?: boolean | null; duration_min?: number | null })[];
+    setServices(
+      svc
+        .filter((s) => s.active !== false && s.duration_min != null)
+        .map((s) => ({ id: s.id, name: s.name, price: Number(s.price) || 0, duration: Number(s.duration_min) || 30 })),
+    );
+  }, [businessId]);
+
   React.useEffect(() => {
     load();
   }, [load]);
+
+  React.useEffect(() => {
+    if (!businessId) {
+      setRealtimeStatus("disconnected");
+      return;
+    }
+
+    setRealtimeStatus("connecting");
+
+    const channel = supabase
+      .channel(`agenda-realtime-${businessId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => {
+          loadAppointments();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "price_catalog",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => {
+          loadServices();
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setRealtimeStatus("connected");
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setRealtimeStatus("disconnected");
+        }
+      });
+
+    const handleOnline = () => setRealtimeStatus("connected");
+    const handleOffline = () => setRealtimeStatus("disconnected");
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, loadAppointments, loadServices]);
 
   return {
     loading,
@@ -195,6 +323,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     services,
     clients,
     schedule,
+    realtimeStatus,
     refresh: load,
   };
 }
@@ -208,6 +337,8 @@ export type SaveAppointmentInput = {
   business_id: string;
   client_id?: string | null;
   client_name: string;
+  client_phone?: string | null;
+  client_email?: string | null;
   employee_id: string | null;
   service_name: string;
   service_price: number;
@@ -215,6 +346,9 @@ export type SaveAppointmentInput = {
   duration_min: number;
   status?: ApptStatus;
   notes?: string | null;
+  deposit_amount?: number | null;
+  deposit_paid?: number | null;
+  deposit_status?: string | null;
   created_by_name?: string | null;
   created_by_role?: string | null;
 };
@@ -314,4 +448,57 @@ export async function rescheduleAppointment(
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Checks if a professional already has an appointment overlapping the given
+ * time slot. Returns the conflicting appointment if found, null otherwise.
+ *
+ * Overlap condition: existingStart < newEnd && existingEnd > newStart
+ * (i.e. any non-zero intersection).
+ *
+ * @param employeeId   - professional to check
+ * @param startsAt     - ISO string of the new appointment start
+ * @param durationMin  - duration in minutes
+ * @param excludeId    - appointment ID to exclude (used when editing)
+ */
+export async function checkOverlap(
+  employeeId: string,
+  startsAt: string,
+  durationMin: number,
+  excludeId?: string | null,
+): Promise<{ id: string; client_name: string | null; starts_at: string; status?: ApptStatus | null; service_name?: string | null } | null> {
+  const newStart = new Date(startsAt);
+  const newEnd   = new Date(newStart.getTime() + durationMin * 60_000);
+
+  // Query appointments for this professional that could overlap.
+  // We fetch a ±2 hour window to keep the query tight, then filter precisely.
+  const windowStart = new Date(newStart.getTime() - 2 * 60 * 60_000).toISOString();
+  const windowEnd   = new Date(newEnd.getTime()   + 2 * 60 * 60_000).toISOString();
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id,client_name,service_name,starts_at,ends_at,duration_min,status")
+    .eq("employee_id", employeeId)
+    .neq("status", "cancelled")
+    .neq("status", "blocked")
+    .gte("starts_at", windowStart)
+    .lte("starts_at", windowEnd);
+
+  if (error || !data) return null;
+
+  for (const appt of data) {
+    if (excludeId && appt.id === excludeId) continue;
+    const existStart = new Date(appt.starts_at);
+    const existEnd   = appt.ends_at
+      ? new Date(appt.ends_at)
+      : new Date(existStart.getTime() + Number(appt.duration_min ?? 30) * 60_000);
+
+    // True overlap: they share any time (touching endpoints don't count)
+    if (existStart < newEnd && existEnd > newStart) {
+      return { id: appt.id, client_name: appt.client_name, starts_at: appt.starts_at, status: appt.status as ApptStatus, service_name: (appt as any).service_name ?? null };
+    }
+  }
+
+  return null;
 }
