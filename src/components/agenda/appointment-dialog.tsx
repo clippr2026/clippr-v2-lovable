@@ -1,6 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
+import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import {
   Select,
   SelectContent,
@@ -16,8 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, X, CalendarDays, Repeat2,
-  Scissors, UserPlus, ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+  Scissors, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
@@ -173,82 +173,53 @@ const WEEKDAYS: { value: RepeatWeekday; label: string }[] = [
   { value: 0, label: "Domingo" },
 ];
 
-// Inline date picker — no native calendar ───────────────────────────────────
+// Inline date picker — usa el DarkCalendar compartido (con botón Hoy), en un
+// popover fixed para que no lo recorte el overflow del drawer.
 function AppointmentDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = React.useState(false);
-  const [viewMonth, setViewMonth] = React.useState(() => {
-    if (value) { const d = new Date(value + "T12:00:00"); return { m: d.getMonth(), y: d.getFullYear() }; }
-    return { m: new Date().getMonth(), y: new Date().getFullYear() };
-  });
-  const ref = React.useRef<HTMLDivElement>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
-  React.useEffect(() => {
-    if (!open) return;
-    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, [open]);
-
-  const daysInMonth = new Date(viewMonth.y, viewMonth.m + 1, 0).getDate();
-  const firstDow = (new Date(viewMonth.y, viewMonth.m, 1).getDay() + 6) % 7;
-  const cells: (string | null)[] = Array(firstDow).fill(null);
-  for (let d = 1; d <= daysInMonth; d++) {
-    const iso = `${viewMonth.y}-${String(viewMonth.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    cells.push(iso);
-  }
-  const monthLabel = new Date(viewMonth.y, viewMonth.m, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-  const DOW = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"];
-
+  const selectedDate = value ? new Date(value + "T12:00:00") : new Date();
   const displayValue = value
     ? new Date(value + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
     : "Seleccioná una fecha";
 
+  const openCal = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      // Mantener el popover (≈280px) dentro de pantalla.
+      const left = Math.min(Math.max(r.left, 12), Math.max(12, window.innerWidth - 292));
+      setPos({ top: r.bottom + 6, left });
+    }
+    setOpen(true);
+  };
+
+  const handleSelect = (d: Date) => {
+    onChange(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    setOpen(false);
+  };
+
   return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent transition text-left">
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={openCal}
+        className="w-full flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-accent transition text-left"
+      >
         <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className={value ? "text-foreground capitalize" : "text-muted-foreground"}>{displayValue}</span>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 w-72 rounded-2xl bg-[oklch(0.10_0.03_275)] ring-1 ring-white/10 shadow-2xl p-3">
-          <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={() => setViewMonth(v => v.m === 0 ? { m: 11, y: v.y - 1 } : { m: v.m - 1, y: v.y })}
-              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition">
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <span className="text-xs font-semibold capitalize">{monthLabel}</span>
-            <button type="button" onClick={() => setViewMonth(v => v.m === 11 ? { m: 0, y: v.y + 1 } : { m: v.m + 1, y: v.y })}
-              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition">
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div className="fixed z-[61]" style={{ top: pos.top, left: pos.left }}>
+            <DarkCalendar value={selectedDate} onSelect={handleSelect} />
           </div>
-          <div className="grid grid-cols-7 gap-px mb-1">
-            {DOW.map(d => <div key={d} className="text-center text-[10px] text-muted-foreground/50 py-1">{d}</div>)}
-          </div>
-          <div className="grid grid-cols-7 gap-px">
-            {cells.map((iso, i) => {
-              if (!iso) return <div key={i} />;
-              const sel = iso === value;
-              const isT = iso === today;
-              return (
-                <button key={iso} type="button" onClick={() => { onChange(iso); setOpen(false); }}
-                  className={cn("h-8 w-full rounded-lg text-xs font-medium transition-all",
-                    sel && "text-white",
-                    !sel && isT && "ring-1 ring-primary text-primary",
-                    !sel && !isT && "text-foreground hover:bg-white/[0.08]"
-                  )}
-                  style={sel ? { background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))" } : undefined}
-                >
-                  {new Date(iso + "T12:00:00").getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        </>
       )}
-    </div>
+    </>
   );
 }
 
@@ -619,19 +590,15 @@ export function AppointmentDialog({
                 </Button>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-1">
-                <AppointmentDatePicker value={dateValue} onChange={setDateValue} />
-              </div>
-              <div>
+            <div className="space-y-2">
+              <AppointmentDatePicker value={dateValue} onChange={setDateValue} />
+              <div className="grid grid-cols-2 gap-2">
                 <Select value={hourValue} onValueChange={setHourValue}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {hourOptions.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
                 <Select value={minuteValue} onValueChange={setMinuteValue}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -755,7 +722,7 @@ export function AppointmentDialog({
 
         {/* Compact summary — only when enough data */}
         {(serviceName || previewClientName) && (
-          <div className="rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2.5 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+          <div className="rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2.5 text-xs text-muted-foreground flex flex-col gap-1">
             {serviceName && <span>Servicio: <span className="text-foreground font-medium">{serviceName}{price ? ` — $${Number(price).toLocaleString("es-AR")}` : ""}</span></span>}
             {previewClientName && <span>Cliente: <span className="text-foreground font-medium">{previewClientName}</span></span>}
             {employees.find(e => e.id === employeeId) && <span>Prof.: <span className="text-foreground font-medium">{employees.find(e => e.id === employeeId)?.full_name ?? ""}</span></span>}
