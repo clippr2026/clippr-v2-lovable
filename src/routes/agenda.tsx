@@ -1514,6 +1514,11 @@ function clientNoteOnly(raw?: string | null): string {
   return s.trim();
 }
 
+/** Add an alpha channel to an oklch(...) color string. */
+function withAlpha(color: string, a: number): string {
+  return color.replace(/\)\s*$/, ` / ${a})`);
+}
+
 const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   open,
   onOpenChange,
@@ -1543,6 +1548,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return") => void;
   onReleaseBlock: (a: Appointment) => void;
 }) {
+  const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const apptId = appointment?.id;
+  React.useEffect(() => { setConfirmCancel(false); }, [apptId]);
   if (!appointment) return null;
 
   const employee = employees.find((e) => e.id === appointment.employee_id);
@@ -1687,67 +1695,88 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               <Button variant="destructive" className="h-9" onClick={() => onReleaseBlock(appointment)}>Liberar horario</Button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                onClick={() => onCobrar(appointment)}
-                disabled={appointment.status === "charged"}
-                className={appointment.status === "charged"
-                  ? "h-9 rounded-2xl border-white/10 bg-white/[0.06] text-white/45"
-                  : "h-9 rounded-2xl border-0 bg-emerald-500/90 text-white hover:bg-emerald-400 shadow-[0_12px_30px_-16px_rgba(16,185,129,0.9)]"}
-              >
-                <DollarSign className="h-4 w-4 mr-1" /> {appointment.status === "charged" ? "Cobrado" : "Cobrar"}
-              </Button>
-              {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status !== "paid" ? (
-                <Button variant="destructive" onClick={() => onCancel(appointment)} className="h-9 rounded-2xl bg-rose-500/90 hover:bg-rose-400 text-white border-0 shadow-[0_12px_30px_-16px_rgba(244,63,94,0.9)]">
-                  Cancelar turno
+            <div className="space-y-2">
+              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
+
+              {/* Pendiente */}
+              {(() => { const dot = STATUS_META.pending.dot; const active = appointment.status === "pending"; return (
+                <button
+                  onClick={() => onChangeStatus(appointment, "pending")}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                  style={{ background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: active ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  {active && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
+                  Pendiente
+                </button>
+              ); })()}
+
+              {/* Confirmado */}
+              {(() => { const dot = STATUS_META.confirmed.dot; const active = appointment.status === "confirmed"; return (
+                <button
+                  onClick={() => onChangeStatus(appointment, "confirmed")}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                  style={{ background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: active ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  {active && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
+                  Confirmado
+                </button>
+              ); })()}
+
+              {/* Cobrado / Cobrar — abre Caja con el turno precargado */}
+              {(() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
+                <button
+                  onClick={() => { if (!charged) onCobrar(appointment); }}
+                  disabled={charged}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
+                  style={{ background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: charged ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  <DollarSign className="h-4 w-4" />
+                  {charged ? "Cobrado" : "Cobrar"}
+                </button>
+              ); })()}
+
+              {/* Cobrar seña (si aplica) */}
+              {requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
+                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
+                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
                 </Button>
-              ) : (
-                requiresDeposit && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && appointment.status !== "charged" && (
-                  <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="h-9 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
-                    <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
-                  </Button>
-                )
               )}
-            </div>
-          )}
 
-          {appointment.status !== "blocked" && (
-          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/35 shrink-0">Estado</div>
-            <div className="flex flex-wrap gap-1.5">
-              {([
-                ["pending", "Pendiente"],
-                ["confirmed", "Confirmado"],
-              ] as [ApptStatus, string][]).map(([status, label]) => {
-                const sMeta = STATUS_META[status] ?? STATUS_META.pending;
-                const isActive = appointment.status === status;
-                return (
-                  <button
-                    key={status}
-                    onClick={() => onChangeStatus(appointment, status)}
-                    className="rounded-full px-3 py-1 text-xs font-semibold ring-1 transition"
-                    style={{
-                      background: isActive ? `${sMeta.dot}18` : "rgba(255,255,255,0.035)",
-                      color: isActive ? sMeta.dot : "rgba(255,255,255,0.45)",
-                      boxShadow: isActive ? `inset 0 0 0 1px ${sMeta.dot}55` : "inset 0 0 0 1px rgba(255,255,255,0.1)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          )}
-
-          {appointment.status !== "charged" && appointment.status !== "cancelled" && appointment.deposit_status === "paid" && (
-            <div className="space-y-2.5 rounded-xl bg-rose-500/5 ring-1 ring-rose-400/20 p-3.5">
-              <div className="text-sm font-semibold text-rose-300">Cancelar turno con seña pagada</div>
-              <div className="text-xs text-muted-foreground">Elegí qué hacer con la seña antes de cancelar.</div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="destructive" className="h-9" onClick={() => onCancelWithDeposit(appointment, "keep")}>Perder seña</Button>
-                <Button variant="secondary" className="h-9" onClick={() => onCancelWithDeposit(appointment, "return")}>Devolver seña</Button>
-              </div>
+              {/* Cancelado — con confirmación */}
+              {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return cancelled ? (
+                <div
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                  style={{ background: withAlpha(dot, 0.16), color: dot, boxShadow: `inset 0 0 0 1.5px ${dot}` }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />
+                  Cancelado
+                </div>
+              ) : confirmCancel ? (
+                <div className="rounded-xl p-2.5 space-y-2" style={{ background: withAlpha(dot, 0.08), boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}>
+                  <div className="text-xs text-center" style={{ color: dot }}>
+                    {appointment.deposit_status === "paid" ? "Tiene seña pagada. ¿Qué hacés con la seña?" : "¿Cancelar este turno?"}
+                  </div>
+                  {appointment.deposit_status === "paid" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="destructive" className="h-9" onClick={() => { onCancelWithDeposit(appointment, "keep"); setConfirmCancel(false); }}>Perder seña</Button>
+                      <Button variant="secondary" className="h-9" onClick={() => { onCancelWithDeposit(appointment, "return"); setConfirmCancel(false); }}>Devolver seña</Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="destructive" className="h-9" onClick={() => { onCancel(appointment); setConfirmCancel(false); }}>Sí, cancelar</Button>
+                      <Button variant="secondary" className="h-9" onClick={() => setConfirmCancel(false)}>No</Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmCancel(true)}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                  style={{ background: "rgba(255,255,255,0.03)", color: dot, boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  Cancelado
+                </button>
+              ); })()}
             </div>
           )}
         </div>
