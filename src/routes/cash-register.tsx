@@ -6,7 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { useCajaData, type Service } from "@/components/cash-register/use-caja-data";
+import { useCajaData, searchClientsLite, type Service, type ClientLiteResult } from "@/components/cash-register/use-caja-data";
 import {
   PAY_METHOD_LABEL,
   registerPayment,
@@ -2386,7 +2386,7 @@ function NuevaVentaTab({
                   setBirthDate(c.birth_date ?? "");
                   setNewClientOpen(false);
                 }}
-                clients={data.clients}
+                businessId={data.businessId}
               />
             </Card>
           )}
@@ -2652,39 +2652,42 @@ function ClientAutocomplete({
   value,
   onChange,
   onPick,
-  clients,
+  businessId,
 }: {
   value: string;
   onChange: (v: string) => void;
   onPick: (c: { id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }) => void;
-  clients: Array<{ id: string; name: string; phone: string | null; email?: string | null; birth_date?: string | null }>;
+  businessId: string | null;
 }) {
   const q = value.trim().toLowerCase();
   const hasQuery = q.length >= 1;
-  const matches = hasQuery
-    ? clients
-        .filter((c) => `${c.name ?? ""} ${c.phone ?? ""} ${c.email ?? ""}`.toLowerCase().includes(q))
-        .slice(0, 8)
-    : [];
+  const [matches, setMatches] = React.useState<ClientLiteResult[]>([]);
+  const [searching, setSearching] = React.useState(false);
 
-  // Auto-select only for long exact phone/email matches (6+ chars) after a debounce
-  // to avoid triggering on short queries like "a"
+  // Server-side search (debounced). Replaces filtering a fully-loaded list:
+  // only the top matches are fetched, using the trigram indexes.
   React.useEffect(() => {
-    if (q.length < 6) return;
-    const timer = setTimeout(() => {
-      const exact = clients.filter(
-        (c) =>
-          ((c.phone ?? "").replace(/\s/g, "").toLowerCase() === q) ||
-          ((c.email ?? "").toLowerCase() === q),
-      );
-      if (exact.length === 1) {
-        onPick(exact[0]);
-        onChange("");
+    if (!businessId || !hasQuery) { setMatches([]); setSearching(false); return; }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const res = await searchClientsLite(businessId, value, 8);
+      if (cancelled) return;
+      setMatches(res);
+      setSearching(false);
+      // Auto-pick a single exact phone/email match (only for longer queries).
+      if (q.length >= 6) {
+        const exact = res.filter(
+          (c) =>
+            ((c.phone ?? "").replace(/\s/g, "").toLowerCase() === q) ||
+            ((c.email ?? "").toLowerCase() === q),
+        );
+        if (exact.length === 1) { onPick(exact[0]); onChange(""); }
       }
-    }, 600);
-    return () => clearTimeout(timer);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+  }, [value, businessId]);
 
   return (
     <div className="space-y-2">
@@ -2706,7 +2709,9 @@ function ClientAutocomplete({
       {/* Inline results — only shown after typing */}
       {hasQuery && (
         <div className="rounded-xl border border-white/10 bg-[oklch(0.12_0.025_282)] overflow-hidden">
-          {matches.length === 0 ? (
+          {searching ? (
+            <div className="px-4 py-3 text-sm text-muted-foreground text-center">Buscando…</div>
+          ) : matches.length === 0 ? (
             <div className="px-4 py-3 text-sm text-muted-foreground text-center">
               No encontramos clientes con ese dato.
             </div>
