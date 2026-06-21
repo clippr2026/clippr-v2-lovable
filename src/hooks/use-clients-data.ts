@@ -294,95 +294,63 @@ export type ClientListRow = {
 };
 
 export type ClientsPage = { rows: ClientListRow[]; total: number };
-
-function rowFromHistory(
-  c: { id: string; full_name: string | null; phone: string | null; email: string | null; created_at: string },
-  history: ClientPayment[],
-): ClientListRow {
-  const visits = history.length;
-  const spent = history.reduce((s, p) => s + p.amount, 0);
-  const last = history[0]?.date ?? null;
-  const firstVisitDate = history[history.length - 1]?.date ?? null;
-  const isNewThisMonth = isCurrentMonth(firstVisitDate);
-  const lastVisit = formatLastVisit(last);
-  const vipTag = computeVipTag(history);
-  return {
-    id: c.id,
-    name: c.full_name ?? "Sin nombre",
-    phone: c.phone,
-    email: c.email,
-    created_at: c.created_at,
-    visits,
-    spent,
-    lastVisit: lastVisit.label,
-    lastVisitDays: lastVisit.days,
-    vipTag,
-    status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
-  };
-}
+export type ClientSort = "nombre" | "recientes" | "gasto";
 
 const PAGE_SIZE = 30;
 
+type RpcClientRow = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  email: string | null;
+  created_at: string;
+  visits: number | string;
+  spent: number | string;
+  last_visit: string | null;
+  last_visit_days: number | null;
+  status: ClientStatus;
+  vip_tag: ClientVipTag;
+  total_count: number | string;
+};
+
+function rpcToListRow(r: RpcClientRow): ClientListRow {
+  return {
+    id: r.id,
+    name: r.full_name ?? "Sin nombre",
+    phone: r.phone,
+    email: r.email,
+    created_at: r.created_at,
+    visits: Number(r.visits ?? 0),
+    spent: Number(r.spent ?? 0),
+    lastVisit: formatLastVisit(r.last_visit).label,
+    lastVisitDays: r.last_visit_days ?? null,
+    status: r.status,
+    vipTag: r.vip_tag ?? null,
+  };
+}
+
 async function loadClientsPage(
   businessId: string,
-  opts: { search: string; pageParam: number; sort: "nombre" | "recientes" },
+  opts: { search: string; pageParam: number; sort: ClientSort; status?: ClientStatus | null },
 ): Promise<ClientsPage> {
-  const from = opts.pageParam * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  let q = supabase
-    .from("clients")
-    .select("id,full_name,phone,email,created_at", { count: "exact" })
-    .eq("business_id", businessId);
-
-  const search = opts.search.trim();
-  if (search) {
-    const s = search.replace(/[%,()]/g, " ").trim();
-    // ILIKE across name/phone/email — accelerated by the pg_trgm GIN indexes.
-    q = q.or(`full_name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%`);
-  }
-
-  q = opts.sort === "recientes"
-    ? q.order("created_at", { ascending: false })
-    : q.order("full_name", { ascending: true });
-
-  const { data: rawClients, error, count } = await q.range(from, to);
-  if (error) throw new Error("Error cargando clientes: " + error.message);
-  const rows = rawClients ?? [];
-  if (!rows.length) return { rows: [], total: count ?? 0 };
-
-  // Enrich ONLY this page's clients with their payment history (matched by name).
-  const names = Array.from(new Set(rows.map((c) => c.full_name).filter(Boolean))) as string[];
-  const { data: payments } = await supabase
-    .from("payments")
-    .select("id,client_name,service_name,total,amount,created_at")
-    .eq("business_id", businessId)
-    .in("client_name", names)
-    .order("created_at", { ascending: false });
-
-  const byName = new Map<string, ClientPayment[]>();
-  (payments ?? []).forEach((p) => {
-    const key = (p.client_name ?? "").trim().toLowerCase();
-    if (!key) return;
-    if (!byName.has(key)) byName.set(key, []);
-    byName.get(key)!.push({
-      id: p.id,
-      date: p.created_at,
-      service: p.service_name || "Servicio",
-      amount: Number(p.total ?? p.amount ?? 0),
-    });
+  const { data, error } = await supabase.rpc("clippr_clients_list", {
+    p_business_id: businessId,
+    p_search: opts.search.trim().replace(/[%\\]/g, ""),
+    p_sort: opts.sort,
+    p_status: opts.status ?? null,
+    p_limit: PAGE_SIZE,
+    p_offset: opts.pageParam * PAGE_SIZE,
   });
-
-  return {
-    rows: rows.map((c) => rowFromHistory(c, byName.get((c.full_name ?? "").trim().toLowerCase()) ?? [])),
-    total: count ?? rows.length,
-  };
+  if (error) throw new Error("Error cargando clientes: " + error.message);
+  const rows = (data ?? []) as RpcClientRow[];
+  const total = rows.length ? Number(rows[0].total_count) : 0;
+  return { rows: rows.map(rpcToListRow), total };
 }
 
 export function useClientsPage(
   businessId: string | null,
   search: string,
-  sort: "nombre" | "recientes",
+  sort: ClientSort,
 ) {
   return useInfiniteQuery({
     queryKey: ["clients-page", businessId, search, sort],
@@ -397,43 +365,41 @@ export function useClientsPage(
   });
 }
 
+/** One-shot fetch of clients in a given segment (for the "ver todos" modal). */
+export async function fetchClientsByStatus(
+  businessId: string,
+  status: ClientStatus,
+  limit = 200,
+): Promise<ClientListRow[]> {
+  const { data, error } = await supabase.rpc("clippr_clients_list", {
+    p_business_id: businessId,
+    p_search: "",
+    p_sort: "gasto",
+    p_status: status,
+    p_limit: limit,
+    p_offset: 0,
+  });
+  if (error) return [];
+  return ((data ?? []) as RpcClientRow[]).map(rpcToListRow);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Lightweight segment summary for the top stat cards (VIP/Nuevos/…) and the
-// "ver todos" groups. Loads minimal columns for ALL clients + minimal payment
-// columns to compute status, without building the full rich Client objects.
+// Segment counts (VIP/Nuevo/Activo/Inactivo/Perdido) computed server-side by the
+// clippr_clients_segment_counts RPC. No longer reads every client on the client.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type SegmentSummary = {
-  counts: Record<ClientStatus, number>;
-  byStatus: Record<ClientStatus, ClientListRow[]>;
-};
+export type SegmentSummary = { counts: Record<ClientStatus, number> };
 
 async function loadSegmentSummary(businessId: string): Promise<SegmentSummary> {
-  const [{ data: clients, error: cErr }, { data: payments, error: pErr }] = await Promise.all([
-    supabase.from("clients").select("id,full_name,phone,email,created_at").eq("business_id", businessId),
-    supabase.from("payments").select("client_name,total,amount,created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
-  ]);
-  if (cErr) throw new Error("Error cargando resumen de clientes: " + cErr.message);
-  if (pErr) throw new Error("Error cargando resumen de pagos: " + pErr.message);
-
-  const byName = new Map<string, ClientPayment[]>();
-  (payments ?? []).forEach((p) => {
-    const key = (p.client_name ?? "").trim().toLowerCase();
-    if (!key) return;
-    if (!byName.has(key)) byName.set(key, []);
-    byName.get(key)!.push({ id: "", date: p.created_at, service: "", amount: Number(p.total ?? p.amount ?? 0) });
+  const { data, error } = await supabase.rpc("clippr_clients_segment_counts", {
+    p_business_id: businessId,
   });
-
+  if (error) throw new Error("Error cargando resumen de clientes: " + error.message);
   const counts: Record<ClientStatus, number> = { vip: 0, nuevo: 0, activo: 0, inactivo: 0, perdido: 0 };
-  const byStatus: Record<ClientStatus, ClientListRow[]> = { vip: [], nuevo: [], activo: [], inactivo: [], perdido: [] };
-
-  (clients ?? []).forEach((c) => {
-    const row = rowFromHistory(c, byName.get((c.full_name ?? "").trim().toLowerCase()) ?? []);
-    counts[row.status] += 1;
-    byStatus[row.status].push(row);
+  ((data ?? []) as Array<{ status: ClientStatus; count: number | string }>).forEach((r) => {
+    if (r.status in counts) counts[r.status] = Number(r.count);
   });
-
-  return { counts, byStatus };
+  return { counts };
 }
 
 export function useClientSegmentSummary(businessId: string | null) {
