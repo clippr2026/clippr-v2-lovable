@@ -567,6 +567,28 @@ function AgendaPage() {
 
         {data.loading && <span className="text-xs text-muted-foreground shrink-0">Cargando…</span>}
 
+        {/* Realtime sync indicator (does not alter layout — sits in the empty gap) */}
+        <div
+          className="flex items-center gap-1.5 shrink-0 text-[11px] text-muted-foreground select-none"
+          title="La agenda se actualiza sola en tiempo real"
+        >
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              data.realtimeStatus === "connected" && "bg-emerald-400 animate-pulse",
+              data.realtimeStatus === "connecting" && "bg-amber-400 animate-pulse",
+              data.realtimeStatus === "disconnected" && "bg-rose-400",
+            )}
+          />
+          <span className="hidden sm:inline whitespace-nowrap">
+            {data.realtimeStatus === "connected"
+              ? "Actualizado en tiempo real"
+              : data.realtimeStatus === "connecting"
+              ? "Conectando…"
+              : "Sin conexión"}
+          </span>
+        </div>
+
         {/* Status counts (clickable filters) — pushed right */}
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           {([
