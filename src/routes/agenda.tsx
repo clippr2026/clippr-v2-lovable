@@ -25,6 +25,7 @@ import {
   cancelAppointment,
   setAppointmentStatus,
   checkSchedule,
+  checkOverlap,
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
@@ -226,9 +227,57 @@ function AgendaPage() {
   } | null>(null);
   const [newMenu, setNewMenu] = React.useState(false);
 
+  const getDefaultStartAt = React.useCallback(() => {
+    const base = new Date(cursor);
+    const schedule = getScheduleForDate(data.schedule, base);
+    const openTime = schedule?.start ? parseScheduleTime(schedule.start) : null;
+    if (typeof openTime === "number" && Number.isFinite(openTime)) {
+      const hours = Math.floor(openTime);
+      const minutes = Math.round((openTime - hours) * 60);
+      base.setHours(hours, minutes, 0, 0);
+    } else {
+      base.setHours(11, 0, 0, 0);
+    }
+    return base;
+  }, [cursor, data.schedule]);
+
+  const clearOverlappingBlocks = async (
+    employeeId: string,
+    startsAt: Date,
+    endsAt: Date,
+    excludeId?: string | null,
+  ) => {
+    const windowStart = new Date(startsAt.getTime() - 2 * 60 * 60_000).toISOString();
+    const windowEnd = new Date(endsAt.getTime() + 2 * 60 * 60_000).toISOString();
+    const { data: rows, error } = await supabase
+      .from("appointments")
+      .select("id,starts_at,ends_at,duration_min")
+      .eq("employee_id", employeeId)
+      .eq("status", "blocked")
+      .gte("starts_at", windowStart)
+      .lte("starts_at", windowEnd);
+
+    if (error) throw new Error(error.message);
+
+    const ids = (rows ?? [])
+      .filter((appt) => {
+        if (excludeId && appt.id === excludeId) return false;
+        const existStart = new Date(appt.starts_at);
+        const existEnd = appt.ends_at
+          ? new Date(appt.ends_at)
+          : new Date(existStart.getTime() + Number(appt.duration_min ?? 30) * 60_000);
+        return existStart < endsAt && existEnd > startsAt;
+      })
+      .map((appt) => appt.id);
+
+    if (ids.length) {
+      const { error: deleteError } = await supabase.from("appointments").delete().in("id", ids);
+      if (deleteError) throw new Error(deleteError.message);
+    }
+  };
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
-    const target = startsAt ?? cursor;
+    const target = startsAt ?? getDefaultStartAt();
     const schedule = getScheduleForDate(data.schedule, target);
     if (!schedule?.enabled) {
       toast.error("Negocio cerrado este día.");
@@ -283,6 +332,33 @@ function AgendaPage() {
     }
 
     try {
+      const repeatTotal = payload.repeatEnabled ? Math.max(1, payload.repeatCount) : 1;
+      const repeatEvery = Math.max(1, payload.repeatEvery);
+      const blockSlots = Array.from({ length: repeatTotal }, (_, index) => {
+        const startsAt = new Date(payload.startsAt);
+        startsAt.setDate(startsAt.getDate() + index * repeatEvery);
+        const endsAt = new Date(payload.endsAt);
+        endsAt.setDate(endsAt.getDate() + index * repeatEvery);
+        return { startsAt, endsAt };
+      });
+
+      if (payload.employeeId) {
+        for (const slot of blockSlots) {
+          const conflict = await checkOverlap(
+            payload.employeeId,
+            slot.startsAt.toISOString(),
+            durationMin,
+            payload.appointmentId ?? null,
+          );
+          if (conflict) {
+            const conflictTime = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+            toast.error(`Ya hay un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`);
+            return;
+          }
+          await clearOverlappingBlocks(payload.employeeId, slot.startsAt, slot.endsAt, payload.appointmentId ?? null);
+        }
+      }
+
       if (payload.appointmentId) {
         const { error } = await supabase
           .from("appointments")
@@ -301,13 +377,7 @@ function AgendaPage() {
           .eq("id", payload.appointmentId);
         if (error) throw new Error(error.message);
       } else {
-        const repeatTotal = payload.repeatEnabled ? Math.max(1, payload.repeatCount) : 1;
-        const repeatEvery = Math.max(1, payload.repeatEvery);
-        const rows = Array.from({ length: repeatTotal }, (_, index) => {
-          const startsAt = new Date(payload.startsAt);
-          startsAt.setDate(startsAt.getDate() + index * repeatEvery);
-          const endsAt = new Date(payload.endsAt);
-          endsAt.setDate(endsAt.getDate() + index * repeatEvery);
+        const rows = blockSlots.map(({ startsAt, endsAt }) => {
           return {
             business_id: data.businessId,
             client_id: null,
@@ -592,13 +662,13 @@ function AgendaPage() {
               <div className="absolute right-0 mt-1.5 z-50 w-44 glass-strong rounded-xl p-1 animate-fade-up">
                 <button
                   className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                  onClick={() => { setNewMenu(false); openNew(null, cursor); }}
+                  onClick={() => { setNewMenu(false); openNew(null, getDefaultStartAt()); }}
                 >
                   <CalendarIcon className="h-4 w-4 text-primary" /> Agregar turno
                 </button>
                 <button
                   className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                  onClick={() => { setNewMenu(false); openBlockDialog(null, cursor); }}
+                  onClick={() => { setNewMenu(false); openBlockDialog(null, getDefaultStartAt()); }}
                 >
                   <XCircle className="h-4 w-4 text-amber-300" /> Bloquear horario
                 </button>
@@ -1524,6 +1594,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         aria-describedby={undefined}
       >
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={() => onOpenChange(false)}
+            className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
           <div className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl" style={{ background: meta.dot }} />
           <div className="relative flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1535,7 +1613,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 {appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}
               </SheetTitle>
             </div>
-            <div className="flex gap-1.5 pr-7">
+            <div className="flex gap-1.5 pr-10">
               <Button size="sm" variant="secondary" className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]" onClick={() => onFicha(appointment)}>
                 <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
               </Button>
