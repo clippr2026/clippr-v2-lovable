@@ -377,6 +377,11 @@ function AgendaPage() {
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
+    // Un turno cobrado es estado final: no se permite ningún cambio de estado.
+    if (a.status === "charged" && status !== "charged") {
+      toast.error("Este turno ya está cobrado. No se puede cambiar el estado.");
+      return;
+    }
     try {
       if (status === "cancelled") {
         await cancelAppointment(a.id, {
@@ -1694,6 +1699,21 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               <Button variant="secondary" className="h-9" onClick={() => onEdit(appointment)}>Editar bloqueo</Button>
               <Button variant="destructive" className="h-9" onClick={() => onReleaseBlock(appointment)}>Liberar horario</Button>
             </div>
+          ) : appointment.status === "charged" ? (
+            <div className="space-y-2">
+              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
+
+              {/* Cobrado: estado final, sin posibilidad de cambio */}
+              {(() => { const dot = STATUS_META.charged.dot; return (
+                <div
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                  style={{ background: withAlpha(dot, 0.16), color: dot, boxShadow: `inset 0 0 0 1.5px ${dot}` }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />
+                  Cobrado
+                </div>
+              ); })()}
+            </div>
           ) : (
             <div className="space-y-2">
               <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
@@ -1722,39 +1742,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </button>
               ); })()}
 
-              {/* Cancelado */}
-              {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return (
-                <button
-                  onClick={() => { if (!cancelled) setConfirmCancel(true); }}
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                  style={{ background: cancelled ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: cancelled ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
-                >
-                  {cancelled && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
-                  Cancelado
-                </button>
-              ); })()}
-
-              {/* Cobrado */}
-              {(() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
-                <button
-                  onClick={() => { if (!charged) onCobrar(appointment); }}
-                  disabled={charged}
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
-                  style={{ background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: charged ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
-                >
-                  {charged && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
-                  Cobrado
-                </button>
-              ); })()}
-
-              {/* Cobrar seña (si aplica) */}
-              {requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
-                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
-                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
-                </Button>
-              )}
-
-              {/* Cancelado — con confirmación */}
+              {/* Cancelado — único, con confirmación */}
               {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return cancelled ? (
                 <div
                   className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
@@ -1789,6 +1777,26 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   Cancelado
                 </button>
               ); })()}
+
+              {/* Cobrado */}
+              {(() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
+                <button
+                  onClick={() => { if (!charged) onCobrar(appointment); }}
+                  disabled={charged}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
+                  style={{ background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: charged ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  {charged && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
+                  Cobrado
+                </button>
+              ); })()}
+
+              {/* Cobrar seña (si aplica) */}
+              {requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
+                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
+                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+                </Button>
+              )}
             </div>
           )}
         </div>
