@@ -1498,6 +1498,22 @@ function BlockHoursDialog({
   );
 }
 
+/**
+ * Show only what the client actually wrote in the notes field. Online bookings
+ * pack extra metadata into `notes` (e.g. "Notas del cliente: X  Email: ...  Origen:
+ * reserva online"); the email/origin are NOT notes and are shown elsewhere, so we
+ * strip them here and keep just the client's text.
+ */
+function clientNoteOnly(raw?: string | null): string {
+  if (!raw) return "";
+  let s = raw;
+  const m = s.match(/Notas del cliente:\s*([\s\S]*)/i);
+  if (m) s = m[1];
+  // Cut at the first booking-metadata marker.
+  s = s.split(/\s*(?:Email|Origen|Tel[eé]fono)\s*:/i)[0];
+  return s.trim();
+}
+
 const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   open,
   onOpenChange,
@@ -1551,6 +1567,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           : "Pendiente";
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
+  const noteText = clientNoteOnly(appointment.notes);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
@@ -1558,10 +1575,19 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         forceMount
         side="right"
         hideOverlay
+        hideClose
         className="w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100 data-[state=closed]:hidden"
         aria-describedby={undefined}
       >
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={() => onOpenChange(false)}
+            className="absolute right-3 top-3.5 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
           <div className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl" style={{ background: meta.dot }} />
           <div className="relative flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1628,33 +1654,29 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           </div>
 
           <div className="space-y-2 text-sm">
-            {(phone || email) && (
-              <div className="grid grid-cols-2 gap-2">
-                {phone && (
-                  <div className={cn("flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 min-w-0", !email && "col-span-2")}>
-                    <div className="min-w-0">
-                      <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">Teléfono</div>
-                      <div className="mt-0.5 truncate text-white/85 text-[13px]">{phone}</div>
-                    </div>
-                    {whatsappHref && (
-                      <a href={whatsappHref} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="inline-flex shrink-0 items-center justify-center h-7 w-7 rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition">
-                        <MessageCircle className="h-4 w-4" />
-                      </a>
-                    )}
-                  </div>
-                )}
-                {email && (
-                  <div className={cn("rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 min-w-0", !phone && "col-span-2")}>
-                    <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">Email</div>
-                    <div className="mt-0.5 truncate text-white/85 text-[13px]">{email}</div>
-                  </div>
+            {phone && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
+                <div className="min-w-0">
+                  <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">Teléfono</div>
+                  <div className="mt-0.5 truncate text-white/85 text-[13px]">{phone}</div>
+                </div>
+                {whatsappHref && (
+                  <a href={whatsappHref} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition px-3 text-[12px] font-medium">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                  </a>
                 )}
               </div>
             )}
-            {appointment.notes && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+            {email && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
+                <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">Email</div>
+                <div className="mt-0.5 truncate text-white/85 text-[13px]">{email}</div>
+              </div>
+            )}
+            {noteText && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
                 <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">Notas</div>
-                <div className="text-white/80 text-[13px]">{appointment.notes}</div>
+                <div className="text-white/80 text-[13px] whitespace-pre-wrap break-words">{noteText}</div>
               </div>
             )}
           </div>
