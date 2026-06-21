@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { X } from "lucide-react";
 
 /**
  * Shared right-side drawer for every Agenda panel (detail, add/edit turno,
@@ -39,7 +40,15 @@ export function AgendaDrawer({
         aria-describedby={undefined}
       >
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0 shrink-0">
-          <SheetTitle className="text-[18px] leading-tight font-display tracking-tight pr-8">
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={() => onOpenChange(false)}
+            className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <SheetTitle className="text-[18px] leading-tight font-display tracking-tight pr-10">
             {title}
           </SheetTitle>
           {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
