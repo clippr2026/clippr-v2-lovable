@@ -467,7 +467,7 @@ export async function checkOverlap(
   startsAt: string,
   durationMin: number,
   excludeId?: string | null,
-): Promise<{ id: string; client_name: string | null; starts_at: string } | null> {
+): Promise<{ id: string; client_name: string | null; starts_at: string; status?: ApptStatus | null; service_name?: string | null } | null> {
   const newStart = new Date(startsAt);
   const newEnd   = new Date(newStart.getTime() + durationMin * 60_000);
 
@@ -478,7 +478,7 @@ export async function checkOverlap(
 
   const { data, error } = await supabase
     .from("appointments")
-    .select("id,client_name,starts_at,ends_at,duration_min,status")
+    .select("id,client_name,service_name,starts_at,ends_at,duration_min,status")
     .eq("employee_id", employeeId)
     .neq("status", "cancelled")
     .neq("status", "blocked")
@@ -496,7 +496,7 @@ export async function checkOverlap(
 
     // True overlap: they share any time (touching endpoints don't count)
     if (existStart < newEnd && existEnd > newStart) {
-      return { id: appt.id, client_name: appt.client_name, starts_at: appt.starts_at };
+      return { id: appt.id, client_name: appt.client_name, starts_at: appt.starts_at, status: appt.status as ApptStatus, service_name: (appt as any).service_name ?? null };
     }
   }
 

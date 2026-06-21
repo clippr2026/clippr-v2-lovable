@@ -47,6 +47,43 @@ type Props = {
   schedule?: import("./use-agenda-data").ScheduleMap | null;
 };
 
+
+async function clearOverlappingBlocks(
+  employeeId: string,
+  startsAt: string,
+  durationMin: number,
+) {
+  const newStart = new Date(startsAt);
+  const newEnd = new Date(newStart.getTime() + durationMin * 60_000);
+  const windowStart = new Date(newStart.getTime() - 2 * 60 * 60_000).toISOString();
+  const windowEnd = new Date(newEnd.getTime() + 2 * 60 * 60_000).toISOString();
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id,starts_at,ends_at,duration_min")
+    .eq("employee_id", employeeId)
+    .eq("status", "blocked")
+    .gte("starts_at", windowStart)
+    .lte("starts_at", windowEnd);
+
+  if (error) throw new Error(error.message);
+
+  const ids = (data ?? [])
+    .filter((appt) => {
+      const existStart = new Date(appt.starts_at);
+      const existEnd = appt.ends_at
+        ? new Date(appt.ends_at)
+        : new Date(existStart.getTime() + Number(appt.duration_min ?? 30) * 60_000);
+      return existStart < newEnd && existEnd > newStart;
+    })
+    .map((appt) => appt.id);
+
+  if (ids.length) {
+    const { error: deleteError } = await supabase.from("appointments").delete().in("id", ids);
+    if (deleteError) throw new Error(deleteError.message);
+  }
+}
+
 type SenasConfig = {
   enabled: boolean;
   services: string[];
@@ -482,6 +519,12 @@ export function AppointmentDialog({
 
       // ── Overlap validation ────────────────────────────────────────────────
       if (employeeId) {
+        // Si el horario estaba bloqueado y ahora se carga un turno real, el bloqueo se libera.
+        // Así nunca quedan el bloqueo y el turno superpuestos en la misma columna.
+        for (const date of dates) {
+          await clearOverlappingBlocks(employeeId, date.toISOString(), Number(duration) || 30);
+        }
+
         for (const date of dates) {
           const conflict = await checkOverlap(
             employeeId,
