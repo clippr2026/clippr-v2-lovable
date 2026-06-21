@@ -1722,7 +1722,19 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </button>
               ); })()}
 
-              {/* Cobrado / Cobrar — abre Caja con el turno precargado */}
+              {/* Cancelado */}
+              {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return (
+                <button
+                  onClick={() => { if (!cancelled) setConfirmCancel(true); }}
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                  style={{ background: cancelled ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: cancelled ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
+                >
+                  {cancelled && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
+                  Cancelado
+                </button>
+              ); })()}
+
+              {/* Cobrado */}
               {(() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
                 <button
                   onClick={() => { if (!charged) onCobrar(appointment); }}
@@ -1730,8 +1742,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
                   style={{ background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: charged ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
                 >
-                  <DollarSign className="h-4 w-4" />
-                  {charged ? "Cobrado" : "Cobrar"}
+                  {charged && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
+                  Cobrado
                 </button>
               ); })()}
 
