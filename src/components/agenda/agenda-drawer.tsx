@@ -1,6 +1,6 @@
 import * as React from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { X } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 /**
  * Shared right-side drawer for every Agenda panel (detail, add/edit turno,
@@ -34,24 +34,25 @@ export function AgendaDrawer({
       <SheetContent
         side="right"
         hideOverlay
+        hideClose
         onInteractOutside={lockOutside ? (e) => e.preventDefault() : undefined}
         onEscapeKeyDown={lockOutside ? (e) => e.preventDefault() : undefined}
         className="w-full sm:max-w-[372px] p-0 flex flex-col border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100"
         aria-describedby={undefined}
       >
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0 shrink-0">
+          <SheetTitle className="text-[18px] leading-tight font-display tracking-tight pr-9">
+            {title}
+          </SheetTitle>
+          {subtitle && <div className="text-xs text-muted-foreground mt-0.5 pr-9">{subtitle}</div>}
           <button
             type="button"
             aria-label="Cerrar"
             onClick={() => onOpenChange(false)}
-            className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+            className="absolute right-3 top-3.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
           >
             <X className="h-4 w-4" />
           </button>
-          <SheetTitle className="text-[18px] leading-tight font-display tracking-tight pr-10">
-            {title}
-          </SheetTitle>
-          {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
