@@ -381,7 +381,15 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     ? supabase.from("appointments").update(payload).eq("id", input.id).select()
     : supabase.from("appointments").insert(payload).select();
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) {
+    // La exclusion constraint de Postgres rechaza turnos solapados para el mismo
+    // profesional. Devolvemos un mensaje claro en vez del error crudo.
+    const code = (error as { code?: string }).code;
+    if (code === "23P01" || /appointments_no_overlap|exclusion|overlap/i.test(error.message)) {
+      throw new Error("Ese horario ya no está disponible");
+    }
+    throw new Error(error.message);
+  }
   return data?.[0];
 }
 
