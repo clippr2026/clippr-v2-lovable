@@ -32,6 +32,7 @@ import {
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
+import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -227,6 +228,19 @@ function AgendaPage() {
   const [newMenu, setNewMenu] = React.useState(false);
   const newBtnRef = React.useRef<HTMLButtonElement>(null);
   const [newMenuPos, setNewMenuPos] = React.useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const [calOpen, setCalOpen] = React.useState(false);
+  const dateBtnRef = React.useRef<HTMLButtonElement>(null);
+  const [calPos, setCalPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const openCalendar = () => {
+    const r = dateBtnRef.current?.getBoundingClientRect();
+    if (r) {
+      const centered = r.left + r.width / 2;
+      // Mantener el popover (≈280px) dentro de la pantalla en móvil.
+      const left = Math.min(Math.max(centered, 150), window.innerWidth - 150);
+      setCalPos({ top: r.bottom + 6, left });
+    }
+    setCalOpen(true);
+  };
   const toggleNewMenu = () => {
     setNewMenu((v) => {
       const next = !v;
@@ -544,14 +558,15 @@ function AgendaPage() {
         <button
           onClick={() => setCursor(startOfDay(new Date()))}
           disabled={isCursorToday}
-          className="text-xs font-medium text-primary hover:text-primary/80 transition shrink-0 disabled:opacity-40 disabled:hover:text-primary"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition shrink-0 disabled:opacity-40 disabled:hover:text-primary"
         >
+          <CalendarIcon className="h-3.5 w-3.5" />
           Hoy
         </button>
 
         <div className="h-5 w-px bg-white/10 shrink-0" />
 
-        {/* Date navigation — prev/next one day */}
+        {/* Date navigation — prev/next one day, fecha abre calendario */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => move(-1)}
@@ -560,7 +575,14 @@ function AgendaPage() {
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-semibold whitespace-nowrap min-w-[205px] text-center">{fullDate}</span>
+          <button
+            ref={dateBtnRef}
+            onClick={openCalendar}
+            aria-label="Elegir fecha"
+            className="text-sm font-semibold whitespace-nowrap min-w-[205px] text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
+          >
+            {fullDate}
+          </button>
           <button
             onClick={() => move(1)}
             aria-label="Día siguiente"
@@ -569,6 +591,19 @@ function AgendaPage() {
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Calendario oscuro — popover para saltar a cualquier fecha */}
+        {calOpen && (
+          <>
+            <div className="fixed inset-0 z-[60]" onClick={() => setCalOpen(false)} />
+            <div className="fixed z-[61]" style={{ top: calPos.top, left: calPos.left, transform: "translateX(-50%)" }}>
+              <DarkCalendar
+                value={cursor}
+                onSelect={(d) => { setCursor(startOfDay(d)); setCalOpen(false); }}
+              />
+            </div>
+          </>
+        )}
 
         {data.loading && <span className="text-xs text-muted-foreground shrink-0">Cargando…</span>}
 
