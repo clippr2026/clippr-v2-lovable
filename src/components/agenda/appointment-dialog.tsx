@@ -717,15 +717,15 @@ export function AppointmentDialog({
           {/* Profesional y servicio */}
           <section className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.03] p-3 space-y-3">
             <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider"><Scissors className="h-3.5 w-3.5 text-emerald-300" /> Profesional y servicio</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <Select value={employeeId} onValueChange={setEmployeeId}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Profesional" /></SelectTrigger>
+                <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Profesional" /></SelectTrigger>
                 <SelectContent>
                   {employees.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={serviceId} onValueChange={pickService}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Servicio" /></SelectTrigger>
+                <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Servicio" /></SelectTrigger>
                 <SelectContent>
                   {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>)}
                 </SelectContent>
