@@ -80,33 +80,92 @@ export function parseScheduleTime(value: string) {
   return h + (Number.isFinite(m) ? m / 60 : 0);
 }
 
-export function getScheduleForDate(schedule: ScheduleMap | null, date: Date): DaySchedule | null {
-  if (!schedule) return null;
-  return schedule[DAY_KEYS[date.getDay()]] ?? null;
+function isSameLocalDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
-/**
- * Returns an error message if the proposed slot falls outside the business
- * schedule, or null if OK.
- */
+function minutesToScheduleTime(minutes: number) {
+  const hh = Math.floor(minutes / 60);
+  const mm = minutes % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function getAppointmentEnd(appt: Appointment) {
+  if (appt.ends_at) return new Date(appt.ends_at);
+
+  const start = new Date(appt.starts_at);
+  return new Date(start.getTime() + Number(appt.duration_min ?? 30) * 60000);
+}
+
+export function getScheduleForDate(
+  schedule: ScheduleMap | null,
+  date: Date,
+  appointments: Appointment[] = [],
+): DaySchedule | null {
+  if (!schedule) return null;
+
+  const baseDay = schedule[DAY_KEYS[date.getDay()]] ?? null;
+  if (!baseDay) return null;
+
+  const dayAppointments = appointments.filter((appt) => {
+    if (appt.status === "cancelled") return false;
+    return isSameLocalDay(new Date(appt.starts_at), date);
+  });
+
+  if (!dayAppointments.length) return baseDay;
+
+  const configuredStartMin = Math.round(parseScheduleTime(baseDay.start) * 60);
+  const configuredEndMin = Math.round(parseScheduleTime(baseDay.end) * 60);
+
+  let visualStartMin = configuredStartMin;
+  let visualEndMin = configuredEndMin;
+
+  for (const appt of dayAppointments) {
+    const apptStart = new Date(appt.starts_at);
+    const apptEnd = getAppointmentEnd(appt);
+
+    const apptStartMin = apptStart.getHours() * 60 + apptStart.getMinutes();
+    const apptEndMin = apptEnd.getHours() * 60 + apptEnd.getMinutes();
+
+    visualStartMin = Math.min(visualStartMin, apptStartMin);
+    visualEndMin = Math.max(visualEndMin, apptEndMin);
+  }
+
+  return {
+    ...baseDay,
+    start: minutesToScheduleTime(visualStartMin),
+    end: minutesToScheduleTime(visualEndMin),
+  };
+}
+
 export function checkSchedule(
   schedule: ScheduleMap | null,
   startsAt: Date,
   durationMin: number,
 ): string | null {
   if (!schedule) return null;
+
   const dayKey = DAY_KEYS[startsAt.getDay()];
   const day = schedule[dayKey];
+
   if (!day || !day.enabled) {
     return "El horario seleccionado está fuera del horario laboral configurado.";
   }
+
   const slotStart = startsAt.getHours() + startsAt.getMinutes() / 60;
-  const slotEnd   = slotStart + (durationMin || 30) / 60;
-  const open  = parseScheduleTime(day.start);
+  const slotEnd = slotStart + (durationMin || 30) / 60;
+
+  const open = parseScheduleTime(day.start);
   const close = parseScheduleTime(day.end);
+
   if (slotStart < open || slotEnd > close) {
     return "El horario seleccionado está fuera del horario laboral configurado.";
   }
+
   return null;
 }
 
