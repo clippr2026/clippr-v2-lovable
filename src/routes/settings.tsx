@@ -3192,7 +3192,6 @@ function EquipoSection() {
 
     for (const item of pendingProfessionals) {
       const payload = item.payload;
-      console.log("[Clippr][TEMP] PERSIST profesional", payload.id ?? "(nuevo)", "isNew:", item.isNew, "schedule:", payload.schedule);
       if (item.isNew) {
         const { data: inserted, error } = await supabase
           .from("employees")
@@ -3515,7 +3514,6 @@ function EquipoSection() {
       commissions: form.commissions,
       schedule: form.schedule,
     };
-    console.log("[Clippr][TEMP] saveProfessional → encolando", payload.id ?? "(nuevo)", "schedule:", form.schedule);
 
     if (editingEmp) {
       setRows((current) =>
@@ -3555,10 +3553,10 @@ function EquipoSection() {
           },
           { onConflict: "business_id" },
         );
-        console.log("[Clippr][TEMP] PERSIST INMEDIATO _employeeSchedules", editingEmp.id, form.schedule, "error:", schedErr);
+        if (schedErr) toast.error("No se pudo guardar el horario del profesional. Probá de nuevo.");
         setEmployeeSchedules((current) => ({ ...current, [editingEmp.id]: form.schedule }));
-      } catch (e) {
-        console.error("[Clippr][TEMP] error persist inmediato horario", e);
+      } catch {
+        toast.error("No se pudo guardar el horario del profesional. Probá de nuevo.");
       }
 
       setPendingProfessionals((current) => [
