@@ -2499,6 +2499,14 @@ const PRO_TINTS = [
   "from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)]",
 ];
 
+// Color estable por id (no por posición): así eliminar un profesional no cambia
+// el color/avatar de los demás.
+function tintForId(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return PRO_TINTS[h % PRO_TINTS.length];
+}
+
 const AGENDA_COLORS = [
   "oklch(0.65 0.18 240)",
   "oklch(0.65 0.22 300)",
@@ -2942,12 +2950,14 @@ function getPublicVisibility(schedule: Record<string, unknown>) {
 const ProfessionalCard = React.memo(function ProfessionalCard({
   emp,
   tintClass,
+  deleting,
   onEdit,
   onToggle,
   onRemove,
 }: {
   emp: EmployeeRow;
   tintClass: string;
+  deleting?: boolean;
   onEdit: (emp: EmployeeRow) => void;
   onToggle: (emp: EmployeeRow) => void;
   onRemove: (emp: EmployeeRow) => void;
@@ -2955,7 +2965,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   const displayName = emp.full_name || emp.name || "—";
   const active = emp.is_active !== false;
   return (
-    <div className={cn("glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity", !active && "opacity-70")}>
+    <div className={cn("glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity", (!active || deleting) && "opacity-70")}>
       <div className="flex items-center gap-3">
         <div className={cn("h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10", tintClass)}>
           {emp.avatar_url ? (
@@ -2981,21 +2991,24 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
       <div className="mt-3 flex items-center gap-2">
         <button
           onClick={() => onEdit(emp)}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
+          disabled={deleting}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs disabled:opacity-50"
         >
           Editar
         </button>
         <button
           onClick={() => onToggle(emp)}
-          className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs"
+          disabled={deleting}
+          className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs disabled:opacity-50"
         >
           {active ? "Off" : "On"}
         </button>
         <button
           onClick={() => onRemove(emp)}
-          className="inline-flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+          disabled={deleting}
+          className="inline-flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5 disabled:opacity-60"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
       </div>
     </div>
@@ -3029,6 +3042,7 @@ function EquipoSection() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<"perfil" | "horarios" | "comisiones">("perfil");
@@ -3570,8 +3584,10 @@ function EquipoSection() {
     if (!confirmDel) return;
     const emp = confirmDel;
     setConfirmDel(null);
+    setDeletingId(emp.id);
     const { error } = await supabase.from("employees").delete().eq("id", emp.id);
     if (error) {
+      setDeletingId(null);
       // Backstop por si se agendó un turno entre el chequeo y el borrado:
       // nunca mostramos el error técnico de la FK al usuario.
       if (error.code === "23503" || /appointments_employee_id_fkey|foreign key/i.test(error.message)) {
@@ -3581,8 +3597,11 @@ function EquipoSection() {
       toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
       return;
     }
-    toast.success("Equipo actualizado correctamente");
-    load();
+    // Borrado quirúrgico por id en el estado local (sin recargar la página ni
+    // re-fetchear toda la lista). Solo desaparece exactamente este profesional.
+    setRows((prev) => prev.filter((e) => e.id !== emp.id));
+    setDeletingId(null);
+    toast.success("Profesional eliminado.");
   }
 
   function setDay(key: DayKey, patch: Partial<DaySchedule>) {
@@ -3876,11 +3895,12 @@ function EquipoSection() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {rows.map((emp, i) => (
+              {rows.map((emp) => (
                 <ProfessionalCard
                   key={emp.id}
                   emp={emp}
-                  tintClass={PRO_TINTS[i % PRO_TINTS.length]}
+                  tintClass={tintForId(emp.id)}
+                  deleting={deletingId === emp.id}
                   onEdit={handleEditPro}
                   onToggle={toggleActive}
                   onRemove={remove}

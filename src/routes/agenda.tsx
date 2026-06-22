@@ -1229,6 +1229,7 @@ const DayView = React.memo(function DayView({
                   hourStart={HOUR_START}
                   hourEnd={HOUR_END}
                   rowPx={rowPx}
+                  employeeCount={employees.length}
                   onClick={() => onApptClick(a)}
                   onChangeStatus={(s) => onChangeStatus(a, s)}
                   onCobrar={() => onCobrar(a)}
@@ -1282,6 +1283,7 @@ const ApptCard = React.memo(function ApptCard({
   hourStart,
   hourEnd,
   rowPx,
+  employeeCount,
 }: {
   a: Appointment;
   onClick: () => void;
@@ -1291,22 +1293,25 @@ const ApptCard = React.memo(function ApptCard({
   hourStart: number;
   hourEnd: number;
   rowPx: number;
+  employeeCount: number;
 }) {
   const start = new Date(a.starts_at);
   const end = getApptEnd(a);
+  // Nombre del cliente: con hasta 8 profesionales visibles hay ancho de sobra,
+  // se muestra completo. Con más de 8, se compacta a nombre + inicial.
   const clientDisplay = (() => {
     const parts = (a.client_name || "").trim().split(/\s+/).filter(Boolean);
     if (parts.length === 0) return "Sin nombre";
     if (parts.length === 1) return parts[0];
+    if (employeeCount <= 8) return parts.join(" ");
     return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
   })();
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
-  const top = (startH - hourStart) * rowPx + 2;
-  // Alto = duración real menos un gap de 4px (2px arriba + 2px abajo). El piso
-  // (18px) nunca supera el alto de media hora con el rowPx mínimo (52px → 26px),
-  // así dos turnos consecutivos jamás se montan: cada uno entra en su franja.
-  const height = Math.max(18, dur * rowPx - 4);
+  // Gap vertical mínimo (1px arriba + 1px abajo): turnos consecutivos quedan
+  // pegados sin montarse, y se gana alto útil para el servicio.
+  const top = (startH - hourStart) * rowPx + 1;
+  const height = Math.max(18, dur * rowPx - 2);
   if (top < 0 || top > (hourEnd - hourStart) * rowPx) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
   const isMovable = a.status !== "charged";
@@ -1333,7 +1338,7 @@ const ApptCard = React.memo(function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-[5px] pl-1 pr-1.5 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
+        "absolute rounded-[6px] pl-1 pr-1.5 py-px group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
@@ -1348,10 +1353,10 @@ const ApptCard = React.memo(function ApptCard({
           {fmtHM(start)} • {fmtHM(end)}
         </span>
         <span className="text-[9px] opacity-40 shrink-0 leading-none">·</span>
-        <span className="text-[10px] font-semibold truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
+        <span className="text-[10px] font-medium truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
       </div>
-      {/* Línea 2: servicio, pegado al horario */}
-      {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-none mt-px">{a.service_name}</div>}
+      {/* Línea 2: servicio — más legible, pegado al horario */}
+      {a.service_name && <div className="text-[10px] text-foreground/80 truncate leading-none mt-px">{a.service_name}</div>}
       {/se(ñ|n)a/i.test(a.notes || "") && (
         <div className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
           style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}>
