@@ -1298,7 +1298,10 @@ const ApptCard = React.memo(function ApptCard({
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - hourStart) * rowPx + 2;
-  const height = Math.max(dur * rowPx - 4, 38);
+  // Alto = duración real menos un gap de 4px (2px arriba + 2px abajo). El piso
+  // (18px) nunca supera el alto de media hora con el rowPx mínimo (52px → 26px),
+  // así dos turnos consecutivos jamás se montan: cada uno entra en su franja.
+  const height = Math.max(18, dur * rowPx - 4);
   if (top < 0 || top > (hourEnd - hourStart) * rowPx) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
   const isMovable = a.status !== "charged";
@@ -1999,7 +2002,7 @@ function WeekView({
                   const startH = start.getHours() + start.getMinutes() / 60;
                   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
                   const top = (startH - hourStart) * ROW_PX + 2;
-                  const height = Math.max(dur * ROW_PX - 4, 38);
+                  const height = Math.max(18, dur * ROW_PX - 4);
                   if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
                   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
                   return (
