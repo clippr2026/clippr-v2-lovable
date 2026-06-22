@@ -499,7 +499,7 @@ function AgendaPage() {
     [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.realtimeStatus, data.businessId, data.refresh],
   );
   const daySchedule = React.useMemo(
-    () => getScheduleForDate(data.schedule, cursor),
+    () => getScheduleForDate(data.schedule, cursor, data.appointments),
     [data.schedule, cursor],
   );
 
