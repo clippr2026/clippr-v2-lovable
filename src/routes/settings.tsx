@@ -2936,6 +2936,72 @@ function getPublicVisibility(schedule: Record<string, unknown>) {
   return (schedule._publicVisibility ?? {}) as Record<string, unknown>;
 }
 
+// Tarjeta de profesional memoizada: solo se re-renderiza si cambian sus props
+// (este profesional o sus callbacks), no cuando cambia cualquier otro estado de
+// Configuración. Reduce drásticamente los re-renders con muchos profesionales.
+const ProfessionalCard = React.memo(function ProfessionalCard({
+  emp,
+  tintClass,
+  onEdit,
+  onToggle,
+  onRemove,
+}: {
+  emp: EmployeeRow;
+  tintClass: string;
+  onEdit: (emp: EmployeeRow) => void;
+  onToggle: (emp: EmployeeRow) => void;
+  onRemove: (emp: EmployeeRow) => void;
+}) {
+  const displayName = emp.full_name || emp.name || "—";
+  const active = emp.is_active !== false;
+  return (
+    <div className={cn("glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity", !active && "opacity-70")}>
+      <div className="flex items-center gap-3">
+        <div className={cn("h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10", tintClass)}>
+          {emp.avatar_url ? (
+            <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            displayName[0]?.toUpperCase()
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm truncate">{displayName}</div>
+          <div className="text-xs text-muted-foreground">Profesional</div>
+        </div>
+        <span className={cn(
+          "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
+          active
+            ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
+            : "bg-white/5 ring-white/10 text-muted-foreground",
+        )}>
+          <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground")} />
+          {active ? "Activo" : "Inactivo"}
+        </span>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          onClick={() => onEdit(emp)}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
+        >
+          Editar
+        </button>
+        <button
+          onClick={() => onToggle(emp)}
+          className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs"
+        >
+          {active ? "Off" : "On"}
+        </button>
+        <button
+          onClick={() => onRemove(emp)}
+          className="inline-flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+});
+
 function EquipoSection() {
   const { businessId } = useAuth();
   const [tab, setTab] = useState<"pros" | "users">("pros");
@@ -3458,25 +3524,63 @@ function EquipoSection() {
     setOpen(false);
   }
 
-  async function toggleActive(emp: EmployeeRow) {
+  const toggleActive = useCallback(async (emp: EmployeeRow) => {
     const { error } = await supabase
       .from("employees")
       .update({ is_active: !(emp.is_active !== false) })
       .eq("id", emp.id);
-    if (error) return toast.error("Error: " + error.message);
+    if (error) return toast.error("No se pudo actualizar el estado del profesional. Probá de nuevo.");
     load();
-  }
+  }, [load]);
 
-  async function remove(emp: EmployeeRow) {
+  const remove = useCallback(async (emp: EmployeeRow) => {
+    // Chequeo liviano: ¿tiene turnos asociados? Si sí, no se elimina (rompería
+    // historial/reportes). Se recomienda marcarlo inactivo. Trae solo 1 id.
+    const { data: appts, error: checkError } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("employee_id", emp.id)
+      .limit(1);
+    if (checkError) {
+      toast.error("No se pudo verificar los turnos del profesional. Probá de nuevo.");
+      return;
+    }
+    if (appts && appts.length > 0) {
+      toast.error("No se puede eliminar este profesional porque tiene turnos agendados. Podés marcarlo como inactivo.");
+      return;
+    }
     setConfirmDel(emp);
-  }
+  }, []);
+
+  const handleEditPro = useCallback((emp: EmployeeRow) => {
+    setEditingEmp(emp);
+    setForm({
+      ...EMPTY_FORM,
+      fullName: emp.full_name ?? emp.name ?? "",
+      avatarUrl: emp.avatar_url ?? "",
+      commissionPct: String(emp.commission_pct ?? ""),
+      role: emp.role ?? "Barbero",
+      acceptsOnline: employeeOnlineMap[emp.id] !== false,
+    });
+    setDlgTab("perfil");
+    setOpen(true);
+  }, [employeeOnlineMap]);
 
   async function doRemoveEmp() {
     if (!confirmDel) return;
     const emp = confirmDel;
     setConfirmDel(null);
     const { error } = await supabase.from("employees").delete().eq("id", emp.id);
-    if (error) return toast.error("Error: " + error.message);
+    if (error) {
+      // Backstop por si se agendó un turno entre el chequeo y el borrado:
+      // nunca mostramos el error técnico de la FK al usuario.
+      if (error.code === "23503" || /appointments_employee_id_fkey|foreign key/i.test(error.message)) {
+        toast.error("No se puede eliminar este profesional porque tiene turnos agendados. Podés marcarlo como inactivo.");
+        return;
+      }
+      toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
+      return;
+    }
     toast.success("Equipo actualizado correctamente");
     load();
   }
@@ -3772,91 +3876,16 @@ function EquipoSection() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {rows.map((emp, i) => {
-                const displayName = emp.full_name || emp.name || "—";
-                const active = emp.is_active !== false;
-                return (
-                  <div
-                    key={emp.id}
-                    className={cn(
-                      "glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity",
-                      !active && "opacity-70",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10",
-                          PRO_TINTS[i % PRO_TINTS.length],
-                        )}
-                      >
-                        {emp.avatar_url ? (
-                          <img
-                            src={emp.avatar_url}
-                            alt={displayName}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          displayName[0]?.toUpperCase()
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{displayName}</div>
-                        <div className="text-xs text-muted-foreground">Profesional</div>
-                      </div>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
-                          active
-                            ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-                            : "bg-white/5 ring-white/10 text-muted-foreground",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full",
-                            active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
-                          )}
-                        />
-                        {active ? "Activo" : "Inactivo"}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingEmp(emp);
-                          setForm({
-                            ...EMPTY_FORM,
-                            fullName: emp.full_name ?? emp.name ?? "",
-                            avatarUrl: emp.avatar_url ?? "",
-                            commissionPct: String(emp.commission_pct ?? ""),
-                            role: emp.role ?? "Barbero",
-                            acceptsOnline: employeeOnlineMap[emp.id] !== false,
-                          });
-                          setDlgTab("perfil");
-                          setOpen(true);
-                        }}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => toggleActive(emp)}
-                        className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs"
-                      >
-                        {active ? "Off" : "On"}
-                      </button>
-                      <button
-                        onClick={() => remove(emp)}
-                        className="inline-flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              {rows.map((emp, i) => (
+                <ProfessionalCard
+                  key={emp.id}
+                  emp={emp}
+                  tintClass={PRO_TINTS[i % PRO_TINTS.length]}
+                  onEdit={handleEditPro}
+                  onToggle={toggleActive}
+                  onRemove={remove}
+                />
+              ))}
             </div>
           )}
           <SectionCard label="Aprobación de cobros profesionales">
