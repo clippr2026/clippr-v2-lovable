@@ -45,6 +45,7 @@ type Props = {
   createdByRole?: string | null;
   onSaved: () => void;
   schedule?: import("./use-agenda-data").ScheduleMap | null;
+  employeeSchedules?: Record<string, import("./use-agenda-data").ScheduleMap>;
 };
 
 
@@ -237,6 +238,7 @@ export function AppointmentDialog({
   createdByRole,
   onSaved,
   schedule = null,
+  employeeSchedules = {},
 }: Props) {
   const isEdit = !!appointment?.id;
   const [busy, setBusy] = React.useState(false);
@@ -478,10 +480,18 @@ export function AppointmentDialog({
         .join("\n");
 
       // ── Schedule validation ───────────────────────────────────────────────
+      // Valida el horario del negocio y, si hay profesional con horario propio
+      // configurado, también el suyo. Cualquiera fuera de hora bloquea el alta.
+      const empSchedule = employeeId ? employeeSchedules[employeeId] ?? null : null;
       for (const date of dates) {
         const schedErr = checkSchedule(schedule, date, Number(duration) || 30);
         if (schedErr) {
           toast.error(schedErr);
+          setBusy(false);
+          return;
+        }
+        if (empSchedule && checkSchedule(empSchedule, date, Number(duration) || 30)) {
+          toast.error("El profesional no atiende en ese horario.");
           setBusy(false);
           return;
         }
