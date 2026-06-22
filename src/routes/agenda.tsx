@@ -28,6 +28,7 @@ import {
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
+  getVisibleRange,
   parseScheduleTime,
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
@@ -276,19 +277,21 @@ function AgendaPage() {
       return;
     }
 
-    // Bloqueo de creación fuera del horario real (negocio + profesional). La
-    // grilla puede mostrarse más amplia para visualizar turnos previos, pero
-    // esas franjas no admiten turnos nuevos. Se valida contra los horarios
-    // crudos (no el rango visual expandido por turnos).
-    const outOfBusiness = checkSchedule(data.schedule, startsAt, 1);
-    if (outOfBusiness) {
-      toast.error("Fuera del horario de atención. No se pueden crear turnos en esta franja.");
-      return;
-    }
+    // Bloqueo de creación fuera del horario real. Fuente PRINCIPAL: el horario
+    // del profesional; si no tiene horario propio, se valida contra el del local.
+    // (Fase B convertirá esto en una confirmación con override.)
     const empSchedule = employeeId ? data.employeeSchedules?.[employeeId] ?? null : null;
-    const outOfProfessional = empSchedule ? checkSchedule(empSchedule, startsAt, 1) : null;
-    if (outOfProfessional) {
-      toast.error("El profesional no atiende en ese horario.");
+    const guardErr = empSchedule
+      ? checkSchedule(empSchedule, startsAt, 1)
+      : checkSchedule(data.schedule, startsAt, 1);
+    if (guardErr) {
+      toast.error(
+        guardErr.includes("descanso")
+          ? "El profesional está en descanso en ese horario."
+          : empSchedule
+            ? "El profesional no atiende en ese horario."
+            : "Fuera del horario de atención. No se pueden crear turnos en esta franja.",
+      );
       return;
     }
 
@@ -514,10 +517,20 @@ function AgendaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.employeeSchedules, data.realtimeStatus, data.businessId, data.refresh],
   );
-  const daySchedule = React.useMemo(
-    () => getScheduleForDate(data.schedule, cursor, data.appointments),
-    [data.schedule, cursor],
-  );
+  const daySchedule = React.useMemo(() => {
+    // Rango visible derivado de horarios individuales (local como fallback) y
+    // expandido solo por turnos reales. Se devuelve como DaySchedule sintético
+    // para alimentar HOUR_START/HOUR_END/isClosed del grid.
+    const range = getVisibleRange(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.employees,
+      cursor,
+      data.appointments,
+    );
+    if (!range) return null;
+    return { enabled: true, start: range.start, end: range.end };
+  }, [data.schedule, data.employeeSchedules, data.employees, cursor, data.appointments]);
 
   // Stable handlers passed to the (memoized) DayView grid.
   const handleSlotClick = useStableCallback(openSlotMenu);
@@ -924,6 +937,13 @@ function breakRangeMin(
   const endMin = Math.round(parseScheduleTime(day.breakEnd) * 60);
   return endMin > startMin ? { startMin, endMin } : null;
 }
+
+// Minutos del día → "HH:MM".
+function minToHHMM(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 const DayView = React.memo(function DayView({
   date,
   data,
@@ -1230,12 +1250,13 @@ const DayView = React.memo(function DayView({
   // Si el profesional no trabaja ese día, la ventana queda vacía → toda la
   // columna bloqueada. Sin horario propio ("__none__" o no configurado) usa el
   // horario del negocio.
+  // Ventana operable EFECTIVA de una columna. Fuente PRINCIPAL: el horario
+  // individual del profesional. Si no tiene horario propio, fallback al horario
+  // del local. (Antes intersecaba con el local; ahora el horario del profesional
+  // manda.) Devuelve también los descansos a bloquear.
   const effectiveWindowFor = React.useCallback(
     (empId: string) => {
-      let openMin = bizOpenMin;
-      let closeMin = bizCloseMin;
       const breaks: { startMin: number; endMin: number }[] = [];
-      if (bizBreak) breaks.push(bizBreak);
       const es = empId !== "__none__" ? data.employeeSchedules?.[empId] ?? null : null;
       if (es) {
         const empDay = getScheduleForDate(es, date);
@@ -1243,12 +1264,17 @@ const DayView = React.memo(function DayView({
           // No atiende este día → ventana vacía (columna entera bloqueada).
           return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60, breaks: [] };
         }
-        openMin = Math.max(openMin, Math.round(parseScheduleTime(empDay.start) * 60));
-        closeMin = Math.min(closeMin, Math.round(parseScheduleTime(empDay.end) * 60));
         const empBreak = breakRangeMin(empDay);
         if (empBreak) breaks.push(empBreak);
+        return {
+          openMin: Math.round(parseScheduleTime(empDay.start) * 60),
+          closeMin: Math.round(parseScheduleTime(empDay.end) * 60),
+          breaks,
+        };
       }
-      return { openMin, closeMin, breaks };
+      // Sin horario propio: fallback al horario del local.
+      if (bizBreak) breaks.push(bizBreak);
+      return { openMin: bizOpenMin, closeMin: bizCloseMin, breaks };
     },
     [bizOpenMin, bizCloseMin, bizBreak, data.employeeSchedules, date, HOUR_START],
   );
@@ -1337,10 +1363,25 @@ const DayView = React.memo(function DayView({
           {shouldVirtualizeColumns && <div aria-hidden="true" style={{ height: gridBodyHeight }} />}
 
           {renderedColumns.map(({ e, columnAppts, layouts }) => {
-            // Ventana operable de ESTA columna = horario del negocio ∩ horario
-            // del profesional. Fuera de ella, las celdas se marcan y bloquean.
+            // Ventana operable de ESTA columna (horario del profesional, o del
+            // local como fallback). Fuera de hora = franja rayada; el descanso
+            // se muestra como un bloque "DESCANSO" propio.
             const { openMin: colOpenMin, closeMin: colCloseMin, breaks: colBreaks } = effectiveWindowFor(e.id);
-            const colBlocked = blockedSegmentsFor(colOpenMin, colCloseMin, colBreaks);
+            const oohSegments = blockedSegmentsFor(colOpenMin, colCloseMin);
+            const gridStartMin = HOUR_START * 60;
+            const gridEndMin = HOUR_END * 60;
+            const breakBlocks = colBreaks
+              .map((br) => {
+                const a = Math.max(br.startMin, gridStartMin, colOpenMin);
+                const b = Math.min(br.endMin, gridEndMin, colCloseMin);
+                if (b <= a) return null;
+                return {
+                  top: (a / 60 - HOUR_START) * rowPx,
+                  height: ((b - a) / 60) * rowPx,
+                  label: `${minToHHMM(br.startMin)} - ${minToHHMM(br.endMin)}`,
+                };
+              })
+              .filter((x): x is { top: number; height: number; label: string } => x !== null);
             return (
             <div
               key={e.id}
@@ -1378,13 +1419,12 @@ const DayView = React.memo(function DayView({
                 );
               })}
 
-              {/* Franjas fuera del horario (negocio o profesional): visibles
-                  para ver turnos previos por encima, pero no operables. El
-                  bloqueo de creación lo aplica openSlotMenu/checkSchedule; esto
-                  es el marcado visual. pointer-events-none para no romper drag. */}
-              {colBlocked.map((seg, i) => (
+              {/* Fuera del horario (profesional o local): franja rayada,
+                  visible pero no operable. Los turnos previos se pintan encima.
+                  pointer-events-none para no romper el drag. */}
+              {oohSegments.map((seg, i) => (
                 <div
-                  key={`blocked-${i}`}
+                  key={`ooh-${i}`}
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-x-0"
                   style={{
@@ -1394,6 +1434,26 @@ const DayView = React.memo(function DayView({
                       "repeating-linear-gradient(135deg, rgba(255,255,255,0.016) 0, rgba(255,255,255,0.016) 7px, rgba(255,255,255,0.05) 7px, rgba(255,255,255,0.05) 14px)",
                   }}
                 />
+              ))}
+
+              {/* Descanso: bloque real "DESCANSO" con su rango horario. */}
+              {breakBlocks.map((b, i) => (
+                <div
+                  key={`break-${i}`}
+                  className="pointer-events-none absolute inset-x-0.5 z-[1] flex flex-col items-center justify-center overflow-hidden rounded-md text-center"
+                  style={{
+                    top: b.top,
+                    height: b.height,
+                    border: "1px solid rgba(148,163,184,0.28)",
+                    background:
+                      "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
+                  }}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300/85 leading-tight">
+                    Descanso
+                  </span>
+                  <span className="text-[10px] text-slate-400/75 leading-tight">{b.label}</span>
+                </div>
               ))}
 
               {showNowLine && (
