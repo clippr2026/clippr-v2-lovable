@@ -1294,7 +1294,12 @@ const ApptCard = React.memo(function ApptCard({
 }) {
   const start = new Date(a.starts_at);
   const end = getApptEnd(a);
-  const firstName = (a.client_name || "Sin nombre").trim().split(/\s+/)[0] || "Sin nombre";
+  const clientDisplay = (() => {
+    const parts = (a.client_name || "").trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "Sin nombre";
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
+  })();
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   const top = (startH - hourStart) * rowPx + 2;
@@ -1328,7 +1333,7 @@ const ApptCard = React.memo(function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-lg px-2 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
+        "absolute rounded-[5px] pl-1 pr-1.5 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
@@ -1337,18 +1342,18 @@ const ApptCard = React.memo(function ApptCard({
       onDragEnd={handleDragEnd}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
-      {/* Time range · first name (same line) */}
-      <div className="flex items-center gap-1 min-w-0 leading-tight">
+      {/* Línea 1: horario (lo más importante) + cliente */}
+      <div className="flex items-center gap-1 min-w-0 leading-none">
         <span className="text-[10px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
-          {fmtHM(start)} - {fmtHM(end)}
+          {fmtHM(start)} • {fmtHM(end)}
         </span>
         <span className="text-[9px] opacity-40 shrink-0 leading-none">·</span>
-        <span className="text-[10px] font-semibold truncate flex-1 min-w-0 leading-none">{firstName}</span>
+        <span className="text-[10px] font-semibold truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
       </div>
-      {/* Service */}
-      {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-[1.05] mt-0.5">{a.service_name}</div>}
+      {/* Línea 2: servicio, pegado al horario */}
+      {a.service_name && <div className="text-[9px] text-foreground/65 truncate leading-none mt-px">{a.service_name}</div>}
       {/se(ñ|n)a/i.test(a.notes || "") && (
-        <div className="text-[8px] font-semibold mt-0.5 px-1 rounded w-fit"
+        <div className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
           style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}>
           Seña
         </div>
