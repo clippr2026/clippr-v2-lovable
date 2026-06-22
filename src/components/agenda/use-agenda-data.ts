@@ -166,15 +166,6 @@ export function checkSchedule(
     return "El horario seleccionado está fuera del horario laboral configurado.";
   }
 
-  if (day.breakStart && day.breakEnd) {
-    const breakStart = parseScheduleTime(day.breakStart);
-    const breakEnd = parseScheduleTime(day.breakEnd);
-
-    if (breakEnd > breakStart && slotStart < breakEnd && slotEnd > breakStart) {
-      return "El horario seleccionado coincide con el descanso configurado.";
-    }
-  }
-
   return null;
 }
 
