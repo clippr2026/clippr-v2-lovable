@@ -276,13 +276,19 @@ function AgendaPage() {
       return;
     }
 
-    // Bloqueo de creación fuera del horario real del negocio. La grilla puede
-    // mostrarse más amplia para visualizar turnos previos (ej: un turno a las
-    // 08:00 con el negocio abriendo 11:00), pero esas franjas no admiten turnos
-    // nuevos. Se valida contra el horario crudo (no el expandido por turnos).
-    const outOfHours = checkSchedule(data.schedule, startsAt, 1);
-    if (outOfHours) {
+    // Bloqueo de creación fuera del horario real (negocio + profesional). La
+    // grilla puede mostrarse más amplia para visualizar turnos previos, pero
+    // esas franjas no admiten turnos nuevos. Se valida contra los horarios
+    // crudos (no el rango visual expandido por turnos).
+    const outOfBusiness = checkSchedule(data.schedule, startsAt, 1);
+    if (outOfBusiness) {
       toast.error("Fuera del horario de atención. No se pueden crear turnos en esta franja.");
+      return;
+    }
+    const empSchedule = employeeId ? data.employeeSchedules?.[employeeId] ?? null : null;
+    const outOfProfessional = empSchedule ? checkSchedule(empSchedule, startsAt, 1) : null;
+    if (outOfProfessional) {
+      toast.error("El profesional no atiende en ese horario.");
       return;
     }
 
@@ -838,6 +844,7 @@ function AgendaPage() {
           createdByRole={profile?.role}
           onSaved={data.refresh}
           schedule={data.schedule}
+          employeeSchedules={data.employeeSchedules}
         />
       )}
     </AppShell>
@@ -1200,9 +1207,28 @@ const DayView = React.memo(function DayView({
     },
     [HOUR_START, HOUR_END, rowPx],
   );
-  const businessBlocked = React.useMemo(
-    () => blockedSegmentsFor(bizOpenMin, bizCloseMin),
-    [blockedSegmentsFor, bizOpenMin, bizCloseMin],
+  // Ventana operable EFECTIVA de una columna: intersección del horario del
+  // negocio con el horario individual del profesional (si tiene configurado).
+  // Si el profesional no trabaja ese día, la ventana queda vacía → toda la
+  // columna bloqueada. Sin horario propio ("__none__" o no configurado) usa el
+  // horario del negocio.
+  const effectiveWindowFor = React.useCallback(
+    (empId: string) => {
+      let openMin = bizOpenMin;
+      let closeMin = bizCloseMin;
+      const es = empId !== "__none__" ? data.employeeSchedules?.[empId] ?? null : null;
+      if (es) {
+        const empDay = getScheduleForDate(es, date);
+        if (!empDay || !empDay.enabled) {
+          // No atiende este día → ventana vacía (columna entera bloqueada).
+          return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60 };
+        }
+        openMin = Math.max(openMin, Math.round(parseScheduleTime(empDay.start) * 60));
+        closeMin = Math.min(closeMin, Math.round(parseScheduleTime(empDay.end) * 60));
+      }
+      return { openMin, closeMin };
+    },
+    [bizOpenMin, bizCloseMin, data.employeeSchedules, date, HOUR_START],
   );
 
   if (isClosed) {
@@ -1288,7 +1314,12 @@ const DayView = React.memo(function DayView({
 
           {shouldVirtualizeColumns && <div aria-hidden="true" style={{ height: gridBodyHeight }} />}
 
-          {renderedColumns.map(({ e, columnAppts, layouts }) => (
+          {renderedColumns.map(({ e, columnAppts, layouts }) => {
+            // Ventana operable de ESTA columna = horario del negocio ∩ horario
+            // del profesional. Fuera de ella, las celdas se marcan y bloquean.
+            const { openMin: colOpenMin, closeMin: colCloseMin } = effectiveWindowFor(e.id);
+            const colBlocked = blockedSegmentsFor(colOpenMin, colCloseMin);
+            return (
             <div
               key={e.id}
               className="relative border-l border-white/[0.04]"
@@ -1300,10 +1331,10 @@ const DayView = React.memo(function DayView({
               onDrop={(ev) => handleDrop(ev, e.id)}
             >
               {HOURS.map((h) => {
-                // Por ahora la ventana operable es la del negocio. Para horario
-                // por profesional, reemplazar bizOpenMin/bizCloseMin por la
-                // ventana efectiva de `e` (intersección con la del negocio).
-                const cellBlocked = (h + 1) * 60 <= bizOpenMin || h * 60 >= bizCloseMin;
+                // Una celda queda bloqueada si cae fuera de la ventana efectiva
+                // (negocio o profesional). Regla: bloqueada si está totalmente
+                // antes de abrir o en/después de cerrar.
+                const cellBlocked = (h + 1) * 60 <= colOpenMin || h * 60 >= colCloseMin;
                 return (
                   <div
                     key={h}
@@ -1321,11 +1352,11 @@ const DayView = React.memo(function DayView({
                 );
               })}
 
-              {/* Franjas fuera del horario de atención: visibles (para ver
-                  turnos previos por encima) pero no operables. El bloqueo de
-                  creación lo aplica openSlotMenu/checkSchedule; esto es el
-                  marcado visual. pointer-events-none para no romper el drag. */}
-              {businessBlocked.map((seg, i) => (
+              {/* Franjas fuera del horario (negocio o profesional): visibles
+                  para ver turnos previos por encima, pero no operables. El
+                  bloqueo de creación lo aplica openSlotMenu/checkSchedule; esto
+                  es el marcado visual. pointer-events-none para no romper drag. */}
+              {colBlocked.map((seg, i) => (
                 <div
                   key={`blocked-${i}`}
                   aria-hidden="true"
@@ -1373,7 +1404,8 @@ const DayView = React.memo(function DayView({
                 />
               ))}
             </div>
-          ))}
+            );
+          })}
 
           {shouldVirtualizeColumns && <div aria-hidden="true" style={{ height: gridBodyHeight }} />}
         </div>

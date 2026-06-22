@@ -2612,6 +2612,7 @@ type PendingProfessional = {
     role?: string | null;
     acceptsOnline?: boolean;
     commissions?: Record<string, CommissionConfig>;
+    schedule?: ScheduleMap;
   };
   isNew: boolean;
 };
@@ -3039,6 +3040,10 @@ function EquipoSection() {
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [employeeOnlineMap, setEmployeeOnlineMap] = useState<Record<string, boolean>>({});
+  // Horario individual por profesional cargado desde
+  // business_settings.schedule._employeeSchedules. Pre-carga el form al editar
+  // y evita perderlo al re-guardar.
+  const [employeeSchedules, setEmployeeSchedules] = useState<Record<string, ScheduleMap>>({});
   const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3163,6 +3168,12 @@ function EquipoSection() {
         setEmployeeOnlineMap(
           normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline),
         );
+        const loadedEmployeeSchedules = (
+          schedule._employeeSchedules && typeof schedule._employeeSchedules === "object"
+            ? schedule._employeeSchedules
+            : {}
+        ) as Record<string, ScheduleMap>;
+        setEmployeeSchedules(loadedEmployeeSchedules);
         const employeeRoles = (
           schedule._employeeRoles && typeof schedule._employeeRoles === "object"
             ? schedule._employeeRoles
@@ -3229,6 +3240,12 @@ function EquipoSection() {
                     }
                   : existingCommissions,
                 _employeeRoles: { ...existingRoles, [inserted.id]: payload.role ?? "Profesional" },
+                _employeeSchedules: payload.schedule
+                  ? {
+                      ...((existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>),
+                      [inserted.id]: payload.schedule,
+                    }
+                  : (existingSchedule._employeeSchedules ?? {}),
                 _publicVisibility: {
                   ...visibility,
                   employees: {
@@ -3283,6 +3300,12 @@ function EquipoSection() {
                     }
                   : existingCommissions,
                 _employeeRoles: { ...existingRoles, [payload.id]: payload.role ?? "Profesional" },
+                _employeeSchedules: payload.schedule
+                  ? {
+                      ...((existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>),
+                      [payload.id]: payload.schedule,
+                    }
+                  : (existingSchedule._employeeSchedules ?? {}),
                 _publicVisibility: {
                   ...visibility,
                   employees: {
@@ -3489,6 +3512,7 @@ function EquipoSection() {
       role: form.role.trim() || "Profesional",
       acceptsOnline: form.acceptsOnline,
       commissions: form.commissions,
+      schedule: form.schedule,
     };
 
     if (editingEmp) {
@@ -3578,10 +3602,11 @@ function EquipoSection() {
       commissionPct: String(emp.commission_pct ?? ""),
       role: emp.role ?? "Barbero",
       acceptsOnline: employeeOnlineMap[emp.id] !== false,
+      schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
     });
     setDlgTab("perfil");
     setOpen(true);
-  }, [employeeOnlineMap]);
+  }, [employeeOnlineMap, employeeSchedules]);
 
   async function doRemoveEmp() {
     if (!confirmDel) return;
