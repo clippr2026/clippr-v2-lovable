@@ -199,6 +199,9 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const [services, setServices] = React.useState<Service[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
+  // Horario individual por profesional, guardado en business_settings.schedule
+  // bajo la clave `_employeeSchedules[employeeId]`. Mapa id → ScheduleMap.
+  const [employeeSchedules, setEmployeeSchedules] = React.useState<Record<string, ScheduleMap>>({});
   const [realtimeStatus, setRealtimeStatus] = React.useState<"connecting" | "connected" | "disconnected">("connecting");
 
   const startIso = rangeStart.toISOString();
@@ -249,6 +252,24 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         ? normalizeSchedule(bsRes.value.data?.schedule)
         : null;
     setSchedule(loadedSchedule);
+
+    // Horarios por profesional: viven en la MISMA JSONB que el horario del
+    // negocio (clave `_employeeSchedules`), que normalizeSchedule descarta.
+    // Los extraigo del crudo y normalizo cada uno con el mismo validador.
+    const rawSchedule =
+      bsRes.status === "fulfilled" && !bsRes.value.error
+        ? ((bsRes.value.data?.schedule ?? null) as Record<string, unknown> | null)
+        : null;
+    const rawEmployeeSchedules =
+      rawSchedule && typeof rawSchedule._employeeSchedules === "object" && rawSchedule._employeeSchedules
+        ? (rawSchedule._employeeSchedules as Record<string, unknown>)
+        : {};
+    const normalizedEmployeeSchedules: Record<string, ScheduleMap> = {};
+    for (const [empId, value] of Object.entries(rawEmployeeSchedules)) {
+      const ns = normalizeSchedule(value);
+      if (ns) normalizedEmployeeSchedules[empId] = ns;
+    }
+    setEmployeeSchedules(normalizedEmployeeSchedules);
 
     setAppointments(
       aRes.status === "fulfilled" && !aRes.value.error
@@ -382,6 +403,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     services,
     clients,
     schedule,
+    employeeSchedules,
     realtimeStatus,
     refresh: load,
   };
