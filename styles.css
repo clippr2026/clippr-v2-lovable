@@ -435,3 +435,30 @@
   }
 
 }
+
+/* Agenda — barra de scroll horizontal premium.
+   Al definir ::-webkit-scrollbar, Chrome/Edge/Safari usan scrollbar clásica
+   (no overlay): queda SIEMPRE visible mientras haya overflow y desaparece sola
+   cuando no lo hay (porque el contenedor usa overflow-x: auto). */
+.agenda-hscroll {
+  scrollbar-width: thin;                                   /* Firefox */
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.agenda-hscroll::-webkit-scrollbar {
+  height: 10px;
+}
+.agenda-hscroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  margin: 0 8px;
+}
+.agenda-hscroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.agenda-hscroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.34);
+  background-clip: padding-box;
+}
