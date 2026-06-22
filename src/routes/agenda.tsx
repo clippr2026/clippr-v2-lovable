@@ -932,6 +932,23 @@ const DayView = React.memo(function DayView({
   const gridBodyRef = React.useRef<HTMLDivElement>(null);
   const [rowPx, setRowPx] = React.useState(ROW_PX);
 
+  // Scroll horizontal de profesionales: detecta si hay más columnas a los
+  // lados para mostrar el fade/sombra. Liviano: solo lee scrollLeft/clientWidth.
+  const gridScrollRef = React.useRef<HTMLDivElement>(null);
+  const [scrollEdges, setScrollEdges] = React.useState({ left: false, right: false });
+  const updateScrollEdges = React.useCallback(() => {
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 1;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setScrollEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }, []);
+  React.useLayoutEffect(() => {
+    const raf = requestAnimationFrame(updateScrollEdges);
+    window.addEventListener("resize", updateScrollEdges);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", updateScrollEdges); };
+  }, [employees.length, rowPx, updateScrollEdges]);
+
   // Drag preview ghost (target time range while dragging). Lightweight: only
   // stored in state, no Supabase calls, no grid recompute.
   const [dragPreview, setDragPreview] = React.useState<
@@ -1096,8 +1113,8 @@ const DayView = React.memo(function DayView({
   }
 
   return (
-    <section className="glass rounded-2xl p-2 sm:p-3">
-      <div className="overflow-x-auto">
+    <section className="glass rounded-2xl p-2 sm:p-3 relative">
+      <div ref={gridScrollRef} onScroll={updateScrollEdges} className="overflow-x-auto">
         <div
           className="grid min-w-[860px]"
           style={{ gridTemplateColumns: `58px repeat(${employees.length}, minmax(170px,1fr))` }}
@@ -1221,6 +1238,22 @@ const DayView = React.memo(function DayView({
           ))}
         </div>
       </div>
+
+      {/* Indicador de más profesionales a la derecha: fade + flecha + hint */}
+      {scrollEdges.right && (
+        <>
+          <div
+            className="pointer-events-none absolute top-0 bottom-0 right-0 w-16 rounded-r-2xl z-40"
+            style={{ background: "linear-gradient(to right, transparent, var(--background) 92%)" }}
+          />
+          <div className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 z-40 text-white/55">
+            <ChevronRight className="h-5 w-5 animate-pulse" />
+          </div>
+          <div className="pointer-events-none absolute bottom-2 right-3 z-40 hidden sm:block text-[10px] text-white/45">
+            Deslizá para ver más profesionales
+          </div>
+        </>
+      )}
     </section>
   );
 });
