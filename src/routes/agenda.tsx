@@ -276,6 +276,16 @@ function AgendaPage() {
       return;
     }
 
+    // Bloqueo de creación fuera del horario real del negocio. La grilla puede
+    // mostrarse más amplia para visualizar turnos previos (ej: un turno a las
+    // 08:00 con el negocio abriendo 11:00), pero esas franjas no admiten turnos
+    // nuevos. Se valida contra el horario crudo (no el expandido por turnos).
+    const outOfHours = checkSchedule(data.schedule, startsAt, 1);
+    if (outOfHours) {
+      toast.error("Fuera del horario de atención. No se pueden crear turnos en esta franja.");
+      return;
+    }
+
     setSlotMenu({
       employeeId,
       startsAt,
@@ -926,6 +936,21 @@ const DayView = React.memo(function DayView({
   const HOUR_START = schedule ? Math.floor(parseScheduleTime(schedule.start)) : 0;
   const HOUR_END = schedule ? Math.ceil(parseScheduleTime(schedule.end)) : 0;
   const HOURS = !isClosed ? Array.from({ length: Math.max(0, HOUR_END - HOUR_START) }, (_, i) => HOUR_START + i) : [];
+
+  // Horario REAL del negocio para este día, SIN expandir por turnos previos.
+  // `schedule` (prop) puede venir ampliado para que la grilla muestre turnos
+  // fuera de hora; estos bounds delimitan la franja realmente operable.
+  const businessDay = React.useMemo(
+    () => getScheduleForDate(data.schedule, date),
+    [data.schedule, date],
+  );
+  const bizOpenMin = businessDay?.enabled
+    ? Math.round(parseScheduleTime(businessDay.start) * 60)
+    : HOUR_START * 60;
+  const bizCloseMin = businessDay?.enabled
+    ? Math.round(parseScheduleTime(businessDay.end) * 60)
+    : HOUR_END * 60;
+
   const employees = data.employees.length
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
@@ -1155,6 +1180,31 @@ const DayView = React.memo(function DayView({
     : undefined;
   const gridBodyHeight = HOURS.length * rowPx;
 
+  // Franjas bloqueadas (fuera de hora) dentro del rango visible, para una
+  // ventana laboral [openMin, closeMin]. Hoy todas las columnas usan el horario
+  // del negocio; cuando exista horario por profesional, basta pasar acá su
+  // ventana efectiva (intersección con la del negocio) por columna.
+  const blockedSegmentsFor = React.useCallback(
+    (openMin: number, closeMin: number) => {
+      const gridStart = HOUR_START * 60;
+      const gridEnd = HOUR_END * 60;
+      const segs: { top: number; height: number }[] = [];
+      const push = (aMin: number, bMin: number) => {
+        const a = Math.max(gridStart, aMin);
+        const b = Math.min(gridEnd, bMin);
+        if (b > a) segs.push({ top: (a / 60 - HOUR_START) * rowPx, height: ((b - a) / 60) * rowPx });
+      };
+      push(gridStart, openMin); // antes de abrir
+      push(closeMin, gridEnd); // después de cerrar
+      return segs;
+    },
+    [HOUR_START, HOUR_END, rowPx],
+  );
+  const businessBlocked = React.useMemo(
+    () => blockedSegmentsFor(bizOpenMin, bizCloseMin),
+    [blockedSegmentsFor, bizOpenMin, bizCloseMin],
+  );
+
   if (isClosed) {
     return (
       <section className="glass rounded-2xl p-8 min-h-[360px] grid place-items-center text-center">
@@ -1249,15 +1299,42 @@ const DayView = React.memo(function DayView({
               }}
               onDrop={(ev) => handleDrop(ev, e.id)}
             >
-              {HOURS.map((h) => (
+              {HOURS.map((h) => {
+                // Por ahora la ventana operable es la del negocio. Para horario
+                // por profesional, reemplazar bizOpenMin/bizCloseMin por la
+                // ventana efectiva de `e` (intersección con la del negocio).
+                const cellBlocked = (h + 1) * 60 <= bizOpenMin || h * 60 >= bizCloseMin;
+                return (
+                  <div
+                    key={h}
+                    className={cn(
+                      "border-t border-white/[0.04] transition-colors",
+                      cellBlocked ? "cursor-not-allowed" : "hover:bg-white/[0.02] cursor-pointer",
+                    )}
+                    style={{ height: rowPx }}
+                    onClick={(event) => {
+                      const dt = new Date(date);
+                      dt.setHours(h, 0, 0, 0);
+                      onSlotClick(e.id === "__none__" ? null : e.id, dt, event);
+                    }}
+                  />
+                );
+              })}
+
+              {/* Franjas fuera del horario de atención: visibles (para ver
+                  turnos previos por encima) pero no operables. El bloqueo de
+                  creación lo aplica openSlotMenu/checkSchedule; esto es el
+                  marcado visual. pointer-events-none para no romper el drag. */}
+              {businessBlocked.map((seg, i) => (
                 <div
-                  key={h}
-                  className="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
-                  style={{ height: rowPx }}
-                  onClick={(event) => {
-                    const dt = new Date(date);
-                    dt.setHours(h, 0, 0, 0);
-                    onSlotClick(e.id === "__none__" ? null : e.id, dt, event);
+                  key={`blocked-${i}`}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0"
+                  style={{
+                    top: seg.top,
+                    height: seg.height,
+                    background:
+                      "repeating-linear-gradient(135deg, rgba(255,255,255,0.016) 0, rgba(255,255,255,0.016) 7px, rgba(255,255,255,0.05) 7px, rgba(255,255,255,0.05) 14px)",
                   }}
                 />
               ))}
