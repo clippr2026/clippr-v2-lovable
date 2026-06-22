@@ -1114,7 +1114,7 @@ const DayView = React.memo(function DayView({
 
   return (
     <section className="glass rounded-2xl p-2 sm:p-3 relative">
-      <div ref={gridScrollRef} onScroll={updateScrollEdges} className="overflow-x-auto">
+      <div ref={gridScrollRef} onScroll={updateScrollEdges} className="overflow-x-auto agenda-hscroll">
         <div
           className="grid min-w-[860px]"
           style={{ gridTemplateColumns: `58px repeat(${employees.length}, minmax(160px,1fr))` }}
@@ -1239,19 +1239,34 @@ const DayView = React.memo(function DayView({
         </div>
       </div>
 
-      {/* Indicador de más profesionales a la derecha: fade + flecha + hint */}
+      {/* Navegación horizontal premium: flechas flotantes que solo aparecen si
+          hay overflow real, y se ocultan en cada extremo. */}
+      {scrollEdges.left && (
+        <button
+          type="button"
+          aria-label="Profesionales anteriores"
+          onClick={() => gridScrollRef.current?.scrollBy({ left: -600, behavior: "smooth" })}
+          className="absolute left-[62px] top-1/2 -translate-y-1/2 z-40 h-9 w-9 rounded-full grid place-items-center text-white/85 ring-1 ring-white/15 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.7)] backdrop-blur-md hover:text-white hover:ring-white/30 transition"
+          style={{ background: "oklch(0.18 0.03 285 / 0.92)" }}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
       {scrollEdges.right && (
         <>
           <div
-            className="pointer-events-none absolute top-0 bottom-0 right-0 w-16 rounded-r-2xl z-40"
+            className="pointer-events-none absolute top-0 bottom-0 right-0 w-14 z-30 rounded-r-2xl"
             style={{ background: "linear-gradient(to right, transparent, var(--background) 92%)" }}
           />
-          <div className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 z-40 text-white/55">
-            <ChevronRight className="h-5 w-5 animate-pulse" />
-          </div>
-          <div className="pointer-events-none absolute bottom-2 right-3 z-40 hidden sm:block text-[10px] text-white/45">
-            Deslizá para ver más profesionales
-          </div>
+          <button
+            type="button"
+            aria-label="Más profesionales"
+            onClick={() => gridScrollRef.current?.scrollBy({ left: 600, behavior: "smooth" })}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 z-40 h-9 w-9 rounded-full grid place-items-center text-white/85 ring-1 ring-white/15 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.7)] backdrop-blur-md hover:text-white hover:ring-white/30 transition"
+            style={{ background: "oklch(0.18 0.03 285 / 0.92)" }}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
         </>
       )}
     </section>
