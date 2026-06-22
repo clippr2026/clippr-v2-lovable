@@ -688,7 +688,9 @@ export function AppointmentDialog({
               <Select value={employeeId} onValueChange={setEmployeeId}>
                 <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Profesional" /></SelectTrigger>
                 <SelectContent>
-                  {employees.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
+                  {employees
+                    .filter((e) => e.is_active !== false || e.id === employeeId)
+                    .map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={serviceId} onValueChange={pickService}>
