@@ -112,6 +112,9 @@ const STATUS_META: Record<
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
 const ROW_PX = 88;
+const AGENDA_EMPLOYEE_COL_PX = 160;
+const AGENDA_VIRTUALIZE_AFTER = 12;
+const AGENDA_VIRTUAL_OVERSCAN = 4;
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -933,21 +936,59 @@ const DayView = React.memo(function DayView({
   const [rowPx, setRowPx] = React.useState(ROW_PX);
 
   // Scroll horizontal de profesionales: detecta si hay más columnas a los
-  // lados para mostrar el fade/sombra. Liviano: solo lee scrollLeft/clientWidth.
+  // lados para mostrar el fade/sombra. Además, con equipos grandes virtualiza
+  // columnas: mantiene el mismo ancho real, pero solo renderiza las visibles
+  // + un margen. Esto evita la sensación pesada al arrastrar lateralmente con
+  // 20, 25 o más profesionales cargados.
   const gridScrollRef = React.useRef<HTMLDivElement>(null);
+  const horizontalScrollRafRef = React.useRef<number | null>(null);
+  const shouldVirtualizeColumns = employees.length > AGENDA_VIRTUALIZE_AFTER;
   const [scrollEdges, setScrollEdges] = React.useState({ left: false, right: false });
-  const updateScrollEdges = React.useCallback(() => {
+  const [visibleColumnRange, setVisibleColumnRange] = React.useState(() => ({
+    start: 0,
+    end: Math.min(employees.length, AGENDA_VIRTUALIZE_AFTER + AGENDA_VIRTUAL_OVERSCAN),
+  }));
+
+  const updateHorizontalScrollState = React.useCallback(() => {
     const el = gridScrollRef.current;
     if (!el) return;
+
     const left = el.scrollLeft > 1;
     const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
     setScrollEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
-  }, []);
+
+    if (!shouldVirtualizeColumns) {
+      setVisibleColumnRange((prev) => (prev.start === 0 && prev.end === employees.length ? prev : { start: 0, end: employees.length }));
+      return;
+    }
+
+    const scrollLeftInsideEmployees = Math.max(0, el.scrollLeft - 58);
+    const start = Math.max(0, Math.floor(scrollLeftInsideEmployees / AGENDA_EMPLOYEE_COL_PX) - AGENDA_VIRTUAL_OVERSCAN);
+    const end = Math.min(
+      employees.length,
+      Math.ceil((scrollLeftInsideEmployees + el.clientWidth) / AGENDA_EMPLOYEE_COL_PX) + AGENDA_VIRTUAL_OVERSCAN,
+    );
+    setVisibleColumnRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+  }, [employees.length, shouldVirtualizeColumns]);
+
+  const onGridScroll = React.useCallback(() => {
+    if (horizontalScrollRafRef.current !== null) return;
+    horizontalScrollRafRef.current = requestAnimationFrame(() => {
+      horizontalScrollRafRef.current = null;
+      updateHorizontalScrollState();
+    });
+  }, [updateHorizontalScrollState]);
+
   React.useLayoutEffect(() => {
-    const raf = requestAnimationFrame(updateScrollEdges);
-    window.addEventListener("resize", updateScrollEdges);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", updateScrollEdges); };
-  }, [employees.length, rowPx, updateScrollEdges]);
+    const raf = requestAnimationFrame(updateHorizontalScrollState);
+    window.addEventListener("resize", updateHorizontalScrollState);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (horizontalScrollRafRef.current !== null) cancelAnimationFrame(horizontalScrollRafRef.current);
+      horizontalScrollRafRef.current = null;
+      window.removeEventListener("resize", updateHorizontalScrollState);
+    };
+  }, [employees.length, rowPx, updateHorizontalScrollState]);
 
   // Drag preview ghost (target time range while dragging). Lightweight: only
   // stored in state, no Supabase calls, no grid recompute.
@@ -1099,6 +1140,21 @@ const DayView = React.memo(function DayView({
     );
   };
 
+  const renderedColumns = shouldVirtualizeColumns
+    ? columnRender.slice(visibleColumnRange.start, visibleColumnRange.end)
+    : columnRender;
+  const leftVirtualSpacer = shouldVirtualizeColumns ? visibleColumnRange.start * AGENDA_EMPLOYEE_COL_PX : 0;
+  const rightVirtualSpacer = shouldVirtualizeColumns
+    ? Math.max(0, (employees.length - visibleColumnRange.end) * AGENDA_EMPLOYEE_COL_PX)
+    : 0;
+  const gridTemplateColumns = shouldVirtualizeColumns
+    ? `58px ${leftVirtualSpacer}px repeat(${renderedColumns.length}, ${AGENDA_EMPLOYEE_COL_PX}px) ${rightVirtualSpacer}px`
+    : `58px repeat(${employees.length}, minmax(160px,1fr))`;
+  const gridWidth = shouldVirtualizeColumns
+    ? 58 + employees.length * AGENDA_EMPLOYEE_COL_PX
+    : undefined;
+  const gridBodyHeight = HOURS.length * rowPx;
+
   if (isClosed) {
     return (
       <section className="glass rounded-2xl p-8 min-h-[360px] grid place-items-center text-center">
@@ -1114,13 +1170,14 @@ const DayView = React.memo(function DayView({
 
   return (
     <section className="glass rounded-2xl p-2 sm:p-3 relative">
-      <div ref={gridScrollRef} onScroll={updateScrollEdges} className="overflow-x-auto agenda-hscroll">
+      <div ref={gridScrollRef} onScroll={onGridScroll} className="overflow-x-auto agenda-hscroll">
         <div
           className="grid min-w-[860px]"
-          style={{ gridTemplateColumns: `58px repeat(${employees.length}, minmax(160px,1fr))` }}
+          style={{ gridTemplateColumns, width: gridWidth }}
         >
           <div className="sticky left-0 z-30 bg-background/80 backdrop-blur-xl" />
-          {employees.map((e) => {
+          {shouldVirtualizeColumns && <div aria-hidden="true" />}
+          {renderedColumns.map(({ e }) => {
             const total = dayAppts.filter((a) => a.employee_id === e.id).length;
             const inSvc = dayAppts.filter(
               (a) => a.employee_id === e.id && (a.status === "completed" || a.status === "confirmed"),
@@ -1165,6 +1222,7 @@ const DayView = React.memo(function DayView({
               </div>
             );
           })}
+          {shouldVirtualizeColumns && <div aria-hidden="true" />}
 
           <div ref={gridBodyRef} className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
             {HOURS.map((h) => (
@@ -1178,7 +1236,9 @@ const DayView = React.memo(function DayView({
             ))}
           </div>
 
-          {columnRender.map(({ e, columnAppts, layouts }) => (
+          {shouldVirtualizeColumns && <div aria-hidden="true" style={{ height: gridBodyHeight }} />}
+
+          {renderedColumns.map(({ e, columnAppts, layouts }) => (
             <div
               key={e.id}
               className="relative border-l border-white/[0.04]"
@@ -1237,6 +1297,8 @@ const DayView = React.memo(function DayView({
               ))}
             </div>
           ))}
+
+          {shouldVirtualizeColumns && <div aria-hidden="true" style={{ height: gridBodyHeight }} />}
         </div>
       </div>
 
