@@ -166,6 +166,17 @@ export function checkSchedule(
     return "El horario seleccionado está fuera del horario laboral configurado.";
   }
 
+  // Descanso (opcional): si está configurado, no se puede agendar dentro de él.
+  // Vale tanto para el horario del negocio como para el del profesional, ya que
+  // checkSchedule se invoca con ambos.
+  if (day.breakStart && day.breakEnd) {
+    const breakStart = parseScheduleTime(day.breakStart);
+    const breakEnd = parseScheduleTime(day.breakEnd);
+    if (breakEnd > breakStart && slotStart < breakEnd && slotEnd > breakStart) {
+      return "El horario seleccionado cae dentro del descanso configurado.";
+    }
+  }
+
   return null;
 }
 
