@@ -3192,6 +3192,7 @@ function EquipoSection() {
 
     for (const item of pendingProfessionals) {
       const payload = item.payload;
+      console.log("[Clippr][TEMP] PERSIST profesional", payload.id ?? "(nuevo)", "isNew:", item.isNew, "schedule:", payload.schedule);
       if (item.isNew) {
         const { data: inserted, error } = await supabase
           .from("employees")
@@ -3514,6 +3515,7 @@ function EquipoSection() {
       commissions: form.commissions,
       schedule: form.schedule,
     };
+    console.log("[Clippr][TEMP] saveProfessional → encolando", payload.id ?? "(nuevo)", "schedule:", form.schedule);
 
     if (editingEmp) {
       setRows((current) =>

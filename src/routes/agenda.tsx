@@ -1319,6 +1319,7 @@ const DayView = React.memo(function DayView({
             // del profesional. Fuera de ella, las celdas se marcan y bloquean.
             const { openMin: colOpenMin, closeMin: colCloseMin } = effectiveWindowFor(e.id);
             const colBlocked = blockedSegmentsFor(colOpenMin, colCloseMin);
+            console.log("[Clippr][TEMP] HORARIO PROFESIONAL EN COLUMNA", e.id, data.employeeSchedules?.[e.id], "ventana:", colOpenMin, colCloseMin);
             return (
             <div
               key={e.id}
