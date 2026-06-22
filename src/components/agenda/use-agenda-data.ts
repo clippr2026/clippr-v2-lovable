@@ -269,6 +269,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       const ns = normalizeSchedule(value);
       if (ns) normalizedEmployeeSchedules[empId] = ns;
     }
+    console.log("[Clippr][TEMP] HORARIOS PROFESIONALES CARGADOS", "raw:", rawEmployeeSchedules, "normalizados:", normalizedEmployeeSchedules);
     setEmployeeSchedules(normalizedEmployeeSchedules);
 
     setAppointments(
