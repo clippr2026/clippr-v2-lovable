@@ -44,7 +44,7 @@ export type Appointment = {
   deposit_paid?: number | null;
 };
 
-export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null };
+export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null; is_active?: boolean | null };
 export type Service = {
   id: string;
   name: string;
@@ -164,7 +164,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("starts_at"),
       supabase
         .from("employees")
-        .select("id,full_name,avatar_url")
+        .select("id,full_name,avatar_url,is_active")
         .eq("business_id", businessId)
         .order("full_name", { ascending: true }),
       supabase
