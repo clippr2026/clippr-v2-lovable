@@ -512,7 +512,7 @@ function AgendaPage() {
   const memoData = React.useMemo(
     () => data,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.realtimeStatus, data.businessId, data.refresh],
+    [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.employeeSchedules, data.realtimeStatus, data.businessId, data.refresh],
   );
   const daySchedule = React.useMemo(
     () => getScheduleForDate(data.schedule, cursor, data.appointments),
