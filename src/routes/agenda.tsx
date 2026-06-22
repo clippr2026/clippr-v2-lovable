@@ -545,7 +545,7 @@ function AgendaPage() {
   const isCursorToday = startOfDay(cursor).getTime() === startOfDay(new Date()).getTime();
 
   return (
-    <AppShell>
+    <AppShell fullWidth>
       <div className="app-premium-shell -mt-1 sm:-mt-2 space-y-0">
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
@@ -1117,7 +1117,7 @@ const DayView = React.memo(function DayView({
       <div ref={gridScrollRef} onScroll={updateScrollEdges} className="overflow-x-auto">
         <div
           className="grid min-w-[860px]"
-          style={{ gridTemplateColumns: `58px repeat(${employees.length}, minmax(170px,1fr))` }}
+          style={{ gridTemplateColumns: `58px repeat(${employees.length}, minmax(160px,1fr))` }}
         >
           <div className="sticky left-0 z-30 bg-background/80 backdrop-blur-xl" />
           {employees.map((e) => {
