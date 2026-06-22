@@ -3533,12 +3533,40 @@ function EquipoSection() {
       );
 
       setEmployeeOnlineMap((current) => ({ ...current, [editingEmp.id]: form.acceptsOnline }));
+
+      // Persistencia INMEDIATA del horario individual del profesional, sin
+      // depender del "Guardar" de la sección (igual que avatar/portada). Esto
+      // garantiza que _employeeSchedules quede en Supabase apenas se acepta.
+      try {
+        const { data: existingRow } = await supabase
+          .from("business_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle();
+        const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+        const existingEmpScheds = (existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>;
+        const { error: schedErr } = await supabase.from("business_settings").upsert(
+          {
+            business_id: businessId,
+            schedule: {
+              ...existingSchedule,
+              _employeeSchedules: { ...existingEmpScheds, [editingEmp.id]: form.schedule },
+            },
+          },
+          { onConflict: "business_id" },
+        );
+        console.log("[Clippr][TEMP] PERSIST INMEDIATO _employeeSchedules", editingEmp.id, form.schedule, "error:", schedErr);
+        setEmployeeSchedules((current) => ({ ...current, [editingEmp.id]: form.schedule }));
+      } catch (e) {
+        console.error("[Clippr][TEMP] error persist inmediato horario", e);
+      }
+
       setPendingProfessionals((current) => [
         ...current.filter((item) => item.payload.id !== editingEmp.id),
         { tempId: editingEmp.id, payload, isNew: false },
       ]);
 
-      toast.success("Cambio aplicado. Presioná Guardar para confirmarlo.");
+      toast.success("Horario guardado. Tocá Guardar para confirmar los demás cambios.");
       setOpen(false);
       setEditingEmp(null);
       return;
