@@ -913,6 +913,17 @@ function computeOverlapLayouts(appts: Appointment[]) {
 // ---------------------------------------------------------------------------
 // Day view: columnas por profesional
 // ---------------------------------------------------------------------------
+
+// Devuelve el rango de descanso del día en minutos, o null si no hay descanso
+// válido configurado (o el día está deshabilitado).
+function breakRangeMin(
+  day: { enabled?: boolean; breakStart?: string; breakEnd?: string } | null | undefined,
+): { startMin: number; endMin: number } | null {
+  if (!day || day.enabled === false || !day.breakStart || !day.breakEnd) return null;
+  const startMin = Math.round(parseScheduleTime(day.breakStart) * 60);
+  const endMin = Math.round(parseScheduleTime(day.breakEnd) * 60);
+  return endMin > startMin ? { startMin, endMin } : null;
+}
 const DayView = React.memo(function DayView({
   date,
   data,
@@ -957,6 +968,8 @@ const DayView = React.memo(function DayView({
   const bizCloseMin = businessDay?.enabled
     ? Math.round(parseScheduleTime(businessDay.end) * 60)
     : HOUR_END * 60;
+  // Descanso del negocio (aplica a todas las columnas).
+  const bizBreak = React.useMemo(() => breakRangeMin(businessDay), [businessDay]);
 
   const employees = data.employees.length
     ? data.employees
@@ -1192,7 +1205,7 @@ const DayView = React.memo(function DayView({
   // del negocio; cuando exista horario por profesional, basta pasar acá su
   // ventana efectiva (intersección con la del negocio) por columna.
   const blockedSegmentsFor = React.useCallback(
-    (openMin: number, closeMin: number) => {
+    (openMin: number, closeMin: number, breaks: { startMin: number; endMin: number }[] = []) => {
       const gridStart = HOUR_START * 60;
       const gridEnd = HOUR_END * 60;
       const segs: { top: number; height: number }[] = [];
@@ -1203,6 +1216,11 @@ const DayView = React.memo(function DayView({
       };
       push(gridStart, openMin); // antes de abrir
       push(closeMin, gridEnd); // después de cerrar
+      // Descansos: bloqueados dentro de la ventana operable (recortados a ella
+      // para no duplicar las bandas de apertura/cierre).
+      for (const br of breaks) {
+        push(Math.max(br.startMin, openMin), Math.min(br.endMin, closeMin));
+      }
       return segs;
     },
     [HOUR_START, HOUR_END, rowPx],
@@ -1216,19 +1234,23 @@ const DayView = React.memo(function DayView({
     (empId: string) => {
       let openMin = bizOpenMin;
       let closeMin = bizCloseMin;
+      const breaks: { startMin: number; endMin: number }[] = [];
+      if (bizBreak) breaks.push(bizBreak);
       const es = empId !== "__none__" ? data.employeeSchedules?.[empId] ?? null : null;
       if (es) {
         const empDay = getScheduleForDate(es, date);
         if (!empDay || !empDay.enabled) {
           // No atiende este día → ventana vacía (columna entera bloqueada).
-          return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60 };
+          return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60, breaks: [] };
         }
         openMin = Math.max(openMin, Math.round(parseScheduleTime(empDay.start) * 60));
         closeMin = Math.min(closeMin, Math.round(parseScheduleTime(empDay.end) * 60));
+        const empBreak = breakRangeMin(empDay);
+        if (empBreak) breaks.push(empBreak);
       }
-      return { openMin, closeMin };
+      return { openMin, closeMin, breaks };
     },
-    [bizOpenMin, bizCloseMin, data.employeeSchedules, date, HOUR_START],
+    [bizOpenMin, bizCloseMin, bizBreak, data.employeeSchedules, date, HOUR_START],
   );
 
   if (isClosed) {
@@ -1317,8 +1339,8 @@ const DayView = React.memo(function DayView({
           {renderedColumns.map(({ e, columnAppts, layouts }) => {
             // Ventana operable de ESTA columna = horario del negocio ∩ horario
             // del profesional. Fuera de ella, las celdas se marcan y bloquean.
-            const { openMin: colOpenMin, closeMin: colCloseMin } = effectiveWindowFor(e.id);
-            const colBlocked = blockedSegmentsFor(colOpenMin, colCloseMin);
+            const { openMin: colOpenMin, closeMin: colCloseMin, breaks: colBreaks } = effectiveWindowFor(e.id);
+            const colBlocked = blockedSegmentsFor(colOpenMin, colCloseMin, colBreaks);
             return (
             <div
               key={e.id}
@@ -1332,9 +1354,13 @@ const DayView = React.memo(function DayView({
             >
               {HOURS.map((h) => {
                 // Una celda queda bloqueada si cae fuera de la ventana efectiva
-                // (negocio o profesional). Regla: bloqueada si está totalmente
-                // antes de abrir o en/después de cerrar.
-                const cellBlocked = (h + 1) * 60 <= colOpenMin || h * 60 >= colCloseMin;
+                // (negocio o profesional) o dentro de un descanso configurado.
+                const cellStart = h * 60;
+                const cellEnd = (h + 1) * 60;
+                const cellBlocked =
+                  cellEnd <= colOpenMin ||
+                  cellStart >= colCloseMin ||
+                  colBreaks.some((br) => cellStart >= br.startMin && cellEnd <= br.endMin);
                 return (
                   <div
                     key={h}

@@ -3570,27 +3570,87 @@ function EquipoSection() {
       return;
     }
 
-    const tempId = `temp-${crypto.randomUUID()}`;
-    setRows((current) => [
-      ...current,
-      {
-        id: tempId,
-        full_name: name,
-        avatar_url: form.avatarUrl || null,
-        role: form.role.trim() || "Profesional",
-        is_active: true,
-        commission_pct: commission,
-      },
-    ]);
+    // Alta INMEDIATA: inserta el empleado y persiste su configuración (horario,
+    // rol, comisión, visibilidad) en el momento, sin depender del "Guardar" de
+    // la sección. Mismo criterio que la edición.
+    setSaving(true);
+    try {
+      const { data: inserted, error } = await supabase
+        .from("employees")
+        .insert({
+          business_id: businessId,
+          full_name: name,
+          is_active: true,
+          commission_pct: commission,
+          avatar_url: form.avatarUrl || null,
+        })
+        .select("id")
+        .single();
 
-    setEmployeeOnlineMap((current) => ({ ...current, [tempId]: form.acceptsOnline }));
-    setPendingProfessionals((current) => [
-      ...current,
-      { tempId, payload: { ...payload, id: undefined }, isNew: true },
-    ]);
+      if (error || !inserted) {
+        toast.error("Error guardando profesional: " + (error?.message ?? "no se pudo crear"));
+        setSaving(false);
+        return;
+      }
 
-    toast.success("Profesional agregado. Presioná Guardar para confirmarlo.");
-    setOpen(false);
+      const newId = inserted.id as string;
+      const { data: existingRow } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
+      const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
+      const existingEmpScheds = (existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>;
+      const visibility = getPublicVisibility(existingSchedule);
+      const employeesVisibility = normalizePublicBooleanMap(
+        visibility.employees ?? existingSchedule._employeeOnline,
+      );
+
+      const { error: settingsErr } = await supabase.from("business_settings").upsert(
+        {
+          business_id: businessId,
+          schedule: {
+            ...existingSchedule,
+            _employeeCommissions: form.commissions
+              ? { ...existingCommissions, [newId]: form.commissions }
+              : existingCommissions,
+            _employeeRoles: { ...existingRoles, [newId]: form.role.trim() || "Profesional" },
+            _employeeSchedules: { ...existingEmpScheds, [newId]: form.schedule },
+            _publicVisibility: {
+              ...visibility,
+              employees: { ...employeesVisibility, [newId]: form.acceptsOnline !== false },
+            },
+          },
+        },
+        { onConflict: "business_id" },
+      );
+      if (settingsErr) {
+        toast.error("Profesional creado, pero no se pudo guardar su configuración. Editalo para reintentar.");
+      }
+
+      setRows((current) => [
+        ...current,
+        {
+          id: newId,
+          full_name: name,
+          avatar_url: form.avatarUrl || null,
+          role: form.role.trim() || "Profesional",
+          is_active: true,
+          commission_pct: commission,
+        },
+      ]);
+      setEmployeeOnlineMap((current) => ({ ...current, [newId]: form.acceptsOnline }));
+      setEmployeeSchedules((current) => ({ ...current, [newId]: form.schedule }));
+
+      toast.success("Profesional agregado.");
+      setOpen(false);
+    } catch {
+      toast.error("No se pudo guardar el profesional. Probá de nuevo.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const toggleActive = useCallback(async (emp: EmployeeRow) => {
