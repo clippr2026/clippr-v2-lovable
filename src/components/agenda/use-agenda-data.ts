@@ -1,6 +1,22 @@
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+// Tipos y resolución de prioridad de horarios viven en el motor compartido
+// (`@/lib/availability`) para que la Agenda y la reserva online usen EXACTAMENTE
+// la misma lógica. Acá se reexportan para no romper imports existentes.
+import {
+  type DayKey,
+  type DaySchedule,
+  type ScheduleMap,
+  type SpecialDateMap,
+  type EmployeeSpecialDateMap,
+  DAY_KEYS,
+  toDateKey,
+  parseScheduleTime,
+  normalizeDaySchedule,
+  resolveDaySchedule,
+  checkDaySchedule,
+} from "@/lib/availability";
 
 /**
  * Datos de la Agenda. Carga turnos (appointments) del rango visible,
@@ -60,114 +76,13 @@ export type Client = {
   birth_date?: string | null;
 };
 
-export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-export type DaySchedule = {
-  enabled: boolean;
-  start: string;
-  end: string;
-  breakStart?: string;
-  breakEnd?: string;
-};
-export type ScheduleMap = Record<DayKey, DaySchedule>;
+// Reexport de tipos y resolución compartidos (definidos en @/lib/availability).
+export { DAY_KEYS, toDateKey, parseScheduleTime, normalizeDaySchedule, resolveDaySchedule, checkDaySchedule };
+export type { DayKey, DaySchedule, ScheduleMap, SpecialDateMap, EmployeeSpecialDateMap };
 
-const DAY_KEYS: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+// (toDateKey y normalizeDaySchedule se importan de @/lib/availability)
 
-// Mapas de horarios especiales por fecha (clave "YYYY-MM-DD").
-export type SpecialDateMap = Record<string, DaySchedule>;
-export type EmployeeSpecialDateMap = Record<string, SpecialDateMap>;
-
-// Fecha local → "YYYY-MM-DD" (sin desfase de zona horaria).
-export function toDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-// Normaliza un DaySchedule suelto (usado para horarios especiales por fecha).
-export function normalizeDaySchedule(value: unknown): DaySchedule | null {
-  if (!value || typeof value !== "object") return null;
-  const d = value as Record<string, unknown>;
-  return {
-    enabled: d.enabled !== false,
-    start: typeof d.start === "string" ? d.start : "00:00",
-    end: typeof d.end === "string" ? d.end : "00:00",
-    breakStart: typeof d.breakStart === "string" ? d.breakStart : undefined,
-    breakEnd: typeof d.breakEnd === "string" ? d.breakEnd : undefined,
-  };
-}
-
-// Resuelve el DaySchedule efectivo para (profesional, fecha) con la prioridad:
-//   1. Especial del profesional para esa fecha.
-//   2. Semanal normal del profesional.
-//   3. Especial del negocio para esa fecha.
-//   4. Semanal normal del negocio (fallback).
-// Además: si el negocio tiene un especial CERRADO esa fecha, cierra a todos
-// (override global), porque "el negocio cierra completamente una fecha".
-export function resolveDaySchedule(
-  businessSchedule: ScheduleMap | null,
-  employeeSchedules: Record<string, ScheduleMap>,
-  businessSpecial: SpecialDateMap,
-  employeeSpecial: EmployeeSpecialDateMap,
-  employeeId: string | null | undefined,
-  date: Date,
-): DaySchedule | null {
-  const key = toDateKey(date);
-
-  const bizSpecial = businessSpecial[key];
-  if (bizSpecial && bizSpecial.enabled === false) {
-    return { ...bizSpecial, enabled: false }; // negocio cerrado ese día → todos
-  }
-
-  // 1. especial del profesional
-  if (employeeId && employeeSpecial[employeeId]?.[key]) {
-    return employeeSpecial[employeeId][key];
-  }
-  // 2. semanal normal del profesional (incluso si está libre ese día)
-  if (employeeId && employeeSchedules[employeeId]) {
-    const d = getScheduleForDate(employeeSchedules[employeeId], date);
-    if (d) return d;
-  }
-  // 3. especial del negocio (abierto)
-  if (bizSpecial) return bizSpecial;
-  // 4. semanal normal del negocio
-  return getScheduleForDate(businessSchedule, date);
-}
-
-// Valida un slot contra un DaySchedule concreto (apertura/cierre + descanso).
-export function checkDaySchedule(
-  day: DaySchedule | null,
-  startsAt: Date,
-  durationMin: number,
-): string | null {
-  if (!day) return null;
-  if (!day.enabled) {
-    return "El horario seleccionado está fuera del horario laboral configurado.";
-  }
-  const slotStart = startsAt.getHours() + startsAt.getMinutes() / 60;
-  const slotEnd = slotStart + (durationMin || 30) / 60;
-  const open = parseScheduleTime(day.start);
-  const close = parseScheduleTime(day.end);
-  if (slotStart < open || slotEnd > close) {
-    return "El horario seleccionado está fuera del horario laboral configurado.";
-  }
-  if (day.breakStart && day.breakEnd) {
-    const breakStart = parseScheduleTime(day.breakStart);
-    const breakEnd = parseScheduleTime(day.breakEnd);
-    if (breakEnd > breakStart && slotStart < breakEnd && slotEnd > breakStart) {
-      return "El horario seleccionado cae dentro del descanso configurado.";
-    }
-  }
-  return null;
-}
-
-export function parseScheduleTime(value: string) {
-  const [hh, mm = "0"] = String(value || "0:00").split(":");
-  const h = Number(hh);
-  const m = Number(mm);
-  if (!Number.isFinite(h)) return 0;
-  return h + (Number.isFinite(m) ? m / 60 : 0);
-}
+// (resolveDaySchedule y checkDaySchedule se importan de @/lib/availability)
 
 function isSameLocalDay(a: Date, b: Date) {
   return (
@@ -205,6 +120,17 @@ export function getVisibleRange(
 ): { start: string; end: string } | null {
   let coreOpen: number | null = null;
   let coreClose: number | null = null;
+
+  // El rango visible debe contemplar el horario del NEGOCIO para la fecha
+  // (especial del negocio → semanal del negocio), aunque ningún profesional
+  // trabaje en esos extremos. Así, si el local abre 08:00, la grilla arranca
+  // 08:00 y los profesionales que entran más tarde se ven bloqueados antes.
+  const bizDay = resolveDaySchedule(businessSchedule, {}, businessSpecial, {}, null, date);
+  if (bizDay && bizDay.enabled) {
+    coreOpen = Math.round(parseScheduleTime(bizDay.start) * 60);
+    coreClose = Math.round(parseScheduleTime(bizDay.end) * 60);
+  }
+
   for (const emp of employees) {
     if (emp.is_active === false) continue;
     const day = resolveDaySchedule(
