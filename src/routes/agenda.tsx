@@ -460,7 +460,38 @@ const timeToMinutes = (time: string) => {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
 };
-  const saveSpecialFromAgenda = async () => {
+  const openSpecialFromSlot = (employeeId: string | null, date: Date) => {
+  if (!employeeId) {
+    toast.error("Seleccioná un profesional para editar horario especial.");
+    setNewMenu(false);
+    return;
+  }
+
+  const day = resolveDaySchedule(
+    data.schedule,
+    data.employeeSchedules ?? {},
+    data.businessSpecialDates ?? {},
+    data.employeeSpecialDates ?? {},
+    employeeId,
+    date,
+  );
+
+  setSpecialEditor({
+    employeeId,
+    date,
+    available: day?.enabled !== false,
+    start: day?.start ?? "11:00",
+    end: day?.end ?? "20:00",
+    breakStart: day?.breakStart ?? "",
+    breakEnd: day?.breakEnd ?? "",
+    saving: false,
+  });
+
+  setSlotMenu(null);
+  setNewMenu(false);
+};
+
+const saveSpecialFromAgenda = async () => {
     if (!specialEditor || !data.businessId) return;if (
   specialEditor.breakStart &&
   specialEditor.breakEnd &&
@@ -914,6 +945,12 @@ const timeToMinutes = (time: string) => {
                 >
                   <XCircle className="h-4 w-4 text-amber-300" /> Bloquear horario
                 </button>
+                <button
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  onClick={() => openSpecialFromSlot(null, cursor)}
+                >
+                  <Pencil className="h-4 w-4 text-violet-300" /> Horario especial
+                </button>
               </div>
             </>
           )}
@@ -1012,6 +1049,14 @@ const timeToMinutes = (time: string) => {
             >
               <XCircle className="h-4 w-4 text-amber-300" />
               Bloquear horario
+            </button>
+            <button
+              type="button"
+              onClick={() => openSpecialFromSlot(slotMenu.employeeId, slotMenu.startsAt)}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+            >
+              <Pencil className="h-4 w-4 text-violet-300" />
+              Horario especial
             </button>
           </div>
         </>
