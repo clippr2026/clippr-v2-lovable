@@ -24,7 +24,8 @@ import {
   useAgendaData,
   cancelAppointment,
   setAppointmentStatus,
-  checkSchedule,
+  checkDaySchedule,
+  resolveDaySchedule,
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
@@ -271,26 +272,23 @@ function AgendaPage() {
   };
 
   const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
-    const schedule = getScheduleForDate(data.schedule, startsAt);
-    if (!schedule?.enabled) {
-      toast.error("Negocio cerrado este día.");
-      return;
-    }
-
-    // Bloqueo de creación fuera del horario real. Fuente PRINCIPAL: el horario
-    // del profesional; si no tiene horario propio, se valida contra el del local.
-    // (Fase B convertirá esto en una confirmación con override.)
-    const empSchedule = employeeId ? data.employeeSchedules?.[employeeId] ?? null : null;
-    const guardErr = empSchedule
-      ? checkSchedule(empSchedule, startsAt, 1)
-      : checkSchedule(data.schedule, startsAt, 1);
+    // Bloqueo de creación fuera del horario real, resolviendo la prioridad de
+    // horarios (especial profesional → normal profesional → especial negocio →
+    // normal negocio). (Fase posterior: convertir en confirmación con override.)
+    const resolvedDay = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      employeeId,
+      startsAt,
+    );
+    const guardErr = checkDaySchedule(resolvedDay, startsAt, 1);
     if (guardErr) {
       toast.error(
         guardErr.includes("descanso")
           ? "El profesional está en descanso en ese horario."
-          : empSchedule
-            ? "El profesional no atiende en ese horario."
-            : "Fuera del horario de atención. No se pueden crear turnos en esta franja.",
+          : "Fuera del horario disponible para este profesional.",
       );
       return;
     }
@@ -515,7 +513,7 @@ function AgendaPage() {
   const memoData = React.useMemo(
     () => data,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.employeeSchedules, data.realtimeStatus, data.businessId, data.refresh],
+    [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, data.realtimeStatus, data.businessId, data.refresh],
   );
   const daySchedule = React.useMemo(() => {
     // Rango visible derivado de horarios individuales (local como fallback) y
@@ -524,13 +522,15 @@ function AgendaPage() {
     const range = getVisibleRange(
       data.schedule,
       data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
       data.employees,
       cursor,
       data.appointments,
     );
     if (!range) return null;
     return { enabled: true, start: range.start, end: range.end };
-  }, [data.schedule, data.employeeSchedules, data.employees, cursor, data.appointments]);
+  }, [data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, data.employees, cursor, data.appointments]);
 
   // Stable handlers passed to the (memoized) DayView grid.
   const handleSlotClick = useStableCallback(openSlotMenu);
@@ -858,6 +858,8 @@ function AgendaPage() {
           onSaved={data.refresh}
           schedule={data.schedule}
           employeeSchedules={data.employeeSchedules}
+          businessSpecialDates={data.businessSpecialDates}
+          employeeSpecialDates={data.employeeSpecialDates}
         />
       )}
     </AppShell>
@@ -975,21 +977,8 @@ const DayView = React.memo(function DayView({
   const HOUR_END = schedule ? Math.ceil(parseScheduleTime(schedule.end)) : 0;
   const HOURS = !isClosed ? Array.from({ length: Math.max(0, HOUR_END - HOUR_START) }, (_, i) => HOUR_START + i) : [];
 
-  // Horario REAL del negocio para este día, SIN expandir por turnos previos.
-  // `schedule` (prop) puede venir ampliado para que la grilla muestre turnos
-  // fuera de hora; estos bounds delimitan la franja realmente operable.
-  const businessDay = React.useMemo(
-    () => getScheduleForDate(data.schedule, date),
-    [data.schedule, date],
-  );
-  const bizOpenMin = businessDay?.enabled
-    ? Math.round(parseScheduleTime(businessDay.start) * 60)
-    : HOUR_START * 60;
-  const bizCloseMin = businessDay?.enabled
-    ? Math.round(parseScheduleTime(businessDay.end) * 60)
-    : HOUR_END * 60;
-  // Descanso del negocio (aplica a todas las columnas).
-  const bizBreak = React.useMemo(() => breakRangeMin(businessDay), [businessDay]);
+  // El rango operable por columna lo resuelve effectiveWindowFor vía
+  // resolveDaySchedule (prioridad de horarios + especiales por fecha).
 
   const employees = data.employees.length
     ? data.employees
@@ -1116,8 +1105,16 @@ const DayView = React.memo(function DayView({
     const newEnd = new Date(newStart.getTime() + dur * 60000);
     const targetEmpId = empId === "__none__" ? null : empId;
 
-    // 1) Working hours (business schedule)
-    const schedErr = checkSchedule(data.schedule, newStart, dur);
+    // 1) Horario disponible del profesional destino (prioridad de horarios).
+    const dropDay = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      targetEmpId,
+      newStart,
+    );
+    const schedErr = checkDaySchedule(dropDay, newStart, dur);
     if (schedErr) { toast.error(schedErr); return; }
 
     // 2) Real-range overlap against the SAME in-memory data the grid shows, in
@@ -1250,33 +1247,33 @@ const DayView = React.memo(function DayView({
   // Si el profesional no trabaja ese día, la ventana queda vacía → toda la
   // columna bloqueada. Sin horario propio ("__none__" o no configurado) usa el
   // horario del negocio.
-  // Ventana operable EFECTIVA de una columna. Fuente PRINCIPAL: el horario
-  // individual del profesional. Si no tiene horario propio, fallback al horario
-  // del local. (Antes intersecaba con el local; ahora el horario del profesional
-  // manda.) Devuelve también los descansos a bloquear.
+  // Ventana operable EFECTIVA de una columna, resolviendo la prioridad de
+  // horarios (especial profesional → normal profesional → especial negocio →
+  // normal negocio). Devuelve también los descansos a bloquear.
   const effectiveWindowFor = React.useCallback(
     (empId: string) => {
       const breaks: { startMin: number; endMin: number }[] = [];
-      const es = empId !== "__none__" ? data.employeeSchedules?.[empId] ?? null : null;
-      if (es) {
-        const empDay = getScheduleForDate(es, date);
-        if (!empDay || !empDay.enabled) {
-          // No atiende este día → ventana vacía (columna entera bloqueada).
-          return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60, breaks: [] };
-        }
-        const empBreak = breakRangeMin(empDay);
-        if (empBreak) breaks.push(empBreak);
-        return {
-          openMin: Math.round(parseScheduleTime(empDay.start) * 60),
-          closeMin: Math.round(parseScheduleTime(empDay.end) * 60),
-          breaks,
-        };
+      const day = resolveDaySchedule(
+        data.schedule,
+        data.employeeSchedules ?? {},
+        data.businessSpecialDates ?? {},
+        data.employeeSpecialDates ?? {},
+        empId === "__none__" ? null : empId,
+        date,
+      );
+      if (!day || !day.enabled) {
+        // No atiende este día (libre / cerrado) → columna entera bloqueada.
+        return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60, breaks: [] };
       }
-      // Sin horario propio: fallback al horario del local.
-      if (bizBreak) breaks.push(bizBreak);
-      return { openMin: bizOpenMin, closeMin: bizCloseMin, breaks };
+      const br = breakRangeMin(day);
+      if (br) breaks.push(br);
+      return {
+        openMin: Math.round(parseScheduleTime(day.start) * 60),
+        closeMin: Math.round(parseScheduleTime(day.end) * 60),
+        breaks,
+      };
     },
-    [bizOpenMin, bizCloseMin, bizBreak, data.employeeSchedules, date, HOUR_START],
+    [data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, date, HOUR_START],
   );
 
   if (isClosed) {
