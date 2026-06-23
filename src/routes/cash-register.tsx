@@ -232,7 +232,6 @@ function CashRegisterPage() {
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
-  const [resumenPanel, setResumenPanel] = useState<"ingresos" | "pendientes" | "gastos">("ingresos");
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -413,14 +412,13 @@ function CashRegisterPage() {
         data={data}
         userEmail={session.user.email ?? null}
         onNuevoGasto={() => { setPendingToCharge(null); setTab("nuevo-gasto"); }}
-        onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
+        onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setTab("resumen"); }}
       />
       <div className="mt-6">
         {tab === "resumen" && (
           <ResumenTab
             data={data}
             equipoEnabled={permissions.equipo}
-            initialPanel={resumenPanel}
             onCobrarPendiente={handleCobrarPendiente}
           />
         )}
@@ -429,7 +427,7 @@ function CashRegisterPage() {
             data={data}
             userEmail={session.user.email ?? null}
             onCancel={() => setTab("resumen")}
-            onSaved={() => { setResumenPanel("gastos"); data.refresh(); setTab("resumen"); }}
+            onSaved={() => { data.refresh(); setTab("resumen"); }}
           />
         )}
         {tab === "nueva" && (
@@ -437,7 +435,6 @@ function CashRegisterPage() {
             data={data}
             pendingCharge={activePendingCharge}
             onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
-            onSaleDone={() => { setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
           />
         )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
@@ -590,20 +587,14 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
 function ResumenTab({
   data,
   equipoEnabled,
-  initialPanel = "ingresos",
   onCobrarPendiente,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
-  initialPanel?: "ingresos" | "pendientes" | "gastos";
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
 }) {
   type ActivePanel = "ingresos" | "pendientes" | "gastos";
-  const [activePanel, setActivePanel] = React.useState<ActivePanel>(initialPanel);
-
-  React.useEffect(() => {
-    setActivePanel(initialPanel);
-  }, [initialPanel]);
+  const [activePanel, setActivePanel] = React.useState<ActivePanel>("ingresos");
 
   React.useEffect(() => {
     const handler = () => { data.refresh(); setActivePanel("gastos"); };
@@ -1992,12 +1983,10 @@ function NuevaVentaTab({
   data,
   pendingCharge = null,
   onPendingDone,
-  onSaleDone,
 }: {
   data: ReturnType<typeof useCajaData>;
   pendingCharge?: PendingCharge | null;
   onPendingDone?: () => void;
-  onSaleDone?: () => void;
 }) {
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 3 : 1);
   const [cart, setCart] = React.useState<Record<string, number>>({});
@@ -2005,7 +1994,6 @@ function NuevaVentaTab({
   const [category, setCategory] = React.useState<string>("");
   const [clientId, setClientId] = React.useState<string | null>(null);
   const [client, setClient] = React.useState(pendingCharge?.client_name ?? "");
-  const [clientSearch, setClientSearch] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
@@ -2218,7 +2206,6 @@ function NuevaVentaTab({
     }
 
     setSubmitting(true);
-    let normalSaleCompleted = false;
     try {
       const savedClientId = await saveClientIfNeeded();
       if (savedClientId && !clientId) setClientId(savedClientId);
@@ -2295,13 +2282,11 @@ function NuevaVentaTab({
         });
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-        setCart({}); setClientId(null); setClient(""); setClientSearch(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes("");
+        setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes("");
         setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
-        normalSaleCompleted = true;
       }
 
       await data.refresh();
-      if (normalSaleCompleted) onSaleDone?.();
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
     } finally {
@@ -2405,8 +2390,7 @@ function NuevaVentaTab({
               </div>
               <button
                 type="button"
-                onClick={() => { setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes(""); setNewClientOpen(false);
-                  setClientSearch(""); }}
+                onClick={() => { setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes(""); setNewClientOpen(false); }}
                 className="shrink-0 text-xs text-muted-foreground hover:text-foreground border border-white/10 rounded-lg px-2.5 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] transition-colors mt-0.5"
               >
                 Cambiar
@@ -2419,8 +2403,8 @@ function NuevaVentaTab({
             <Card className="p-4 space-y-3">
               <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Buscar cliente existente</p>
               <ClientAutocomplete
-                value={clientSearch}
-                onChange={setClientSearch}
+                value={client}
+                onChange={(v) => { setClient(v); setClientId(null); }}
                 onPick={(c) => {
                   setClientId(c.id);
                   setClient(c.name ?? "");
@@ -2728,7 +2712,7 @@ function ClientAutocomplete({
             ((c.phone ?? "").replace(/\s/g, "").toLowerCase() === q) ||
             ((c.email ?? "").toLowerCase() === q),
         );
-        if (exact.length === 1) { onPick(exact[0]); }
+        if (exact.length === 1) { onPick(exact[0]); onChange(""); }
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -2770,7 +2754,7 @@ function ClientAutocomplete({
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => { onPick(c); }}
+                  onClick={() => { onPick(c); onChange(""); }}
                   className="w-full text-left px-4 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0 transition-colors"
                 >
                   <span className="min-w-0">
