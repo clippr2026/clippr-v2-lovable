@@ -29,11 +29,13 @@ import {
   toDateKey,
   type Appointment,
   type ApptStatus,
+  type DaySchedule,
   getScheduleForDate,
   getVisibleRange,
   parseScheduleTime,
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
+import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { Button } from "@/components/ui/button";
@@ -450,16 +452,6 @@ function AgendaPage() {
     });
     setBreakModal(null);
   };
-const addOneHour = (time: string) => {
-  const [h, m] = time.split(":").map(Number);
-  const nextHour = Math.min(h + 1, 23);
-  return `${String(nextHour).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-};
-
-const timeToMinutes = (time: string) => {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-};
   const openSpecialFromSlot = (employeeId: string | null, date: Date) => {
   if (!employeeId) {
     toast.error("Seleccioná un profesional para editar horario especial.");
@@ -491,26 +483,10 @@ const timeToMinutes = (time: string) => {
   setNewMenu(false);
 };
 
-const saveSpecialFromAgenda = async () => {
-    if (!specialEditor || !data.businessId) return;if (
-  specialEditor.breakStart &&
-  specialEditor.breakEnd &&
-  timeToMinutes(specialEditor.breakEnd) <= timeToMinutes(specialEditor.breakStart)
-) {
-  toast.error("El descanso hasta debe ser posterior al descanso desde.");
-  return;
-}
+const saveSpecialFromAgenda = async (day: DaySchedule) => {
+    if (!specialEditor || !data.businessId) return;
     setSpecialEditor((s) => (s ? { ...s, saving: true } : s));
     const key = toDateKey(specialEditor.date);
-    const day = specialEditor.available
-      ? {
-          enabled: true,
-          start: specialEditor.start,
-          end: specialEditor.end,
-          breakStart: specialEditor.breakStart || undefined,
-          breakEnd: specialEditor.breakEnd || undefined,
-        }
-      : { enabled: false, start: "00:00", end: "00:00" };
     try {
       const { data: row } = await supabase
         .from("business_settings")
@@ -1104,103 +1080,24 @@ const saveSpecialFromAgenda = async () => {
         </div>
       ) : null}
 
-      {/* Editor de horario especial para (profesional, fecha) */}
+      {/* Editor de horario especial para (profesional, fecha) — mismo editor que
+          Configuración → Equipo → Horario especial (campos compartidos). */}
       {specialEditor ? (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => !specialEditor.saving && setSpecialEditor(null)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-lg font-semibold">Editar descanso</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {specialEditor.date.toLocaleDateString("es-AR", {
-                weekday: "long",
-                day: "2-digit",
-                month: "2-digit",
-              })}
-            </p>
-
-            <div className="mt-4 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground">Descanso:</span>
-              <input
-  type="time"
-  value={specialEditor.breakStart}
-  onChange={(e) => {
-    const nextStart = e.target.value;
-
-    setSpecialEditor((s) => {
-      if (!s) return s;
-
-      const nextEnd =
-        !s.breakEnd || timeToMinutes(s.breakEnd) <= timeToMinutes(nextStart)
-          ? addOneHour(nextStart)
-          : s.breakEnd;
-
-      return {
-        ...s,
-        breakStart: nextStart,
-        breakEnd: nextEnd,
-      };
-    });
-  }}
-  className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-/>
-              <span className="text-muted-foreground text-xs">-</span>
-             <input
-  type="time"
-  value={specialEditor.breakEnd}
-  min={specialEditor.breakStart || undefined}
-  onChange={(e) => {
-    const nextEnd = e.target.value;
-
-    setSpecialEditor((s) => {
-      if (!s) return s;
-
-      if (
-        s.breakStart &&
-        timeToMinutes(nextEnd) <= timeToMinutes(s.breakStart)
-      ) {
-        toast.error(
-          "El horario de fin debe ser posterior al horario de inicio."
-        );
-
-        return {
-          ...s,
-          breakEnd: addOneHour(s.breakStart),
-        };
-      }
-
-      return {
-        ...s,
-        breakEnd: nextEnd,
-      };
-    });
-  }}
-  className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-/>
-            </div>
-
-            <div className="mt-5 flex items-center gap-2">
-              <button
-                onClick={saveSpecialFromAgenda}
-                disabled={specialEditor.saving}
-                className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
-              >
-                {specialEditor.saving ? "Guardando…" : "Guardar"}
-              </button>
-              <button
-                onClick={() => setSpecialEditor(null)}
-                disabled={specialEditor.saving}
-                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
+        <SpecialDayEditor
+          date={specialEditor.date}
+          value={{
+            enabled: specialEditor.available,
+            start: specialEditor.start,
+            end: specialEditor.end,
+            breakStart: specialEditor.breakStart || undefined,
+            breakEnd: specialEditor.breakEnd || undefined,
+          }}
+          allowBreak
+          closedLabel="No disponible"
+          saving={specialEditor.saving}
+          onSave={saveSpecialFromAgenda}
+          onCancel={() => setSpecialEditor(null)}
+        />
       ) : null}
 
       <AppointmentDetailDialog
