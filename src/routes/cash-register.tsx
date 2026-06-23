@@ -435,6 +435,7 @@ function CashRegisterPage() {
             data={data}
             pendingCharge={activePendingCharge}
             onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
+            onSaleDone={() => { setPendingToCharge(null); setTab("resumen"); }}
           />
         )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
@@ -1983,10 +1984,12 @@ function NuevaVentaTab({
   data,
   pendingCharge = null,
   onPendingDone,
+  onSaleDone,
 }: {
   data: ReturnType<typeof useCajaData>;
   pendingCharge?: PendingCharge | null;
   onPendingDone?: () => void;
+  onSaleDone?: () => void;
 }) {
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 3 : 1);
   const [cart, setCart] = React.useState<Record<string, number>>({});
@@ -2207,6 +2210,7 @@ function NuevaVentaTab({
     }
 
     setSubmitting(true);
+    let normalSaleCompleted = false;
     try {
       const savedClientId = await saveClientIfNeeded();
       if (savedClientId && !clientId) setClientId(savedClientId);
@@ -2283,11 +2287,13 @@ function NuevaVentaTab({
         });
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-        setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes("");
+        setCart({}); setClientId(null); setClient(""); setClientSearch(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes("");
         setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
+        normalSaleCompleted = true;
       }
 
       await data.refresh();
+      if (normalSaleCompleted) onSaleDone?.();
     } catch (e) {
       toast.error((e as Error).message || "Error al guardar el cobro");
     } finally {
