@@ -344,18 +344,81 @@ function AgendaPage() {
   };
 
   // ── Descanso: habilitar temporalmente / editar horario especial ────────────
-  const enableBreakTemporarily = () => {
-    if (!breakModal) return;
-    const key = `${breakModal.employeeId ?? "__none__"}|${toDateKey(breakModal.date)}`;
-    setEnabledBreaks((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    setBreakModal(null);
-    toast.success("Descanso habilitado para hoy. Ya podés crear turnos en esa franja.");
-  };
+ const enableBreakTemporarily = async () => {
+  if (!breakModal || !breakModal.employeeId || !data.businessId) return;
 
+  const key = toDateKey(breakModal.date);
+
+  const day = resolveDaySchedule(
+    data.schedule,
+    data.employeeSchedules ?? {},
+    data.businessSpecialDates ?? {},
+    data.employeeSpecialDates ?? {},
+    breakModal.employeeId,
+    breakModal.date,
+  );
+
+  if (!day) return;
+
+  try {
+    const { data: row, error: readError } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", data.businessId)
+      .maybeSingle();
+
+    if (readError) throw readError;
+
+    const sched = (row?.schedule ?? {}) as Record<string, any>;
+
+    const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
+
+    const forEmp = (empSpecial[breakModal.employeeId] ?? {}) as Record<
+      string,
+      unknown
+    >;
+
+    const nextDay = {
+      enabled: day.enabled !== false,
+      start: day.start,
+      end: day.end,
+    };
+
+    const nextSchedule = {
+      ...sched,
+      _employeeSpecialDates: {
+        ...empSpecial,
+        [breakModal.employeeId]: {
+          ...forEmp,
+          [key]: nextDay,
+        },
+      },
+    };
+
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert(
+        {
+          business_id: data.businessId,
+          schedule: nextSchedule,
+        },
+        {
+          onConflict: "business_id",
+        },
+      );
+
+    if (error) throw error;
+
+    setBreakModal(null);
+    data.refresh();
+  } catch (error) {
+    console.error(error);
+    toast.error("No se pudo habilitar el descanso. Probá de nuevo.");
+  }
+};
   const openSpecialFromBreak = () => {
     if (!breakModal || !breakModal.employeeId) {
       setBreakModal(null);
