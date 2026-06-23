@@ -27,6 +27,8 @@ import {
   type DayKey,
   type DaySchedule,
   type ScheduleMap,
+  type SpecialDateMap,
+  type EmployeeSpecialDateMap,
   DAY_KEYS,
   DEFAULT_SCHEDULE,
   parseTime,
@@ -34,6 +36,7 @@ import {
   startOfDay,
   overlaps,
   normalizeSchedule,
+  normalizeDaySchedule,
   buildSlots,
 } from "@/lib/availability";
 import clipprMark from "@/assets/clippr-mark.png";
@@ -168,6 +171,9 @@ function PublicBookingPage() {
   const [services, setServices] = React.useState<Service[]>([]);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
+  const [employeeSchedules, setEmployeeSchedules] = React.useState<Record<string, ScheduleMap>>({});
+  const [businessSpecial, setBusinessSpecial] = React.useState<SpecialDateMap>({});
+  const [employeeSpecial, setEmployeeSpecial] = React.useState<EmployeeSpecialDateMap>({});
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
 
   const [step, setStep] = React.useState<BookingStep>("services");
@@ -202,8 +208,19 @@ function PublicBookingPage() {
   const totalDuration = selectedServices.reduce((sum, service) => sum + (Number(service.duration_min ?? service.duration ?? 30) || 30), 0) || 30;
   const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price ?? 0), 0);
   const slots = React.useMemo(
-    () => buildSlots(schedule, appointments, employees, selectedEmployeeId, totalDuration, 10),
-    [schedule, appointments, employees, selectedEmployeeId, totalDuration],
+    () =>
+      buildSlots(
+        schedule,
+        appointments,
+        employees,
+        selectedEmployeeId,
+        totalDuration,
+        10,
+        employeeSchedules,
+        businessSpecial,
+        employeeSpecial,
+      ),
+    [schedule, appointments, employees, selectedEmployeeId, totalDuration, employeeSchedules, businessSpecial, employeeSpecial],
   );
   const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
@@ -303,6 +320,52 @@ function PublicBookingPage() {
           setServices(visibleServices);
           setAppointments((appointmentsRes.error ? [] : (appointmentsRes.data ?? [])) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
+
+          // Horarios individuales de profesionales y horarios especiales (negocio
+          // y profesional). Misma estructura que usa la Agenda; así la reserva
+          // online resuelve disponibilidad con idéntica prioridad.
+          const rawSchedule =
+            settingsSchedule && typeof settingsSchedule === "object"
+              ? (settingsSchedule as Record<string, any>)
+              : null;
+
+          const rawEmpScheds =
+            rawSchedule && typeof rawSchedule._employeeSchedules === "object" && rawSchedule._employeeSchedules
+              ? (rawSchedule._employeeSchedules as Record<string, unknown>)
+              : {};
+          const empScheds: Record<string, ScheduleMap> = {};
+          for (const [empId, value] of Object.entries(rawEmpScheds)) {
+            if (value && typeof value === "object") empScheds[empId] = normalizeSchedule(value);
+          }
+          setEmployeeSchedules(empScheds);
+
+          const rawBizSpecial =
+            rawSchedule && typeof rawSchedule._specialDates === "object" && rawSchedule._specialDates
+              ? (rawSchedule._specialDates as Record<string, unknown>)
+              : {};
+          const bizSpecial: SpecialDateMap = {};
+          for (const [dateKey, value] of Object.entries(rawBizSpecial)) {
+            const nd = normalizeDaySchedule(value);
+            if (nd) bizSpecial[dateKey] = nd;
+          }
+          setBusinessSpecial(bizSpecial);
+
+          const rawEmpSpecial =
+            rawSchedule && typeof rawSchedule._employeeSpecialDates === "object" && rawSchedule._employeeSpecialDates
+              ? (rawSchedule._employeeSpecialDates as Record<string, Record<string, unknown>>)
+              : {};
+          const empSpecial: EmployeeSpecialDateMap = {};
+          for (const [empId, byDate] of Object.entries(rawEmpSpecial)) {
+            if (!byDate || typeof byDate !== "object") continue;
+            const map: SpecialDateMap = {};
+            for (const [dateKey, value] of Object.entries(byDate)) {
+              const nd = normalizeDaySchedule(value);
+              if (nd) map[dateKey] = nd;
+            }
+            if (Object.keys(map).length) empSpecial[empId] = map;
+          }
+          setEmployeeSpecial(empSpecial);
+
           setClientFields(extractClientFields(settingsSchedule));
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setLandingTheme(branding.theme === "light" ? "light" : "dark");
