@@ -17,6 +17,7 @@ import {
   MessageCircle,
   UserRound,
   XCircle,
+  Clock3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -39,12 +40,7 @@ import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 /**
  * Stable callback identity that always invokes the latest closure.
@@ -53,7 +49,9 @@ import {
  */
 function useStableCallback<T extends (...args: any[]) => any>(fn: T): T {
   const ref = React.useRef(fn);
-  React.useLayoutEffect(() => { ref.current = fn; });
+  React.useLayoutEffect(() => {
+    ref.current = fn;
+  });
   return React.useCallback(((...args: any[]) => ref.current(...args)) as T, []);
 }
 
@@ -70,47 +68,45 @@ export const Route = createFileRoute("/agenda")({
 // ---------------------------------------------------------------------------
 // Status visuals (mismos buckets que app.js)
 // ---------------------------------------------------------------------------
-const STATUS_META: Record<
-  ApptStatus,
-  { label: string; bg: string; border: string; dot: string }
-> = {
-  pending: {
-    label: "Pendiente",
-    bg: "oklch(0.38 0.2 220 / 0.4)",
-    border: "oklch(0.72 0.2 210)",
-    dot: "oklch(0.82 0.18 210)",
-  },
-  confirmed: {
-    label: "Confirmado",
-    bg: "oklch(0.4 0.24 300 / 0.35)",
-    border: "oklch(0.72 0.25 300)",
-    dot: "oklch(0.72 0.25 300)",
-  },
-  completed: {
-    label: "Confirmado",
-    bg: "oklch(0.42 0.18 80 / 0.5)",
-    border: "oklch(0.82 0.2 75)",
-    dot: "oklch(0.88 0.2 75)",
-  },
-  charged: {
-    label: "Cobrado",
-    bg: "oklch(0.38 0.2 150 / 0.55)",
-    border: "oklch(0.76 0.2 150)",
-    dot: "oklch(0.76 0.2 150)",
-  },
-  cancelled: {
-    label: "Cancelado",
-    bg: "oklch(0.3 0.05 25 / 0.4)",
-    border: "oklch(0.6 0.18 25)",
-    dot: "oklch(0.65 0.2 25)",
-  },
-  blocked: {
-    label: "Bloqueado",
-    bg: "oklch(0.3 0 0 / 0.4)",
-    border: "oklch(0.5 0 0)",
-    dot: "oklch(0.6 0 0)",
-  },
-};
+const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: string; dot: string }> =
+  {
+    pending: {
+      label: "Pendiente",
+      bg: "oklch(0.38 0.2 220 / 0.4)",
+      border: "oklch(0.72 0.2 210)",
+      dot: "oklch(0.82 0.18 210)",
+    },
+    confirmed: {
+      label: "Confirmado",
+      bg: "oklch(0.4 0.24 300 / 0.35)",
+      border: "oklch(0.72 0.25 300)",
+      dot: "oklch(0.72 0.25 300)",
+    },
+    completed: {
+      label: "Confirmado",
+      bg: "oklch(0.42 0.18 80 / 0.5)",
+      border: "oklch(0.82 0.2 75)",
+      dot: "oklch(0.88 0.2 75)",
+    },
+    charged: {
+      label: "Cobrado",
+      bg: "oklch(0.38 0.2 150 / 0.55)",
+      border: "oklch(0.76 0.2 150)",
+      dot: "oklch(0.76 0.2 150)",
+    },
+    cancelled: {
+      label: "Cancelado",
+      bg: "oklch(0.3 0.05 25 / 0.4)",
+      border: "oklch(0.6 0.18 25)",
+      dot: "oklch(0.65 0.2 25)",
+    },
+    blocked: {
+      label: "Bloqueado",
+      bg: "oklch(0.3 0 0 / 0.4)",
+      border: "oklch(0.5 0 0)",
+      dot: "oklch(0.6 0 0)",
+    },
+  };
 
 // ---------------------------------------------------------------------------
 // Helpers de fechas
@@ -123,6 +119,8 @@ const ROW_PX = 88;
 const AGENDA_ROW_PX = 64;
 const AGENDA_HEADER_PX = 46;
 const AGENDA_VISIBLE_ROWS = 11;
+const AGENDA_SLOT_OPTIONS = [20, 30, 40, 45, 50, 60] as const;
+const AGENDA_SLOT_STORAGE_KEY = "clippr-agenda-slot-minutes";
 
 // Un casillero/horario está en el pasado si su instante ya ocurrió. Se usa SOLO
 // para impedir la CREACIÓN de turnos/bloqueos nuevos en el pasado; nunca para
@@ -211,7 +209,11 @@ function AgendaPage() {
 
   React.useEffect(() => {
     if (!businessId) return;
-    supabase.from("business_settings").select("senas_config").eq("business_id", businessId).maybeSingle()
+    supabase
+      .from("business_settings")
+      .select("senas_config")
+      .eq("business_id", businessId)
+      .maybeSingle()
       .then(({ data: bsData }) => {
         if (bsData?.senas_config) setSenasConfig(bsData.senas_config as typeof senasConfig);
       });
@@ -225,7 +227,7 @@ function AgendaPage() {
   const calcDeposit = (price: number) => {
     if (!senasConfig) return 0;
     if (senasConfig.amount_type === "fixed") return senasConfig.amount_value;
-    return Math.round(price * senasConfig.amount_value / 100);
+    return Math.round((price * senasConfig.amount_value) / 100);
   };
 
   // Single source of truth: only ONE lateral drawer can be active at a time.
@@ -275,7 +277,10 @@ function AgendaPage() {
     saving: boolean;
   } | null>(null);
   const newBtnRef = React.useRef<HTMLButtonElement>(null);
-  const [newMenuPos, setNewMenuPos] = React.useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const [newMenuPos, setNewMenuPos] = React.useState<{ top: number; right: number }>({
+    top: 0,
+    right: 0,
+  });
   const [calOpen, setCalOpen] = React.useState(false);
   const dateBtnRef = React.useRef<HTMLButtonElement>(null);
   const [calPos, setCalPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -299,7 +304,6 @@ function AgendaPage() {
       return next;
     });
   };
-
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
     const target = startsAt ?? cursor;
@@ -345,8 +349,8 @@ function AgendaPage() {
         setBreakModal({
           employeeId,
           date: startsAt,
-          breakStart: br ? minToHHMM(br.startMin) : resolvedDay?.breakStart ?? "",
-          breakEnd: br ? minToHHMM(br.endMin) : resolvedDay?.breakEnd ?? "",
+          breakStart: br ? minToHHMM(br.startMin) : (resolvedDay?.breakStart ?? ""),
+          breakEnd: br ? minToHHMM(br.endMin) : (resolvedDay?.breakEnd ?? ""),
         });
         return;
       }
@@ -357,7 +361,13 @@ function AgendaPage() {
         // 22:00). La validación de turnos queda intacta: en este modo no se
         // ofrece "Agregar turno".
         if (employeeId) {
-          setSlotMenu({ employeeId, startsAt, x: event.clientX, y: event.clientY, restricted: true });
+          setSlotMenu({
+            employeeId,
+            startsAt,
+            x: event.clientX,
+            y: event.clientY,
+            restricted: true,
+          });
         } else {
           toast.error("Seleccioná un profesional para editar el horario especial de este día.");
         }
@@ -375,70 +385,69 @@ function AgendaPage() {
     });
   };
 
-  const openBlockDialog = (employeeId: string | null, startsAt: Date, appointment?: Appointment | null) => {
+  const openBlockDialog = (
+    employeeId: string | null,
+    startsAt: Date,
+    appointment?: Appointment | null,
+  ) => {
     setSlotMenu(null);
     setBlockDialog({ employeeId, startsAt, appointment });
     setActiveDrawer("block");
   };
 
   // ── Descanso: habilitar temporalmente / editar horario especial ────────────
- const enableBreakTemporarily = async () => {
-  if (!breakModal || !breakModal.employeeId || !data.businessId) return;
+  const enableBreakTemporarily = async () => {
+    if (!breakModal || !breakModal.employeeId || !data.businessId) return;
 
-  const key = toDateKey(breakModal.date);
+    const key = toDateKey(breakModal.date);
 
-  const day = resolveDaySchedule(
-    data.schedule,
-    data.employeeSchedules ?? {},
-    data.businessSpecialDates ?? {},
-    data.employeeSpecialDates ?? {},
-    breakModal.employeeId,
-    breakModal.date,
-  );
+    const day = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      breakModal.employeeId,
+      breakModal.date,
+    );
 
-  if (!day) return;
+    if (!day) return;
 
-  try {
-    const { data: row, error: readError } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", data.businessId)
-      .maybeSingle();
+    try {
+      const { data: row, error: readError } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", data.businessId)
+        .maybeSingle();
 
-    if (readError) throw readError;
+      if (readError) throw readError;
 
-    const sched = (row?.schedule ?? {}) as Record<string, any>;
+      const sched = (row?.schedule ?? {}) as Record<string, any>;
 
-    const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<
-      string,
-      Record<string, unknown>
-    >;
+      const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<
+        string,
+        Record<string, unknown>
+      >;
 
-    const forEmp = (empSpecial[breakModal.employeeId] ?? {}) as Record<
-      string,
-      unknown
-    >;
+      const forEmp = (empSpecial[breakModal.employeeId] ?? {}) as Record<string, unknown>;
 
-    const nextDay = {
-      enabled: day.enabled !== false,
-      start: day.start,
-      end: day.end,
-    };
+      const nextDay = {
+        enabled: day.enabled !== false,
+        start: day.start,
+        end: day.end,
+      };
 
-    const nextSchedule = {
-      ...sched,
-      _employeeSpecialDates: {
-        ...empSpecial,
-        [breakModal.employeeId]: {
-          ...forEmp,
-          [key]: nextDay,
+      const nextSchedule = {
+        ...sched,
+        _employeeSpecialDates: {
+          ...empSpecial,
+          [breakModal.employeeId]: {
+            ...forEmp,
+            [key]: nextDay,
+          },
         },
-      },
-    };
+      };
 
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert(
+      const { error } = await supabase.from("business_settings").upsert(
         {
           business_id: data.businessId,
           schedule: nextSchedule,
@@ -448,15 +457,15 @@ function AgendaPage() {
         },
       );
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setBreakModal(null);
-    data.refresh();
-  } catch (error) {
-    console.error(error);
-    toast.error("No se pudo habilitar el descanso. Probá de nuevo.");
-  }
-};
+      setBreakModal(null);
+      data.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo habilitar el descanso. Probá de nuevo.");
+    }
+  };
   const openSpecialFromBreak = () => {
     if (!breakModal || !breakModal.employeeId) {
       setBreakModal(null);
@@ -489,46 +498,46 @@ function AgendaPage() {
     setBreakModal(null);
   };
   const openSpecialFromSlot = (employeeId: string | null, date: Date) => {
-  if (!employeeId) {
-    toast.error("Seleccioná un profesional para editar horario especial.");
+    if (!employeeId) {
+      toast.error("Seleccioná un profesional para editar horario especial.");
+      setNewMenu(false);
+      return;
+    }
+
+    const day = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      employeeId,
+      date,
+    );
+
+    // Si el día resuelto está NO disponible (especial cerrado o libre), el rango
+    // viene como 00:00–00:00. Para que al reactivar "Disponible" se vean horas
+    // útiles, sembramos el editor con el horario NORMAL (semanal del profesional →
+    // negocio), ignorando los especiales.
+    const base =
+      day?.enabled !== false
+        ? day
+        : resolveDaySchedule(data.schedule, data.employeeSchedules ?? {}, {}, {}, employeeId, date);
+
+    setSpecialEditor({
+      employeeId,
+      date,
+      available: day?.enabled !== false,
+      start: base?.start ?? "11:00",
+      end: base?.end ?? "20:00",
+      breakStart: base?.breakStart ?? "",
+      breakEnd: base?.breakEnd ?? "",
+      saving: false,
+    });
+
+    setSlotMenu(null);
     setNewMenu(false);
-    return;
-  }
+  };
 
-  const day = resolveDaySchedule(
-    data.schedule,
-    data.employeeSchedules ?? {},
-    data.businessSpecialDates ?? {},
-    data.employeeSpecialDates ?? {},
-    employeeId,
-    date,
-  );
-
-  // Si el día resuelto está NO disponible (especial cerrado o libre), el rango
-  // viene como 00:00–00:00. Para que al reactivar "Disponible" se vean horas
-  // útiles, sembramos el editor con el horario NORMAL (semanal del profesional →
-  // negocio), ignorando los especiales.
-  const base =
-    day?.enabled !== false
-      ? day
-      : resolveDaySchedule(data.schedule, data.employeeSchedules ?? {}, {}, {}, employeeId, date);
-
-  setSpecialEditor({
-    employeeId,
-    date,
-    available: day?.enabled !== false,
-    start: base?.start ?? "11:00",
-    end: base?.end ?? "20:00",
-    breakStart: base?.breakStart ?? "",
-    breakEnd: base?.breakEnd ?? "",
-    saving: false,
-  });
-
-  setSlotMenu(null);
-  setNewMenu(false);
-};
-
-const saveSpecialFromAgenda = async (day: DaySchedule) => {
+  const saveSpecialFromAgenda = async (day: DaySchedule) => {
     if (!specialEditor || !data.businessId) return;
     setSpecialEditor((s) => (s ? { ...s, saving: true } : s));
     const key = toDateKey(specialEditor.date);
@@ -539,7 +548,10 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
         .eq("business_id", data.businessId)
         .maybeSingle();
       const sched = (row?.schedule ?? {}) as Record<string, any>;
-      const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<string, Record<string, unknown>>;
+      const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<
+        string,
+        Record<string, unknown>
+      >;
       const forEmp = (empSpecial[specialEditor.employeeId] ?? {}) as Record<string, unknown>;
       const next = {
         ...sched,
@@ -576,7 +588,10 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
       return;
     }
 
-    const durationMin = Math.max(15, Math.round((payload.endsAt.getTime() - payload.startsAt.getTime()) / 60_000));
+    const durationMin = Math.max(
+      15,
+      Math.round((payload.endsAt.getTime() - payload.startsAt.getTime()) / 60_000),
+    );
     if (durationMin <= 0) {
       toast.error("La hora de fin debe ser posterior a la hora de inicio.");
       return;
@@ -595,7 +610,9 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
             ends_at: payload.endsAt.toISOString(),
             duration_min: durationMin,
             status: "blocked",
-            notes: payload.label ? `Horario bloqueado: ${payload.label}` : "Horario bloqueado desde Agenda",
+            notes: payload.label
+              ? `Horario bloqueado: ${payload.label}`
+              : "Horario bloqueado desde Agenda",
             updated_at: new Date().toISOString(),
           })
           .eq("id", payload.appointmentId);
@@ -626,7 +643,9 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
             ends_at: endsAt.toISOString(),
             duration_min: durationMin,
             status: "blocked",
-            notes: payload.label ? `Horario bloqueado: ${payload.label}` : "Horario bloqueado desde Agenda",
+            notes: payload.label
+              ? `Horario bloqueado: ${payload.label}`
+              : "Horario bloqueado desde Agenda",
             created_by_name: profile?.full_name ?? null,
             created_by_role: profile?.role ?? null,
             updated_at: new Date().toISOString(),
@@ -699,7 +718,7 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
         await setAppointmentStatus(a.id, status);
       }
       toast.success("Turno actualizado");
-      setSelected((current) => current && current.id === a.id ? { ...current, status } : current);
+      setSelected((current) => (current && current.id === a.id ? { ...current, status } : current));
       data.refresh();
     } catch (e) {
       toast.error((e as Error).message);
@@ -716,13 +735,16 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
       return;
     }
     const depositAmount = a.deposit_amount ?? calcDeposit(Number(a.service_price ?? 0));
-    navigate({ to: "/cash-register", search: {
-      depositAppointmentId: a.id,
-      depositAmount: String(depositAmount),
-      clientName: a.client_name ?? "",
-      serviceName: a.service_name ?? "",
-      employeeId: a.employee_id ?? "",
-    } as never });
+    navigate({
+      to: "/cash-register",
+      search: {
+        depositAppointmentId: a.id,
+        depositAmount: String(depositAmount),
+        clientName: a.client_name ?? "",
+        serviceName: a.service_name ?? "",
+        employeeId: a.employee_id ?? "",
+      } as never,
+    });
   };
 
   const goToCobro = async (a: Appointment) => {
@@ -736,17 +758,20 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
       return;
     }
     const depositPaid = Number(a.deposit_paid ?? 0);
-    const totalPrice  = Number(a.service_price ?? 0);
-    const remainder   = depositPaid > 0 ? Math.max(0, totalPrice - depositPaid) : totalPrice;
-    navigate({ to: "/cash-register", search: {
-      appointmentId: a.id,
-      finalAmount: String(remainder),
-      depositPaid: String(depositPaid),
-      totalPrice: String(totalPrice),
-      clientName: a.client_name ?? "",
-      serviceName: a.service_name ?? "",
-      employeeId: a.employee_id ?? "",
-    } as never });
+    const totalPrice = Number(a.service_price ?? 0);
+    const remainder = depositPaid > 0 ? Math.max(0, totalPrice - depositPaid) : totalPrice;
+    navigate({
+      to: "/cash-register",
+      search: {
+        appointmentId: a.id,
+        finalAmount: String(remainder),
+        depositPaid: String(depositPaid),
+        totalPrice: String(totalPrice),
+        clientName: a.client_name ?? "",
+        serviceName: a.service_name ?? "",
+        employeeId: a.employee_id ?? "",
+      } as never,
+    });
   };
 
   const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return") => {
@@ -763,23 +788,35 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
           date: new Date().toISOString().slice(0, 10),
         });
         // Update appointment
-        await supabase.from("appointments").update({
-          deposit_status: "returned",
-          status: "cancelled",
-        }).eq("id", a.id);
+        await supabase
+          .from("appointments")
+          .update({
+            deposit_status: "returned",
+            status: "cancelled",
+          })
+          .eq("id", a.id);
         toast.success("Seña devuelta y egreso registrado en Caja");
-      } catch (e) { toast.error((e as Error).message); return; }
+      } catch (e) {
+        toast.error((e as Error).message);
+        return;
+      }
     } else {
       // Keep seña — mark as lost, apply distribution
       try {
-        await supabase.from("appointments").update({
-          deposit_status: "lost",
-          status: "cancelled",
-        }).eq("id", a.id);
+        await supabase
+          .from("appointments")
+          .update({
+            deposit_status: "lost",
+            status: "cancelled",
+          })
+          .eq("id", a.id);
         // If prof share > 0, register compensation
         // (senasConfig is loaded at page level)
         toast.success("Seña marcada como perdida");
-      } catch (e) { toast.error((e as Error).message); return; }
+      } catch (e) {
+        toast.error((e as Error).message);
+        return;
+      }
     }
     setActiveDrawer(null);
     data.refresh();
@@ -794,7 +831,20 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   const memoData = React.useMemo(
     () => data,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.loading, data.appointments, data.employees, data.services, data.clients, data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, data.realtimeStatus, data.businessId, data.refresh],
+    [
+      data.loading,
+      data.appointments,
+      data.employees,
+      data.services,
+      data.clients,
+      data.schedule,
+      data.employeeSchedules,
+      data.businessSpecialDates,
+      data.employeeSpecialDates,
+      data.realtimeStatus,
+      data.businessId,
+      data.refresh,
+    ],
   );
   const daySchedule = React.useMemo(() => {
     // Rango visible derivado de horarios individuales (local como fallback) y
@@ -811,7 +861,15 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
     );
     if (!range) return null;
     return { enabled: true, start: range.start, end: range.end };
-  }, [data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, data.employees, cursor, data.appointments]);
+  }, [
+    data.schedule,
+    data.employeeSchedules,
+    data.businessSpecialDates,
+    data.employeeSpecialDates,
+    data.employees,
+    cursor,
+    data.appointments,
+  ]);
 
   // Stable handlers passed to the (memoized) DayView grid.
   const handleSlotClick = useStableCallback(openSlotMenu);
@@ -822,7 +880,8 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   // Stable handlers passed to the (memoized) detail drawer.
   const handleEdit = useStableCallback(openEdit);
   const handleCancel = useStableCallback((a: Appointment) => {
-    if (window.confirm("¿Cancelar este turno? No se puede deshacer.")) onChangeStatus(a, "cancelled");
+    if (window.confirm("¿Cancelar este turno? No se puede deshacer."))
+      onChangeStatus(a, "cancelled");
   });
   const handleFicha = useStableCallback(() => navigate({ to: "/clients" }));
   const handleMarkDeposit = useStableCallback(onMarkDeposit);
@@ -860,359 +919,442 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   return (
     <AppShell fullWidth>
       <div className="app-premium-shell -mt-1 sm:-mt-2 space-y-0">
-      
-      <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-{/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno) */}
-      <div
-        className="glass rounded-xl mb-2 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap overflow-x-auto"
-        style={{ scrollbarWidth: "none" }}
-      >
-        {/* Hoy */}
-        <button
-          onClick={() => setCursor(startOfDay(new Date()))}
-          disabled={isCursorToday}
-          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition shrink-0 disabled:opacity-40 disabled:hover:text-primary"
-        >
-          <CalendarIcon className="h-3.5 w-3.5" />
-          Hoy
-        </button>
-
-        <div className="h-5 w-px bg-white/10 shrink-0" />
-
-        {/* Date navigation — prev/next one day, fecha abre calendario */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => move(-1)}
-            aria-label="Día anterior"
-            className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            ref={dateBtnRef}
-            onClick={openCalendar}
-            aria-label="Elegir fecha"
-            className="text-sm font-semibold whitespace-nowrap min-w-[205px] text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
-          >
-            {fullDate}
-          </button>
-          <button
-            onClick={() => move(1)}
-            aria-label="Día siguiente"
-            className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Calendario oscuro — popover para saltar a cualquier fecha */}
-        {calOpen && (
-          <>
-            <div className="fixed inset-0 z-[60]" onClick={() => setCalOpen(false)} />
-            <div className="fixed z-[61]" style={{ top: calPos.top, left: calPos.left, transform: "translateX(-50%)" }}>
-              <DarkCalendar
-                value={cursor}
-                onSelect={(d) => { setCursor(startOfDay(d)); setCalOpen(false); }}
-              />
-            </div>
-          </>
-        )}
-
-        {data.loading && <span className="text-xs text-muted-foreground shrink-0">Cargando…</span>}
-
-        {/* Realtime sync indicator (does not alter layout — sits in the empty gap) */}
+        <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
+        {/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno) */}
         <div
-          className="flex items-center gap-1.5 shrink-0 text-[11px] text-muted-foreground select-none"
-          title="La agenda se actualiza sola en tiempo real"
+          className="glass rounded-xl mb-2 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap overflow-x-auto"
+          style={{ scrollbarWidth: "none" }}
         >
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              data.realtimeStatus === "connected" && "bg-emerald-400 animate-pulse",
-              data.realtimeStatus === "connecting" && "bg-amber-400 animate-pulse",
-              data.realtimeStatus === "disconnected" && "bg-rose-400",
-            )}
-          />
-          <span className="hidden sm:inline whitespace-nowrap">
-            {data.realtimeStatus === "connected"
-              ? "Actualizado en tiempo real"
-              : data.realtimeStatus === "connecting"
-              ? "Conectando…"
-              : "Sin conexión"}
-          </span>
-        </div>
-
-        {/* Status counts (clickable filters) — pushed right */}
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-          {([
-            ["pending",   "Pendientes",  "oklch(0.72 0.2 245)",  "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
-            ["confirmed", "Confirmados", "oklch(0.72 0.26 305)", "oklch(0.72 0.26 305 / 0.12)", "oklch(0.72 0.26 305 / 0.3)"],
-            ["charged",   "Cobrados",    "oklch(0.76 0.2 155)",  "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
-            ["cancelled", "Cancelados",  "oklch(0.65 0.2 25)",   "oklch(0.65 0.2 25 / 0.12)",  "oklch(0.65 0.2 25 / 0.3)"],
-          ] as [string,string,string,string,string][]).map(([k, label, color, bg, ring]) => (
-            <button
-              key={k}
-              onClick={() => { setFilterModal(k); setActiveDrawer("filter"); }}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0"
-              style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
-            >
-              <span className="font-semibold tabular-nums text-sm">{(counts as Record<string,number>)[k] ?? 0}</span>
-              <span className="opacity-80">{label}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="h-5 w-px bg-white/10 shrink-0" />
-
-        {/* Nuevo — square button with menu (Agregar turno / Bloquear horario) */}
-        <div className="relative shrink-0">
-          <Button
-            ref={newBtnRef}
-            className="h-7 w-7 p-0"
-            aria-label="Nuevo"
-            onClick={toggleNewMenu}
+          {/* Hoy */}
+          <button
+            onClick={() => setCursor(startOfDay(new Date()))}
+            disabled={isCursorToday}
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition shrink-0 disabled:opacity-40 disabled:hover:text-primary"
           >
-            <Plus className="h-4 w-4" />
-          </Button>
-          {newMenu && (
+            <CalendarIcon className="h-3.5 w-3.5" />
+            Hoy
+          </button>
+
+          <div className="h-5 w-px bg-white/10 shrink-0" />
+
+          {/* Date navigation — prev/next one day, fecha abre calendario */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => move(-1)}
+              aria-label="Día anterior"
+              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              ref={dateBtnRef}
+              onClick={openCalendar}
+              aria-label="Elegir fecha"
+              className="text-sm font-semibold whitespace-nowrap min-w-[205px] text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
+            >
+              {fullDate}
+            </button>
+            <button
+              onClick={() => move(1)}
+              aria-label="Día siguiente"
+              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Calendario oscuro — popover para saltar a cualquier fecha */}
+          {calOpen && (
             <>
-              <div className="fixed inset-0 z-[60]" onClick={() => setNewMenu(false)} />
+              <div className="fixed inset-0 z-[60]" onClick={() => setCalOpen(false)} />
               <div
-                className="fixed z-[61] w-44 glass-strong rounded-xl p-1 animate-fade-up"
-                style={{ top: newMenuPos.top, right: newMenuPos.right }}
+                className="fixed z-[61]"
+                style={{ top: calPos.top, left: calPos.left, transform: "translateX(-50%)" }}
               >
-                <button
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                  onClick={() => { setNewMenu(false); openNew(null, cursor); }}
-                >
-                  <CalendarIcon className="h-4 w-4 text-primary" /> Agregar turno
-                </button>
-                <button
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                  onClick={() => { setNewMenu(false); openBlockDialog(null, cursor); }}
-                >
-                  <XCircle className="h-4 w-4 text-amber-300" /> Bloquear horario
-                </button>
-                <button
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                  onClick={() => openSpecialFromSlot(null, cursor)}
-                >
-                  <Pencil className="h-4 w-4 text-violet-300" /> Horario especial
-                </button>
+                <DarkCalendar
+                  value={cursor}
+                  onSelect={(d) => {
+                    setCursor(startOfDay(d));
+                    setCalOpen(false);
+                  }}
+                />
               </div>
             </>
           )}
-        </div>
-      </div>
 
-      {/* Filter modal */}
-      {filterModal && (() => {
-        const statusMap: Record<string,string> = { pending:"pending", confirmed:"confirmed", charged:"charged", cancelled:"cancelled" };
-        const labels: Record<string,string> = { pending:"Pendientes", confirmed:"Confirmados", charged:"Finalizados", cancelled:"Cancelados" };
-        const filtered = filterModal === "seña"
-          ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
-          : data.appointments.filter((a) => a.status === statusMap[filterModal]);
-        return (
-          <AgendaDrawer
-            open={activeDrawer === "filter"}
-            onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
-            lockOutside={false}
-            title={`${labels[filterModal] ?? "Turnos"} (${filtered.length})`}
-          >
-            <div className="space-y-1">
-              {filtered.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-8">Sin turnos en este estado.</div>
-              ) : filtered.map((a) => {
-                const m = STATUS_META[a.status] ?? STATUS_META.pending;
-                const emp = data.employees.find((e) => e.id === a.employee_id);
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => openDetail(a)}
-                    className="w-full text-left flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.05] transition"
-                  >
-                    <div className="h-8 w-8 rounded-full grid place-items-center ring-1 ring-white/10 shrink-0" style={{ background: m.bg }}>
-                      <span className="text-[10px] font-bold" style={{ color: m.dot }}>
-                        {(a.client_name || "?")[0]?.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{a.client_name || "Sin cliente"}</div>
-                      <div className="text-xs text-muted-foreground truncate">{emp?.full_name ?? emp?.name ?? "—"} · {a.service_name || "—"}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-xs tabular-nums">{fmtHM(new Date(a.starts_at))}</div>
-                      {a.service_price ? <div className="text-xs text-muted-foreground">${Number(a.service_price).toLocaleString("es-AR")}</div> : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </AgendaDrawer>
-        );
-      })()}
+          {data.loading && (
+            <span className="text-xs text-muted-foreground shrink-0">Cargando…</span>
+          )}
 
-      {/* Always day view */}
-      <DayView
-        date={cursor}
-        data={memoData}
-        schedule={daySchedule}
-        enabledBreaks={enabledBreaks}
-        onSlotClick={handleSlotClick}
-        onApptClick={handleApptClick}
-        onChangeStatus={handleChangeStatus}
-        onCobrar={handleCobrar}
-      />
-
-      {slotMenu ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default"
-            onClick={() => setSlotMenu(null)}
-            aria-label="Cerrar opciones de casillero"
-          />
+          {/* Realtime sync indicator (does not alter layout — sits in the empty gap) */}
           <div
-            className="fixed z-50 w-56 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
-            style={{
-              left: Math.min(slotMenu.x, window.innerWidth - 240),
-              top: Math.min(slotMenu.y, window.innerHeight - 150),
-            }}
+            className="flex items-center gap-1.5 shrink-0 text-[11px] text-muted-foreground select-none"
+            title="La agenda se actualiza sola en tiempo real"
           >
-            <div className="border-b border-white/10 px-3 py-2 text-xs text-muted-foreground">
-              {slotMenu.startsAt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · {fmtTime(slotMenu.startsAt)}
-              {slotMenu.restricted && (
-                <div className="mt-0.5 text-[11px] font-medium text-amber-300/90">
-                  Profesional no disponible este día
-                </div>
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                data.realtimeStatus === "connected" && "bg-emerald-400 animate-pulse",
+                data.realtimeStatus === "connecting" && "bg-amber-400 animate-pulse",
+                data.realtimeStatus === "disconnected" && "bg-rose-400",
               )}
-            </div>
-            {!slotMenu.restricted && (
+            />
+            <span className="hidden sm:inline whitespace-nowrap">
+              {data.realtimeStatus === "connected"
+                ? "Actualizado en tiempo real"
+                : data.realtimeStatus === "connecting"
+                  ? "Conectando…"
+                  : "Sin conexión"}
+            </span>
+          </div>
+
+          {/* Status counts (clickable filters) — pushed right */}
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            {(
+              [
+                [
+                  "pending",
+                  "Pendientes",
+                  "oklch(0.72 0.2 245)",
+                  "oklch(0.72 0.2 245 / 0.12)",
+                  "oklch(0.72 0.2 245 / 0.3)",
+                ],
+                [
+                  "confirmed",
+                  "Confirmados",
+                  "oklch(0.72 0.26 305)",
+                  "oklch(0.72 0.26 305 / 0.12)",
+                  "oklch(0.72 0.26 305 / 0.3)",
+                ],
+                [
+                  "charged",
+                  "Cobrados",
+                  "oklch(0.76 0.2 155)",
+                  "oklch(0.76 0.2 155 / 0.12)",
+                  "oklch(0.76 0.2 155 / 0.3)",
+                ],
+                [
+                  "cancelled",
+                  "Cancelados",
+                  "oklch(0.65 0.2 25)",
+                  "oklch(0.65 0.2 25 / 0.12)",
+                  "oklch(0.65 0.2 25 / 0.3)",
+                ],
+              ] as [string, string, string, string, string][]
+            ).map(([k, label, color, bg, ring]) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setFilterModal(k);
+                  setActiveDrawer("filter");
+                }}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0"
+                style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
+              >
+                <span className="font-semibold tabular-nums text-sm">
+                  {(counts as Record<string, number>)[k] ?? 0}
+                </span>
+                <span className="opacity-80">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="h-5 w-px bg-white/10 shrink-0" />
+
+          {/* Nuevo — square button with menu (Agregar turno / Bloquear horario) */}
+          <div className="relative shrink-0">
+            <Button
+              ref={newBtnRef}
+              className="h-7 w-7 p-0"
+              aria-label="Nuevo"
+              onClick={toggleNewMenu}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+            {newMenu && (
               <>
-                <button
-                  type="button"
-                  onClick={() => openNew(slotMenu.employeeId, slotMenu.startsAt)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+                <div className="fixed inset-0 z-[60]" onClick={() => setNewMenu(false)} />
+                <div
+                  className="fixed z-[61] w-44 glass-strong rounded-xl p-1 animate-fade-up"
+                  style={{ top: newMenuPos.top, right: newMenuPos.right }}
                 >
-                  <CalendarIcon className="h-4 w-4 text-primary" />
-                  Agregar turno
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-                >
-                  <XCircle className="h-4 w-4 text-amber-300" />
-                  Bloquear horario
-                </button>
+                  <button
+                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                    onClick={() => {
+                      setNewMenu(false);
+                      openNew(null, cursor);
+                    }}
+                  >
+                    <CalendarIcon className="h-4 w-4 text-primary" /> Agregar turno
+                  </button>
+                  <button
+                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                    onClick={() => {
+                      setNewMenu(false);
+                      openBlockDialog(null, cursor);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4 text-amber-300" /> Bloquear horario
+                  </button>
+                  <button
+                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                    onClick={() => openSpecialFromSlot(null, cursor)}
+                  >
+                    <Pencil className="h-4 w-4 text-violet-300" /> Horario especial
+                  </button>
+                </div>
               </>
             )}
-            <button
-              type="button"
-              onClick={() => openSpecialFromSlot(slotMenu.employeeId, slotMenu.startsAt)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-            >
-              <Pencil className="h-4 w-4 text-violet-300" />
-              Horario especial
-            </button>
-          </div>
-        </>
-      ) : null}
-
-      {/* Modal de descanso (Habilitar descanso / Editar horario) */}
-      {breakModal ? (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setBreakModal(null)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold">Horario de descanso</div>
-            
-             </div>
-              <button
-                type="button"
-                aria-label="Cerrar"
-                onClick={() => setBreakModal(null)}
-                className="-mr-1 -mt-1 rounded-full p-2 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-4 flex flex-col gap-2">
-              <button
-                onClick={enableBreakTemporarily}
-                className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm"
-              >
-                Habilitar descanso
-              </button>
-              <button
-                onClick={openSpecialFromBreak}
-                className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm hover:bg-white/10"
-              >
-                Editar horario
-              </button>
-            </div>
           </div>
         </div>
-      ) : null}
 
-      {/* Editor de horario especial para (profesional, fecha) — mismo editor que
-          Configuración → Equipo → Horario especial (campos compartidos). */}
-      {specialEditor ? (
-        <SpecialDayEditor
-          date={specialEditor.date}
-          value={{
-            enabled: specialEditor.available,
-            start: specialEditor.start,
-            end: specialEditor.end,
-            breakStart: specialEditor.breakStart || undefined,
-            breakEnd: specialEditor.breakEnd || undefined,
-          }}
-          allowBreak
-          closedLabel="No disponible"
-          saving={specialEditor.saving}
-          onSave={saveSpecialFromAgenda}
-          onCancel={() => setSpecialEditor(null)}
+        {/* Filter modal */}
+        {filterModal &&
+          (() => {
+            const statusMap: Record<string, string> = {
+              pending: "pending",
+              confirmed: "confirmed",
+              charged: "charged",
+              cancelled: "cancelled",
+            };
+            const labels: Record<string, string> = {
+              pending: "Pendientes",
+              confirmed: "Confirmados",
+              charged: "Finalizados",
+              cancelled: "Cancelados",
+            };
+            const filtered =
+              filterModal === "seña"
+                ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
+                : data.appointments.filter((a) => a.status === statusMap[filterModal]);
+            return (
+              <AgendaDrawer
+                open={activeDrawer === "filter"}
+                onOpenChange={(open) => {
+                  if (!open) setActiveDrawer(null);
+                }}
+                lockOutside={false}
+                title={`${labels[filterModal] ?? "Turnos"} (${filtered.length})`}
+              >
+                <div className="space-y-1">
+                  {filtered.length === 0 ? (
+                    <div className="text-center text-sm text-muted-foreground py-8">
+                      Sin turnos en este estado.
+                    </div>
+                  ) : (
+                    filtered.map((a) => {
+                      const m = STATUS_META[a.status] ?? STATUS_META.pending;
+                      const emp = data.employees.find((e) => e.id === a.employee_id);
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => openDetail(a)}
+                          className="w-full text-left flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.05] transition"
+                        >
+                          <div
+                            className="h-8 w-8 rounded-full grid place-items-center ring-1 ring-white/10 shrink-0"
+                            style={{ background: m.bg }}
+                          >
+                            <span className="text-[10px] font-bold" style={{ color: m.dot }}>
+                              {(a.client_name || "?")[0]?.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {a.client_name || "Sin cliente"}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {emp?.full_name ?? emp?.name ?? "—"} · {a.service_name || "—"}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs tabular-nums">
+                              {fmtHM(new Date(a.starts_at))}
+                            </div>
+                            {a.service_price ? (
+                              <div className="text-xs text-muted-foreground">
+                                ${Number(a.service_price).toLocaleString("es-AR")}
+                              </div>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </AgendaDrawer>
+            );
+          })()}
+
+        {/* Always day view */}
+        <DayView
+          date={cursor}
+          data={memoData}
+          schedule={daySchedule}
+          enabledBreaks={enabledBreaks}
+          onSlotClick={handleSlotClick}
+          onApptClick={handleApptClick}
+          onChangeStatus={handleChangeStatus}
+          onCobrar={handleCobrar}
         />
-      ) : null}
 
-      <AppointmentDetailDialog
-        open={activeDrawer === "detail"}
-        onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
-        appointment={selected}
-        employees={memoData.employees}
-        clients={memoData.clients}
-        onEdit={handleEdit}
-        onCancel={handleCancel}
-        onCobrar={handleCobrar}
-        onFicha={handleFicha}
-        onChangeStatus={handleChangeStatus}
-        onMarkDeposit={handleMarkDeposit}
-        onCancelWithDeposit={handleCancelWithDeposit}
-        onReleaseBlock={handleReleaseBlock}
-      />
+        {slotMenu ? (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={() => setSlotMenu(null)}
+              aria-label="Cerrar opciones de casillero"
+            />
+            <div
+              className="fixed z-50 w-56 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
+              style={{
+                left: Math.min(slotMenu.x, window.innerWidth - 240),
+                top: Math.min(slotMenu.y, window.innerHeight - 150),
+              }}
+            >
+              <div className="border-b border-white/10 px-3 py-2 text-xs text-muted-foreground">
+                {slotMenu.startsAt.toLocaleDateString("es-AR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                })}{" "}
+                · {fmtTime(slotMenu.startsAt)}
+                {slotMenu.restricted && (
+                  <div className="mt-0.5 text-[11px] font-medium text-amber-300/90">
+                    Profesional no disponible este día
+                  </div>
+                )}
+              </div>
+              {!slotMenu.restricted && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openNew(slotMenu.employeeId, slotMenu.startsAt)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+                  >
+                    <CalendarIcon className="h-4 w-4 text-primary" />
+                    Agregar turno
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+                  >
+                    <XCircle className="h-4 w-4 text-amber-300" />
+                    Bloquear horario
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => openSpecialFromSlot(slotMenu.employeeId, slotMenu.startsAt)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+              >
+                <Pencil className="h-4 w-4 text-violet-300" />
+                Horario especial
+              </button>
+            </div>
+          </>
+        ) : null}
 
-      <BlockHoursDialog
-        open={activeDrawer === "block"}
-        onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
-        employees={data.employees}
-        initialEmployeeId={blockDialog?.employeeId ?? null}
-        initialStartsAt={blockDialog?.startsAt ?? cursor}
-        appointment={blockDialog?.appointment ?? null}
-        onSave={saveBlock}
-      />
+        {/* Modal de descanso (Habilitar descanso / Editar horario) */}
+        {breakModal ? (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setBreakModal(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-lg font-semibold">Horario de descanso</div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cerrar"
+                  onClick={() => setBreakModal(null)}
+                  className="-mr-1 -mt-1 rounded-full p-2 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  onClick={enableBreakTemporarily}
+                  className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm"
+                >
+                  Habilitar descanso
+                </button>
+                <button
+                  onClick={openSpecialFromBreak}
+                  className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm hover:bg-white/10"
+                >
+                  Editar horario
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
+        {/* Editor de horario especial para (profesional, fecha) — mismo editor que
+          Configuración → Equipo → Horario especial (campos compartidos). */}
+        {specialEditor ? (
+          <SpecialDayEditor
+            date={specialEditor.date}
+            value={{
+              enabled: specialEditor.available,
+              start: specialEditor.start,
+              end: specialEditor.end,
+              breakStart: specialEditor.breakStart || undefined,
+              breakEnd: specialEditor.breakEnd || undefined,
+            }}
+            allowBreak
+            closedLabel="No disponible"
+            saving={specialEditor.saving}
+            onSave={saveSpecialFromAgenda}
+            onCancel={() => setSpecialEditor(null)}
+          />
+        ) : null}
+
+        <AppointmentDetailDialog
+          open={activeDrawer === "detail"}
+          onOpenChange={(open) => {
+            if (!open) setActiveDrawer(null);
+          }}
+          appointment={selected}
+          employees={memoData.employees}
+          clients={memoData.clients}
+          onEdit={handleEdit}
+          onCancel={handleCancel}
+          onCobrar={handleCobrar}
+          onFicha={handleFicha}
+          onChangeStatus={handleChangeStatus}
+          onMarkDeposit={handleMarkDeposit}
+          onCancelWithDeposit={handleCancelWithDeposit}
+          onReleaseBlock={handleReleaseBlock}
+        />
+
+        <BlockHoursDialog
+          open={activeDrawer === "block"}
+          onOpenChange={(open) => {
+            if (!open) setActiveDrawer(null);
+          }}
+          employees={data.employees}
+          initialEmployeeId={blockDialog?.employeeId ?? null}
+          initialStartsAt={blockDialog?.startsAt ?? cursor}
+          appointment={blockDialog?.appointment ?? null}
+          onSave={saveBlock}
+        />
       </div>
 
       {data.businessId && (
-      <AppointmentDialog
+        <AppointmentDialog
           open={activeDrawer === "new" || activeDrawer === "edit"}
-          onOpenChange={(open) => { if (!open) setActiveDrawer(null); }}
+          onOpenChange={(open) => {
+            if (!open) setActiveDrawer(null);
+          }}
           appointment={editing}
           defaultEmployeeId={dlgDefaults.employeeId}
           defaultStartsAt={dlgDefaults.startsAt}
@@ -1344,7 +1486,9 @@ const DayView = React.memo(function DayView({
   const isClosed = !schedule?.enabled;
   const HOUR_START = schedule ? Math.floor(parseScheduleTime(schedule.start)) : 0;
   const HOUR_END = schedule ? Math.ceil(parseScheduleTime(schedule.end)) : 0;
-  const HOURS = !isClosed ? Array.from({ length: Math.max(0, HOUR_END - HOUR_START) }, (_, i) => HOUR_START + i) : [];
+  const HOURS = !isClosed
+    ? Array.from({ length: Math.max(0, HOUR_END - HOUR_START) }, (_, i) => HOUR_START + i)
+    : [];
 
   // El rango operable por columna lo resuelve effectiveWindowFor vía
   // resolveDaySchedule (prioridad de horarios + especiales por fecha).
@@ -1357,7 +1501,20 @@ const DayView = React.memo(function DayView({
   //    las filas). Ahora cada bloque mide AGENDA_ROW_PX y, si hay muchas horas,
   //    la grilla scrollea (no se comprime).
   const gridBodyRef = React.useRef<HTMLDivElement>(null);
+  // `rowPx` representa 1 hora completa. El selector tipo AgendaPro cambia
+  // cada cuánto se dibujan los cortes/casilleros sin deformar la escala de los turnos.
   const rowPx = AGENDA_ROW_PX;
+  const [slotMinutes, setSlotMinutes] = React.useState<(typeof AGENDA_SLOT_OPTIONS)[number]>(() => {
+    if (typeof window === "undefined") return 60;
+    const stored = Number(window.localStorage.getItem(AGENDA_SLOT_STORAGE_KEY));
+    return AGENDA_SLOT_OPTIONS.includes(stored as (typeof AGENDA_SLOT_OPTIONS)[number])
+      ? (stored as (typeof AGENDA_SLOT_OPTIONS)[number])
+      : 60;
+  });
+
+  React.useEffect(() => {
+    window.localStorage.setItem(AGENDA_SLOT_STORAGE_KEY, String(slotMinutes));
+  }, [slotMinutes]);
 
   // Scroll horizontal de profesionales: detecta si hay más columnas a los
   // lados para mostrar el fade/sombra. Además, con equipos grandes virtualiza
@@ -1382,17 +1539,27 @@ const DayView = React.memo(function DayView({
     setScrollEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
 
     if (!shouldVirtualizeColumns) {
-      setVisibleColumnRange((prev) => (prev.start === 0 && prev.end === employees.length ? prev : { start: 0, end: employees.length }));
+      setVisibleColumnRange((prev) =>
+        prev.start === 0 && prev.end === employees.length
+          ? prev
+          : { start: 0, end: employees.length },
+      );
       return;
     }
 
     const scrollLeftInsideEmployees = Math.max(0, el.scrollLeft - 58);
-    const start = Math.max(0, Math.floor(scrollLeftInsideEmployees / AGENDA_EMPLOYEE_COL_PX) - AGENDA_VIRTUAL_OVERSCAN);
+    const start = Math.max(
+      0,
+      Math.floor(scrollLeftInsideEmployees / AGENDA_EMPLOYEE_COL_PX) - AGENDA_VIRTUAL_OVERSCAN,
+    );
     const end = Math.min(
       employees.length,
-      Math.ceil((scrollLeftInsideEmployees + el.clientWidth) / AGENDA_EMPLOYEE_COL_PX) + AGENDA_VIRTUAL_OVERSCAN,
+      Math.ceil((scrollLeftInsideEmployees + el.clientWidth) / AGENDA_EMPLOYEE_COL_PX) +
+        AGENDA_VIRTUAL_OVERSCAN,
     );
-    setVisibleColumnRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+    setVisibleColumnRange((prev) =>
+      prev.start === start && prev.end === end ? prev : { start, end },
+    );
   }, [employees.length, shouldVirtualizeColumns]);
 
   const onGridScroll = React.useCallback(() => {
@@ -1408,7 +1575,8 @@ const DayView = React.memo(function DayView({
     window.addEventListener("resize", updateHorizontalScrollState);
     return () => {
       cancelAnimationFrame(raf);
-      if (horizontalScrollRafRef.current !== null) cancelAnimationFrame(horizontalScrollRafRef.current);
+      if (horizontalScrollRafRef.current !== null)
+        cancelAnimationFrame(horizontalScrollRafRef.current);
       horizontalScrollRafRef.current = null;
       window.removeEventListener("resize", updateHorizontalScrollState);
     };
@@ -1416,11 +1584,17 @@ const DayView = React.memo(function DayView({
 
   // Drag preview ghost (target time range while dragging). Lightweight: only
   // stored in state, no Supabase calls, no grid recompute.
-  const [dragPreview, setDragPreview] = React.useState<
-    { empId: string; top: number; height: number; label: string } | null
-  >(null);
+  const [dragPreview, setDragPreview] = React.useState<{
+    empId: string;
+    top: number;
+    height: number;
+    label: string;
+  } | null>(null);
   React.useEffect(() => {
-    const clear = () => { draggedApptRef.current = null; setDragPreview(null); };
+    const clear = () => {
+      draggedApptRef.current = null;
+      setDragPreview(null);
+    };
     window.addEventListener("dragend", clear);
     return () => window.removeEventListener("dragend", clear);
   }, []);
@@ -1481,14 +1655,17 @@ const DayView = React.memo(function DayView({
       newStart,
     );
     const schedErr = checkDaySchedule(dropDay, newStart, dur);
-    if (schedErr) { toast.error(schedErr); return; }
+    if (schedErr) {
+      toast.error(schedErr);
+      return;
+    }
 
     // 2) Real-range overlap against the SAME in-memory data the grid shows, in
     //    the SAME column. Consistent by construction: if the slot looks free,
     //    the move is allowed. Touching endpoints (11:30 end vs 11:30 start) are OK.
     const conflict = data.appointments.find((o) => {
-      if (o.id === apptId) return false;                 // never compare against itself
-      if (o.status === "cancelled") return false;        // cancelled don't occupy
+      if (o.id === apptId) return false; // never compare against itself
+      if (o.status === "cancelled") return false; // cancelled don't occupy
       const sameColumn = targetEmpId ? o.employee_id === targetEmpId : !o.employee_id;
       if (!sameColumn) return false;
       const oStart = new Date(o.starts_at);
@@ -1496,7 +1673,10 @@ const DayView = React.memo(function DayView({
       return oStart < newEnd && oEnd > newStart;
     });
     if (conflict) {
-      const t = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      const t = new Date(conflict.starts_at).toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
       toast.error(
         conflict.status === "blocked"
           ? `Horario bloqueado (${t}).`
@@ -1507,11 +1687,14 @@ const DayView = React.memo(function DayView({
 
     // 3) Persist
     try {
-      const { error } = await supabase.from("appointments").update({
-        starts_at: newStart.toISOString(),
-        ends_at: newEnd.toISOString(),
-        employee_id: targetEmpId,
-      }).eq("id", apptId);
+      const { error } = await supabase
+        .from("appointments")
+        .update({
+          starts_at: newStart.toISOString(),
+          ends_at: newEnd.toISOString(),
+          employee_id: targetEmpId,
+        })
+        .eq("id", apptId);
       if (error) throw new Error(error.message);
       data.refresh();
       toast.success("Turno movido");
@@ -1521,28 +1704,42 @@ const DayView = React.memo(function DayView({
   };
 
   const dayAppts = React.useMemo(
-    () => data.appointments.filter((a) => {
-      const d = new Date(a.starts_at);
-      return d.getFullYear() === date.getFullYear()
-        && d.getMonth() === date.getMonth()
-        && d.getDate() === date.getDate()
-        && a.status !== "cancelled";
-    }),
+    () =>
+      data.appointments.filter((a) => {
+        const d = new Date(a.starts_at);
+        return (
+          d.getFullYear() === date.getFullYear() &&
+          d.getMonth() === date.getMonth() &&
+          d.getDate() === date.getDate() &&
+          a.status !== "cancelled"
+        );
+      }),
     [data.appointments, date],
   );
   // Precompute each column's appointments + overlap layout once per data/day,
   // so dragging (which only updates dragPreview state) never recomputes this.
   const columnRender = React.useMemo(
-    () => employees.map((e) => {
-      const columnAppts = dayAppts.filter((a) => (e.id === "__none__" ? !a.employee_id : a.employee_id === e.id));
-      return { e, columnAppts, layouts: computeOverlapLayouts(columnAppts) };
-    }),
+    () =>
+      employees.map((e) => {
+        const columnAppts = dayAppts.filter((a) =>
+          e.id === "__none__" ? !a.employee_id : a.employee_id === e.id,
+        );
+        return { e, columnAppts, layouts: computeOverlapLayouts(columnAppts) };
+      }),
     [employees, dayAppts],
   );
   const isToday = startOfDay(now).getTime() === startOfDay(date).getTime();
   const nowHour = now.getHours() + now.getMinutes() / 60;
   const showNowLine = isToday && !isClosed && nowHour >= HOUR_START && nowHour <= HOUR_END;
   const nowLineTop = (nowHour - HOUR_START) * rowPx;
+  const timeSlots = React.useMemo(() => {
+    const startMin = HOUR_START * 60;
+    const endMin = HOUR_END * 60;
+    const slots: number[] = [];
+    for (let min = startMin; min < endMin; min += slotMinutes) slots.push(min);
+    return slots;
+  }, [HOUR_START, HOUR_END, slotMinutes]);
+  const slotHeightPx = (slotMinutes / 60) * rowPx;
 
   // Reuse the same snap math as the drop, off the cursor Y within the column.
   const previewFromColumn = (col: HTMLElement, clientY: number, empId: string) => {
@@ -1559,7 +1756,8 @@ const DayView = React.memo(function DayView({
     );
     const top = (snappedMin / 60 - HOUR_START) * rowPx;
     const height = Math.max((durMin / 60) * rowPx, 18);
-    const s = new Date(date); s.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
+    const s = new Date(date);
+    s.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
     const label = `${fmtHM(s)} - ${fmtHM(new Date(s.getTime() + durMin * 60000))}`;
     setDragPreview((prev) =>
       prev && prev.empId === empId && prev.top === top && prev.label === label
@@ -1571,7 +1769,9 @@ const DayView = React.memo(function DayView({
   const renderedColumns = shouldVirtualizeColumns
     ? columnRender.slice(visibleColumnRange.start, visibleColumnRange.end)
     : columnRender;
-  const leftVirtualSpacer = shouldVirtualizeColumns ? visibleColumnRange.start * AGENDA_EMPLOYEE_COL_PX : 0;
+  const leftVirtualSpacer = shouldVirtualizeColumns
+    ? visibleColumnRange.start * AGENDA_EMPLOYEE_COL_PX
+    : 0;
   const rightVirtualSpacer = shouldVirtualizeColumns
     ? Math.max(0, (employees.length - visibleColumnRange.end) * AGENDA_EMPLOYEE_COL_PX)
     : 0;
@@ -1581,7 +1781,7 @@ const DayView = React.memo(function DayView({
   const gridWidth = shouldVirtualizeColumns
     ? 58 + employees.length * AGENDA_EMPLOYEE_COL_PX
     : undefined;
-  const gridBodyHeight = HOURS.length * rowPx;
+  const gridBodyHeight = Math.max(0, HOUR_END - HOUR_START) * rowPx;
 
   // Franjas bloqueadas (fuera de hora) dentro del rango visible, para una
   // ventana laboral [openMin, closeMin]. Hoy todas las columnas usan el horario
@@ -1595,7 +1795,8 @@ const DayView = React.memo(function DayView({
       const push = (aMin: number, bMin: number) => {
         const a = Math.max(gridStart, aMin);
         const b = Math.min(gridEnd, bMin);
-        if (b > a) segs.push({ top: (a / 60 - HOUR_START) * rowPx, height: ((b - a) / 60) * rowPx });
+        if (b > a)
+          segs.push({ top: (a / 60 - HOUR_START) * rowPx, height: ((b - a) / 60) * rowPx });
       };
       push(gridStart, openMin); // antes de abrir
       push(closeMin, gridEnd); // después de cerrar
@@ -1640,7 +1841,15 @@ const DayView = React.memo(function DayView({
         breaks,
       };
     },
-    [data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, date, HOUR_START, enabledBreaks],
+    [
+      data.schedule,
+      data.employeeSchedules,
+      data.businessSpecialDates,
+      data.employeeSpecialDates,
+      date,
+      HOUR_START,
+      enabledBreaks,
+    ],
   );
 
   if (isClosed) {
@@ -1664,19 +1873,38 @@ const DayView = React.memo(function DayView({
         className="overflow-auto agenda-hscroll"
         style={{ maxHeight: AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx }}
       >
-        <div
-          className="grid min-w-[860px]"
-          style={{ gridTemplateColumns, width: gridWidth }}
-        >
+        <div className="grid min-w-[860px]" style={{ gridTemplateColumns, width: gridWidth }}>
           <div
-            className="sticky left-0 top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-r border-white/10"
+            className="sticky left-0 top-0 z-40 bg-background/90 backdrop-blur-xl border-b border-r border-white/10 px-1.5 flex items-center justify-center"
             style={{ height: AGENDA_HEADER_PX }}
-          />
+          >
+            <label
+              className="relative flex h-8 w-[50px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-foreground/80 shadow-[0_10px_24px_-18px_rgba(0,0,0,0.9)] hover:bg-white/[0.07] transition"
+              title="Escala de horarios"
+            >
+              <Clock3 className="h-4 w-4 pointer-events-none" />
+              <select
+                aria-label="Escala de horarios"
+                value={slotMinutes}
+                onChange={(event) =>
+                  setSlotMinutes(Number(event.target.value) as (typeof AGENDA_SLOT_OPTIONS)[number])
+                }
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              >
+                {AGENDA_SLOT_OPTIONS.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {minutes} minutos
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
           {renderedColumns.map(({ e }) => {
             const total = dayAppts.filter((a) => a.employee_id === e.id).length;
             const inSvc = dayAppts.filter(
-              (a) => a.employee_id === e.id && (a.status === "completed" || a.status === "confirmed"),
+              (a) =>
+                a.employee_id === e.id && (a.status === "completed" || a.status === "confirmed"),
             ).length;
             const initials = (e.full_name || e.name || "?")
               .split(/\s+/)
@@ -1699,13 +1927,18 @@ const DayView = React.memo(function DayView({
                 ) : (
                   <div
                     className="h-7 w-7 rounded-full grid place-items-center text-[10px] font-semibold text-white ring-1 ring-white/10 shrink-0"
-                    style={{ background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))" }}
+                    style={{
+                      background:
+                        "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
+                    }}
                   >
                     {initials || "?"}
                   </div>
                 )}
                 <div className="min-w-0 flex-1 leading-tight">
-                  <div className="text-[13px] font-semibold truncate leading-none">{e.full_name ?? e.name}</div>
+                  <div className="text-[13px] font-semibold truncate leading-none">
+                    {e.full_name ?? e.name}
+                  </div>
                   <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
                     <span
                       className="h-1.5 w-1.5 rounded-full"
@@ -1721,14 +1954,17 @@ const DayView = React.memo(function DayView({
           })}
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
 
-          <div ref={gridBodyRef} className="relative sticky left-0 z-30 bg-[#0c0b14] border-r border-white/15 shadow-[2px_0_8px_rgba(0,0,0,0.35)]">
-            {HOURS.map((h) => (
+          <div
+            ref={gridBodyRef}
+            className="relative sticky left-0 z-30 bg-[#0c0b14] border-r border-white/15 shadow-[2px_0_8px_rgba(0,0,0,0.35)]"
+          >
+            {timeSlots.map((min) => (
               <div
-                key={h}
-                className="text-[12px] font-medium text-foreground/70 pr-2.5 pt-1 text-right select-none"
-                style={{ height: rowPx }}
+                key={min}
+                className="text-[11px] font-medium text-foreground/70 pr-2.5 pt-1 text-right select-none border-t border-white/[0.04]"
+                style={{ height: slotHeightPx }}
               >
-                <span>{String(h).padStart(2, "0")}:00</span>
+                <span>{minToHHMM(min)}</span>
               </div>
             ))}
           </div>
@@ -1739,7 +1975,11 @@ const DayView = React.memo(function DayView({
             // Ventana operable de ESTA columna (horario del profesional, o del
             // local como fallback). Fuera de hora = franja rayada; el descanso
             // se muestra como un bloque "DESCANSO" propio.
-            const { openMin: colOpenMin, closeMin: colCloseMin, breaks: colBreaks } = effectiveWindowFor(e.id);
+            const {
+              openMin: colOpenMin,
+              closeMin: colCloseMin,
+              breaks: colBreaks,
+            } = effectiveWindowFor(e.id);
             const oohSegments = blockedSegmentsFor(colOpenMin, colCloseMin);
             const gridStartMin = HOUR_START * 60;
             const gridEndMin = HOUR_END * 60;
@@ -1756,113 +1996,117 @@ const DayView = React.memo(function DayView({
               })
               .filter((x): x is { top: number; height: number; label: string } => x !== null);
             return (
-            <div
-              key={e.id}
-              className="relative border-l border-white/[0.04]"
-              onDragOver={(ev) => {
-                ev.preventDefault();
-                ev.dataTransfer.dropEffect = "move";
-                previewFromColumn(ev.currentTarget as HTMLElement, ev.clientY, e.id);
-              }}
-              onDrop={(ev) => handleDrop(ev, e.id)}
-            >
-              {HOURS.map((h) => {
-                // Una celda queda bloqueada si cae fuera de la ventana efectiva
-                // (negocio o profesional) o dentro de un descanso configurado.
-                const cellStart = h * 60;
-                const cellEnd = (h + 1) * 60;
-                const cellBlocked =
-                  cellEnd <= colOpenMin ||
-                  cellStart >= colCloseMin ||
-                  colBreaks.some((br) => cellStart >= br.startMin && cellEnd <= br.endMin);
-                return (
-                  <div
-                    key={h}
-                    className={cn(
-                      "border-t border-white/[0.04] transition-colors",
-                      cellBlocked ? "cursor-not-allowed" : "hover:bg-white/[0.02] cursor-pointer",
-                    )}
-                    style={{ height: rowPx }}
-                    onClick={(event) => {
-                      const dt = new Date(date);
-                      dt.setHours(h, 0, 0, 0);
-                      onSlotClick(e.id === "__none__" ? null : e.id, dt, event);
-                    }}
-                  />
-                );
-              })}
+              <div
+                key={e.id}
+                className="relative border-l border-white/[0.04]"
+                onDragOver={(ev) => {
+                  ev.preventDefault();
+                  ev.dataTransfer.dropEffect = "move";
+                  previewFromColumn(ev.currentTarget as HTMLElement, ev.clientY, e.id);
+                }}
+                onDrop={(ev) => handleDrop(ev, e.id)}
+              >
+                {timeSlots.map((min) => {
+                  // Una celda queda bloqueada si cae fuera de la ventana efectiva
+                  // (negocio o profesional) o si toca un descanso configurado.
+                  const cellStart = min;
+                  const cellEnd = min + slotMinutes;
+                  const cellBlocked =
+                    cellEnd <= colOpenMin ||
+                    cellStart >= colCloseMin ||
+                    colBreaks.some((br) => cellStart < br.endMin && cellEnd > br.startMin);
+                  return (
+                    <div
+                      key={min}
+                      className={cn(
+                        "border-t border-white/[0.04] transition-colors",
+                        cellBlocked ? "cursor-not-allowed" : "hover:bg-white/[0.02] cursor-pointer",
+                      )}
+                      style={{ height: slotHeightPx }}
+                      onClick={(event) => {
+                        const dt = new Date(date);
+                        dt.setHours(Math.floor(min / 60), min % 60, 0, 0);
+                        onSlotClick(e.id === "__none__" ? null : e.id, dt, event);
+                      }}
+                    />
+                  );
+                })}
 
-              {/* Fuera del horario (profesional o local): franja rayada,
+                {/* Fuera del horario (profesional o local): franja rayada,
                   visible pero no operable. Los turnos previos se pintan encima.
                   pointer-events-none para no romper el drag. */}
-              {oohSegments.map((seg, i) => (
-                <div
-                  key={`ooh-${i}`}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0"
-                  style={{
-                    top: seg.top,
-                    height: seg.height,
-                    background:
-                      "repeating-linear-gradient(135deg, rgba(255,255,255,0.016) 0, rgba(255,255,255,0.016) 7px, rgba(255,255,255,0.05) 7px, rgba(255,255,255,0.05) 14px)",
-                  }}
-                />
-              ))}
+                {oohSegments.map((seg, i) => (
+                  <div
+                    key={`ooh-${i}`}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0"
+                    style={{
+                      top: seg.top,
+                      height: seg.height,
+                      background:
+                        "repeating-linear-gradient(135deg, rgba(255,255,255,0.016) 0, rgba(255,255,255,0.016) 7px, rgba(255,255,255,0.05) 7px, rgba(255,255,255,0.05) 14px)",
+                    }}
+                  />
+                ))}
 
-              {/* Descanso: bloque real "DESCANSO" con su rango horario. */}
-              {breakBlocks.map((b, i) => (
-                <div
-                  key={`break-${i}`}
-                  className="pointer-events-none absolute inset-x-0.5 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md px-1 text-center"
-                  style={{
-                    top: b.top,
-                    height: b.height,
-                    border: "1px solid rgba(148,163,184,0.28)",
-                    background:
-                      "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
-                  }}
-                >
-                  <span className="text-[10px] font-semibold uppercase tracking-wide leading-none text-slate-300/85">
-                    Descanso
-                  </span>
-                  <span className="text-[10px] tabular-nums leading-none text-slate-400/75">{b.label}</span>
-                </div>
-              ))}
+                {/* Descanso: bloque real "DESCANSO" con su rango horario. */}
+                {breakBlocks.map((b, i) => (
+                  <div
+                    key={`break-${i}`}
+                    className="pointer-events-none absolute inset-x-0.5 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md px-1 text-center"
+                    style={{
+                      top: b.top,
+                      height: b.height,
+                      border: "1px solid rgba(148,163,184,0.28)",
+                      background:
+                        "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
+                    }}
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide leading-none text-slate-300/85">
+                      Descanso
+                    </span>
+                    <span className="text-[10px] tabular-nums leading-none text-slate-400/75">
+                      {b.label}
+                    </span>
+                  </div>
+                ))}
 
-              {showNowLine && (
-                <div
-                  className="pointer-events-none absolute left-0 right-0 z-20 border-t border-red-400/90 shadow-[0_0_10px_rgba(248,113,113,0.75)]"
-                  style={{ top: nowLineTop }}
-                >
-                  <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]" />
-                </div>
-              )}
+                {showNowLine && (
+                  <div
+                    className="pointer-events-none absolute left-0 right-0 z-20 border-t border-red-400/90 shadow-[0_0_10px_rgba(248,113,113,0.75)]"
+                    style={{ top: nowLineTop }}
+                  >
+                    <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]" />
+                  </div>
+                )}
 
-              {/* Drag preview ghost — target time range before dropping */}
-              {dragPreview && dragPreview.empId === e.id && (
-                <div
-                  className="pointer-events-none absolute left-1 right-1 z-30 rounded-lg border-2 border-dashed border-primary/70 bg-primary/10 backdrop-blur-[1px] px-2 py-0.5 overflow-hidden"
-                  style={{ top: dragPreview.top, height: dragPreview.height }}
-                >
-                  <span className="text-[10px] font-bold tabular-nums text-primary leading-none">{dragPreview.label}</span>
-                </div>
-              )}
+                {/* Drag preview ghost — target time range before dropping */}
+                {dragPreview && dragPreview.empId === e.id && (
+                  <div
+                    className="pointer-events-none absolute left-1 right-1 z-30 rounded-lg border-2 border-dashed border-primary/70 bg-primary/10 backdrop-blur-[1px] px-2 py-0.5 overflow-hidden"
+                    style={{ top: dragPreview.top, height: dragPreview.height }}
+                  >
+                    <span className="text-[10px] font-bold tabular-nums text-primary leading-none">
+                      {dragPreview.label}
+                    </span>
+                  </div>
+                )}
 
-              {columnAppts.map((a) => (
-                <ApptCard
-                  key={a.id}
-                  a={a}
-                  layout={layouts.get(a.id)}
-                  hourStart={HOUR_START}
-                  hourEnd={HOUR_END}
-                  rowPx={rowPx}
-                  employeeCount={employees.length}
-                  onClick={() => onApptClick(a)}
-                  onChangeStatus={(s) => onChangeStatus(a, s)}
-                  onCobrar={() => onCobrar(a)}
-                />
-              ))}
-            </div>
+                {columnAppts.map((a) => (
+                  <ApptCard
+                    key={a.id}
+                    a={a}
+                    layout={layouts.get(a.id)}
+                    hourStart={HOUR_START}
+                    hourEnd={HOUR_END}
+                    rowPx={rowPx}
+                    employeeCount={employees.length}
+                    onClick={() => onApptClick(a)}
+                    onChangeStatus={(s) => onChangeStatus(a, s)}
+                    onCobrar={() => onCobrar(a)}
+                  />
+                ))}
+              </div>
             );
           })}
 
@@ -1969,27 +2213,48 @@ const ApptCard = React.memo(function ApptCard({
     <div
       className={cn(
         "absolute rounded-[6px] px-1.5 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
-        isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+        isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       )}
-      style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
+      style={{
+        top,
+        height,
+        left,
+        width,
+        background: meta.bg,
+        boxShadow: `inset 0 0 0 1px ${meta.border}`,
+      }}
       draggable={isMovable}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
     >
       {/* Línea 1: horario (lo más importante) + cliente */}
       <div className="flex items-center gap-1 min-w-0 leading-none">
-        <span className="text-[11px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
+        <span
+          className="text-[11px] font-bold tabular-nums shrink-0 leading-none"
+          style={{ color: meta.dot }}
+        >
           {fmtHM(start)} • {fmtHM(end)}
         </span>
         <span className="text-[10px] opacity-40 shrink-0 leading-none">·</span>
-        <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
+        <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none">
+          {clientDisplay}
+        </span>
       </div>
       {/* Línea 2: servicio — pegado al horario, legible y sin cortarse */}
-      {a.service_name && <div className="text-[11px] text-foreground/85 truncate leading-none mt-0.5">{a.service_name}</div>}
+      {a.service_name && (
+        <div className="text-[11px] text-foreground/85 truncate leading-none mt-0.5">
+          {a.service_name}
+        </div>
+      )}
       {/se(ñ|n)a/i.test(a.notes || "") && (
-        <div className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
-          style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}>
+        <div
+          className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
+          style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}
+        >
           Seña
         </div>
       )}
@@ -2018,7 +2283,6 @@ function IconBtn({
     </button>
   );
 }
-
 
 function dateInputValue(date: Date) {
   const y = date.getFullYear();
@@ -2070,7 +2334,9 @@ function BlockHoursDialog({
     : new Date(start.getTime() + 60 * 60_000);
   const startTime = timeParts(start);
   const endTime = timeParts(end);
-  const [label, setLabel] = React.useState(appointment?.client_name === "Horario bloqueado" ? "" : appointment?.client_name ?? "");
+  const [label, setLabel] = React.useState(
+    appointment?.client_name === "Horario bloqueado" ? "" : (appointment?.client_name ?? ""),
+  );
   const [employeeId, setEmployeeId] = React.useState(initialEmployeeId ?? "");
   const [startDate, setStartDate] = React.useState(dateInputValue(start));
   const [startHour, setStartHour] = React.useState(startTime.hour);
@@ -2090,7 +2356,9 @@ function BlockHoursDialog({
       : new Date(nextStart.getTime() + 60 * 60_000);
     const nextStartTime = timeParts(nextStart);
     const nextEndTime = timeParts(nextEnd);
-    setLabel(appointment?.client_name === "Horario bloqueado" ? "" : appointment?.client_name ?? "");
+    setLabel(
+      appointment?.client_name === "Horario bloqueado" ? "" : (appointment?.client_name ?? ""),
+    );
     setEmployeeId((appointment?.employee_id ?? initialEmployeeId) || "");
     setStartDate(dateInputValue(nextStart));
     setStartHour(nextStartTime.hour);
@@ -2106,8 +2374,10 @@ function BlockHoursDialog({
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
   const minutes = ["00", "15", "30", "45"];
 
-  const inputClass = "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
-  const selectClass = "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
+  const inputClass =
+    "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
+  const selectClass =
+    "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
 
   return (
     <AgendaDrawer
@@ -2116,115 +2386,181 @@ function BlockHoursDialog({
       title={appointment ? "Editar bloqueo de horas" : "Bloqueo de horas"}
       footer={
         <>
-          <Button variant="secondary" className="h-9" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="secondary" className="h-9" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
           <Button
             className="h-9"
-            onClick={() => onSave({
-              appointmentId: appointment?.id,
-              employeeId: employeeId || null,
-              startsAt: combineLocalDateTime(startDate, startHour, startMinute),
-              endsAt: combineLocalDateTime(endDate, endHour, endMinute),
-              label: label.trim(),
-              repeatEnabled,
-              repeatEvery: Number(repeatEvery || 1),
-              repeatCount: Number(repeatCount || 1),
-            })}
+            onClick={() =>
+              onSave({
+                appointmentId: appointment?.id,
+                employeeId: employeeId || null,
+                startsAt: combineLocalDateTime(startDate, startHour, startMinute),
+                endsAt: combineLocalDateTime(endDate, endHour, endMinute),
+                label: label.trim(),
+                repeatEnabled,
+                repeatEvery: Number(repeatEvery || 1),
+                repeatCount: Number(repeatCount || 1),
+              })
+            }
           >
             {appointment ? "Guardar cambios" : "Guardar bloqueo"}
           </Button>
         </>
       }
     >
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <label className="block text-sm font-semibold">
+            Motivo/Etiqueta
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Ej: Almuerzo, trámite, capacitación"
+              className={`${inputClass} mt-2 w-full`}
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Profesional
+            <select
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              className={`${selectClass} mt-2 w-full`}
+            >
+              <option value="">Sin asignar</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.full_name ?? employee.name ?? "Profesional"}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
             <label className="block text-sm font-semibold">
-              Motivo/Etiqueta
+              Fecha de inicio
               <input
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="Ej: Almuerzo, trámite, capacitación"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
                 className={`${inputClass} mt-2 w-full`}
               />
             </label>
             <label className="block text-sm font-semibold">
-              Profesional
-              <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                <option value="">Sin asignar</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.full_name ?? employee.name ?? "Profesional"}
+              Hora
+              <select
+                value={startHour}
+                onChange={(e) => setStartHour(e.target.value)}
+                className={`${selectClass} mt-2 w-full`}
+              >
+                {hours.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold">
+              &nbsp;
+              <select
+                value={startMinute}
+                onChange={(e) => setStartMinute(e.target.value)}
+                className={`${selectClass} mt-2 w-full`}
+              >
+                {minutes.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
                   </option>
                 ))}
               </select>
             </label>
           </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-            <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
-              <label className="block text-sm font-semibold">
-                Fecha de inicio
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
-              </label>
-              <label className="block text-sm font-semibold">
-                Hora
-                <select value={startHour} onChange={(e) => setStartHour(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                &nbsp;
-                <select value={startMinute} onChange={(e) => setStartMinute(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
-            </div>
-            <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
-              <label className="block text-sm font-semibold">
-                Fecha de fin
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputClass} mt-2 w-full`} />
-              </label>
-              <label className="block text-sm font-semibold">
-                Hora
-                <select value={endHour} onChange={(e) => setEndHour(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                &nbsp;
-                <select value={endMinute} onChange={(e) => setEndMinute(e.target.value)} className={`${selectClass} mt-2 w-full`}>
-                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
-            </div>
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
+            <label className="block text-sm font-semibold">
+              Fecha de fin
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={`${inputClass} mt-2 w-full`}
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              Hora
+              <select
+                value={endHour}
+                onChange={(e) => setEndHour(e.target.value)}
+                className={`${selectClass} mt-2 w-full`}
+              >
+                {hours.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold">
+              &nbsp;
+              <select
+                value={endMinute}
+                onChange={(e) => setEndMinute(e.target.value)}
+                className={`${selectClass} mt-2 w-full`}
+              >
+                {minutes.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-
-          {!appointment && (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-              <label className="flex items-center gap-3 text-sm font-semibold">
-                <input type="checkbox" checked={repeatEnabled} onChange={(e) => setRepeatEnabled(e.target.checked)} />
-                Repetir bloqueo
-              </label>
-              {repeatEnabled && (
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block text-sm font-semibold">
-                    Cada
-                    <div className="mt-2 flex items-center gap-2">
-                      <input type="number" min="1" value={repeatEvery} onChange={(e) => setRepeatEvery(e.target.value)} className={`${inputClass} w-20`} />
-                      <span className="text-sm text-muted-foreground">día(s)</span>
-                    </div>
-                  </label>
-                  <label className="block text-sm font-semibold">
-                    Finaliza después de
-                    <div className="mt-2 flex items-center gap-2">
-                      <input type="number" min="1" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} className={`${inputClass} w-24`} />
-                      <span className="text-sm text-muted-foreground">repeticiones</span>
-                    </div>
-                  </label>
-                </div>
-              )}
-            </div>
-          )}
         </div>
+
+        {!appointment && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+            <label className="flex items-center gap-3 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={repeatEnabled}
+                onChange={(e) => setRepeatEnabled(e.target.checked)}
+              />
+              Repetir bloqueo
+            </label>
+            {repeatEnabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm font-semibold">
+                  Cada
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={repeatEvery}
+                      onChange={(e) => setRepeatEvery(e.target.value)}
+                      className={`${inputClass} w-20`}
+                    />
+                    <span className="text-sm text-muted-foreground">día(s)</span>
+                  </div>
+                </label>
+                <label className="block text-sm font-semibold">
+                  Finaliza después de
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={repeatCount}
+                      onChange={(e) => setRepeatCount(e.target.value)}
+                      className={`${inputClass} w-24`}
+                    />
+                    <span className="text-sm text-muted-foreground">repeticiones</span>
+                  </div>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </AgendaDrawer>
   );
 }
@@ -2281,7 +2617,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 }) {
   const [confirmCancel, setConfirmCancel] = React.useState(false);
   const apptId = appointment?.id;
-  React.useEffect(() => { setConfirmCancel(false); }, [apptId]);
+  React.useEffect(() => {
+    setConfirmCancel(false);
+  }, [apptId]);
   if (!appointment) return null;
 
   const employee = employees.find((e) => e.id === appointment.employee_id);
@@ -2293,17 +2631,20 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const phone = client?.phone ?? null;
   const email = client?.email ?? null;
   const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
-  const requiresDeposit = Boolean(appointment.deposit_status && appointment.deposit_status !== "none");
+  const requiresDeposit = Boolean(
+    appointment.deposit_status && appointment.deposit_status !== "none",
+  );
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
-  const statusLabel = appointment.status === "charged"
-    ? "Cobrado"
-    : appointment.status === "confirmed"
-      ? "Confirmado"
-      : appointment.status === "cancelled"
-        ? "Cancelado"
-        : appointment.status === "in_service"
-          ? "En servicio"
-          : "Pendiente";
+  const statusLabel =
+    appointment.status === "charged"
+      ? "Cobrado"
+      : appointment.status === "confirmed"
+        ? "Confirmado"
+        : appointment.status === "cancelled"
+          ? "Cancelado"
+          : appointment.status === "in_service"
+            ? "En servicio"
+            : "Pendiente";
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
   const noteText = clientNoteOnly(appointment.notes);
@@ -2329,23 +2670,44 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl" style={{ background: meta.dot }} />
+          <div
+            className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
+            style={{ background: meta.dot }}
+          />
           <div className="relative flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: meta.dot }}>
-                <span className="size-1.5 rounded-full" style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }} />
+              <div
+                className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
+                style={{ color: meta.dot }}
+              >
+                <span
+                  className="size-1.5 rounded-full"
+                  style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
+                />
                 {statusLabel}
               </div>
               <SheetTitle className="text-[20px] leading-none font-display tracking-tight truncate">
-                {appointment.status === "blocked" ? "Horario bloqueado" : appointment.client_name || "Sin cliente"}
+                {appointment.status === "blocked"
+                  ? "Horario bloqueado"
+                  : appointment.client_name || "Sin cliente"}
               </SheetTitle>
             </div>
             <div className="flex gap-1.5 pr-7">
-              <Button size="sm" variant="secondary" className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]" onClick={() => onFicha(appointment)}>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
+                onClick={() => onFicha(appointment)}
+              >
                 <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
               </Button>
               {!isPast && (
-                <Button size="sm" variant="secondary" className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]" onClick={() => onEdit(appointment)}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
+                  onClick={() => onEdit(appointment)}
+                >
                   Editar
                 </Button>
               )}
@@ -2358,10 +2720,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Turno</div>
-                <div className="mt-1 text-base font-semibold leading-tight truncate">{appointment.service_name || "Servicio"}</div>
+                <div className="mt-1 text-base font-semibold leading-tight truncate">
+                  {appointment.service_name || "Servicio"}
+                </div>
                 <div className="mt-1.5 text-sm text-white/70">{dateText}</div>
                 <div className="mt-0.5 text-sm text-white/45">
-                  Profesional: <span className="text-white/85">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+                  Profesional:{" "}
+                  <span className="text-white/85">
+                    {employee?.full_name ?? employee?.name ?? "Sin asignar"}
+                  </span>
                 </div>
               </div>
               {appointment.service_price ? (
@@ -2371,40 +2738,64 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               ) : null}
             </div>
 
-            {appointment.deposit_status && appointment.deposit_status !== "none" && (() => {
-              const ds = appointment.deposit_status;
-              const depositAmt = Number(appointment.deposit_amount ?? 0);
-              const depositPaid = Number(appointment.deposit_paid ?? 0);
-              const total = Number(appointment.service_price ?? 0);
-              const remaining = Math.max(0, total - depositPaid);
-              const statusMap: Record<string, { icon: string; label: string; color: string }> = {
-                pending: { icon: "🟡", label: "Seña pendiente", color: "text-amber-300" },
-                paid: { icon: "🟢", label: "Seña pagada", color: "text-emerald-300" },
-                lost: { icon: "🔴", label: "Seña perdida", color: "text-rose-300" },
-                returned:{ icon: "🔵", label: "Seña devuelta", color: "text-sky-300" },
-              };
-              const dsInfo = statusMap[ds] ?? statusMap.pending;
-              return (
-                <div className="mt-3 pt-3 border-t border-white/10 text-sm">
-                  <div className={`font-semibold ${dsInfo.color}`}>{dsInfo.icon} {dsInfo.label}</div>
-                  {depositAmt > 0 && <div className="mt-1 text-muted-foreground">Seña requerida: <span className="text-foreground font-medium">${depositAmt.toLocaleString("es-AR")}</span></div>}
-                  {ds === "paid" && depositPaid > 0 && (
-                    <div className="mt-1 text-muted-foreground">Pendiente de cobro: <span className="text-foreground font-medium">${remaining.toLocaleString("es-AR")}</span></div>
-                  )}
-                </div>
-              );
-            })()}
+            {appointment.deposit_status &&
+              appointment.deposit_status !== "none" &&
+              (() => {
+                const ds = appointment.deposit_status;
+                const depositAmt = Number(appointment.deposit_amount ?? 0);
+                const depositPaid = Number(appointment.deposit_paid ?? 0);
+                const total = Number(appointment.service_price ?? 0);
+                const remaining = Math.max(0, total - depositPaid);
+                const statusMap: Record<string, { icon: string; label: string; color: string }> = {
+                  pending: { icon: "🟡", label: "Seña pendiente", color: "text-amber-300" },
+                  paid: { icon: "🟢", label: "Seña pagada", color: "text-emerald-300" },
+                  lost: { icon: "🔴", label: "Seña perdida", color: "text-rose-300" },
+                  returned: { icon: "🔵", label: "Seña devuelta", color: "text-sky-300" },
+                };
+                const dsInfo = statusMap[ds] ?? statusMap.pending;
+                return (
+                  <div className="mt-3 pt-3 border-t border-white/10 text-sm">
+                    <div className={`font-semibold ${dsInfo.color}`}>
+                      {dsInfo.icon} {dsInfo.label}
+                    </div>
+                    {depositAmt > 0 && (
+                      <div className="mt-1 text-muted-foreground">
+                        Seña requerida:{" "}
+                        <span className="text-foreground font-medium">
+                          ${depositAmt.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    )}
+                    {ds === "paid" && depositPaid > 0 && (
+                      <div className="mt-1 text-muted-foreground">
+                        Pendiente de cobro:{" "}
+                        <span className="text-foreground font-medium">
+                          ${remaining.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
           </div>
 
           <div className="space-y-2 text-sm">
             {phone && (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
                 <div className="min-w-0">
-                  <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">Teléfono</div>
+                  <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">
+                    Teléfono
+                  </div>
                   <div className="mt-0.5 truncate text-white/85 text-[13px]">{phone}</div>
                 </div>
                 {whatsappHref && (
-                  <a href={whatsappHref} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition px-3 text-[12px] font-medium">
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="WhatsApp"
+                    className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition px-3 text-[12px] font-medium"
+                  >
                     <MessageCircle className="h-4 w-4" /> WhatsApp
                   </a>
                 )}
@@ -2418,35 +2809,61 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             )}
             {noteText && (
               <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
-                <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">Notas</div>
-                <div className="text-white/80 text-[13px] whitespace-pre-wrap break-words">{noteText}</div>
+                <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">
+                  Notas
+                </div>
+                <div className="text-white/80 text-[13px] whitespace-pre-wrap break-words">
+                  {noteText}
+                </div>
               </div>
             )}
           </div>
 
           {appointment.status === "blocked" ? (
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" className="h-9" onClick={() => onEdit(appointment)}>Editar bloqueo</Button>
-              <Button variant="destructive" className="h-9" onClick={() => onReleaseBlock(appointment)}>Liberar horario</Button>
+              <Button variant="secondary" className="h-9" onClick={() => onEdit(appointment)}>
+                Editar bloqueo
+              </Button>
+              <Button
+                variant="destructive"
+                className="h-9"
+                onClick={() => onReleaseBlock(appointment)}
+              >
+                Liberar horario
+              </Button>
             </div>
           ) : appointment.status === "charged" ? (
             <div className="space-y-2">
-              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
+              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                Estado
+              </div>
 
               {/* Cobrado: estado final, sin posibilidad de cambio */}
-              {(() => { const dot = STATUS_META.charged.dot; return (
-                <div
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                  style={{ background: withAlpha(dot, 0.16), color: dot, boxShadow: `inset 0 0 0 1.5px ${dot}` }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />
-                  Cobrado
-                </div>
-              ); })()}
+              {(() => {
+                const dot = STATUS_META.charged.dot;
+                return (
+                  <div
+                    className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                    style={{
+                      background: withAlpha(dot, 0.16),
+                      color: dot,
+                      boxShadow: `inset 0 0 0 1.5px ${dot}`,
+                    }}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                    />
+                    Cobrado
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
+              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                Estado
+              </div>
 
               {isPast && appointment.status !== "cancelled" && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] text-white/55">
@@ -2454,87 +2871,201 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               )}
 
-              {!isPast && (<>
-              {/* Pendiente */}
-              {(() => { const dot = STATUS_META.pending.dot; const active = appointment.status === "pending"; return (
-                <button
-                  onClick={() => onChangeStatus(appointment, "pending")}
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                  style={{ background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: active ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
-                >
-                  {active && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
-                  Pendiente
-                </button>
-              ); })()}
+              {!isPast && (
+                <>
+                  {/* Pendiente */}
+                  {(() => {
+                    const dot = STATUS_META.pending.dot;
+                    const active = appointment.status === "pending";
+                    return (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "pending")}
+                        className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        style={{
+                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                          color: dot,
+                          boxShadow: active
+                            ? `inset 0 0 0 1.5px ${dot}`
+                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                        }}
+                      >
+                        {active && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                          />
+                        )}
+                        Pendiente
+                      </button>
+                    );
+                  })()}
 
-              {/* Confirmado */}
-              {(() => { const dot = STATUS_META.confirmed.dot; const active = appointment.status === "confirmed"; return (
-                <button
-                  onClick={() => onChangeStatus(appointment, "confirmed")}
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                  style={{ background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: active ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
-                >
-                  {active && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
-                  Confirmado
-                </button>
-              ); })()}
-              </>)}
+                  {/* Confirmado */}
+                  {(() => {
+                    const dot = STATUS_META.confirmed.dot;
+                    const active = appointment.status === "confirmed";
+                    return (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "confirmed")}
+                        className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        style={{
+                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                          color: dot,
+                          boxShadow: active
+                            ? `inset 0 0 0 1.5px ${dot}`
+                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                        }}
+                      >
+                        {active && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                          />
+                        )}
+                        Confirmado
+                      </button>
+                    );
+                  })()}
+                </>
+              )}
 
               {/* Cancelado — único, con confirmación */}
-              {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return cancelled ? (
-                <div
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                  style={{ background: withAlpha(dot, 0.16), color: dot, boxShadow: `inset 0 0 0 1.5px ${dot}` }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />
-                  Cancelado
-                </div>
-              ) : confirmCancel ? (
-                <div className="rounded-xl p-2.5 space-y-2" style={{ background: withAlpha(dot, 0.08), boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}>
-                  <div className="text-xs text-center" style={{ color: dot }}>
-                    {appointment.deposit_status === "paid" ? "Tiene seña pagada. ¿Qué hacés con la seña?" : "¿Cancelar este turno?"}
+              {(() => {
+                const dot = STATUS_META.cancelled.dot;
+                const cancelled = appointment.status === "cancelled";
+                return cancelled ? (
+                  <div
+                    className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                    style={{
+                      background: withAlpha(dot, 0.16),
+                      color: dot,
+                      boxShadow: `inset 0 0 0 1.5px ${dot}`,
+                    }}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                    />
+                    Cancelado
                   </div>
-                  {appointment.deposit_status === "paid" ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button variant="destructive" className="h-9" onClick={() => { onCancelWithDeposit(appointment, "keep"); setConfirmCancel(false); }}>Perder seña</Button>
-                      <Button variant="secondary" className="h-9" onClick={() => { onCancelWithDeposit(appointment, "return"); setConfirmCancel(false); }}>Devolver seña</Button>
+                ) : confirmCancel ? (
+                  <div
+                    className="rounded-xl p-2.5 space-y-2"
+                    style={{
+                      background: withAlpha(dot, 0.08),
+                      boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                    }}
+                  >
+                    <div className="text-xs text-center" style={{ color: dot }}>
+                      {appointment.deposit_status === "paid"
+                        ? "Tiene seña pagada. ¿Qué hacés con la seña?"
+                        : "¿Cancelar este turno?"}
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button variant="destructive" className="h-9" onClick={() => { onCancel(appointment); setConfirmCancel(false); }}>Sí, cancelar</Button>
-                      <Button variant="secondary" className="h-9" onClick={() => setConfirmCancel(false)}>No</Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmCancel(true)}
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                  style={{ background: "rgba(255,255,255,0.03)", color: dot, boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
-                >
-                  Cancelado
-                </button>
-              ); })()}
+                    {appointment.deposit_status === "paid" ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="destructive"
+                          className="h-9"
+                          onClick={() => {
+                            onCancelWithDeposit(appointment, "keep");
+                            setConfirmCancel(false);
+                          }}
+                        >
+                          Perder seña
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="h-9"
+                          onClick={() => {
+                            onCancelWithDeposit(appointment, "return");
+                            setConfirmCancel(false);
+                          }}
+                        >
+                          Devolver seña
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="destructive"
+                          className="h-9"
+                          onClick={() => {
+                            onCancel(appointment);
+                            setConfirmCancel(false);
+                          }}
+                        >
+                          Sí, cancelar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="h-9"
+                          onClick={() => setConfirmCancel(false)}
+                        >
+                          No
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmCancel(true)}
+                    className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      color: dot,
+                      boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                    }}
+                  >
+                    Cancelado
+                  </button>
+                );
+              })()}
 
               {/* Cobrado */}
-              {!isPast && (() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
-                <button
-                  onClick={() => { if (!charged) onCobrar(appointment); }}
-                  disabled={charged}
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
-                  style={{ background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)", color: dot, boxShadow: charged ? `inset 0 0 0 1.5px ${dot}` : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}` }}
-                >
-                  {charged && <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />}
-                  Cobrado
-                </button>
-              ); })()}
+              {!isPast &&
+                (() => {
+                  const dot = STATUS_META.charged.dot;
+                  const charged = appointment.status === "charged";
+                  return (
+                    <button
+                      onClick={() => {
+                        if (!charged) onCobrar(appointment);
+                      }}
+                      disabled={charged}
+                      className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
+                      style={{
+                        background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                        color: dot,
+                        boxShadow: charged
+                          ? `inset 0 0 0 1.5px ${dot}`
+                          : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                      }}
+                    >
+                      {charged && (
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                        />
+                      )}
+                      Cobrado
+                    </button>
+                  );
+                })()}
 
               {/* Cobrar seña (si aplica) */}
-              {!isPast && requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
-                <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
-                  <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
-                </Button>
-              )}
+              {!isPast &&
+                requiresDeposit &&
+                appointment.status !== "charged" &&
+                appointment.deposit_status !== "paid" &&
+                appointment.deposit_status !== "lost" && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => onMarkDeposit(appointment)}
+                    className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
+                  >
+                    <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+                  </Button>
+                )}
             </div>
           )}
         </div>
@@ -2542,7 +3073,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
     </Sheet>
   );
 });
-
 
 function WeekView({
   start,
@@ -2565,9 +3095,15 @@ function WeekView({
   const openDays = days
     .map((d) => getScheduleForDate(schedule, d))
     .filter((day): day is NonNullable<typeof day> => Boolean(day?.enabled));
-  const hourStart = openDays.length ? Math.floor(Math.min(...openDays.map((day) => parseScheduleTime(day.start)))) : 0;
-  const hourEnd = openDays.length ? Math.ceil(Math.max(...openDays.map((day) => parseScheduleTime(day.end)))) : 0;
-  const HOURS = openDays.length ? Array.from({ length: Math.max(0, hourEnd - hourStart) }, (_, i) => hourStart + i) : [];
+  const hourStart = openDays.length
+    ? Math.floor(Math.min(...openDays.map((day) => parseScheduleTime(day.start))))
+    : 0;
+  const hourEnd = openDays.length
+    ? Math.ceil(Math.max(...openDays.map((day) => parseScheduleTime(day.end))))
+    : 0;
+  const HOURS = openDays.length
+    ? Array.from({ length: Math.max(0, hourEnd - hourStart) }, (_, i) => hourStart + i)
+    : [];
 
   return (
     <section className="glass rounded-2xl p-2 sm:p-3">
@@ -2586,18 +3122,13 @@ function WeekView({
                 key={d.toISOString()}
                 className={cn(
                   "px-2 pb-2 pt-1 border-l border-white/[0.04] text-center",
-                  isClosed && "opacity-50"
+                  isClosed && "opacity-50",
                 )}
               >
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   {fmtShortDow(d)}
                 </div>
-                <div
-                  className={cn(
-                    "text-sm font-semibold",
-                    isToday && "text-primary",
-                  )}
-                >
+                <div className={cn("text-sm font-semibold", isToday && "text-primary")}>
                   {d.getDate()}
                 </div>
               </div>
@@ -2672,8 +3203,14 @@ function WeekView({
                         onApptClick(a);
                       }}
                     >
-                      <div className="text-[8px] font-semibold leading-none truncate" style={{ color: meta.dot }}>
-                        {fmtTime(start)}{a.duration_min ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min) * 60000))}` : ""}
+                      <div
+                        className="text-[8px] font-semibold leading-none truncate"
+                        style={{ color: meta.dot }}
+                      >
+                        {fmtTime(start)}
+                        {a.duration_min
+                          ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min) * 60000))}`
+                          : ""}
                       </div>
                       <div className="text-[10px] font-semibold truncate leading-[1.05] mt-0.5">
                         {a.client_name || "—"}
@@ -2782,9 +3319,7 @@ function MonthView({
                   );
                 })}
                 {items.length > 2 && (
-                  <div className="text-[10px] text-muted-foreground">
-                    +{items.length - 2} más
-                  </div>
+                  <div className="text-[10px] text-muted-foreground">+{items.length - 2} más</div>
                 )}
               </div>
             </button>
@@ -2794,4 +3329,3 @@ function MonthView({
     </section>
   );
 }
-
