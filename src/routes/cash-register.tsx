@@ -2117,6 +2117,17 @@ function NuevaVentaTab({
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
   const splitsRemaining = total - splitsTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
+  const hasSelectedClient = Boolean(clientId);
+  const serviceSummary = cartItems.length > 0
+    ? cartItems.map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`).join(" + ")
+    : "Sin servicios";
+  const canContinue = step === 1
+    ? Boolean(employeeId)
+    : step === 2
+      ? hasSelectedClient
+      : step === 3
+        ? cartItems.length > 0
+        : true;
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
   const sub = (id: string) => setCart((c) => {
@@ -2171,6 +2182,7 @@ function NuevaVentaTab({
   async function handleCobrar() {
     if (!data.businessId) { toast.error("No se pudo identificar el negocio."); return; }
     if (!employeeId) { toast.error("Seleccioná un profesional."); setStep(1); return; }
+    if (!clientId) { toast.error("Seleccioná o creá un cliente."); setStep(2); return; }
     if (cartItems.length === 0) { toast.error("Agregá al menos un servicio."); setStep(3); return; }
 
     if (paymentMode === "simple") {
@@ -2270,7 +2282,7 @@ function NuevaVentaTab({
         });
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
-        setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate("");
+        setCart({}); setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes("");
         setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
       }
 
@@ -2294,7 +2306,12 @@ function NuevaVentaTab({
           {stepItems.map((s) => {
             const active = step === s.n;
             return (
-              <button key={s.n} onClick={() => setStep(s.n)}
+              <button key={s.n} onClick={() => {
+                  if (s.n > 1 && !employeeId) { toast.error("Seleccioná un profesional."); return; }
+                  if (s.n > 2 && !clientId) { toast.error("Seleccioná o creá un cliente."); return; }
+                  if (s.n > 3 && cartItems.length === 0) { toast.error("Agregá al menos un servicio o producto."); return; }
+                  setStep(s.n);
+                }}
                 className={cn("rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border",
                   active ? "bg-gradient-to-b from-blue-200 to-blue-300 text-black border-blue-200"
                     : "text-muted-foreground border-white/10 bg-white/[0.02] hover:text-foreground")}>
@@ -2318,9 +2335,23 @@ function NuevaVentaTab({
               <button key={e.id} type="button" onClick={() => setEmployeeId(e.id)}
                 className={cn("w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left transition-all",
                   active ? "border-blue-300/50 bg-blue-300/10" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.04]")}>
-                <span className="size-9 rounded-full bg-gradient-to-br from-blue-200/80 to-blue-500/80 text-black font-semibold grid place-items-center">
-                  {(e.name || "P").slice(0, 1).toUpperCase()}
-                </span>
+                {(() => {
+                  const avatarUrl = (e as { avatar_url?: string | null; photo_url?: string | null; image_url?: string | null }).avatar_url
+                    || (e as { photo_url?: string | null }).photo_url
+                    || (e as { image_url?: string | null }).image_url
+                    || null;
+                  return avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={e.name || "Profesional"}
+                      className="size-9 rounded-full object-cover ring-1 ring-white/15 bg-white/[0.04]"
+                    />
+                  ) : (
+                    <span className="size-9 rounded-full bg-gradient-to-br from-blue-200/80 to-blue-500/80 text-black font-semibold grid place-items-center">
+                      {(e.name || "P").slice(0, 1).toUpperCase()}
+                    </span>
+                  );
+                })()}
                 <span className="flex-1">
                   <span className="block text-sm font-semibold text-foreground">{e.name}</span>
                   <span className="block text-xs text-muted-foreground">Profesional</span>
@@ -2359,7 +2390,7 @@ function NuevaVentaTab({
               </div>
               <button
                 type="button"
-                onClick={() => { setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setNewClientOpen(false); }}
+                onClick={() => { setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes(""); setNewClientOpen(false); }}
                 className="shrink-0 text-xs text-muted-foreground hover:text-foreground border border-white/10 rounded-lg px-2.5 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] transition-colors mt-0.5"
               >
                 Cambiar
@@ -2408,11 +2439,9 @@ function NuevaVentaTab({
               if (saved) {
                 setClientId(saved);
                 setNewClientOpen(false);
-                toast.success("Cliente guardado");
+                toast.success("Cliente guardado y seleccionado");
               } else {
-                // No businessId or already existed — use name as display, generate temp id
-                setClientId(`new_${Date.now()}`);
-                setNewClientOpen(false);
+                toast.error("No se pudo guardar el cliente. Revisá los datos e intentá de nuevo.");
               }
             }
             return (
@@ -2624,16 +2653,21 @@ function NuevaVentaTab({
           </button>
           <div className="flex-1 min-w-0 text-right sm:text-left">
             <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">TOTAL</p>
-            <p className="text-sm text-foreground">{cartCount} item{cartCount === 1 ? "" : "s"} · {selectedEmployee?.name ?? "Sin profesional"}</p>
+            <p className="text-sm text-foreground truncate">
+              Profesional: {selectedEmployee?.name ?? "Sin profesional"} · Cliente: {clientId ? (client || "Cliente seleccionado") : "Sin cliente"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              Servicios: {serviceSummary}
+            </p>
           </div>
           <Money value={total} />
           {step < 4 ? (
-            <button onClick={goNext}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white bg-gradient-to-b from-blue-400 to-violet-500 hover:from-blue-100 hover:to-blue-300 disabled:opacity-40 transition-all">
+            <button onClick={goNext} disabled={!canContinue}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white bg-gradient-to-b from-blue-400 to-violet-500 hover:from-blue-100 hover:to-blue-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
               Continuar <ArrowRight className="size-4" />
             </button>
           ) : (
-            <button disabled={cartCount === 0 || submitting || (paymentMode === "multiple" && splitsRemaining !== 0)} onClick={handleCobrar}
+            <button disabled={!employeeId || !clientId || cartCount === 0 || submitting || (paymentMode === "multiple" && splitsRemaining !== 0)} onClick={handleCobrar}
               className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white bg-gradient-to-b from-blue-400 to-violet-500 hover:from-blue-100 hover:to-blue-300 disabled:opacity-40 transition-all">
               {submitting ? <><Loader2 className="size-4 animate-spin" /> Confirmando…</> : <>Confirmar cobro <Check className="size-4" /></>}
             </button>
