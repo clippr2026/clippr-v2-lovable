@@ -1669,7 +1669,7 @@ const DayView = React.memo(function DayView({
           style={{ gridTemplateColumns, width: gridWidth }}
         >
           <div
-            className="sticky left-0 top-0 z-40 bg-[#0c0b14] border-b border-r border-white/10"
+            className="sticky left-0 top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-r border-white/10"
             style={{ height: AGENDA_HEADER_PX }}
           />
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
@@ -1687,7 +1687,7 @@ const DayView = React.memo(function DayView({
             return (
               <div
                 key={e.id}
-                className="sticky top-0 z-20 px-2.5 border-l border-b border-white/10 bg-[#0c0b14] flex items-center gap-2"
+                className="sticky top-0 z-20 px-2.5 border-l border-b border-white/10 bg-background/80 backdrop-blur-xl flex items-center gap-2"
                 style={{ height: AGENDA_HEADER_PX }}
               >
                 {e.avatar_url ? (
@@ -1721,14 +1721,14 @@ const DayView = React.memo(function DayView({
           })}
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
 
-          <div ref={gridBodyRef} className="relative sticky left-0 z-30 bg-[#0c0b14] border-r border-white/10 shadow-[2px_0_8px_rgba(0,0,0,0.35)]">
+          <div ref={gridBodyRef} className="relative sticky left-0 z-30 bg-[#0c0b14] border-r border-white/15 shadow-[2px_0_8px_rgba(0,0,0,0.35)]">
             {HOURS.map((h) => (
               <div
                 key={h}
-                className="text-[12px] font-medium text-foreground/70 pr-2.5 text-right select-none"
+                className="text-[12px] font-medium text-foreground/70 pr-2.5 pt-1 text-right select-none"
                 style={{ height: rowPx }}
               >
-                <span className="relative -top-2">{String(h).padStart(2, "0")}:00</span>
+                <span>{String(h).padStart(2, "0")}:00</span>
               </div>
             ))}
           </div>
@@ -1968,7 +1968,7 @@ const ApptCard = React.memo(function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-[6px] px-1.5 py-1 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
+        "absolute rounded-[6px] px-1.5 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
@@ -1978,15 +1978,15 @@ const ApptCard = React.memo(function ApptCard({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {/* Línea 1: horario (lo más importante) + cliente */}
-      <div className="flex items-center gap-1 min-w-0 leading-tight">
+      <div className="flex items-center gap-1 min-w-0 leading-none">
         <span className="text-[11px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
           {fmtHM(start)} • {fmtHM(end)}
         </span>
         <span className="text-[10px] opacity-40 shrink-0 leading-none">·</span>
-        <span className="text-[13px] font-semibold truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
+        <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
       </div>
-      {/* Línea 2: servicio — más legible, pegado al horario */}
-      {a.service_name && <div className="text-[12px] text-foreground/85 truncate leading-tight mt-0.5">{a.service_name}</div>}
+      {/* Línea 2: servicio — pegado al horario, legible y sin cortarse */}
+      {a.service_name && <div className="text-[11px] text-foreground/85 truncate leading-none mt-0.5">{a.service_name}</div>}
       {/se(ñ|n)a/i.test(a.notes || "") && (
         <div className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
           style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}>

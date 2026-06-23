@@ -3707,9 +3707,9 @@ function EquipoSection() {
   }, [load]);
 
   const remove = useCallback(async (emp: EmployeeRow) => {
-    // Solo bloquean la eliminación los turnos FUTUROS no cancelados. El historial
-    // pasado (cobrados, completados, vencidos) y los cancelados NO bloquean: esos
-    // turnos se desvinculan del profesional al eliminarlo (ver doRemoveEmp).
+    // Solo bloquean la eliminación los turnos FUTUROS reales (no cancelados y
+    // que NO sean bloqueos de horario). El historial pasado, los cancelados y
+    // los bloqueos NO bloquean: se desvinculan del profesional al eliminarlo.
     const nowIso = new Date().toISOString();
     const { data: future, error: checkError } = await supabase
       .from("appointments")
@@ -3717,6 +3717,7 @@ function EquipoSection() {
       .eq("employee_id", emp.id)
       .gte("starts_at", nowIso)
       .neq("status", "cancelled")
+      .neq("status", "blocked")
       .limit(1);
     if (checkError) {
       toast.error("No se pudo verificar los turnos del profesional. Probá de nuevo.");
@@ -3768,7 +3769,12 @@ function EquipoSection() {
       .update({ employee_id: null })
       .eq("employee_id", emp.id)
       .eq("status", "cancelled");
-    if (detachPast.error || detachCancelled.error) {
+    const detachBlocked = await supabase
+      .from("appointments")
+      .update({ employee_id: null })
+      .eq("employee_id", emp.id)
+      .eq("status", "blocked");
+    if (detachPast.error || detachCancelled.error || detachBlocked.error) {
       setDeletingId(null);
       toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
       return;
