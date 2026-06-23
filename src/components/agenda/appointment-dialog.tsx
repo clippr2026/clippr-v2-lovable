@@ -22,7 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
   checkOverlap,
-  checkSchedule,
+  checkDaySchedule,
+  resolveDaySchedule,
   type Appointment,
   type ApptStatus,
   type Client,
@@ -46,6 +47,8 @@ type Props = {
   onSaved: () => void;
   schedule?: import("./use-agenda-data").ScheduleMap | null;
   employeeSchedules?: Record<string, import("./use-agenda-data").ScheduleMap>;
+  businessSpecialDates?: import("./use-agenda-data").SpecialDateMap;
+  employeeSpecialDates?: import("./use-agenda-data").EmployeeSpecialDateMap;
 };
 
 
@@ -239,6 +242,8 @@ export function AppointmentDialog({
   onSaved,
   schedule = null,
   employeeSchedules = {},
+  businessSpecialDates = {},
+  employeeSpecialDates = {},
 }: Props) {
   const isEdit = !!appointment?.id;
   const [busy, setBusy] = React.useState(false);
@@ -480,14 +485,18 @@ export function AppointmentDialog({
         .join("\n");
 
       // ── Schedule validation ───────────────────────────────────────────────
-      // Fuente PRINCIPAL: el horario del profesional. Si no tiene horario propio,
-      // se valida contra el del local. Cualquiera fuera de hora / en descanso
-      // bloquea el alta.
-      const empSchedule = employeeId ? employeeSchedules[employeeId] ?? null : null;
+      // Resuelve la prioridad de horarios (especial profesional → normal
+      // profesional → especial negocio → normal negocio) para cada fecha.
       for (const date of dates) {
-        const schedErr = empSchedule
-          ? checkSchedule(empSchedule, date, Number(duration) || 30)
-          : checkSchedule(schedule, date, Number(duration) || 30);
+        const day = resolveDaySchedule(
+          schedule,
+          employeeSchedules,
+          businessSpecialDates,
+          employeeSpecialDates,
+          employeeId || null,
+          date,
+        );
+        const schedErr = checkDaySchedule(day, date, Number(duration) || 30);
         if (schedErr) {
           toast.error(schedErr);
           setBusy(false);

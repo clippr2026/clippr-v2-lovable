@@ -72,6 +72,95 @@ export type ScheduleMap = Record<DayKey, DaySchedule>;
 
 const DAY_KEYS: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
+// Mapas de horarios especiales por fecha (clave "YYYY-MM-DD").
+export type SpecialDateMap = Record<string, DaySchedule>;
+export type EmployeeSpecialDateMap = Record<string, SpecialDateMap>;
+
+// Fecha local → "YYYY-MM-DD" (sin desfase de zona horaria).
+export function toDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Normaliza un DaySchedule suelto (usado para horarios especiales por fecha).
+export function normalizeDaySchedule(value: unknown): DaySchedule | null {
+  if (!value || typeof value !== "object") return null;
+  const d = value as Record<string, unknown>;
+  return {
+    enabled: d.enabled !== false,
+    start: typeof d.start === "string" ? d.start : "00:00",
+    end: typeof d.end === "string" ? d.end : "00:00",
+    breakStart: typeof d.breakStart === "string" ? d.breakStart : undefined,
+    breakEnd: typeof d.breakEnd === "string" ? d.breakEnd : undefined,
+  };
+}
+
+// Resuelve el DaySchedule efectivo para (profesional, fecha) con la prioridad:
+//   1. Especial del profesional para esa fecha.
+//   2. Semanal normal del profesional.
+//   3. Especial del negocio para esa fecha.
+//   4. Semanal normal del negocio (fallback).
+// Además: si el negocio tiene un especial CERRADO esa fecha, cierra a todos
+// (override global), porque "el negocio cierra completamente una fecha".
+export function resolveDaySchedule(
+  businessSchedule: ScheduleMap | null,
+  employeeSchedules: Record<string, ScheduleMap>,
+  businessSpecial: SpecialDateMap,
+  employeeSpecial: EmployeeSpecialDateMap,
+  employeeId: string | null | undefined,
+  date: Date,
+): DaySchedule | null {
+  const key = toDateKey(date);
+
+  const bizSpecial = businessSpecial[key];
+  if (bizSpecial && bizSpecial.enabled === false) {
+    return { ...bizSpecial, enabled: false }; // negocio cerrado ese día → todos
+  }
+
+  // 1. especial del profesional
+  if (employeeId && employeeSpecial[employeeId]?.[key]) {
+    return employeeSpecial[employeeId][key];
+  }
+  // 2. semanal normal del profesional (incluso si está libre ese día)
+  if (employeeId && employeeSchedules[employeeId]) {
+    const d = getScheduleForDate(employeeSchedules[employeeId], date);
+    if (d) return d;
+  }
+  // 3. especial del negocio (abierto)
+  if (bizSpecial) return bizSpecial;
+  // 4. semanal normal del negocio
+  return getScheduleForDate(businessSchedule, date);
+}
+
+// Valida un slot contra un DaySchedule concreto (apertura/cierre + descanso).
+export function checkDaySchedule(
+  day: DaySchedule | null,
+  startsAt: Date,
+  durationMin: number,
+): string | null {
+  if (!day) return null;
+  if (!day.enabled) {
+    return "El horario seleccionado está fuera del horario laboral configurado.";
+  }
+  const slotStart = startsAt.getHours() + startsAt.getMinutes() / 60;
+  const slotEnd = slotStart + (durationMin || 30) / 60;
+  const open = parseScheduleTime(day.start);
+  const close = parseScheduleTime(day.end);
+  if (slotStart < open || slotEnd > close) {
+    return "El horario seleccionado está fuera del horario laboral configurado.";
+  }
+  if (day.breakStart && day.breakEnd) {
+    const breakStart = parseScheduleTime(day.breakStart);
+    const breakEnd = parseScheduleTime(day.breakEnd);
+    if (breakEnd > breakStart && slotStart < breakEnd && slotEnd > breakStart) {
+      return "El horario seleccionado cae dentro del descanso configurado.";
+    }
+  }
+  return null;
+}
+
 export function parseScheduleTime(value: string) {
   const [hh, mm = "0"] = String(value || "0:00").split(":");
   const h = Number(hh);
@@ -108,23 +197,24 @@ function getAppointmentEnd(appt: Appointment) {
 export function getVisibleRange(
   businessSchedule: ScheduleMap | null,
   employeeSchedules: Record<string, ScheduleMap>,
+  businessSpecial: SpecialDateMap,
+  employeeSpecial: EmployeeSpecialDateMap,
   employees: { id: string; is_active?: boolean }[],
   date: Date,
   appointments: Appointment[] = [],
 ): { start: string; end: string } | null {
-  const bizDay = getScheduleForDate(businessSchedule, date);
-
   let coreOpen: number | null = null;
   let coreClose: number | null = null;
   for (const emp of employees) {
     if (emp.is_active === false) continue;
-    const es = employeeSchedules[emp.id];
-    let day: DaySchedule | null = null;
-    if (es) {
-      day = getScheduleForDate(es, date); // horario propio (primario)
-    } else if (bizDay) {
-      day = bizDay; // fallback al local
-    }
+    const day = resolveDaySchedule(
+      businessSchedule,
+      employeeSchedules,
+      businessSpecial,
+      employeeSpecial,
+      emp.id,
+      date,
+    );
     if (!day || !day.enabled) continue;
     const open = Math.round(parseScheduleTime(day.start) * 60);
     const close = Math.round(parseScheduleTime(day.end) * 60);
@@ -203,36 +293,7 @@ export function checkSchedule(
   durationMin: number,
 ): string | null {
   if (!schedule) return null;
-
-  const dayKey = DAY_KEYS[startsAt.getDay()];
-  const day = schedule[dayKey];
-
-  if (!day || !day.enabled) {
-    return "El horario seleccionado está fuera del horario laboral configurado.";
-  }
-
-  const slotStart = startsAt.getHours() + startsAt.getMinutes() / 60;
-  const slotEnd = slotStart + (durationMin || 30) / 60;
-
-  const open = parseScheduleTime(day.start);
-  const close = parseScheduleTime(day.end);
-
-  if (slotStart < open || slotEnd > close) {
-    return "El horario seleccionado está fuera del horario laboral configurado.";
-  }
-
-  // Descanso (opcional): si está configurado, no se puede agendar dentro de él.
-  // Vale tanto para el horario del negocio como para el del profesional, ya que
-  // checkSchedule se invoca con ambos.
-  if (day.breakStart && day.breakEnd) {
-    const breakStart = parseScheduleTime(day.breakStart);
-    const breakEnd = parseScheduleTime(day.breakEnd);
-    if (breakEnd > breakStart && slotStart < breakEnd && slotEnd > breakStart) {
-      return "El horario seleccionado cae dentro del descanso configurado.";
-    }
-  }
-
-  return null;
+  return checkDaySchedule(schedule[DAY_KEYS[startsAt.getDay()]] ?? null, startsAt, durationMin);
 }
 
 function normalizeSchedule(value: unknown): ScheduleMap | null {
@@ -268,6 +329,9 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   // Horario individual por profesional, guardado en business_settings.schedule
   // bajo la clave `_employeeSchedules[employeeId]`. Mapa id → ScheduleMap.
   const [employeeSchedules, setEmployeeSchedules] = React.useState<Record<string, ScheduleMap>>({});
+  // Horarios especiales por fecha (override puntual).
+  const [businessSpecialDates, setBusinessSpecialDates] = React.useState<SpecialDateMap>({});
+  const [employeeSpecialDates, setEmployeeSpecialDates] = React.useState<EmployeeSpecialDateMap>({});
   const [realtimeStatus, setRealtimeStatus] = React.useState<"connecting" | "connected" | "disconnected">("connecting");
 
   const startIso = rangeStart.toISOString();
@@ -336,6 +400,35 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       if (ns) normalizedEmployeeSchedules[empId] = ns;
     }
     setEmployeeSchedules(normalizedEmployeeSchedules);
+
+    // Horarios especiales por fecha del negocio (`_specialDates`) y por
+    // profesional (`_employeeSpecialDates[empId]`).
+    const rawBizSpecial =
+      rawSchedule && typeof rawSchedule._specialDates === "object" && rawSchedule._specialDates
+        ? (rawSchedule._specialDates as Record<string, unknown>)
+        : {};
+    const normalizedBizSpecial: SpecialDateMap = {};
+    for (const [dateKey, value] of Object.entries(rawBizSpecial)) {
+      const nd = normalizeDaySchedule(value);
+      if (nd) normalizedBizSpecial[dateKey] = nd;
+    }
+    setBusinessSpecialDates(normalizedBizSpecial);
+
+    const rawEmpSpecial =
+      rawSchedule && typeof rawSchedule._employeeSpecialDates === "object" && rawSchedule._employeeSpecialDates
+        ? (rawSchedule._employeeSpecialDates as Record<string, Record<string, unknown>>)
+        : {};
+    const normalizedEmpSpecial: EmployeeSpecialDateMap = {};
+    for (const [empId, byDate] of Object.entries(rawEmpSpecial)) {
+      if (!byDate || typeof byDate !== "object") continue;
+      const map: SpecialDateMap = {};
+      for (const [dateKey, value] of Object.entries(byDate)) {
+        const nd = normalizeDaySchedule(value);
+        if (nd) map[dateKey] = nd;
+      }
+      if (Object.keys(map).length) normalizedEmpSpecial[empId] = map;
+    }
+    setEmployeeSpecialDates(normalizedEmpSpecial);
 
     setAppointments(
       aRes.status === "fulfilled" && !aRes.value.error
@@ -470,6 +563,8 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     clients,
     schedule,
     employeeSchedules,
+    businessSpecialDates,
+    employeeSpecialDates,
     realtimeStatus,
     refresh: load,
   };
