@@ -26,6 +26,7 @@ import {
   setAppointmentStatus,
   checkDaySchedule,
   resolveDaySchedule,
+  toDateKey,
   type Appointment,
   type ApptStatus,
   getScheduleForDate,
@@ -231,6 +232,27 @@ function AgendaPage() {
     appointment?: Appointment | null;
   } | null>(null);
   const [newMenu, setNewMenu] = React.useState(false);
+  // Descansos habilitados temporalmente (solo en esta sesión, sin tocar la
+  // config permanente). Clave: `${employeeId}|${YYYY-MM-DD}`.
+  const [enabledBreaks, setEnabledBreaks] = React.useState<Set<string>>(() => new Set());
+  // Modal al tocar un bloque de descanso.
+  const [breakModal, setBreakModal] = React.useState<{
+    employeeId: string | null;
+    date: Date;
+    breakStart: string;
+    breakEnd: string;
+  } | null>(null);
+  // Editor de horario especial para (profesional, fecha) desde la Agenda.
+  const [specialEditor, setSpecialEditor] = React.useState<{
+    employeeId: string;
+    date: Date;
+    available: boolean;
+    start: string;
+    end: string;
+    breakStart: string;
+    breakEnd: string;
+    saving: boolean;
+  } | null>(null);
   const newBtnRef = React.useRef<HTMLButtonElement>(null);
   const [newMenuPos, setNewMenuPos] = React.useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const [calOpen, setCalOpen] = React.useState(false);
@@ -283,14 +305,28 @@ function AgendaPage() {
       employeeId,
       startsAt,
     );
+    const breakKey = `${employeeId ?? "__none__"}|${toDateKey(startsAt)}`;
+    const breakEnabled = enabledBreaks.has(breakKey);
     const guardErr = checkDaySchedule(resolvedDay, startsAt, 1);
     if (guardErr) {
-      toast.error(
-        guardErr.includes("descanso")
-          ? "El profesional está en descanso en ese horario."
-          : "Fuera del horario disponible para este profesional.",
-      );
-      return;
+      // Descanso: si no está habilitado temporalmente, abrir el modal de
+      // descanso (Cancelar / Habilitar / Editar). Si ya está habilitado, dejar
+      // pasar (cae al setSlotMenu de abajo).
+      if (guardErr.includes("descanso") && !breakEnabled) {
+        const br = breakRangeMin(resolvedDay);
+        setBreakModal({
+          employeeId,
+          date: startsAt,
+          breakStart: br ? minToHHMM(br.startMin) : resolvedDay?.breakStart ?? "",
+          breakEnd: br ? minToHHMM(br.endMin) : resolvedDay?.breakEnd ?? "",
+        });
+        return;
+      }
+      if (!guardErr.includes("descanso")) {
+        toast.error("Fuera del horario disponible para este profesional.");
+        return;
+      }
+      // (guardErr es descanso pero breakEnabled === true) → continúa.
     }
 
     setSlotMenu({
@@ -305,6 +341,93 @@ function AgendaPage() {
     setSlotMenu(null);
     setBlockDialog({ employeeId, startsAt, appointment });
     setActiveDrawer("block");
+  };
+
+  // ── Descanso: habilitar temporalmente / editar horario especial ────────────
+  const enableBreakTemporarily = () => {
+    if (!breakModal) return;
+    const key = `${breakModal.employeeId ?? "__none__"}|${toDateKey(breakModal.date)}`;
+    setEnabledBreaks((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    setBreakModal(null);
+    toast.success("Descanso habilitado para hoy. Ya podés crear turnos en esa franja.");
+  };
+
+  const openSpecialFromBreak = () => {
+    if (!breakModal || !breakModal.employeeId) {
+      setBreakModal(null);
+      return;
+    }
+    // No se puede editar un día que ya pasó.
+    const today = new Date();
+    if (toDateKey(breakModal.date) < toDateKey(today)) {
+      toast.error("No podés editar un horario que ya pasó.");
+      return;
+    }
+    const day = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      breakModal.employeeId,
+      breakModal.date,
+    );
+    setSpecialEditor({
+      employeeId: breakModal.employeeId,
+      date: breakModal.date,
+      available: day?.enabled !== false,
+      start: day?.start ?? "11:00",
+      end: day?.end ?? "20:00",
+      breakStart: day?.breakStart ?? "",
+      breakEnd: day?.breakEnd ?? "",
+      saving: false,
+    });
+    setBreakModal(null);
+  };
+
+  const saveSpecialFromAgenda = async () => {
+    if (!specialEditor || !data.businessId) return;
+    setSpecialEditor((s) => (s ? { ...s, saving: true } : s));
+    const key = toDateKey(specialEditor.date);
+    const day = specialEditor.available
+      ? {
+          enabled: true,
+          start: specialEditor.start,
+          end: specialEditor.end,
+          breakStart: specialEditor.breakStart || undefined,
+          breakEnd: specialEditor.breakEnd || undefined,
+        }
+      : { enabled: false, start: "00:00", end: "00:00" };
+    try {
+      const { data: row } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", data.businessId)
+        .maybeSingle();
+      const sched = (row?.schedule ?? {}) as Record<string, any>;
+      const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<string, Record<string, unknown>>;
+      const forEmp = (empSpecial[specialEditor.employeeId] ?? {}) as Record<string, unknown>;
+      const next = {
+        ...sched,
+        _employeeSpecialDates: {
+          ...empSpecial,
+          [specialEditor.employeeId]: { ...forEmp, [key]: day },
+        },
+      };
+      const { error } = await supabase
+        .from("business_settings")
+        .upsert({ business_id: data.businessId, schedule: next }, { onConflict: "business_id" });
+      if (error) throw error;
+      toast.success("Horario especial guardado.");
+      setSpecialEditor(null);
+      data.refresh();
+    } catch {
+      toast.error("No se pudo guardar el horario especial. Probá de nuevo.");
+      setSpecialEditor((s) => (s ? { ...s, saving: false } : s));
+    }
   };
 
   const saveBlock = async (payload: {
@@ -770,6 +893,7 @@ function AgendaPage() {
         date={cursor}
         data={memoData}
         schedule={daySchedule}
+        enabledBreaks={enabledBreaks}
         onSlotClick={handleSlotClick}
         onApptClick={handleApptClick}
         onChangeStatus={handleChangeStatus}
@@ -812,6 +936,141 @@ function AgendaPage() {
             </button>
           </div>
         </>
+      ) : null}
+
+      {/* Modal de descanso (Cancelar / Habilitar descanso / Editar horario) */}
+      {breakModal ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setBreakModal(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold">Horario de descanso</div>
+            <p className="text-sm text-muted-foreground mt-1.5">
+              Este horario está configurado como descanso para este profesional
+              {breakModal.breakStart && breakModal.breakEnd
+                ? ` (${breakModal.breakStart}–${breakModal.breakEnd})`
+                : ""}
+              . ¿Qué querés hacer?
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                onClick={enableBreakTemporarily}
+                className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm"
+              >
+                Habilitar descanso
+              </button>
+              <button
+                onClick={openSpecialFromBreak}
+                className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm hover:bg-white/10"
+              >
+                Editar horario
+              </button>
+              <button
+                onClick={() => setBreakModal(null)}
+                className="w-full rounded-xl px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Editor de horario especial para (profesional, fecha) */}
+      {specialEditor ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => !specialEditor.saving && setSpecialEditor(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold">Horario especial</div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {specialEditor.date.toLocaleDateString("es-AR", {
+                weekday: "long",
+                day: "2-digit",
+                month: "2-digit",
+              })}
+            </p>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                onClick={() => setSpecialEditor((s) => (s ? { ...s, available: !s.available } : s))}
+                className={cn(
+                  "h-5 w-9 rounded-full relative transition-colors shrink-0",
+                  specialEditor.available ? "bg-primary" : "bg-white/15",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+                    specialEditor.available ? "left-[18px]" : "left-0.5",
+                  )}
+                />
+              </button>
+              <span className="text-sm">{specialEditor.available ? "Disponible" : "No disponible"}</span>
+            </div>
+
+            {specialEditor.available && (
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="time"
+                    value={specialEditor.start}
+                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, start: e.target.value } : s))}
+                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+                  />
+                  <span className="text-muted-foreground text-xs">a</span>
+                  <input
+                    type="time"
+                    value={specialEditor.end}
+                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, end: e.target.value } : s))}
+                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">Descanso:</span>
+                  <input
+                    type="time"
+                    value={specialEditor.breakStart}
+                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakStart: e.target.value } : s))}
+                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+                  />
+                  <span className="text-muted-foreground text-xs">-</span>
+                  <input
+                    type="time"
+                    value={specialEditor.breakEnd}
+                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakEnd: e.target.value } : s))}
+                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                onClick={saveSpecialFromAgenda}
+                disabled={specialEditor.saving}
+                className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+              >
+                {specialEditor.saving ? "Guardando…" : "Guardar"}
+              </button>
+              <button
+                onClick={() => setSpecialEditor(null)}
+                disabled={specialEditor.saving}
+                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <AppointmentDetailDialog
@@ -950,6 +1209,7 @@ const DayView = React.memo(function DayView({
   date,
   data,
   schedule,
+  enabledBreaks,
   onSlotClick,
   onApptClick,
   onChangeStatus,
@@ -958,6 +1218,7 @@ const DayView = React.memo(function DayView({
   date: Date;
   data: ReturnType<typeof useAgendaData>;
   schedule: ReturnType<typeof getScheduleForDate>;
+  enabledBreaks: Set<string>;
   onSlotClick: (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => void;
   onApptClick: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
@@ -1266,14 +1527,15 @@ const DayView = React.memo(function DayView({
         return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60, breaks: [] };
       }
       const br = breakRangeMin(day);
-      if (br) breaks.push(br);
+      const breakKey = `${empId}|${toDateKey(date)}`;
+      if (br && !enabledBreaks.has(breakKey)) breaks.push(br);
       return {
         openMin: Math.round(parseScheduleTime(day.start) * 60),
         closeMin: Math.round(parseScheduleTime(day.end) * 60),
         breaks,
       };
     },
-    [data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, date, HOUR_START],
+    [data.schedule, data.employeeSchedules, data.businessSpecialDates, data.employeeSpecialDates, date, HOUR_START, enabledBreaks],
   );
 
   if (isClosed) {
