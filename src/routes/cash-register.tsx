@@ -1994,6 +1994,7 @@ function NuevaVentaTab({
   const [category, setCategory] = React.useState<string>("");
   const [clientId, setClientId] = React.useState<string | null>(null);
   const [client, setClient] = React.useState(pendingCharge?.client_name ?? "");
+  const [clientSearch, setClientSearch] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
@@ -2390,7 +2391,8 @@ function NuevaVentaTab({
               </div>
               <button
                 type="button"
-                onClick={() => { setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes(""); setNewClientOpen(false); }}
+                onClick={() => { setClientId(null); setClient(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes(""); setNewClientOpen(false);
+                  setClientSearch(""); }}
                 className="shrink-0 text-xs text-muted-foreground hover:text-foreground border border-white/10 rounded-lg px-2.5 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] transition-colors mt-0.5"
               >
                 Cambiar
@@ -2403,8 +2405,8 @@ function NuevaVentaTab({
             <Card className="p-4 space-y-3">
               <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">Buscar cliente existente</p>
               <ClientAutocomplete
-                value={client}
-                onChange={(v) => { setClient(v); setClientId(null); }}
+                value={clientSearch}
+                onChange={setClientSearch}
                 onPick={(c) => {
                   setClientId(c.id);
                   setClient(c.name ?? "");
@@ -2712,7 +2714,7 @@ function ClientAutocomplete({
             ((c.phone ?? "").replace(/\s/g, "").toLowerCase() === q) ||
             ((c.email ?? "").toLowerCase() === q),
         );
-        if (exact.length === 1) { onPick(exact[0]); onChange(""); }
+        if (exact.length === 1) { onPick(exact[0]); }
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -2754,7 +2756,7 @@ function ClientAutocomplete({
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => { onPick(c); onChange(""); }}
+                  onClick={() => { onPick(c); }}
                   className="w-full text-left px-4 py-2.5 hover:bg-white/[0.05] flex items-center justify-between gap-3 border-b border-white/5 last:border-0 transition-colors"
                 >
                   <span className="min-w-0">
