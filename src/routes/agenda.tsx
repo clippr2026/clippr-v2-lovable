@@ -117,6 +117,12 @@ const STATUS_META: Record<
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
 const ROW_PX = 88;
+// Alto FIJO de cada bloque de 1 hora (no se achica para meter más horas) y alto
+// del header de profesionales. La grilla muestra ~11 bloques y, si el día tiene
+// más horas visibles, scrollea verticalmente en vez de comprimir las filas.
+const AGENDA_ROW_PX = 64;
+const AGENDA_HEADER_PX = 46;
+const AGENDA_VISIBLE_ROWS = 11;
 
 // Un casillero/horario está en el pasado si su instante ya ocurrió. Se usa SOLO
 // para impedir la CREACIÓN de turnos/bloqueos nuevos en el pasado; nunca para
@@ -128,7 +134,7 @@ const PAST_SLOT_MESSAGE = "No podés crear turnos en horarios que ya pasaron.";
 // Los turnos pasados quedan SOLO como historial: no se editan, mueven, cancelan,
 // cobran ni eliminan. `getApptEnd` está declarado más abajo (función hoisteada).
 const isPastAppointment = (a: Appointment) => getApptEnd(a).getTime() < Date.now();
-const PAST_APPT_MESSAGE = "Este turno ya pasó. Queda solo como historial: no se puede editar, mover, cancelar ni cobrar.";
+const PAST_APPT_MESSAGE = "Este turno ya pasó: solo se puede ver o cancelar.";
 const AGENDA_EMPLOYEE_COL_PX = 160;
 const AGENDA_VIRTUALIZE_AFTER = 12;
 const AGENDA_VIRTUAL_OVERSCAN = 4;
@@ -671,8 +677,9 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
-    // Turno pasado: solo historial. No se cambia estado ni se cancela.
-    if (a.status !== "blocked" && isPastAppointment(a)) {
+    // Turno pasado: la ÚNICA acción permitida es cancelar. Cualquier otro cambio
+    // de estado se bloquea (queda como historial).
+    if (a.status !== "blocked" && isPastAppointment(a) && status !== "cancelled") {
       toast.error(PAST_APPT_MESSAGE);
       return;
     }
@@ -743,10 +750,6 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   };
 
   const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return") => {
-    if (isPastAppointment(a)) {
-      toast.error(PAST_APPT_MESSAGE);
-      return;
-    }
     if (action === "return") {
       // Motivo - prompt para más detalle
       const motivo = window.prompt("Ingresá el motivo de la devolución (opcional):", "") ?? "";
@@ -1350,10 +1353,11 @@ const DayView = React.memo(function DayView({
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
 
-  // ── Dynamic row height — fills available viewport so the last configured
-  //    hour lands at the bottom edge. rowPx = freeSpace / numberOfHours.
+  // ── Alto de fila FIJO. Antes se calculaba para llenar el viewport (achicaba
+  //    las filas). Ahora cada bloque mide AGENDA_ROW_PX y, si hay muchas horas,
+  //    la grilla scrollea (no se comprime).
   const gridBodyRef = React.useRef<HTMLDivElement>(null);
-  const [rowPx, setRowPx] = React.useState(ROW_PX);
+  const rowPx = AGENDA_ROW_PX;
 
   // Scroll horizontal de profesionales: detecta si hay más columnas a los
   // lados para mostrar el fade/sombra. Además, con equipos grandes virtualiza
@@ -1420,21 +1424,6 @@ const DayView = React.memo(function DayView({
     window.addEventListener("dragend", clear);
     return () => window.removeEventListener("dragend", clear);
   }, []);
-  React.useLayoutEffect(() => {
-    const recompute = () => {
-      const body = gridBodyRef.current;
-      if (!body || HOURS.length === 0) return;
-      const top = body.getBoundingClientRect().top;        // where the hour rows begin
-      const BOTTOM_GAP = 18;                                 // breathing room under the last row
-      const available = window.innerHeight - top - BOTTOM_GAP;
-      const per = available / HOURS.length;
-      setRowPx(Math.max(52, per));                           // clamp: never cramp below 52px (grid scrolls if it must)
-    };
-    const raf = requestAnimationFrame(recompute);
-    window.addEventListener("resize", recompute);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", recompute); };
-  }, [HOURS.length, employees.length]);
-
   // Drop is handled at the COLUMN level (not per hour-cell) so it works whether
   // you release over an empty slot or on top of another card. The minute is
   // derived from the cursor's Y within the column, snapped to DRAG_SNAP_MIN.
@@ -1669,12 +1658,20 @@ const DayView = React.memo(function DayView({
 
   return (
     <section className="glass rounded-2xl p-2 sm:p-3 relative">
-      <div ref={gridScrollRef} onScroll={onGridScroll} className="overflow-x-auto agenda-hscroll">
+      <div
+        ref={gridScrollRef}
+        onScroll={onGridScroll}
+        className="overflow-auto agenda-hscroll"
+        style={{ maxHeight: AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx }}
+      >
         <div
           className="grid min-w-[860px]"
           style={{ gridTemplateColumns, width: gridWidth }}
         >
-          <div className="sticky left-0 z-30 bg-background/80 backdrop-blur-xl" />
+          <div
+            className="sticky left-0 top-0 z-40 bg-[#0c0b14] border-b border-r border-white/10"
+            style={{ height: AGENDA_HEADER_PX }}
+          />
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
           {renderedColumns.map(({ e }) => {
             const total = dayAppts.filter((a) => a.employee_id === e.id).length;
@@ -1690,7 +1687,8 @@ const DayView = React.memo(function DayView({
             return (
               <div
                 key={e.id}
-                className="px-2.5 pb-1.5 pt-1 border-l border-white/[0.04] flex items-center gap-2"
+                className="sticky top-0 z-20 px-2.5 border-l border-b border-white/10 bg-[#0c0b14] flex items-center gap-2"
+                style={{ height: AGENDA_HEADER_PX }}
               >
                 {e.avatar_url ? (
                   <img
@@ -1723,11 +1721,11 @@ const DayView = React.memo(function DayView({
           })}
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
 
-          <div ref={gridBodyRef} className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
+          <div ref={gridBodyRef} className="relative sticky left-0 z-30 bg-[#0c0b14] border-r border-white/10 shadow-[2px_0_8px_rgba(0,0,0,0.35)]">
             {HOURS.map((h) => (
               <div
                 key={h}
-                className="text-[11px] text-muted-foreground pr-2 text-right select-none"
+                className="text-[12px] font-medium text-foreground/70 pr-2.5 text-right select-none"
                 style={{ height: rowPx }}
               >
                 <span className="relative -top-2">{String(h).padStart(2, "0")}:00</span>
@@ -1970,7 +1968,7 @@ const ApptCard = React.memo(function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-[6px] pl-1 pr-1.5 py-px group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
+        "absolute rounded-[6px] px-1.5 py-1 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
       style={{ top, height, left, width, background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.border}` }}
@@ -1980,15 +1978,15 @@ const ApptCard = React.memo(function ApptCard({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {/* Línea 1: horario (lo más importante) + cliente */}
-      <div className="flex items-center gap-1 min-w-0 leading-none">
-        <span className="text-[10px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
+      <div className="flex items-center gap-1 min-w-0 leading-tight">
+        <span className="text-[11px] font-bold tabular-nums shrink-0 leading-none" style={{ color: meta.dot }}>
           {fmtHM(start)} • {fmtHM(end)}
         </span>
-        <span className="text-[9px] opacity-40 shrink-0 leading-none">·</span>
-        <span className="text-[10px] font-medium truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
+        <span className="text-[10px] opacity-40 shrink-0 leading-none">·</span>
+        <span className="text-[13px] font-semibold truncate flex-1 min-w-0 leading-none">{clientDisplay}</span>
       </div>
       {/* Línea 2: servicio — más legible, pegado al horario */}
-      {a.service_name && <div className="text-[10px] text-foreground/80 truncate leading-none mt-px">{a.service_name}</div>}
+      {a.service_name && <div className="text-[12px] text-foreground/85 truncate leading-tight mt-0.5">{a.service_name}</div>}
       {/se(ñ|n)a/i.test(a.notes || "") && (
         <div className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
           style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}>
@@ -2446,26 +2444,17 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               ); })()}
             </div>
-          ) : isPast ? (
-            <div className="space-y-2">
-              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
-              {(() => { const dot = meta.dot; return (
-                <div
-                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                  style={{ background: withAlpha(dot, 0.16), color: dot, boxShadow: `inset 0 0 0 1.5px ${dot}` }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />
-                  {statusLabel}
-                </div>
-              ); })()}
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-center text-[12px] text-white/55">
-                Este turno ya pasó. Queda solo como historial.
-              </div>
-            </div>
           ) : (
             <div className="space-y-2">
               <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
 
+              {isPast && appointment.status !== "cancelled" && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] text-white/55">
+                  Este turno ya pasó. Solo se puede cancelar.
+                </div>
+              )}
+
+              {!isPast && (<>
               {/* Pendiente */}
               {(() => { const dot = STATUS_META.pending.dot; const active = appointment.status === "pending"; return (
                 <button
@@ -2489,6 +2478,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   Confirmado
                 </button>
               ); })()}
+              </>)}
 
               {/* Cancelado — único, con confirmación */}
               {(() => { const dot = STATUS_META.cancelled.dot; const cancelled = appointment.status === "cancelled"; return cancelled ? (
@@ -2527,7 +2517,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               ); })()}
 
               {/* Cobrado */}
-              {(() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
+              {!isPast && (() => { const dot = STATUS_META.charged.dot; const charged = appointment.status === "charged"; return (
                 <button
                   onClick={() => { if (!charged) onCobrar(appointment); }}
                   disabled={charged}
@@ -2540,7 +2530,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               ); })()}
 
               {/* Cobrar seña (si aplica) */}
-              {requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
+              {!isPast && requiresDeposit && appointment.status !== "charged" && appointment.deposit_status !== "paid" && appointment.deposit_status !== "lost" && (
                 <Button variant="secondary" onClick={() => onMarkDeposit(appointment)} className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15">
                   <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
                 </Button>
