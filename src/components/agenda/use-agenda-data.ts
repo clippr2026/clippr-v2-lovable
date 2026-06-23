@@ -129,6 +129,17 @@ export function getVisibleRange(
   if (bizDay && bizDay.enabled) {
     coreOpen = Math.round(parseScheduleTime(bizDay.start) * 60);
     coreClose = Math.round(parseScheduleTime(bizDay.end) * 60);
+
+    // Además, el rango visible NUNCA se recorta por debajo del horario SEMANAL
+    // configurado del negocio. Si un día tiene un especial más corto (p. ej.
+    // 09:00–20:00) pero el semanal es 08:00–22:00, igual se muestra 08:00–22:00;
+    // las horas no disponibles del especial se ven bloqueadas por columna. Esto
+    // evita que "hoy" aparezca recortado respecto del resto de los días.
+    const bizWeekly = resolveDaySchedule(businessSchedule, {}, {}, {}, null, date);
+    if (bizWeekly && bizWeekly.enabled) {
+      coreOpen = Math.min(coreOpen, Math.round(parseScheduleTime(bizWeekly.start) * 60));
+      coreClose = Math.max(coreClose, Math.round(parseScheduleTime(bizWeekly.end) * 60));
+    }
   }
 
   for (const emp of employees) {
