@@ -450,9 +450,25 @@ function AgendaPage() {
     });
     setBreakModal(null);
   };
+const addOneHour = (time: string) => {
+  const [h, m] = time.split(":").map(Number);
+  const nextHour = Math.min(h + 1, 23);
+  return `${String(nextHour).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
 
+const timeToMinutes = (time: string) => {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+};
   const saveSpecialFromAgenda = async () => {
-    if (!specialEditor || !data.businessId) return;
+    if (!specialEditor || !data.businessId) return;if (
+  specialEditor.breakStart &&
+  specialEditor.breakEnd &&
+  timeToMinutes(specialEditor.breakEnd) <= timeToMinutes(specialEditor.breakStart)
+) {
+  toast.error("El descanso hasta debe ser posterior al descanso desde.");
+  return;
+}
     setSpecialEditor((s) => (s ? { ...s, saving: true } : s));
     const key = toDateKey(specialEditor.date);
     const day = specialEditor.available
@@ -1065,18 +1081,61 @@ function AgendaPage() {
             <div className="mt-4 flex items-center gap-2 flex-wrap">
               <span className="text-xs text-muted-foreground">Descanso:</span>
               <input
-                type="time"
-                value={specialEditor.breakStart}
-                onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakStart: e.target.value } : s))}
-                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-              />
+  type="time"
+  value={specialEditor.breakStart}
+  onChange={(e) => {
+    const nextStart = e.target.value;
+
+    setSpecialEditor((s) => {
+      if (!s) return s;
+
+      const nextEnd =
+        !s.breakEnd || timeToMinutes(s.breakEnd) <= timeToMinutes(nextStart)
+          ? addOneHour(nextStart)
+          : s.breakEnd;
+
+      return {
+        ...s,
+        breakStart: nextStart,
+        breakEnd: nextEnd,
+      };
+    });
+  }}
+  className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+/>
               <span className="text-muted-foreground text-xs">-</span>
-              <input
-                type="time"
-                value={specialEditor.breakEnd}
-                onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakEnd: e.target.value } : s))}
-                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-              />
+             <input
+  type="time"
+  value={specialEditor.breakEnd}
+  min={specialEditor.breakStart || undefined}
+  onChange={(e) => {
+    const nextEnd = e.target.value;
+
+    setSpecialEditor((s) => {
+      if (!s) return s;
+
+      if (
+        s.breakStart &&
+        timeToMinutes(nextEnd) <= timeToMinutes(s.breakStart)
+      ) {
+        toast.error(
+          "El horario de fin debe ser posterior al horario de inicio."
+        );
+
+        return {
+          ...s,
+          breakEnd: addOneHour(s.breakStart),
+        };
+      }
+
+      return {
+        ...s,
+        breakEnd: nextEnd,
+      };
+    });
+  }}
+  className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+/>
             </div>
 
             <div className="mt-5 flex items-center gap-2">
