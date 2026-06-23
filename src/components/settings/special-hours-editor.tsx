@@ -97,23 +97,29 @@ function SpecialDayFields({
       </div>
 
       {state.available && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <input
-            type="time"
-            value={state.start}
-            onChange={(e) => onChange({ start: e.target.value })}
-            className={timeCls}
-          />
-          <span className="text-muted-foreground text-xs">a</span>
-          <input
-            type="time"
-            value={state.end}
-            onChange={(e) => onChange({ end: e.target.value })}
-            className={timeCls}
-          />
+        <div className="space-y-3">
+          {/* Fila 1 — Disponible: desde / hasta */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="w-20 shrink-0 text-xs text-muted-foreground">Disponible:</span>
+            <input
+              type="time"
+              value={state.start}
+              onChange={(e) => onChange({ start: e.target.value })}
+              className={timeCls}
+            />
+            <span className="text-muted-foreground text-xs">a</span>
+            <input
+              type="time"
+              value={state.end}
+              onChange={(e) => onChange({ end: e.target.value })}
+              className={timeCls}
+            />
+          </div>
+
+          {/* Fila 2 — Descanso: desde / hasta */}
           {allowBreak && (
-            <>
-              <span className="text-xs text-muted-foreground ml-2">Descanso:</span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="w-20 shrink-0 text-xs text-muted-foreground">Descanso:</span>
               <input
                 type="time"
                 value={state.breakStart}
@@ -127,7 +133,7 @@ function SpecialDayFields({
                 onChange={(e) => onChange({ breakEnd: e.target.value })}
                 className={timeCls}
               />
-            </>
+            </div>
           )}
         </div>
       )}
