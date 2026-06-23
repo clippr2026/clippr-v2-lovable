@@ -232,6 +232,7 @@ function CashRegisterPage() {
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
+  const [resumenPanel, setResumenPanel] = useState<"ingresos" | "pendientes" | "gastos">("ingresos");
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -412,13 +413,14 @@ function CashRegisterPage() {
         data={data}
         userEmail={session.user.email ?? null}
         onNuevoGasto={() => { setPendingToCharge(null); setTab("nuevo-gasto"); }}
-        onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setTab("resumen"); }}
+        onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
       />
       <div className="mt-6">
         {tab === "resumen" && (
           <ResumenTab
             data={data}
             equipoEnabled={permissions.equipo}
+            initialPanel={resumenPanel}
             onCobrarPendiente={handleCobrarPendiente}
           />
         )}
@@ -427,7 +429,7 @@ function CashRegisterPage() {
             data={data}
             userEmail={session.user.email ?? null}
             onCancel={() => setTab("resumen")}
-            onSaved={() => { data.refresh(); setTab("resumen"); }}
+            onSaved={() => { setResumenPanel("gastos"); data.refresh(); setTab("resumen"); }}
           />
         )}
         {tab === "nueva" && (
@@ -435,7 +437,7 @@ function CashRegisterPage() {
             data={data}
             pendingCharge={activePendingCharge}
             onPendingDone={() => { setPendingToCharge(null); setTab("resumen"); }}
-            onSaleDone={() => { setPendingToCharge(null); setTab("resumen"); }}
+            onSaleDone={() => { setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
           />
         )}
         {tab === "precios" && <PreciosTab businessId={data.businessId} />}
@@ -588,14 +590,20 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
 function ResumenTab({
   data,
   equipoEnabled,
+  initialPanel = "ingresos",
   onCobrarPendiente,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
+  initialPanel?: "ingresos" | "pendientes" | "gastos";
   onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void;
 }) {
   type ActivePanel = "ingresos" | "pendientes" | "gastos";
-  const [activePanel, setActivePanel] = React.useState<ActivePanel>("ingresos");
+  const [activePanel, setActivePanel] = React.useState<ActivePanel>(initialPanel);
+
+  React.useEffect(() => {
+    setActivePanel(initialPanel);
+  }, [initialPanel]);
 
   React.useEffect(() => {
     const handler = () => { data.refresh(); setActivePanel("gastos"); };
