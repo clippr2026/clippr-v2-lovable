@@ -938,7 +938,7 @@ function AgendaPage() {
         </>
       ) : null}
 
-      {/* Modal de descanso (Cancelar / Habilitar descanso / Editar horario) */}
+      {/* Modal de descanso (Habilitar descanso / Editar horario) */}
       {breakModal ? (
         <div
           className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -948,14 +948,26 @@ function AgendaPage() {
             className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold">Horario de descanso</div>
-            <p className="text-sm text-muted-foreground mt-1.5">
-              Este horario está configurado como descanso para este profesional
-              {breakModal.breakStart && breakModal.breakEnd
-                ? ` (${breakModal.breakStart}–${breakModal.breakEnd})`
-                : ""}
-              . ¿Qué querés hacer?
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold">Horario de descanso</div>
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  Este horario está configurado como descanso para este profesional
+                  {breakModal.breakStart && breakModal.breakEnd
+                    ? ` (${breakModal.breakStart}–${breakModal.breakEnd})`
+                    : ""}
+                  . ¿Qué querés hacer?
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={() => setBreakModal(null)}
+                className="-mr-1 -mt-1 rounded-full p-2 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
             <div className="mt-4 flex flex-col gap-2">
               <button
                 onClick={enableBreakTemporarily}
@@ -968,12 +980,6 @@ function AgendaPage() {
                 className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm hover:bg-white/10"
               >
                 Editar horario
-              </button>
-              <button
-                onClick={() => setBreakModal(null)}
-                className="w-full rounded-xl px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancelar
               </button>
             </div>
           </div>
@@ -990,7 +996,7 @@ function AgendaPage() {
             className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold">Horario especial</div>
+            <div className="text-lg font-semibold">Editar descanso</div>
             <p className="text-sm text-muted-foreground mt-1">
               {specialEditor.date.toLocaleDateString("es-AR", {
                 weekday: "long",
@@ -999,59 +1005,22 @@ function AgendaPage() {
               })}
             </p>
 
-            <div className="mt-4 flex items-center gap-2">
-              <button
-                onClick={() => setSpecialEditor((s) => (s ? { ...s, available: !s.available } : s))}
-                className={cn(
-                  "h-5 w-9 rounded-full relative transition-colors shrink-0",
-                  specialEditor.available ? "bg-primary" : "bg-white/15",
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
-                    specialEditor.available ? "left-[18px]" : "left-0.5",
-                  )}
-                />
-              </button>
-              <span className="text-sm">{specialEditor.available ? "Disponible" : "No disponible"}</span>
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">Descanso:</span>
+              <input
+                type="time"
+                value={specialEditor.breakStart}
+                onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakStart: e.target.value } : s))}
+                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+              />
+              <span className="text-muted-foreground text-xs">-</span>
+              <input
+                type="time"
+                value={specialEditor.breakEnd}
+                onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakEnd: e.target.value } : s))}
+                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
+              />
             </div>
-
-            {specialEditor.available && (
-              <div className="mt-3 space-y-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <input
-                    type="time"
-                    value={specialEditor.start}
-                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, start: e.target.value } : s))}
-                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-                  />
-                  <span className="text-muted-foreground text-xs">a</span>
-                  <input
-                    type="time"
-                    value={specialEditor.end}
-                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, end: e.target.value } : s))}
-                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-                  />
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground">Descanso:</span>
-                  <input
-                    type="time"
-                    value={specialEditor.breakStart}
-                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakStart: e.target.value } : s))}
-                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-                  />
-                  <span className="text-muted-foreground text-xs">-</span>
-                  <input
-                    type="time"
-                    value={specialEditor.breakEnd}
-                    onChange={(e) => setSpecialEditor((s) => (s ? { ...s, breakEnd: e.target.value } : s))}
-                    className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm"
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="mt-5 flex items-center gap-2">
               <button
