@@ -84,6 +84,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SpecialHoursEditor } from "@/components/settings/special-hours-editor";
+import type { SpecialDateMap, EmployeeSpecialDateMap } from "@/components/agenda/use-agenda-data";
 
 type SectionId =
   | "branding"
@@ -2265,6 +2267,7 @@ function HorariosSection() {
   const [reservationSettings, setReservationSettings] = useState<ReservationSettings>(
     DEFAULT_RESERVATION_SETTINGS,
   );
+  const [businessSpecial, setBusinessSpecial] = useState<SpecialDateMap>({});
   const [saving, setSaving] = useState(false);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
@@ -2298,6 +2301,9 @@ function HorariosSection() {
             minCancel: String(settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel),
           });
         }
+        if (schedule._specialDates && typeof schedule._specialDates === "object") {
+          setBusinessSpecial(schedule._specialDates as SpecialDateMap);
+        }
       });
   }, [businessId]);
 
@@ -2305,24 +2311,33 @@ function HorariosSection() {
     if (!businessId) return toast.error("No se encontró el negocio");
     setSaving(true);
 
-    const schedule = Object.fromEntries(
-      days.map((day, i) => [
-        dayKeys[i],
-        {
-          enabled: day.enabled,
-          start: day.open,
-          end: day.close,
-          breakStart: "12:00",
-          breakEnd: "13:00",
-        },
-      ]),
-    ) as Record<string, any>;
+    // IMPORTANTE: leer el schedule existente y MERGEAR. Antes se reconstruía
+    // desde cero y el upsert pisaba el resto de sub-configs (_employeeSchedules,
+    // _branding, _caja, especiales, etc.).
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    const existing = (existingRow?.schedule ?? {}) as Record<string, any>;
+
+    const schedule: Record<string, any> = { ...existing };
+    days.forEach((day, i) => {
+      schedule[dayKeys[i]] = {
+        enabled: day.enabled,
+        start: day.open,
+        end: day.close,
+        breakStart: "12:00",
+        breakEnd: "13:00",
+      };
+    });
 
     schedule._settings = {
       interval: Number(reservationSettings.interval) || 30,
       maxAdvance: Number(reservationSettings.maxAdvance) || 30,
       minCancel: Number(reservationSettings.minCancel) || 2,
     };
+    schedule._specialDates = businessSpecial;
 
     const { error } = await supabase
       .from("business_settings")
@@ -2336,7 +2351,7 @@ function HorariosSection() {
   const saveScheduleRef = useRef(saveSchedule);
   useEffect(() => {
     saveScheduleRef.current = saveSchedule;
-  }, [businessId, days, reservationSettings]);
+  }, [businessId, days, reservationSettings, businessSpecial]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -2454,6 +2469,14 @@ function HorariosSection() {
           ))}
         </div>
       </div>
+
+      <SpecialHoursEditor
+        value={businessSpecial}
+        onChange={setBusinessSpecial}
+        closedLabel="Cerrado"
+        title="Horario especial del negocio"
+        description="Apertura/cierre distintos o negocio cerrado en una fecha puntual (feriados, etc.). Tocá Guardar para confirmar."
+      />
 
       <SectionCard label="Turnos y reservas">
         <div className="divide-y divide-white/5">
@@ -2613,6 +2636,7 @@ type PendingProfessional = {
     acceptsOnline?: boolean;
     commissions?: Record<string, CommissionConfig>;
     schedule?: ScheduleMap;
+    specialDates?: SpecialDateMap;
   };
   isNew: boolean;
 };
@@ -2639,6 +2663,7 @@ type NewProForm = {
   commissionPct: string;
   avatarUrl: string;
   commissions: Record<string, CommissionConfig>;
+  specialDates: SpecialDateMap;
 };
 
 const EMPTY_FORM: NewProForm = {
@@ -2655,6 +2680,7 @@ const EMPTY_FORM: NewProForm = {
   commissionPct: "",
   avatarUrl: "",
   commissions: {},
+  specialDates: {},
 };
 
 const inputCls =
@@ -3044,6 +3070,7 @@ function EquipoSection() {
   // business_settings.schedule._employeeSchedules. Pre-carga el form al editar
   // y evita perderlo al re-guardar.
   const [employeeSchedules, setEmployeeSchedules] = useState<Record<string, ScheduleMap>>({});
+  const [employeeSpecialDates, setEmployeeSpecialDates] = useState<EmployeeSpecialDateMap>({});
   const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3174,6 +3201,12 @@ function EquipoSection() {
             : {}
         ) as Record<string, ScheduleMap>;
         setEmployeeSchedules(loadedEmployeeSchedules);
+        const loadedEmployeeSpecial = (
+          schedule._employeeSpecialDates && typeof schedule._employeeSpecialDates === "object"
+            ? schedule._employeeSpecialDates
+            : {}
+        ) as EmployeeSpecialDateMap;
+        setEmployeeSpecialDates(loadedEmployeeSpecial);
         const employeeRoles = (
           schedule._employeeRoles && typeof schedule._employeeRoles === "object"
             ? schedule._employeeRoles
@@ -3513,6 +3546,7 @@ function EquipoSection() {
       acceptsOnline: form.acceptsOnline,
       commissions: form.commissions,
       schedule: form.schedule,
+      specialDates: form.specialDates,
     };
 
     if (editingEmp) {
@@ -3549,12 +3583,17 @@ function EquipoSection() {
             schedule: {
               ...existingSchedule,
               _employeeSchedules: { ...existingEmpScheds, [editingEmp.id]: form.schedule },
+              _employeeSpecialDates: {
+                ...((existingSchedule._employeeSpecialDates ?? {}) as Record<string, unknown>),
+                [editingEmp.id]: form.specialDates,
+              },
             },
           },
           { onConflict: "business_id" },
         );
         if (schedErr) toast.error("No se pudo guardar el horario del profesional. Probá de nuevo.");
         setEmployeeSchedules((current) => ({ ...current, [editingEmp.id]: form.schedule }));
+        setEmployeeSpecialDates((current) => ({ ...current, [editingEmp.id]: form.specialDates }));
       } catch {
         toast.error("No se pudo guardar el horario del profesional. Probá de nuevo.");
       }
@@ -3618,6 +3657,10 @@ function EquipoSection() {
               : existingCommissions,
             _employeeRoles: { ...existingRoles, [newId]: form.role.trim() || "Profesional" },
             _employeeSchedules: { ...existingEmpScheds, [newId]: form.schedule },
+            _employeeSpecialDates: {
+              ...((existingSchedule._employeeSpecialDates ?? {}) as Record<string, unknown>),
+              [newId]: form.specialDates,
+            },
             _publicVisibility: {
               ...visibility,
               employees: { ...employeesVisibility, [newId]: form.acceptsOnline !== false },
@@ -3643,6 +3686,7 @@ function EquipoSection() {
       ]);
       setEmployeeOnlineMap((current) => ({ ...current, [newId]: form.acceptsOnline }));
       setEmployeeSchedules((current) => ({ ...current, [newId]: form.schedule }));
+      setEmployeeSpecialDates((current) => ({ ...current, [newId]: form.specialDates }));
 
       toast.success("Profesional agregado.");
       setOpen(false);
@@ -3691,10 +3735,11 @@ function EquipoSection() {
       role: emp.role ?? "Barbero",
       acceptsOnline: employeeOnlineMap[emp.id] !== false,
       schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
+      specialDates: employeeSpecialDates[emp.id] ?? {},
     });
     setDlgTab("perfil");
     setOpen(true);
-  }, [employeeOnlineMap, employeeSchedules]);
+  }, [employeeOnlineMap, employeeSchedules, employeeSpecialDates]);
 
   async function doRemoveEmp() {
     if (!confirmDel) return;
@@ -4800,6 +4845,15 @@ function EquipoSection() {
                       </div>
                     );
                   })}
+
+                  <SpecialHoursEditor
+                    value={form.specialDates}
+                    onChange={(next) => setForm((f) => ({ ...f, specialDates: next }))}
+                    allowBreak
+                    closedLabel="No disponible"
+                    title="Horario especial"
+                    description="Un día distinto al horario normal (ej. 24/12 09:00–15:00) o no disponible una fecha."
+                  />
                 </div>
               )}
 
