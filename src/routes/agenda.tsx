@@ -117,6 +117,18 @@ const STATUS_META: Record<
 // ---------------------------------------------------------------------------
 const DAY_MS = 86_400_000;
 const ROW_PX = 88;
+
+// Un casillero/horario está en el pasado si su instante ya ocurrió. Se usa SOLO
+// para impedir la CREACIÓN de turnos/bloqueos nuevos en el pasado; nunca para
+// limitar acciones sobre turnos ya existentes (abrir, editar, cancelar, liberar).
+const isPastSlot = (date: Date) => date.getTime() < Date.now();
+const PAST_SLOT_MESSAGE = "No podés crear turnos en horarios que ya pasaron.";
+
+// Un turno está en el pasado cuando ya terminó (ends_at, o start + duración).
+// Los turnos pasados quedan SOLO como historial: no se editan, mueven, cancelan,
+// cobran ni eliminan. `getApptEnd` está declarado más abajo (función hoisteada).
+const isPastAppointment = (a: Appointment) => getApptEnd(a).getTime() < Date.now();
+const PAST_APPT_MESSAGE = "Este turno ya pasó. Queda solo como historial: no se puede editar, mover, cancelar ni cobrar.";
 const AGENDA_EMPLOYEE_COL_PX = 160;
 const AGENDA_VIRTUALIZE_AFTER = 12;
 const AGENDA_VIRTUAL_OVERSCAN = 4;
@@ -297,6 +309,13 @@ function AgendaPage() {
   };
 
   const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
+    // Casillero vacío en el pasado: no se puede crear nada (turno ni bloqueo).
+    // Los turnos YA existentes no pasan por acá (usan openDetail), así que se
+    // siguen pudiendo abrir/cancelar/eliminar/liberar.
+    if (isPastSlot(startsAt)) {
+      toast.error(PAST_SLOT_MESSAGE);
+      return;
+    }
     // Bloqueo de creación fuera del horario real, resolviendo la prioridad de
     // horarios (especial profesional → normal profesional → especial negocio →
     // normal negocio). (Fase posterior: convertir en confirmación con override.)
@@ -576,6 +595,13 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
           .eq("id", payload.appointmentId);
         if (error) throw new Error(error.message);
       } else {
+        // Bloqueo NUEVO: no se permite en el pasado (la edición de un bloqueo
+        // existente sí, porque payload.appointmentId está presente y entra por
+        // la rama de arriba).
+        if (isPastSlot(payload.startsAt)) {
+          toast.error(PAST_SLOT_MESSAGE);
+          return;
+        }
         const repeatTotal = payload.repeatEnabled ? Math.max(1, payload.repeatCount) : 1;
         const repeatEvery = Math.max(1, payload.repeatEvery);
         const rows = Array.from({ length: repeatTotal }, (_, index) => {
@@ -634,12 +660,22 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
       openBlockDialog(a.employee_id ?? null, new Date(a.starts_at), a);
       return;
     }
+    // Turno pasado: solo historial, no editable.
+    if (isPastAppointment(a)) {
+      toast.error(PAST_APPT_MESSAGE);
+      return;
+    }
     setEditing(a);
     setDlgDefaults({});
     setActiveDrawer("edit");
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
+    // Turno pasado: solo historial. No se cambia estado ni se cancela.
+    if (a.status !== "blocked" && isPastAppointment(a)) {
+      toast.error(PAST_APPT_MESSAGE);
+      return;
+    }
     // Un turno cobrado es estado final: no se permite ningún cambio de estado.
     if (a.status === "charged" && status !== "charged") {
       toast.error("Este turno ya está cobrado. No se puede cambiar el estado.");
@@ -664,6 +700,10 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   };
 
   const onMarkDeposit = (a: Appointment) => {
+    if (isPastAppointment(a)) {
+      toast.error(PAST_APPT_MESSAGE);
+      return;
+    }
     if (a.deposit_status === "paid") {
       toast.info("Este turno ya tiene seña pagada.");
       return;
@@ -679,6 +719,11 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   };
 
   const goToCobro = async (a: Appointment) => {
+    // No se cobra retroactivamente: un turno pasado queda como historial.
+    if (isPastAppointment(a)) {
+      toast.error(PAST_APPT_MESSAGE);
+      return;
+    }
     if (a.status === "cancelled") {
       toast.error("No se puede cobrar un turno cancelado.");
       return;
@@ -698,6 +743,10 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
   };
 
   const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return") => {
+    if (isPastAppointment(a)) {
+      toast.error(PAST_APPT_MESSAGE);
+      return;
+    }
     if (action === "return") {
       // Motivo - prompt para más detalle
       const motivo = window.prompt("Ingresá el motivo de la devolución (opcional):", "") ?? "";
@@ -1397,6 +1446,11 @@ const DayView = React.memo(function DayView({
     if (!apptId) return;
     const appt = data.appointments.find((a) => a.id === apptId);
     if (!appt) return;
+    // Un turno pasado es historial: no se puede mover/reprogramar.
+    if (appt.status !== "blocked" && isPastAppointment(appt)) {
+      toast.error(PAST_APPT_MESSAGE);
+      return;
+    }
     if (appt.status === "charged") {
       toast.error("Los turnos cobrados no se pueden mover.");
       return;
@@ -1421,6 +1475,12 @@ const DayView = React.memo(function DayView({
     newStart.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
     const newEnd = new Date(newStart.getTime() + dur * 60000);
     const targetEmpId = empId === "__none__" ? null : empId;
+
+    // No se puede reprogramar hacia el pasado.
+    if (isPastSlot(newStart)) {
+      toast.error(PAST_SLOT_MESSAGE);
+      return;
+    }
 
     // 1) Horario disponible del profesional destino (prioridad de horarios).
     const dropDay = resolveDaySchedule(
@@ -2249,6 +2309,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
   const noteText = clientNoteOnly(appointment.notes);
+  // Turno pasado (no bloqueo): solo lectura. Se ocultan todas las acciones.
+  const isPast = appointment.status !== "blocked" && isPastAppointment(appointment);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
@@ -2284,9 +2346,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               <Button size="sm" variant="secondary" className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]" onClick={() => onFicha(appointment)}>
                 <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
               </Button>
-              <Button size="sm" variant="secondary" className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]" onClick={() => onEdit(appointment)}>
-                Editar
-              </Button>
+              {!isPast && (
+                <Button size="sm" variant="secondary" className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]" onClick={() => onEdit(appointment)}>
+                  Editar
+                </Button>
+              )}
             </div>
           </div>
         </SheetHeader>
@@ -2381,6 +2445,22 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   Cobrado
                 </div>
               ); })()}
+            </div>
+          ) : isPast ? (
+            <div className="space-y-2">
+              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Estado</div>
+              {(() => { const dot = meta.dot; return (
+                <div
+                  className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                  style={{ background: withAlpha(dot, 0.16), color: dot, boxShadow: `inset 0 0 0 1.5px ${dot}` }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot, boxShadow: `0 0 10px ${dot}` }} />
+                  {statusLabel}
+                </div>
+              ); })()}
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-center text-[12px] text-white/55">
+                Este turno ya pasó. Queda solo como historial.
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
