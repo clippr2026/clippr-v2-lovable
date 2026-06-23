@@ -951,14 +951,8 @@ function AgendaPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold">Horario de descanso</div>
-                <p className="text-sm text-muted-foreground mt-1.5">
-                  Este horario está configurado como descanso para este profesional
-                  {breakModal.breakStart && breakModal.breakEnd
-                    ? ` (${breakModal.breakStart}–${breakModal.breakEnd})`
-                    : ""}
-                  . ¿Qué querés hacer?
-                </p>
-              </div>
+            
+             </div>
               <button
                 type="button"
                 aria-label="Cerrar"
