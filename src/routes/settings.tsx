@@ -3707,19 +3707,23 @@ function EquipoSection() {
   }, [load]);
 
   const remove = useCallback(async (emp: EmployeeRow) => {
-    // Chequeo liviano: ¿tiene turnos asociados? Si sí, no se elimina (rompería
-    // historial/reportes). Se recomienda marcarlo inactivo. Trae solo 1 id.
-    const { data: appts, error: checkError } = await supabase
+    // Solo bloquean la eliminación los turnos FUTUROS no cancelados. El historial
+    // pasado (cobrados, completados, vencidos) y los cancelados NO bloquean: esos
+    // turnos se desvinculan del profesional al eliminarlo (ver doRemoveEmp).
+    const nowIso = new Date().toISOString();
+    const { data: future, error: checkError } = await supabase
       .from("appointments")
       .select("id")
       .eq("employee_id", emp.id)
+      .gte("starts_at", nowIso)
+      .neq("status", "cancelled")
       .limit(1);
     if (checkError) {
       toast.error("No se pudo verificar los turnos del profesional. Probá de nuevo.");
       return;
     }
-    if (appts && appts.length > 0) {
-      toast.error("No se puede eliminar este profesional porque tiene turnos agendados. Podés marcarlo como inactivo.");
+    if (future && future.length > 0) {
+      toast.error("No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.");
       return;
     }
     setConfirmDel(emp);
@@ -3746,13 +3750,37 @@ function EquipoSection() {
     const emp = confirmDel;
     setConfirmDel(null);
     setDeletingId(emp.id);
+
+    // La FK appointments.employee_id → employees.id impide borrar un profesional
+    // con turnos que lo referencian. Para poder eliminarlo cuando solo tiene
+    // historial, desvinculamos (employee_id = null) sus turnos PASADOS y los
+    // CANCELADOS (cualquier fecha). Los FUTUROS no cancelados NO se tocan: si
+    // existe alguno (p. ej. agendado entre el chequeo y el borrado), la FK
+    // bloquea el delete y el backstop de abajo muestra el mensaje correcto.
+    const nowIso = new Date().toISOString();
+    const detachPast = await supabase
+      .from("appointments")
+      .update({ employee_id: null })
+      .eq("employee_id", emp.id)
+      .lt("starts_at", nowIso);
+    const detachCancelled = await supabase
+      .from("appointments")
+      .update({ employee_id: null })
+      .eq("employee_id", emp.id)
+      .eq("status", "cancelled");
+    if (detachPast.error || detachCancelled.error) {
+      setDeletingId(null);
+      toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
+      return;
+    }
+
     const { error } = await supabase.from("employees").delete().eq("id", emp.id);
     if (error) {
       setDeletingId(null);
-      // Backstop por si se agendó un turno entre el chequeo y el borrado:
+      // Backstop por si se agendó un turno FUTURO entre el chequeo y el borrado:
       // nunca mostramos el error técnico de la FK al usuario.
       if (error.code === "23503" || /appointments_employee_id_fkey|foreign key/i.test(error.message)) {
-        toast.error("No se puede eliminar este profesional porque tiene turnos agendados. Podés marcarlo como inactivo.");
+        toast.error("No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.");
         return;
       }
       toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
