@@ -101,6 +101,61 @@ function getAppointmentEnd(appt: Appointment) {
   return new Date(start.getTime() + Number(appt.duration_min ?? 30) * 60000);
 }
 
+// Rango visible de la Agenda para un día. Fuente PRINCIPAL: horarios
+// individuales de los profesionales activos (`_employeeSchedules`). Fallback:
+// horario del local para los que no tengan horario propio. La vista se expande
+// SOLO con turnos reales (no cancelados ni bloqueos), nunca con descansos.
+export function getVisibleRange(
+  businessSchedule: ScheduleMap | null,
+  employeeSchedules: Record<string, ScheduleMap>,
+  employees: { id: string; is_active?: boolean }[],
+  date: Date,
+  appointments: Appointment[] = [],
+): { start: string; end: string } | null {
+  const bizDay = getScheduleForDate(businessSchedule, date);
+
+  let coreOpen: number | null = null;
+  let coreClose: number | null = null;
+  for (const emp of employees) {
+    if (emp.is_active === false) continue;
+    const es = employeeSchedules[emp.id];
+    let day: DaySchedule | null = null;
+    if (es) {
+      day = getScheduleForDate(es, date); // horario propio (primario)
+    } else if (bizDay) {
+      day = bizDay; // fallback al local
+    }
+    if (!day || !day.enabled) continue;
+    const open = Math.round(parseScheduleTime(day.start) * 60);
+    const close = Math.round(parseScheduleTime(day.end) * 60);
+    coreOpen = coreOpen === null ? open : Math.min(coreOpen, open);
+    coreClose = coreClose === null ? close : Math.max(coreClose, close);
+  }
+
+  // Expansión: SOLO turnos reales (excluye cancelados y bloqueos).
+  let apptStart: number | null = null;
+  let apptEnd: number | null = null;
+  for (const appt of appointments) {
+    if (appt.status === "cancelled" || appt.status === "blocked") continue;
+    if (!isSameLocalDay(new Date(appt.starts_at), date)) continue;
+    const start = new Date(appt.starts_at);
+    const end = getAppointmentEnd(appt);
+    const sMin = start.getHours() * 60 + start.getMinutes();
+    const eMin = end.getHours() * 60 + end.getMinutes();
+    apptStart = apptStart === null ? sMin : Math.min(apptStart, sMin);
+    apptEnd = apptEnd === null ? eMin : Math.max(apptEnd, eMin);
+  }
+
+  const starts = [coreOpen, apptStart].filter((v): v is number => v !== null);
+  const ends = [coreClose, apptEnd].filter((v): v is number => v !== null);
+  if (!starts.length || !ends.length) return null; // cerrado / sin actividad
+
+  return {
+    start: minutesToScheduleTime(Math.min(...starts)),
+    end: minutesToScheduleTime(Math.max(...ends)),
+  };
+}
+
 export function getScheduleForDate(
   schedule: ScheduleMap | null,
   date: Date,
