@@ -227,6 +227,7 @@ function AgendaPage() {
     startsAt: Date;
     x: number;
     y: number;
+    restricted?: boolean;
   } | null>(null);
   const [blockDialog, setBlockDialog] = React.useState<{
     employeeId: string | null;
@@ -325,7 +326,16 @@ function AgendaPage() {
         return;
       }
       if (!guardErr.includes("descanso")) {
-        toast.error("Fuera del horario disponible para este profesional.");
+        // Día no disponible / fuera de horario. No bloqueamos del todo: si hay
+        // un profesional en la columna, abrimos un menú reducido para poder
+        // entrar a "Horario especial" y volver a habilitar el día (ej. 08:00–
+        // 22:00). La validación de turnos queda intacta: en este modo no se
+        // ofrece "Agregar turno".
+        if (employeeId) {
+          setSlotMenu({ employeeId, startsAt, x: event.clientX, y: event.clientY, restricted: true });
+        } else {
+          toast.error("Seleccioná un profesional para editar el horario especial de este día.");
+        }
         return;
       }
       // (guardErr es descanso pero breakEnabled === true) → continúa.
@@ -336,6 +346,7 @@ function AgendaPage() {
       startsAt,
       x: event.clientX,
       y: event.clientY,
+      restricted: false,
     });
   };
 
@@ -468,14 +479,23 @@ function AgendaPage() {
     date,
   );
 
+  // Si el día resuelto está NO disponible (especial cerrado o libre), el rango
+  // viene como 00:00–00:00. Para que al reactivar "Disponible" se vean horas
+  // útiles, sembramos el editor con el horario NORMAL (semanal del profesional →
+  // negocio), ignorando los especiales.
+  const base =
+    day?.enabled !== false
+      ? day
+      : resolveDaySchedule(data.schedule, data.employeeSchedules ?? {}, {}, {}, employeeId, date);
+
   setSpecialEditor({
     employeeId,
     date,
     available: day?.enabled !== false,
-    start: day?.start ?? "11:00",
-    end: day?.end ?? "20:00",
-    breakStart: day?.breakStart ?? "",
-    breakEnd: day?.breakEnd ?? "",
+    start: base?.start ?? "11:00",
+    end: base?.end ?? "20:00",
+    breakStart: base?.breakStart ?? "",
+    breakEnd: base?.breakEnd ?? "",
     saving: false,
   });
 
@@ -1009,23 +1029,32 @@ const saveSpecialFromAgenda = async (day: DaySchedule) => {
           >
             <div className="border-b border-white/10 px-3 py-2 text-xs text-muted-foreground">
               {slotMenu.startsAt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · {fmtTime(slotMenu.startsAt)}
+              {slotMenu.restricted && (
+                <div className="mt-0.5 text-[11px] font-medium text-amber-300/90">
+                  Profesional no disponible este día
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => openNew(slotMenu.employeeId, slotMenu.startsAt)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-            >
-              <CalendarIcon className="h-4 w-4 text-primary" />
-              Agregar turno
-            </button>
-            <button
-              type="button"
-              onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-            >
-              <XCircle className="h-4 w-4 text-amber-300" />
-              Bloquear horario
-            </button>
+            {!slotMenu.restricted && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openNew(slotMenu.employeeId, slotMenu.startsAt)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+                >
+                  <CalendarIcon className="h-4 w-4 text-primary" />
+                  Agregar turno
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+                >
+                  <XCircle className="h-4 w-4 text-amber-300" />
+                  Bloquear horario
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => openSpecialFromSlot(slotMenu.employeeId, slotMenu.startsAt)}
@@ -1726,7 +1755,7 @@ const DayView = React.memo(function DayView({
               {breakBlocks.map((b, i) => (
                 <div
                   key={`break-${i}`}
-                  className="pointer-events-none absolute inset-x-0.5 z-[1] flex flex-col items-center justify-center overflow-hidden rounded-md text-center"
+                  className="pointer-events-none absolute inset-x-0.5 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md px-1 text-center"
                   style={{
                     top: b.top,
                     height: b.height,
@@ -1735,10 +1764,10 @@ const DayView = React.memo(function DayView({
                       "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
                   }}
                 >
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300/85 leading-tight">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide leading-none text-slate-300/85">
                     Descanso
                   </span>
-                  <span className="text-[10px] text-slate-400/75 leading-tight">{b.label}</span>
+                  <span className="text-[10px] tabular-nums leading-none text-slate-400/75">{b.label}</span>
                 </div>
               ))}
 
