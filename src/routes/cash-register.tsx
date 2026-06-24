@@ -1078,66 +1078,103 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
 }
 
 
-function InventarioTab({ businessId: _businessId, userEmail: _userEmail }: { businessId: string | null; userEmail: string | null }) {
+function InventarioTab({ businessId: _businessId, userEmail }: { businessId: string | null; userEmail: string | null }) {
   const data = useCajaData();
   const [stockQuery, setStockQuery] = React.useState("");
   const [movementQuery, setMovementQuery] = React.useState("");
+  const [adjustingId, setAdjustingId] = React.useState<string | null>(null);
+  const INVENTORY_MOVEMENTS_KEY = "clippr_inventory_movements_v1";
 
   const catalogItems = React.useMemo(() => (data.services ?? []).filter((item: any) => item.is_catalog), [data.services]);
   const normalizedStockQuery = stockQuery.trim().toLowerCase();
   const normalizedMovementQuery = movementQuery.trim().toLowerCase();
 
-  const money = (value: unknown) => `$${Number(value ?? 0).toLocaleString("es-AR")}`;
-  const effectivePrice = (item: any) => Number(item.cash_price ?? item.price_cash ?? item.efectivo_price ?? item.effective_price ?? item.cashPrice ?? item.price ?? 0);
   const itemImage = (item: any) => item.image_url ?? item.photo_url ?? item.thumbnail_url ?? item.cover_url ?? item.image ?? item.photo ?? null;
-  const catalogCategory = (item: any) => String(item.category || "Productos");
+  const catalogCategory = (item: any) => String(item.category || item.type || "Productos");
   const stockNumber = (item: any) => Number(item.stock ?? item.quantity ?? item.qty ?? 0);
+  const itemId = (item: any) => String(item.id ?? item.service_id ?? item.product_id ?? item.name ?? crypto.randomUUID());
+
+  const formatInventoryDate = (value: string | Date | null | undefined) => {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" }) + ", " +
+      date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false }) + "hs";
+  };
+
+  type InventoryMovement = {
+    id: string;
+    created_at: string;
+    product: string;
+    type: "Ingreso" | "Egreso";
+    qty: number;
+    stockFrom: number | null;
+    stockTo: number | null;
+    note: string | null;
+  };
+
+  const readLocalMovements = React.useCallback((): InventoryMovement[] => {
+    if (typeof window === "undefined") return [];
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(INVENTORY_MOVEMENTS_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const [localMovements, setLocalMovements] = React.useState<InventoryMovement[]>(() => readLocalMovements());
+
+  React.useEffect(() => {
+    const handler = () => setLocalMovements(readLocalMovements());
+    window.addEventListener("clippr:inventory-movements-updated", handler);
+    return () => window.removeEventListener("clippr:inventory-movements-updated", handler);
+  }, [readLocalMovements]);
+
+  const saveLocalMovement = React.useCallback((movement: InventoryMovement) => {
+    if (typeof window === "undefined") return;
+    try {
+      const next = [movement, ...readLocalMovements()].slice(0, 120);
+      window.localStorage.setItem(INVENTORY_MOVEMENTS_KEY, JSON.stringify(next));
+      setLocalMovements(next);
+      window.dispatchEvent(new CustomEvent("clippr:inventory-movements-updated"));
+    } catch {
+      // ignore
+    }
+  }, [readLocalMovements]);
 
   const filteredStock = catalogItems.filter((item: any) => {
     if (!normalizedStockQuery) return true;
-    return `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedStockQuery);
+    return `${item.name ?? ""} ${item.category ?? ""} ${item.type ?? ""}`.toLowerCase().includes(normalizedStockQuery);
   });
 
-  const inventoryMovements = React.useMemo(() => {
-    const sales = (data.paymentsToday ?? []).flatMap((payment: any) => {
-      const name = payment.service_name ?? payment.service ?? payment.item_name ?? payment.name ?? "Venta";
-      return [{
-        id: `sale-${payment.id}`,
-        type: "Salida",
-        name,
-        detail: payment.client_name ?? payment.cliente ?? "Venta en caja",
-        amount: Number(payment.total ?? payment.amount ?? 0),
-        created_at: payment.created_at,
-      }];
-    });
+  const statusLabel = (item: any) => {
+    const configured = item.stock_status ?? item.inventory_status ?? item.status_label ?? item.estado_stock ?? item.estado ?? null;
+    if (configured) return String(configured);
+    const stock = stockNumber(item);
+    if (stock <= 0) return "Sin stock";
+    if (stock <= 2) return "Crítico";
+    if (stock <= 5) return "Bajo";
+    return "Disponible";
+  };
 
-    const expenses = (data.expensesToday ?? []).map((expense: any) => ({
-      id: `expense-${expense.id}`,
-      type: "Gasto",
-      name: expense.name ?? expense.concept ?? expense.description ?? "Gasto",
-      detail: expense.type ?? expense.category ?? "Caja",
-      amount: -Number(expense.amount ?? 0),
-      created_at: expense.created_at ?? expense.date,
-    }));
-
-    return [...sales, ...expenses].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  }, [data.paymentsToday, data.expensesToday]);
-
-  const filteredMovements = inventoryMovements.filter((item: any) => {
-    if (!normalizedMovementQuery) return true;
-    return `${item.name ?? ""} ${item.detail ?? ""} ${item.type ?? ""}`.toLowerCase().includes(normalizedMovementQuery);
-  });
-
-  const stockClass = (stock: number) => {
-    if (stock <= 0) return "bg-rose-500/12 text-rose-300 ring-rose-400/24";
-    if (stock <= 5) return "bg-amber-400/12 text-amber-300 ring-amber-400/24";
+  const statusClass = (item: any) => {
+    const label = statusLabel(item).toLowerCase();
+    const stock = stockNumber(item);
+    if (label.includes("sin") || label.includes("crítico") || label.includes("critico") || stock <= 2) return "bg-rose-500/12 text-rose-300 ring-rose-400/24";
+    if (label.includes("bajo") || label.includes("medio") || stock <= 5) return "bg-amber-400/12 text-amber-300 ring-amber-400/24";
     return "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24";
   };
 
   const StockBadge = ({ stock }: { stock: number }) => (
-    <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1", stockClass(stock))}>
+    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/12 px-3.5 py-1.5 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/24">
       <span className="size-2 rounded-full bg-current" />
-      {stock <= 0 ? "Sin stock" : `Stock ${stock}`}
+      Stock {stock}
+    </span>
+  );
+
+  const StatusBadge = ({ item }: { item: any }) => (
+    <span className={cn("inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ring-1", statusClass(item))}>
+      {statusLabel(item)}
     </span>
   );
 
@@ -1162,6 +1199,87 @@ function InventarioTab({ businessId: _businessId, userEmail: _userEmail }: { bus
     </div>
   );
 
+  async function adjustStock(item: any, direction: "in" | "out") {
+    const id = itemId(item);
+    if (adjustingId) return;
+
+    const quantityText = window.prompt(direction === "in" ? "Cantidad a agregar" : "Cantidad a retirar");
+    if (quantityText === null) return;
+
+    const qty = Math.abs(Number(quantityText));
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error("Ingresá una cantidad válida");
+      return;
+    }
+
+    const note = window.prompt("Nota del movimiento (opcional)") ?? "";
+    const currentStock = stockNumber(item);
+    const nextStock = direction === "in" ? currentStock + qty : Math.max(0, currentStock - qty);
+
+    setAdjustingId(id);
+    try {
+      const { error } = await supabase
+        .from("services" as any)
+        .update({ stock: nextStock, updated_at: new Date().toISOString() } as any)
+        .eq("id", id);
+
+      if (error) throw error;
+
+      saveLocalMovement({
+        id: `${Date.now()}-${id}`,
+        created_at: new Date().toISOString(),
+        product: item.name ?? "Producto",
+        type: direction === "in" ? "Ingreso" : "Egreso",
+        qty: direction === "in" ? qty : -qty,
+        stockFrom: currentStock,
+        stockTo: nextStock,
+        note: note.trim() || null,
+      });
+
+      toast.success(direction === "in" ? "Stock agregado" : "Stock descontado");
+      await data.refresh();
+    } catch (error: any) {
+      toast.error(error?.message ?? "No se pudo actualizar el stock");
+    } finally {
+      setAdjustingId(null);
+    }
+  }
+
+  const salesMovements = React.useMemo<InventoryMovement[]>(() => {
+    const catalogNames = new Set(catalogItems.map((item: any) => String(item.name ?? "").toLowerCase()).filter(Boolean));
+    return (data.paymentsToday ?? [])
+      .filter((payment: any) => catalogNames.has(String(payment.service_name ?? payment.service ?? payment.item_name ?? payment.name ?? "").toLowerCase()))
+      .map((payment: any) => ({
+        id: `sale-${payment.id}`,
+        created_at: payment.created_at ?? new Date().toISOString(),
+        product: payment.service_name ?? payment.service ?? payment.item_name ?? payment.name ?? "Venta",
+        type: "Egreso" as const,
+        qty: -Number(payment.quantity ?? payment.qty ?? 1),
+        stockFrom: null,
+        stockTo: null,
+        note: "Venta en caja",
+      }));
+  }, [data.paymentsToday, catalogItems]);
+
+  const inventoryMovements = React.useMemo(() => {
+    return [...localMovements, ...salesMovements]
+      .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  }, [localMovements, salesMovements]);
+
+  const filteredMovements = inventoryMovements.filter((item: InventoryMovement) => {
+    if (!normalizedMovementQuery) return true;
+    return `${item.product ?? ""} ${item.note ?? ""} ${item.type ?? ""}`.toLowerCase().includes(normalizedMovementQuery);
+  });
+
+  const movementTypeClass = (type: InventoryMovement["type"]) =>
+    type === "Ingreso"
+      ? "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24"
+      : "bg-rose-500/12 text-rose-300 ring-rose-400/24";
+
+  const qtyText = (qty: number) => `${qty > 0 ? "+" : ""}${qty}`;
+  const stockFlow = (movement: InventoryMovement) =>
+    movement.stockFrom === null || movement.stockTo === null ? "—" : `${movement.stockFrom} → ${movement.stockTo}`;
+
   return (
     <div className="-mt-2 grid grid-cols-1 gap-5 xl:grid-cols-2 animate-fade-up">
       <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
@@ -1174,18 +1292,20 @@ function InventarioTab({ businessId: _businessId, userEmail: _userEmail }: { bus
         </div>
         <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
-            <div className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+            <div className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Artículo</div>
-              <div>Lista</div>
-              <div>Efectivo</div>
               <div>Stock</div>
+              <div>Estado</div>
+              <div className="text-right">Ajustar</div>
             </div>
             {filteredStock.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">Sin artículos.</div>
             ) : filteredStock.map((item: any) => {
               const stock = stockNumber(item);
+              const id = itemId(item);
+              const loading = adjustingId === id;
               return (
-                <div key={item.id} className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
+                <div key={id} className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
                   <div className="flex min-w-0 items-center gap-4">
                     <Thumb item={item} />
                     <div className="min-w-0">
@@ -1193,9 +1313,26 @@ function InventarioTab({ businessId: _businessId, userEmail: _userEmail }: { bus
                       <div className="mt-1 text-xs text-white/50">{catalogCategory(item)}</div>
                     </div>
                   </div>
-                  <div className="font-semibold tabular-nums text-white/86">{money(Number(item.price ?? 0))}</div>
-                  <div className="font-bold tabular-nums text-emerald-300">{money(effectivePrice(item))}</div>
                   <StockBadge stock={stock} />
+                  <StatusBadge item={item} />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => adjustStock(item, "out")}
+                      disabled={loading}
+                      className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition hover:-translate-y-0.5 hover:bg-rose-500/12 hover:text-rose-200 disabled:opacity-50"
+                    >
+                      <Minus className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => adjustStock(item, "in")}
+                      disabled={loading}
+                      className="grid size-9 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.18)] transition hover:-translate-y-0.5 hover:bg-emerald-400/18 disabled:opacity-50"
+                    >
+                      <Plus className="size-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -1213,21 +1350,24 @@ function InventarioTab({ businessId: _businessId, userEmail: _userEmail }: { bus
         </div>
         <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
-            <div className="grid grid-cols-[110px_minmax(180px,1fr)_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+            <div className="grid grid-cols-[150px_minmax(140px,1fr)_100px_80px_90px_minmax(110px,1fr)] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+              <div>Fecha</div>
+              <div>Producto</div>
               <div>Tipo</div>
-              <div>Detalle</div>
-              <div className="text-right">Monto</div>
+              <div>Cant.</div>
+              <div>Stock</div>
+              <div>Nota</div>
             </div>
             {filteredMovements.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">Sin movimientos.</div>
-            ) : filteredMovements.map((item: any) => (
-              <div key={item.id} className="grid grid-cols-[110px_minmax(180px,1fr)_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
-                <div className={cn("inline-flex w-fit rounded-full px-3 py-1 text-xs font-bold ring-1", item.type === "Salida" ? "bg-rose-500/10 text-rose-300 ring-rose-400/20" : "bg-violet-500/10 text-violet-200 ring-violet-300/20")}>{item.type}</div>
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-white">{item.name}</div>
-                  <div className="mt-1 truncate text-xs text-white/50">{item.detail}</div>
-                </div>
-                <div className={cn("text-right font-bold tabular-nums", item.amount >= 0 ? "text-emerald-300" : "text-rose-300")}>{money(item.amount)}</div>
+            ) : filteredMovements.map((item: InventoryMovement) => (
+              <div key={item.id} className="grid grid-cols-[150px_minmax(140px,1fr)_100px_80px_90px_minmax(110px,1fr)] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
+                <div className="text-xs text-white/50">{formatInventoryDate(item.created_at)}</div>
+                <div className="truncate font-semibold text-white">{item.product}</div>
+                <div className={cn("inline-flex w-fit rounded-full px-3 py-1 text-xs font-bold ring-1", movementTypeClass(item.type))}>{item.type}</div>
+                <div className={cn("font-bold tabular-nums", item.qty >= 0 ? "text-emerald-300" : "text-rose-300")}>{qtyText(item.qty)}</div>
+                <div className="text-white/60">{stockFlow(item)}</div>
+                <div className="truncate text-white/50">{item.note || "—"}</div>
               </div>
             ))}
           </div>
@@ -1236,7 +1376,6 @@ function InventarioTab({ businessId: _businessId, userEmail: _userEmail }: { bus
     </div>
   );
 }
-
 
 function NuevoGastoTab({
   data,
