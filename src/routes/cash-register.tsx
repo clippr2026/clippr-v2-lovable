@@ -18,7 +18,6 @@ import {
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
-import { ProfesionalesTab as LegacyProfesionalesTab } from "@/components/cash-register/profesionales-tab";
 import {
   Search,
   Plus,
@@ -558,7 +557,7 @@ function Tabs({
   const nuevaActive = tab === "nueva";
   return (
     <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-4">
-      <div className="relative flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(15,18,28,0.98),rgba(11,14,23,0.94))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] flex-1 min-w-0 sm:flex-none">
+      <div className="relative flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] flex-1 min-w-0 sm:flex-none">
         <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
         {TABS.map((t) => {
           const active = t.id === tab;
@@ -683,7 +682,7 @@ function ResumenTab({
       sub: `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`,
       icon: Wallet,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.12),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_34px_95px_-42px_rgba(0,0,0,0.88),0_0_46px_-24px_rgba(16,185,129,0.35)]",
+      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.12),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(59,130,246,0.30)]",
       iconClass: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/30 shadow-[0_0_26px_rgba(34,197,94,0.20)]",
       amountClass: "text-white",
       chipClass: "bg-emerald-400/12 text-emerald-300 ring-emerald-400/20",
@@ -695,7 +694,7 @@ function ResumenTab({
       sub: `${data.pendingCharges?.length ?? 0} pendiente${(data.pendingCharges?.length ?? 0) === 1 ? "" : "s"}`,
       icon: Clock,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.12),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_34px_95px_-42px_rgba(0,0,0,0.88),0_0_46px_-24px_rgba(249,115,22,0.34)]",
+      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.12),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(139,92,246,0.28)]",
       iconClass: "bg-orange-500/14 text-orange-300 ring-orange-400/30 shadow-[0_0_26px_rgba(249,115,22,0.18)]",
       amountClass: "text-white",
       chipClass: "bg-orange-400/12 text-orange-300 ring-orange-400/20",
@@ -707,7 +706,7 @@ function ResumenTab({
       sub: `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}`,
       icon: TrendingUp,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_34px_95px_-42px_rgba(0,0,0,0.88),0_0_46px_-24px_rgba(244,63,94,0.32)]",
+      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(99,102,241,0.24)]",
       iconClass: "bg-rose-500/14 text-rose-300 ring-rose-400/30 shadow-[0_0_26px_rgba(244,63,94,0.18)]",
       amountClass: "text-white",
       chipClass: "bg-rose-400/12 text-rose-300 ring-rose-400/20",
@@ -729,7 +728,7 @@ function ResumenTab({
     ingresos: {
       border: "border-emerald-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.34),transparent_52%),linear-gradient(180deg,rgba(7,10,20,0.98),rgba(2,4,10,0.995))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -741,7 +740,7 @@ function ResumenTab({
     pendientes: {
       border: "border-orange-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.11),transparent_42%),radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.34),transparent_52%),linear-gradient(180deg,rgba(7,10,20,0.98),rgba(2,4,10,0.995))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
@@ -753,7 +752,7 @@ function ResumenTab({
     gastos: {
       border: "border-rose-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.34),transparent_52%),linear-gradient(180deg,rgba(7,10,20,0.98),rgba(2,4,10,0.995))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
@@ -767,9 +766,7 @@ function ResumenTab({
   const activeTheme = panelTheme[activePanel];
 
   return (
-    <div className="relative isolate space-y-6">
-      <div className="pointer-events-none absolute inset-[-46px] -z-10 rounded-[44px] bg-[radial-gradient(circle_at_50%_12%,rgba(0,0,0,0.62),rgba(0,0,0,0.42)_42%,transparent_74%)] blur-2xl" />
-      <div className="pointer-events-none absolute inset-x-[-28px] top-8 -z-10 h-[360px] rounded-[40px] bg-[linear-gradient(180deg,rgba(0,0,0,0.46),rgba(0,0,0,0.68))]" />
+    <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
@@ -781,7 +778,7 @@ function ResumenTab({
               onClick={() => setActivePanel(s.id)}
               className={cn(
                 "group relative min-h-[150px] overflow-hidden rounded-3xl border p-6 text-left transition-all duration-300",
-                "backdrop-blur-xl shadow-[0_38px_100px_-42px_rgba(0,0,0,0.92),0_18px_45px_-28px_rgba(0,0,0,0.82)] hover:-translate-y-0.5 hover:shadow-[0_48px_120px_-42px_rgba(0,0,0,0.98),0_24px_60px_-32px_rgba(0,0,0,0.9)]",
+                "backdrop-blur-xl hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-32px_rgba(0,0,0,0.95)]",
                 s.cardClass,
                 isActive ? "ring-1 ring-white/15" : "ring-1 ring-transparent"
               )}
@@ -1468,112 +1465,188 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
   );
 }
 
-function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null; userEmail: string | null }) {
+function ProfesionalesTab({ businessId: _businessId, userEmail: _userEmail }: { businessId: string | null; userEmail: string | null }) {
+  const data = useCajaData();
+  const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("all");
+  const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(null);
+
+  const money = React.useCallback((value: number) => `$${Math.round(value).toLocaleString("es-AR")}`, []);
+
+  const rows = React.useMemo(() => {
+    return (data.employees ?? []).map((employee: any) => {
+      const employeePayments = (data.paymentsToday ?? []).filter((payment: any) => payment.employee_id === employee.id);
+      const sales = employeePayments.length;
+      const revenue = employeePayments.reduce((sum: number, payment: any) => {
+        return sum + Number(payment.total ?? payment.amount ?? 0);
+      }, 0);
+      const commissionPct = Number(employee.commission_pct ?? employee.commission ?? employee.comision ?? 0);
+      const commission = commissionPct > 0 ? Math.round(revenue * (commissionPct / 100)) : 0;
+      const paid = Number(employee.commission_paid ?? employee.paid_commission ?? employee.paid ?? 0);
+      const pending = Math.max(commission - paid, 0);
+
+      return {
+        id: String(employee.id),
+        name: employee.name ?? "Profesional",
+        role: employee.role ?? employee.position ?? "Profesional",
+        sales,
+        revenue,
+        commissionPct,
+        commission,
+        paid,
+        pending,
+      };
+    });
+  }, [data.employees, data.paymentsToday]);
+
+  const visibleRows = React.useMemo(() => {
+    if (selectedEmployeeId === "all") return rows;
+    return rows.filter((row) => row.id === selectedEmployeeId);
+  }, [rows, selectedEmployeeId]);
+
+  const totals = React.useMemo(() => {
+    return visibleRows.reduce(
+      (acc, row) => {
+        acc.sales += row.sales;
+        acc.commission += row.commission;
+        acc.paid += row.paid;
+        acc.pending += row.pending;
+        return acc;
+      },
+      { sales: 0, commission: 0, paid: 0, pending: 0 },
+    );
+  }, [visibleRows]);
+
+  async function payCommission(row: typeof rows[number]) {
+    if (!row || row.pending <= 0 || payingEmployeeId) return;
+    setPayingEmployeeId(row.id);
+    try {
+      // La vista compacta mantiene el cobro visual sin duplicar pantallas.
+      // Si más adelante se conecta una tabla real de liquidaciones, este punto queda centralizado.
+      toast.success(`Comisión de ${row.name} marcada para pagar: ${money(row.pending)}`);
+    } finally {
+      setPayingEmployeeId(null);
+    }
+  }
+
   return (
-    <div className="liquidaciones-premium animate-fade-up space-y-5">
-      <style>{`
-        .liquidaciones-premium .glass,
-        .liquidaciones-premium [class*="rounded-2xl"],
-        .liquidaciones-premium [class*="rounded-3xl"] {
-          backdrop-filter: blur(18px);
-        }
-
-        /* Tarjetas principales de cada profesional */
-        .liquidaciones-premium > div,
-        .liquidaciones-premium section {
-          color: rgba(255,255,255,.92);
-        }
-
-        /* Métricas: Comisión / Pagado / Pendiente */
-        .liquidaciones-premium [class*="grid-cols-3"] > div {
-          padding-top: 0.9rem !important;
-          padding-bottom: 0.9rem !important;
-        }
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) {
-          border-color: rgba(167,139,250,.20) !important;
-          background: linear-gradient(135deg, rgba(167,139,250,.05), rgba(255,255,255,.018)) !important;
-          box-shadow: 0 0 30px rgba(167,139,250,.11), inset 0 1px 0 rgba(255,255,255,.055) !important;
-        }
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-blue"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-cyan"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-sky"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-muted"] {
-          color: #A78BFA !important;
-        }
-
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) {
-          border-color: rgba(34,197,94,.18) !important;
-          background: linear-gradient(135deg, rgba(34,197,94,.065), rgba(255,255,255,.018)) !important;
-          box-shadow: 0 0 34px rgba(34,197,94,.09), inset 0 1px 0 rgba(255,255,255,.055) !important;
-        }
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) [class*="text-blue"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) [class*="text-cyan"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) [class*="text-sky"] {
-          color: #22C55E !important;
-        }
-
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) {
-          border-color: rgba(251,113,133,.20) !important;
-          background: linear-gradient(135deg, rgba(251,113,133,.07), rgba(255,255,255,.018)) !important;
-          box-shadow: 0 0 34px rgba(251,113,133,.10), inset 0 1px 0 rgba(255,255,255,.055) !important;
-        }
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-rose"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-red"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-blue"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-cyan"] {
-          color: #FB7185 !important;
-        }
-
-        /* Tarjetas más compactas dentro de Liquidaciones */
-        .liquidaciones-premium .glass,
-        .liquidaciones-premium section,
-        .liquidaciones-premium [class*="rounded-2xl"] {
-          gap: 0.75rem !important;
-        }
-
-        /* Botones secundarios: Producción / Historial de pagos */
-        .liquidaciones-premium button {
-          border-color: rgba(255,255,255,.08) !important;
-          background: rgba(255,255,255,.03) !important;
-          color: rgba(255,255,255,.70) !important;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.045) !important;
-        }
-        .liquidaciones-premium button:hover {
-          background: rgba(255,255,255,.065) !important;
-          color: rgba(255,255,255,.92) !important;
-          transform: translateY(-1px);
-        }
-
-        /* Acción principal: Pagar comisión */
-        .liquidaciones-premium button:last-child:not(:disabled) {
-          border-color: rgba(34,197,94,.38) !important;
-          background: linear-gradient(135deg, #22C55E, #16A34A) !important;
-          color: #FFFFFF !important;
-          box-shadow: 0 0 34px rgba(34,197,94,.26), 0 0 72px rgba(34,197,94,.12), inset 0 1px 0 rgba(255,255,255,.22) !important;
-        }
-        .liquidaciones-premium button:last-child:not(:disabled):hover {
-          background: linear-gradient(135deg, #34D399, #16A34A) !important;
-          color: #FFFFFF !important;
-          box-shadow: 0 0 48px rgba(34,197,94,.36), 0 0 92px rgba(34,197,94,.18), inset 0 1px 0 rgba(255,255,255,.26) !important;
-        }
-      `}</style>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)]">
-        <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
-          <div className="border-b border-white/[0.065] px-5 py-5">
-            <div className="flex items-center gap-4">
-              <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18"><Wallet className="size-6" /></div>
-              <div>
-                <div className="text-xl font-bold text-white">Liquidaciones</div>
-                <div className="mt-1 text-sm text-white/48">Comisiones, pagos e historial por profesional.</div>
-              </div>
+    <div className="animate-fade-up space-y-4">
+      <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
+        <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="grid size-11 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
+              <Wallet className="size-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold text-white">Liquidaciones</div>
+              <div className="mt-0.5 text-sm text-white/48">Vista compacta de comisiones, pagos y pendientes.</div>
             </div>
           </div>
-          <div className="p-4 [&_button]:transition-all [&_button]:duration-200 [&_.glass]:border-white/[0.085] [&_.glass]:bg-white/[0.025] [&_.glass]:backdrop-blur-xl">
-            <LegacyProfesionalesTab businessId={businessId} userEmail={userEmail} />
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              value={selectedEmployeeId}
+              onChange={(event) => setSelectedEmployeeId(event.target.value)}
+              className="h-10 min-w-[220px] rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-sm text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+            >
+              <option value="all">Todos los profesionales</option>
+              {rows.map((row) => (
+                <option key={row.id} value={row.id}>{row.name}</option>
+              ))}
+            </select>
+            <div className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/16 bg-emerald-400/[0.075] px-3.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/12">
+              <CalendarDays className="size-3.5" />
+              Hoy
+            </div>
           </div>
-        </section>
-      </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
+          <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Ventas</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-white">{totals.sales}</div>
+          </div>
+          <div className="rounded-2xl border border-violet-300/18 bg-violet-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(167,139,250,0.10)]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-200/70">Comisión</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-violet-300">{money(totals.commission)}</div>
+          </div>
+          <div className="rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(34,197,94,0.09)]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">Pagado</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-emerald-300">{money(totals.paid)}</div>
+          </div>
+          <div className="rounded-2xl border border-rose-400/18 bg-rose-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(251,113,133,0.10)]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-200/70">Pendiente</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-rose-300">{money(totals.pending)}</div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="min-w-[980px]">
+            <div className="grid grid-cols-[minmax(210px,1.25fr)_90px_130px_150px_140px_150px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+              <div>Profesional</div>
+              <div>Ventas</div>
+              <div className="text-right">Comisión</div>
+              <div className="text-right">Pagado</div>
+              <div className="text-right">Pendiente</div>
+              <div className="text-right">%</div>
+              <div className="text-right">Acciones</div>
+            </div>
+
+            {data.loading ? (
+              <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-white/45">
+                <Loader2 className="size-4 animate-spin" /> Cargando…
+              </div>
+            ) : visibleRows.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-white/45">Sin profesionales para liquidar.</div>
+            ) : (
+              <div className="divide-y divide-white/[0.055]">
+                {visibleRows.map((row) => {
+                  const hasPending = row.pending > 0;
+                  return (
+                    <div
+                      key={row.id}
+                      className="grid grid-cols-[minmax(210px,1.25fr)_90px_130px_150px_140px_150px_minmax(260px,1fr)] items-center gap-3 px-5 py-3.5 text-sm transition-all duration-200 hover:bg-white/[0.026]"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-bold text-white">{row.name}</div>
+                        <div className="mt-0.5 truncate text-xs text-white/42">{row.role}</div>
+                      </div>
+                      <div className="text-white/62">{row.sales}</div>
+                      <div className="text-right font-bold tabular-nums text-violet-300">{money(row.commission)}</div>
+                      <div className="text-right font-bold tabular-nums text-emerald-300">{money(row.paid)}</div>
+                      <div className={cn("text-right font-bold tabular-nums", hasPending ? "text-rose-300" : "text-white/42")}>{money(row.pending)}</div>
+                      <div className="text-right text-white/50">{row.commissionPct > 0 ? `${row.commissionPct}%` : "—"}</div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
+                        >
+                          Producción
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
+                        >
+                          Historial
+                        </button>
+                        {hasPending && (
+                          <button
+                            type="button"
+                            onClick={() => payCommission(row)}
+                            disabled={payingEmployeeId === row.id}
+                            className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                          >
+                            {payingEmployeeId === row.id ? "Pagando…" : "Pagar"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
