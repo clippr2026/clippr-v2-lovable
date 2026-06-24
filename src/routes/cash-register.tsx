@@ -1230,7 +1230,11 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
     }
 
     const currentStock = stockNumber(item);
-    const nextStock = direction === "in" ? currentStock + qty : Math.max(0, currentStock - qty);
+    if (direction === "out" && qty > currentStock) {
+      toast.error("No podés retirar más stock del disponible");
+      return;
+    }
+    const nextStock = direction === "in" ? currentStock + qty : currentStock - qty;
 
     setAdjustingId(id);
     try {
@@ -1464,7 +1468,82 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
 
 function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null; userEmail: string | null }) {
   return (
-    <div className="animate-fade-up space-y-5">
+    <div className="liquidaciones-premium animate-fade-up space-y-5">
+      <style>{`
+        .liquidaciones-premium .glass,
+        .liquidaciones-premium [class*="rounded-2xl"],
+        .liquidaciones-premium [class*="rounded-3xl"] {
+          backdrop-filter: blur(18px);
+        }
+
+        /* Tarjetas principales de cada profesional */
+        .liquidaciones-premium > div,
+        .liquidaciones-premium section {
+          color: rgba(255,255,255,.92);
+        }
+
+        /* Métricas: Comisión / Pagado / Pendiente */
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) {
+          border-color: rgba(167,139,250,.18) !important;
+          background: linear-gradient(135deg, rgba(167,139,250,.075), rgba(255,255,255,.018)) !important;
+          box-shadow: 0 0 34px rgba(167,139,250,.10), inset 0 1px 0 rgba(255,255,255,.055) !important;
+        }
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-blue"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-cyan"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-sky"] {
+          color: #A78BFA !important;
+        }
+
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) {
+          border-color: rgba(34,197,94,.18) !important;
+          background: linear-gradient(135deg, rgba(34,197,94,.065), rgba(255,255,255,.018)) !important;
+          box-shadow: 0 0 34px rgba(34,197,94,.09), inset 0 1px 0 rgba(255,255,255,.055) !important;
+        }
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) [class*="text-blue"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) [class*="text-cyan"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(2) [class*="text-sky"] {
+          color: #22C55E !important;
+        }
+
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) {
+          border-color: rgba(251,113,133,.20) !important;
+          background: linear-gradient(135deg, rgba(251,113,133,.07), rgba(255,255,255,.018)) !important;
+          box-shadow: 0 0 34px rgba(251,113,133,.10), inset 0 1px 0 rgba(255,255,255,.055) !important;
+        }
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-rose"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-red"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-blue"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(3) [class*="text-cyan"] {
+          color: #FB7185 !important;
+        }
+
+        /* Botones secundarios: Producción / Historial */
+        .liquidaciones-premium button {
+          border-color: rgba(255,255,255,.10) !important;
+          background: rgba(255,255,255,.035) !important;
+          color: rgba(255,255,255,.64) !important;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.045) !important;
+        }
+        .liquidaciones-premium button:hover {
+          background: rgba(255,255,255,.07) !important;
+          color: rgba(255,255,255,.92) !important;
+          transform: translateY(-1px);
+        }
+
+        /* Acción principal: Pagar comisión suele ser el último botón del grupo */
+        .liquidaciones-premium button:last-child:not(:disabled) {
+          border-color: rgba(34,197,94,.28) !important;
+          background: linear-gradient(135deg, rgba(34,197,94,.18), rgba(6,95,70,.28)) !important;
+          color: #86EFAC !important;
+          box-shadow: 0 0 30px rgba(34,197,94,.18), inset 0 1px 0 rgba(255,255,255,.08) !important;
+        }
+        .liquidaciones-premium button:last-child:not(:disabled):hover {
+          background: linear-gradient(135deg, rgba(34,197,94,.26), rgba(6,95,70,.38)) !important;
+          color: #FFFFFF !important;
+          box-shadow: 0 0 44px rgba(34,197,94,.26), inset 0 1px 0 rgba(255,255,255,.10) !important;
+        }
+      `}</style>
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)]">
         <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
           <div className="border-b border-white/[0.065] px-5 py-5">
