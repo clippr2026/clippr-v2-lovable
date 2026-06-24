@@ -17,7 +17,6 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
-import { PreciosTab } from "@/components/cash-register/precios-tab";
 import { InventarioTab } from "@/components/cash-register/inventario-tab";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
 import { ProfesionalesTab } from "@/components/cash-register/profesionales-tab";
@@ -586,7 +585,7 @@ function Tabs({
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-[linear-gradient(135deg,rgba(217,119,6,0.82),rgba(234,88,12,0.72))] text-white border border-orange-200/18 shadow-[0_0_20px_rgba(234,88,12,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_26px_rgba(234,88,12,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.14),transparent_55%)]"
+            className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(135deg,rgba(244,63,94,0.78),rgba(127,29,29,0.86))] text-white border border-rose-300/24 shadow-[0_0_28px_rgba(244,63,94,0.24),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_38px_rgba(244,63,94,0.34)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),transparent_58%)]"
           >
             <Wallet className="size-4 transition-transform group-hover:scale-110" />
             Nuevo gasto
@@ -596,8 +595,8 @@ function Tabs({
             className={cn(
               "group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
               nuevaActive
-                ? "bg-[linear-gradient(135deg,#3B82F6,#8B5CF6,#B84CFF)] text-white border-blue-200/35 shadow-[0_0_34px_rgba(99,102,241,0.25),0_1px_0_rgba(255,255,255,0.20)_inset]"
-                : "bg-[linear-gradient(135deg,#3B82F6,#8B5CF6,#B84CFF)] text-white border-blue-200/26 shadow-[0_0_30px_rgba(99,102,241,0.22),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_42px_rgba(139,92,246,0.30)]"
+                ? "bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(135deg,rgba(16,185,129,0.88),rgba(6,78,59,0.92))] text-white border-emerald-300/36 shadow-[0_0_38px_rgba(16,185,129,0.32),0_1px_0_rgba(255,255,255,0.20)_inset]"
+                : "bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(135deg,rgba(16,185,129,0.88),rgba(6,78,59,0.92))] text-white border-emerald-300/28 shadow-[0_0_34px_rgba(16,185,129,0.28),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_46px_rgba(16,185,129,0.38)]"
             )}
           >
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
@@ -900,6 +899,208 @@ function ResumenTab({
     </div>
   );
 }
+
+
+function PreciosTab({ businessId: _businessId }: { businessId: string | null }) {
+  const data = useCajaData();
+  const [query, setQuery] = React.useState("");
+  const [catalogFilter, setCatalogFilter] = React.useState("Todos");
+
+  const items = React.useMemo(() => data.services ?? [], [data.services]);
+  const serviceItems = React.useMemo(() => items.filter((item: any) => !item.is_catalog), [items]);
+  const catalogItems = React.useMemo(() => items.filter((item: any) => item.is_catalog), [items]);
+
+  const catalogCategories = React.useMemo(() => {
+    const cats = Array.from(new Set(catalogItems.map((item: any) => String(item.category || "Productos").trim()).filter(Boolean)));
+    return ["Todos", ...cats];
+  }, [catalogItems]);
+
+  React.useEffect(() => {
+    if (!catalogCategories.includes(catalogFilter)) setCatalogFilter("Todos");
+  }, [catalogCategories, catalogFilter]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredServices = serviceItems.filter((item: any) => {
+    if (!normalizedQuery) return true;
+    return `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedQuery);
+  });
+
+  const filteredCatalog = catalogItems.filter((item: any) => {
+    const matchesCategory = catalogFilter === "Todos" || String(item.category || "Productos") === catalogFilter;
+    const matchesText = !normalizedQuery || `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedQuery);
+    return matchesCategory && matchesText;
+  });
+
+  const money = (value: unknown) => `$${Number(value ?? 0).toLocaleString("es-AR")}`;
+  const effectivePrice = (item: any) => Number(item.cash_price ?? item.price_cash ?? item.efectivo_price ?? item.effective_price ?? item.cashPrice ?? item.price ?? 0);
+  const itemImage = (item: any) => item.image_url ?? item.photo_url ?? item.thumbnail_url ?? item.cover_url ?? item.image ?? item.photo ?? null;
+  const duration = (item: any) => Number(item.duration ?? item.duration_min ?? item.duration_minutes ?? item.minutes ?? 0);
+  const catalogCategory = (item: any) => String(item.category || "Productos");
+
+  const stockClass = (stock: number | null) => {
+    if (stock === null || Number.isNaN(stock)) return "bg-white/[0.045] text-white/60 ring-white/10";
+    if (stock <= 0) return "bg-rose-500/12 text-rose-300 ring-rose-400/24";
+    if (stock <= 5) return "bg-amber-400/12 text-amber-300 ring-amber-400/24";
+    return "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24";
+  };
+
+  const stockLabel = (stock: number | null) => {
+    if (stock === null || Number.isNaN(stock)) return "Sin stock";
+    if (stock <= 0) return "Sin stock";
+    return `Stock ${stock}`;
+  };
+
+  const PriceBadge = ({ label, value, tone = "violet" }: { label: string; value: number; tone?: "violet" | "green" }) => (
+    <div className={cn(
+      "min-w-[104px] rounded-2xl border px-4 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
+      tone === "green"
+        ? "border-emerald-400/22 bg-emerald-400/[0.045]"
+        : "border-violet-300/18 bg-violet-400/[0.055]"
+    )}>
+      <div className={cn("text-[10px] font-bold uppercase tracking-[0.16em]", tone === "green" ? "text-emerald-300" : "text-violet-200")}>{label}</div>
+      <div className="mt-1 text-base font-bold tabular-nums text-white">{money(value)}</div>
+    </div>
+  );
+
+  const Thumb = ({ item, fallback }: { item: any; fallback: string }) => {
+    const src = itemImage(item);
+    return (
+      <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-2xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
+        {src ? <img src={src} alt={item.name ?? ""} className="h-full w-full object-cover" /> : <span>{fallback}</span>}
+      </div>
+    );
+  };
+
+  const ServiceRow = ({ item }: { item: any }) => (
+    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto_24px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+      <div className="flex min-w-0 items-center gap-4">
+        <Thumb item={item} fallback="✂" />
+        <div className="min-w-0">
+          <div className="truncate text-base font-bold text-white">{item.name ?? "Servicio"}</div>
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-white/55">
+            <Clock className="size-3.5" />
+            {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
+          </div>
+        </div>
+      </div>
+      <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
+      <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
+      <button className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white" type="button">⋮</button>
+    </div>
+  );
+
+  const CatalogRow = ({ item }: { item: any }) => {
+    const stockRaw = item.stock ?? item.quantity ?? item.qty ?? null;
+    const stock = stockRaw === null || stockRaw === undefined ? null : Number(stockRaw);
+    return (
+      <div className="group grid grid-cols-[minmax(180px,1fr)_130px_130px_130px_24px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+        <div className="flex min-w-0 items-center gap-4">
+          <Thumb item={item} fallback="□" />
+          <div className="min-w-0">
+            <div className="truncate text-base font-bold text-white">{item.name ?? "Producto"}</div>
+            <div className="mt-1 text-xs text-white/50">{catalogCategory(item)}</div>
+          </div>
+        </div>
+        <div className="text-sm font-semibold tabular-nums text-white/86">{money(Number(item.price ?? 0))}</div>
+        <div className="text-sm font-bold tabular-nums text-emerald-300">{money(effectivePrice(item))}</div>
+        <div>
+          <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1", stockClass(stock))}>
+            <span className="size-2 rounded-full bg-current" />
+            {stockLabel(stock)}
+          </span>
+        </div>
+        <button className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white" type="button">⋮</button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-up">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">Precio lista y efectivo</div>
+        <div className="relative w-full md:w-[340px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar servicio o producto"
+            className="h-11 w-full rounded-2xl border border-white/[0.085] bg-[#060812]/80 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
+          <div className="flex items-center justify-between border-b border-white/[0.065] px-5 py-5">
+            <div className="flex items-center gap-4">
+              <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">✂</div>
+              <div>
+                <div className="text-xl font-bold text-white">Servicios disponibles <span className="text-white/35">·</span> <span className="text-white/55">{serviceItems.length}</span></div>
+              </div>
+            </div>
+          </div>
+          <div className="max-h-[430px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            {filteredServices.length === 0 ? (
+              <div className="py-16 text-center text-sm text-white/45">Sin servicios.</div>
+            ) : (
+              <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
+                {filteredServices.map((item: any) => <ServiceRow key={item.id} item={item} />)}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
+          <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
+            <div className="flex items-center gap-4">
+              <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">▣</div>
+              <div>
+                <div className="text-xl font-bold text-white">Catálogo <span className="text-white/35">·</span> <span className="text-white/55">{catalogItems.length}</span></div>
+              </div>
+            </div>
+            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.07] bg-black/25 p-1.5">
+              {catalogCategories.map((cat) => {
+                const active = catalogFilter === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCatalogFilter(cat)}
+                    className={cn(
+                      "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
+                      active
+                        ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
+                        : "text-white/50 hover:bg-white/[0.045] hover:text-white/80"
+                    )}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="max-h-[430px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
+              <div className="grid grid-cols-[minmax(180px,1fr)_130px_130px_130px_24px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+                <div>Artículo</div>
+                <div>Precio lista</div>
+                <div>Efectivo</div>
+                <div>Stock</div>
+                <div />
+              </div>
+              {filteredCatalog.length === 0 ? (
+                <div className="py-16 text-center text-sm text-white/45">Sin artículos.</div>
+              ) : (
+                filteredCatalog.map((item: any) => <CatalogRow key={item.id} item={item} />)
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 
 function NuevoGastoTab({
   data,
