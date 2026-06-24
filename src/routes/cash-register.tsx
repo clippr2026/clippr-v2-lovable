@@ -178,82 +178,6 @@ function getManualPendingNote(notes?: string | null) {
   return value;
 }
 
-
-type CajaMovimientoEvento = {
-  tipo?: string | null;
-  fecha_hora?: string | null;
-  hora?: string | null;
-  usuario?: string | null;
-  motivo?: string | null;
-  observacion?: string | null;
-};
-
-function cajaEventoMinuteKey(event: CajaMovimientoEvento) {
-  let minute = String(event.hora ?? "").trim();
-  if (event.fecha_hora) {
-    const date = new Date(event.fecha_hora);
-    if (!Number.isNaN(date.getTime())) {
-      minute = date.toISOString().slice(0, 16);
-    }
-  }
-
-  return [
-    String(event.tipo ?? "").trim(),
-    String(event.usuario ?? "").trim().toLowerCase(),
-    minute,
-    String(event.motivo ?? "").trim(),
-    String(event.observacion ?? "").trim(),
-  ].join("__");
-}
-
-function dedupeCajaEventos(events: CajaMovimientoEvento[]) {
-  const seen = new Set<string>();
-  return events.filter((event) => {
-    const key = cajaEventoMinuteKey(event);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function normalizeCajaEventos(events: CajaMovimientoEvento[]) {
-  const cleaned = dedupeCajaEventos(events);
-  return cleaned.reduce<CajaMovimientoEvento[]>((acc, event) => {
-    const tipo = String(event.tipo ?? "").trim();
-    const prev = acc[acc.length - 1];
-    const prevTipo = String(prev?.tipo ?? "").trim();
-
-    // Si por doble click o refresco quedaron dos cierres seguidos o dos reaperturas
-    // seguidas, se muestran/guardan como un solo cambio de estado.
-    if (tipo && tipo === prevTipo) {
-      acc[acc.length - 1] = event;
-      return acc;
-    }
-
-    acc.push(event);
-    return acc;
-  }, []);
-}
-
-function getLastCajaEventoTipo(events: CajaMovimientoEvento[]) {
-  const normalized = normalizeCajaEventos(events);
-  const last = normalized[normalized.length - 1];
-  return String(last?.tipo ?? "").trim();
-}
-
-function appendCajaEvento(events: CajaMovimientoEvento[], event: CajaMovimientoEvento) {
-  const normalized = normalizeCajaEventos(events);
-  const eventTipo = String(event.tipo ?? "").trim();
-
-  // Idempotencia real: no agregamos el mismo estado dos veces seguidas.
-  // cierre + cierre => 1 cierre / reapertura + reapertura => 1 reapertura.
-  if (eventTipo && getLastCajaEventoTipo(normalized) === eventTipo) {
-    return normalized;
-  }
-
-  return normalizeCajaEventos([...normalized, event]);
-}
-
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
     depositAppointmentId: (search.depositAppointmentId as string) ?? null,
@@ -308,12 +232,8 @@ function CashRegisterPage() {
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
-  const reabrirCajaBannerInFlightRef = React.useRef(false);
-
-  React.useEffect(() => {
-    setCajaCerrada(data.cajaStatus === "closed_today" || data.cajaStatus === "closed");
-  }, [data.cajaStatus]);
   const [resumenPanel, setResumenPanel] = useState<"ingresos" | "pendientes" | "gastos">("ingresos");
+  const [reopeningCaja, setReopeningCaja] = useState(false);
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -333,20 +253,20 @@ function CashRegisterPage() {
   }
 
   async function handleReabrirCajaDesdeBanner() {
-    if (reabrirCajaBannerInFlightRef.current) return;
-    reabrirCajaBannerInFlightRef.current = true;
+    if (reopeningCaja) return;
 
     if (!data.businessId || !session?.user?.id) {
       setCajaCerrada(false);
       data.refresh();
-      reabrirCajaBannerInFlightRef.current = false;
       return;
     }
+
+    setReopeningCaja(true);
 
     try {
       const { data: lastCierre, error } = await supabase
         .from("caja_cierres" as any)
-        .select("*")
+        .select("id,eventos,estado")
         .eq("business_id", data.businessId)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -354,7 +274,22 @@ function CashRegisterPage() {
 
       if (error) throw error;
 
-      if (!lastCierre?.id || (lastCierre as any).estado === "reabierta") {
+      if (!lastCierre?.id) {
+        setCajaCerrada(false);
+        await data.refresh();
+        return;
+      }
+
+      if (isCajaReabiertaRow(lastCierre)) {
+        toast.info("La caja ya está abierta");
+        setCajaCerrada(false);
+        setShowClosedHistory(false);
+        await data.refresh();
+        return;
+      }
+
+      if (!isCajaCerradaRow(lastCierre)) {
+        toast.info("La caja no está cerrada");
         setCajaCerrada(false);
         setShowClosedHistory(false);
         await data.refresh();
@@ -362,29 +297,22 @@ function CashRegisterPage() {
       }
 
       const now = new Date();
-      const eventos = Array.isArray((lastCierre as any).eventos) ? (lastCierre as any).eventos : [];
-      if (getLastCajaEventoTipo(eventos) === "reapertura") {
-        setCajaCerrada(false);
-        setShowClosedHistory(false);
-        await data.refresh();
-        return;
-      }
-      const usuario = session.user.email ?? session.user.id;
+      const user = session.user.email ?? session.user.id;
       const evento = {
         tipo: "reapertura",
         fecha_hora: now.toISOString(),
         hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
-        usuario,
+        usuario: user,
         motivo: null,
       };
 
-      const { data: reopenedRow, error: reopenError } = await supabase
+      const { data: updated, error: updateError } = await supabase
         .from("caja_cierres" as any)
         .update({
           estado: "reabierta",
           reopened_at: now.toISOString(),
-          reopened_by: usuario,
-          eventos: appendCajaEvento(eventos, evento),
+          reopened_by: user,
+          eventos: appendCajaEvento((lastCierre as any).eventos, evento),
           updated_at: now.toISOString(),
         })
         .eq("id", (lastCierre as any).id)
@@ -393,8 +321,10 @@ function CashRegisterPage() {
         .select("id")
         .maybeSingle();
 
-      if (reopenError) throw reopenError;
-      if (!reopenedRow?.id) {
+      if (updateError) throw updateError;
+
+      if (!updated?.id) {
+        toast.info("La caja ya estaba abierta");
         setCajaCerrada(false);
         setShowClosedHistory(false);
         await data.refresh();
@@ -402,17 +332,18 @@ function CashRegisterPage() {
       }
 
       await reopenCashSession({
-        sessionId: data.cajaSession?.sessionId ?? `local_${Date.now()}`,
+        sessionId: data.cajaSession?.sessionId ?? (lastCierre as any).id,
         businessId: data.businessId,
-        reopenedBy: usuario,
+        reopenedBy: user,
       });
 
       toast.success("Caja reabierta");
+      window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     } catch (e: any) {
       console.warn(e);
       toast.error(e?.message ?? "No se pudo registrar la reapertura");
     } finally {
-      reabrirCajaBannerInFlightRef.current = false;
+      setReopeningCaja(false);
       setCajaCerrada(false);
       setShowClosedHistory(false);
       await data.refresh();
@@ -472,9 +403,10 @@ function CashRegisterPage() {
               </button>
               <button
                 onClick={handleReabrirCajaDesdeBanner}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground"
+                disabled={reopeningCaja}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground disabled:opacity-50"
               >
-                Reabrir caja
+                {reopeningCaja ? "Reabriendo…" : "Reabrir caja"}
               </button>
             </div>
           </div>
@@ -483,7 +415,6 @@ function CashRegisterPage() {
               <CierresTab
                 businessId={data.businessId}
                 cajaCerrada={cajaCerrada}
-                userEmail={session.user.email ?? null}
                 onCajaReopened={() => {
                   setCajaCerrada(false);
                   setShowClosedHistory(false);
@@ -562,7 +493,6 @@ function CashRegisterPage() {
           <CierresTab
             businessId={data.businessId}
             cajaCerrada={cajaCerrada}
-            userEmail={session.user.email ?? null}
             onCajaReopened={() => { setCajaCerrada(false); data.refresh(); }}
           />
         )}
@@ -1040,6 +970,51 @@ type CierreMetodoDetalle = {
   utilidad: number;
 };
 
+type CajaEvento = {
+  tipo?: string | null;
+  fecha_hora?: string | null;
+  hora?: string | null;
+  usuario?: string | null;
+  observacion?: string | null;
+  motivo?: string | null;
+  [key: string]: unknown;
+};
+
+function cajaEventosArray(value: unknown): CajaEvento[] {
+  return Array.isArray(value) ? (value as CajaEvento[]) : [];
+}
+
+function appendCajaEvento(prevEventos: unknown, evento: CajaEvento): CajaEvento[] {
+  return [...cajaEventosArray(prevEventos), evento];
+}
+
+function cleanCajaEventosForDisplay(events: CajaEvento[]): CajaEvento[] {
+  const cleaned: CajaEvento[] = [];
+
+  for (const event of events) {
+    const previous = cleaned[cleaned.length - 1];
+    const sameAsPrevious =
+      previous &&
+      previous.tipo === event.tipo &&
+      previous.hora === event.hora &&
+      previous.usuario === event.usuario &&
+      (previous.observacion ?? null) === (event.observacion ?? null) &&
+      (previous.motivo ?? null) === (event.motivo ?? null);
+
+    if (!sameAsPrevious) cleaned.push(event);
+  }
+
+  return cleaned;
+}
+
+function isCajaCerradaRow(cierre: any) {
+  return String(cierre?.estado ?? "").toLowerCase() === "cerrada";
+}
+
+function isCajaReabiertaRow(cierre: any) {
+  return String(cierre?.estado ?? "").toLowerCase() === "reabierta";
+}
+
 function paymentMethodLabel(method: string) {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
 }
@@ -1060,7 +1035,6 @@ function CierreCajaBtn({
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
   const [saving, setSaving] = useState(false);
-  const closingInFlightRef = React.useRef(false);
 
   const today = new Date().toLocaleDateString("sv-SE");
 
@@ -1134,9 +1108,7 @@ function CierreCajaBtn({
   }));
 
   async function confirmar() {
-    if (!businessId || saving || closingInFlightRef.current) return;
-
-    closingInFlightRef.current = true;
+    if (saving || !businessId) return;
     setSaving(true);
     try {
       const now = new Date();
@@ -1155,18 +1127,14 @@ function CierreCajaBtn({
 
       const { data: existing } = await supabase
         .from("caja_cierres" as any)
-        .select("id,estado,eventos")
+        .select("id,eventos,estado")
         .eq("business_id", businessId)
         .eq("fecha", today)
         .maybeSingle();
 
-      const prevEventos = Array.isArray((existing as any)?.eventos) ? (existing as any).eventos : [];
-      const lastEventTipo = getLastCajaEventoTipo(prevEventos);
-
-      if ((existing as any)?.estado === "cerrada" || lastEventTipo === "cierre") {
-        toast.info("La caja ya estaba cerrada");
+      if (existing?.id && isCajaCerradaRow(existing)) {
+        toast.info("La caja ya está cerrada");
         setOpen(false);
-        setObs("");
         onCajaCerrada();
         return;
       }
@@ -1187,7 +1155,7 @@ function CierreCajaBtn({
         observacion: obs.trim() || null,
         tipo_cierre: "manual",
         estado: "cerrada",
-        eventos: appendCajaEvento(prevEventos, cierreEvento),
+        eventos: appendCajaEvento((existing as any)?.eventos, cierreEvento),
         updated_at: now.toISOString(),
       };
 
@@ -1198,10 +1166,18 @@ function CierreCajaBtn({
             .eq("id", (existing as any).id)
             .eq("business_id", businessId)
             .neq("estado", "cerrada")
-        : supabase.from("caja_cierres" as any).insert(payload);
+            .select("id")
+            .maybeSingle()
+        : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
 
-      const { error } = await query;
+      const { data: savedCierre, error } = await query;
       if (error) throw new Error(error.message);
+      if (!savedCierre?.id) {
+        toast.info("La caja ya estaba cerrada");
+        setOpen(false);
+        onCajaCerrada();
+        return;
+      }
       toast.success("Cierre registrado correctamente");
       setOpen(false);
       setObs("");
@@ -1210,7 +1186,6 @@ function CierreCajaBtn({
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      closingInFlightRef.current = false;
       setSaving(false);
     }
   }
@@ -1307,17 +1282,15 @@ function CierreCajaBtn({
 
 // ─────────── Cierres de caja — historial tab ─────────────────────────────────
 
-function CierresTab({ businessId, cajaCerrada, userEmail, onCajaReopened }: {
+function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
   businessId: string | null;
   cajaCerrada: boolean;
-  userEmail: string | null;
   onCajaReopened: () => void;
 }) {
   const [cierres, setCierres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
-  const reopeningInFlightRef = React.useRef<Set<string>>(new Set());
 
   const loadCierres = React.useCallback(() => {
     if (!businessId) return;
@@ -1343,7 +1316,7 @@ function CierresTab({ businessId, cajaCerrada, userEmail, onCajaReopened }: {
     return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
   }, [loadCierres]);
 
-  const cierreEventos = (cierre: any) => normalizeCajaEventos(Array.isArray(cierre?.eventos) ? cierre.eventos : []);
+  const cierreEventos = (cierre: any) => cleanCajaEventosForDisplay(cajaEventosArray(cierre?.eventos));
 
   // Observation: get from the most recent "cierre" event (not from root field)
   function getCierreObservacion(cierre: any): string | null {
@@ -1354,45 +1327,57 @@ function CierresTab({ businessId, cajaCerrada, userEmail, onCajaReopened }: {
   }
 
   async function reabrirCaja(cierre: any) {
-    if (!businessId || !cierre?.id) return;
-
-    const cierreId = String(cierre.id);
-    if (reopeningInFlightRef.current.has(cierreId) || cierre.estado === "reabierta") return;
+    if (!businessId || !cierre?.id || reopeningId) return;
 
     const reason = window.prompt("Motivo de reapertura de caja (opcional)") ?? "";
-    if (reopeningInFlightRef.current.has(cierreId) || cierre.estado === "reabierta") return;
-
-    reopeningInFlightRef.current.add(cierreId);
-    setReopeningId(cierreId);
-
-    const now = new Date();
-    const usuario = userEmail ?? "Caja";
-    const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-    const prevEventos = cierreEventos(cierre);
-    if (getLastCajaEventoTipo(prevEventos) === "reapertura") {
-      toast.info("La caja ya estaba reabierta");
-      setSelected(null);
-      loadCierres();
-      onCajaReopened();
-      return;
-    }
-    const evento = {
-      tipo: "reapertura",
-      fecha_hora: now.toISOString(),
-      hora,
-      usuario,
-      motivo: reason.trim() || null,
-    };
+    setReopeningId(cierre.id);
 
     try {
-      const { data: reopenedRow, error } = await supabase
+      const { data: freshCierre, error: readError } = await supabase
+        .from("caja_cierres" as any)
+        .select("id,eventos,estado")
+        .eq("id", cierre.id)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (readError) throw readError;
+      if (!freshCierre?.id) throw new Error("No se encontró el cierre");
+
+      if (isCajaReabiertaRow(freshCierre)) {
+        toast.info("La caja ya está abierta");
+        setSelected(null);
+        loadCierres();
+        onCajaReopened();
+        return;
+      }
+
+      if (!isCajaCerradaRow(freshCierre)) {
+        toast.info("La caja no está cerrada");
+        setSelected(null);
+        loadCierres();
+        onCajaReopened();
+        return;
+      }
+
+      const now = new Date();
+      const user = "Caja";
+      const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      const evento = {
+        tipo: "reapertura",
+        fecha_hora: now.toISOString(),
+        hora,
+        usuario: user,
+        motivo: reason.trim() || null,
+      };
+
+      const { data: updated, error } = await supabase
         .from("caja_cierres" as any)
         .update({
           estado: "reabierta",
           reopened_at: now.toISOString(),
-          reopened_by: usuario,
+          reopened_by: user,
           reopen_reason: reason.trim() || null,
-          eventos: appendCajaEvento(prevEventos, evento),
+          eventos: appendCajaEvento((freshCierre as any).eventos, evento),
           updated_at: now.toISOString(),
         })
         .eq("id", cierre.id)
@@ -1402,28 +1387,32 @@ function CierresTab({ businessId, cajaCerrada, userEmail, onCajaReopened }: {
         .maybeSingle();
 
       if (error) throw error;
-      if (!reopenedRow?.id) {
-        toast.info("La caja ya estaba reabierta");
+
+      if (!updated?.id) {
+        toast.info("La caja ya estaba abierta");
         setSelected(null);
         loadCierres();
         onCajaReopened();
         return;
       }
 
-      await reopenCashSession({
-        sessionId: cierre.id,
-        businessId,
-        reopenedBy: usuario,
-      });
+      try {
+        await reopenCashSession({
+          sessionId: cierre.id,
+          businessId,
+          reopenedBy: user,
+        });
+      } catch {
+        // El historial visual ya quedó guardado en caja_cierres.
+      }
 
       toast.success("Caja reabierta");
       setSelected(null);
       loadCierres();
       onCajaReopened();
-    } catch (error: any) {
-      toast.error(error?.message ?? "No se pudo reabrir la caja");
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo reabrir la caja");
     } finally {
-      reopeningInFlightRef.current.delete(cierreId);
       setReopeningId(null);
     }
   }
@@ -1600,10 +1589,10 @@ function CierresTab({ businessId, cajaCerrada, userEmail, onCajaReopened }: {
                 <button
                   type="button"
                   onClick={() => reabrirCaja(selected)}
-                  disabled={reopeningId === String(selected.id)}
-                  className="w-full rounded-xl bg-white/[0.04] hover:bg-white/[0.07] ring-1 ring-white/10 px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={reopeningId === selected.id}
+                  className="w-full rounded-xl bg-white/[0.04] hover:bg-white/[0.07] ring-1 ring-white/10 px-4 py-3 text-sm font-semibold transition disabled:opacity-50"
                 >
-                  {reopeningId === String(selected.id) ? "Reabriendo…" : "Reabrir caja"}
+                  {reopeningId === selected.id ? "Reabriendo…" : "Reabrir caja"}
                 </button>
               )}
             </div>
