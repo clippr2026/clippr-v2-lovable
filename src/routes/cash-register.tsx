@@ -415,6 +415,10 @@ function CashRegisterPage() {
               <CierresTab
                 businessId={data.businessId}
                 cajaCerrada={cajaCerrada}
+                paymentsToday={data.paymentsToday}
+                expensesToday={data.expensesToday}
+                userEmail={session.user.email ?? null}
+                onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
                 onCajaReopened={() => {
                   setCajaCerrada(false);
                   setShowClosedHistory(false);
@@ -493,6 +497,10 @@ function CashRegisterPage() {
           <CierresTab
             businessId={data.businessId}
             cajaCerrada={cajaCerrada}
+            paymentsToday={data.paymentsToday}
+            expensesToday={data.expensesToday}
+            userEmail={session.user.email ?? null}
+            onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
             onCajaReopened={() => { setCajaCerrada(false); data.refresh(); }}
           />
         )}
@@ -567,28 +575,21 @@ function Tabs({
         <div className="mb-2 flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
+            className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 bg-gradient-to-b from-orange-400/90 to-amber-600/85 text-white border border-orange-300/25 shadow-[0_0_22px_rgba(249,115,22,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_28px_rgba(249,115,22,0.18)]"
           >
-            <span className="text-base leading-none">＋</span> Nuevo gasto
+            <Wallet className="size-4" /> Nuevo gasto
           </button>
           <button
             onClick={() => onChange("nueva")}
             className={cn(
-              "inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all cash-sale-button-glow",
+              "inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold transition-all duration-200 cash-sale-button-glow",
               nuevaActive
-                ? "bg-gradient-to-r from-blue-400 to-violet-500 text-white ring-1 ring-blue-300/60"
-                : "bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-white hover:brightness-110"
+                ? "bg-gradient-to-r from-violet-500 to-blue-500 text-white ring-1 ring-violet-300/60 shadow-[0_0_32px_rgba(139,92,246,0.24)]"
+                : "bg-gradient-to-r from-violet-500/95 to-blue-500/95 text-white hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_34px_rgba(139,92,246,0.26)]"
             )}
           >
-            <span className="text-base leading-none">＋</span> Nueva venta
+            <Plus className="size-5" /> Nueva venta
           </button>
-          <CierreCajaBtn
-            paymentsToday={data.paymentsToday}
-            expensesToday={data.expensesToday}
-            businessId={data.businessId}
-            userEmail={userEmail}
-            onCajaCerrada={onCajaCerrada}
-          />
         </div>
       )}
     </div>
@@ -652,17 +653,22 @@ function ResumenTab({
     return () => window.removeEventListener("clippr:gasto-guardado", handler);
   }, [data]);
 
-  const stats: { id: ActivePanel; label: string; value: number; sub?: string; icon: any; tint: string; money: boolean }[] = [
-    { id: "ingresos",   label: "Ingresos",   value: data.revHoy,       sub: "",  icon: Wallet,       tint: "from-blue-500/20 to-violet-500/0",   money: true  },
-    { id: "pendientes", label: "Pendientes", value: data.pendingAmount, sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, tint: "from-violet-400/25 to-violet-500/0", money: true },
-    { id: "gastos",     label: "Gastos",     value: data.totalGastos,  sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "0 gastos", icon: Trash2, tint: "from-rose-400/20 to-rose-500/0", money: true },
+  const stats: {
+    id: ActivePanel;
+    label: string;
+    value: number;
+    sub?: string;
+    icon: any;
+    money: boolean;
+    tone: string;
+    active: string;
+    iconBox: string;
+    amount: string;
+  }[] = [
+    { id: "ingresos", label: "Ingresos", value: data.revHoy, sub: data.cobros ? `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy` : "0 cobros hoy", icon: Wallet, money: true, tone: "from-emerald-400/[0.12] via-emerald-400/[0.035] to-transparent", active: "ring-emerald-400/35 shadow-[0_0_34px_rgba(16,185,129,0.10)]", iconBox: "border-emerald-300/25 bg-emerald-400/10 text-emerald-300", amount: "text-emerald-50" },
+    { id: "pendientes", label: "Pendientes", value: data.pendingAmount, sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, money: true, tone: "from-orange-400/[0.12] via-orange-400/[0.035] to-transparent", active: "ring-orange-400/35 shadow-[0_0_34px_rgba(249,115,22,0.10)]", iconBox: "border-orange-300/25 bg-orange-400/10 text-orange-300", amount: "text-orange-50" },
+    { id: "gastos", label: "Gastos", value: data.totalGastos, sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "0 gastos", icon: Trash2, money: true, tone: "from-rose-400/[0.12] via-rose-400/[0.035] to-transparent", active: "ring-rose-400/35 shadow-[0_0_34px_rgba(244,63,94,0.10)]", iconBox: "border-rose-300/25 bg-rose-400/10 text-rose-300", amount: "text-rose-50" },
   ];
-
-  const ACTIVE_RING: Record<ActivePanel, string> = {
-    ingresos:   "ring-blue-400/40 bg-blue-400/[0.06]",
-    pendientes: "ring-violet-400/40 bg-violet-400/[0.06]",
-    gastos:     "ring-rose-400/40 bg-rose-400/[0.06]",
-  };
 
   return (
     <div className="space-y-5">
@@ -673,22 +679,24 @@ function ResumenTab({
             <Card
               key={s.id}
               onClick={() => setActivePanel(s.id)}
-              style={{ background: "linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72))" }}
-              className={cn("p-4 cursor-pointer transition-all ring-1", isActive ? ACTIVE_RING[s.id] : "ring-white/[0.06] hover:bg-white/[0.04]")}
+              className={cn(
+                "group min-h-[132px] cursor-pointer overflow-hidden p-5 ring-1 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.045]",
+                isActive ? s.active : "ring-white/[0.06]"
+              )}
             >
-              <div className={cn("pointer-events-none absolute -top-14 -right-10 size-32 rounded-full blur-3xl opacity-60 bg-gradient-to-br", s.tint)} />
-              <div className="flex items-start justify-between relative gap-3">
+              <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90", s.tone)} />
+              <div className="relative flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{s.label}</p>
+                  <p className="text-sm font-semibold text-foreground/90">{s.label}</p>
                   <div className="mt-2">
-                    {s.money ? <Money value={Number(s.value)} /> : (
-                      <span className="font-display tabular-nums tracking-tight text-2xl font-semibold text-foreground">{Number(s.value).toLocaleString("es-AR")}</span>
-                    )}
+                    <span className={cn("font-display text-4xl font-semibold tracking-tight tabular-nums", s.amount)}>
+                      <span className="mr-0.5 text-foreground/45">$</span>{Math.round(Number(s.value)).toLocaleString("es-AR")}
+                    </span>
                   </div>
-                  {s.sub && <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{s.sub}</p>}
+                  {s.sub && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{s.sub}</p>}
                 </div>
-                <div className={cn("rounded-xl border p-2 transition-all", isActive ? "bg-white/[0.08] border-white/15" : "bg-white/[0.04] border-white/5")}>
-                  <s.icon className="size-3.5 text-foreground/80" />
+                <div className={cn("rounded-2xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-all duration-200 group-hover:scale-105", s.iconBox)}>
+                  <s.icon className="size-4" />
                 </div>
               </div>
             </Card>
@@ -765,7 +773,7 @@ function ResumenTab({
                 const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
                 const user = e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
                 return (
-                  <div key={e.id} className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm">
+                  <div key={e.id} className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm transition-all duration-200 hover:bg-white/[0.03]">
                     <div className="text-muted-foreground">{date}</div>
                     <div className="text-muted-foreground capitalize">{category}</div>
                     <div className="min-w-0">
@@ -1025,12 +1033,14 @@ function CierreCajaBtn({
   businessId,
   userEmail,
   onCajaCerrada,
+  buttonLabel = "Cierre de caja",
 }: {
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
   businessId: string | null;
   userEmail: string | null;
   onCajaCerrada: () => void;
+  buttonLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
@@ -1195,9 +1205,9 @@ function CierreCajaBtn({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all bg-white/[0.04] text-foreground border border-white/10 hover:bg-white/[0.07]"
+        className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 bg-white/[0.045] text-foreground border border-white/10 hover:bg-white/[0.075] hover:-translate-y-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
       >
-        Cierre de caja
+        <Wallet className="size-4" /> {buttonLabel}
       </button>
 
       {open && (
@@ -1282,9 +1292,21 @@ function CierreCajaBtn({
 
 // ─────────── Cierres de caja — historial tab ─────────────────────────────────
 
-function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
+function CierresTab({
+  businessId,
+  cajaCerrada,
+  paymentsToday,
+  expensesToday,
+  userEmail,
+  onCajaCerrada,
+  onCajaReopened,
+}: {
   businessId: string | null;
   cajaCerrada: boolean;
+  paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
+  expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
+  userEmail: string | null;
+  onCajaCerrada: () => void;
   onCajaReopened: () => void;
 }) {
   const [cierres, setCierres] = useState<any[]>([]);
@@ -1317,6 +1339,11 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
   }, [loadCierres]);
 
   const cierreEventos = (cierre: any) => cleanCajaEventosForDisplay(cajaEventosArray(cierre?.eventos));
+  const latestCierre = cierres[0] ?? null;
+  const latestEventos = latestCierre ? cierreEventos(latestCierre) : [];
+  const lastOpenEvent = [...latestEventos].reverse().find((event: any) => event?.tipo === "reapertura");
+  const lastCloseEvent = [...latestEventos].reverse().find((event: any) => event?.tipo === "cierre");
+  const cajaAbierta = latestCierre ? latestCierre.estado === "reabierta" : !cajaCerrada;
 
   // Observation: get from the most recent "cierre" event (not from root field)
   function getCierreObservacion(cierre: any): string | null {
@@ -1425,6 +1452,40 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
         <p className="mt-1 text-sm text-muted-foreground">Historial de cierres manuales y automáticos.</p>
       </div>
 
+      <Card className="p-5 bg-white/[0.025] ring-1 ring-white/[0.06]">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className={cn("size-2 rounded-full", cajaAbierta ? "bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.45)]" : "bg-rose-400 shadow-[0_0_18px_rgba(251,113,133,0.45)]")} />
+              <span className="text-sm font-semibold text-foreground">{cajaAbierta ? "Caja abierta" : "Caja cerrada"}</span>
+            </div>
+            <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+              <div>Última apertura: <span className="text-foreground/85">{lastOpenEvent?.hora ?? "—"}</span></div>
+              <div>Último cierre: <span className="text-foreground/85">{lastCloseEvent?.hora ?? latestCierre?.hora_cierre ?? "—"}</span></div>
+            </div>
+          </div>
+          {cajaAbierta ? (
+            <CierreCajaBtn
+              paymentsToday={paymentsToday}
+              expensesToday={expensesToday}
+              businessId={businessId}
+              userEmail={userEmail}
+              onCajaCerrada={onCajaCerrada}
+              buttonLabel="Cerrar caja"
+            />
+          ) : latestCierre ? (
+            <button
+              type="button"
+              onClick={() => reabrirCaja(latestCierre)}
+              disabled={reopeningId === latestCierre.id}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 bg-emerald-400/12 text-emerald-200 border border-emerald-300/20 hover:bg-emerald-400/18 disabled:opacity-50"
+            >
+              <Unlock className="size-4" /> {reopeningId === latestCierre.id ? "Abriendo…" : "Abrir caja"}
+            </button>
+          ) : null}
+        </div>
+      </Card>
+
       {loading ? (
         <div className="py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
       ) : cierres.length === 0 ? (
@@ -1442,7 +1503,7 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
             const nCierres = eventos.filter((e: any) => e?.tipo === "cierre").length || 1;
             return (
               <button key={c.id} type="button" onClick={() => setSelected(c)}
-                className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
+                className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.035] transition-all duration-200 text-left">
                 <div>
                   <div className="text-foreground text-sm font-medium">
                     {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" })}
@@ -1824,8 +1885,8 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <span className="text-[11px] text-muted-foreground">
+            <h3 className="inline-flex items-center gap-2 text-base font-semibold text-foreground"><ClipboardList className="size-4 text-violet-300" /> Últimos movimientos</h3>
+            <span className="rounded-full bg-white/[0.045] px-3 py-1 text-[11px] text-muted-foreground ring-1 ring-white/[0.06]">
 {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
             </span>
             {data.approvalModeEnabled && equipoEnabled && (
@@ -1881,7 +1942,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-blue-400/[0.035] hover:bg-blue-400/[0.06] transition cursor-pointer"
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-blue-400/[0.035] hover:bg-blue-400/[0.06] transition-all duration-200 cursor-pointer"
                       onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -1947,7 +2008,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition group cursor-pointer"
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.035] transition-all duration-200 group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -1972,11 +2033,11 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
                           </button>
                         )}
                       </div>
-                      <div className="text-foreground tabular-nums font-medium text-right">
+                      <div className="text-emerald-300 tabular-nums font-semibold text-right">
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground truncate">{methodLabel}</div>
-                      <div><HistorialCell events={historialEvents} /></div>
+                      <div><span className="inline-flex items-center rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 ring-1 ring-emerald-300/15">● Cobrado</span></div>
                       <div />
                     </div>
                   );
