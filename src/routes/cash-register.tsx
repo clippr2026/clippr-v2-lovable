@@ -1016,6 +1016,7 @@ function CierreCajaBtn({
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
   const [saving, setSaving] = useState(false);
+  const closingInFlightRef = React.useRef(false);
 
   const today = new Date().toLocaleDateString("sv-SE");
 
@@ -1089,7 +1090,9 @@ function CierreCajaBtn({
   }));
 
   async function confirmar() {
-    if (!businessId) return;
+    if (!businessId || saving || closingInFlightRef.current) return;
+
+    closingInFlightRef.current = true;
     setSaving(true);
     try {
       const now = new Date();
@@ -1108,10 +1111,18 @@ function CierreCajaBtn({
 
       const { data: existing } = await supabase
         .from("caja_cierres" as any)
-        .select("id,eventos")
+        .select("id,estado,eventos")
         .eq("business_id", businessId)
         .eq("fecha", today)
         .maybeSingle();
+
+      if ((existing as any)?.estado === "cerrada") {
+        toast.info("La caja ya estaba cerrada");
+        setOpen(false);
+        setObs("");
+        onCajaCerrada();
+        return;
+      }
 
       const prevEventos = Array.isArray((existing as any)?.eventos) ? (existing as any).eventos : [];
       const payload = {
@@ -1135,7 +1146,12 @@ function CierreCajaBtn({
       };
 
       const query = existing?.id
-        ? supabase.from("caja_cierres" as any).update(payload).eq("id", (existing as any).id).eq("business_id", businessId)
+        ? supabase
+            .from("caja_cierres" as any)
+            .update(payload)
+            .eq("id", (existing as any).id)
+            .eq("business_id", businessId)
+            .neq("estado", "cerrada")
         : supabase.from("caja_cierres" as any).insert(payload);
 
       const { error } = await query;
@@ -1148,6 +1164,7 @@ function CierreCajaBtn({
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
+      closingInFlightRef.current = false;
       setSaving(false);
     }
   }
