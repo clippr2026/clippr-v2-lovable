@@ -539,7 +539,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "precios",       label: "Precios"           },
   { id: "inventario",    label: "Inventario"        },
   { id: "profesionales", label: "Liquidaciones"     },
-  { id: "cierres",       label: "Cierres"           },
+  { id: "cierres",       label: "Cierre de caja"   },
 ];
 
 function Tabs({
@@ -560,7 +560,7 @@ function Tabs({
   const nuevaActive = tab === "nueva";
   return (
     <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-4">
-      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#090B14]/80 p-1.5 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,.35)] flex-1 min-w-0 sm:flex-none">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.12] bg-[#05070D] p-1.5 backdrop-blur-xl shadow-[0_14px_34px_rgba(0,0,0,.48)] flex-1 min-w-0 sm:flex-none">
         {TABS.map((t) => {
           const active = t.id === tab;
           return (
@@ -583,7 +583,7 @@ function Tabs({
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-gradient-to-br from-[#D97706] to-[#EA580C] text-white border border-orange-200/22 shadow-[0_0_18px_rgba(234,88,12,0.12),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_24px_rgba(234,88,12,0.18)]"
+            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-gradient-to-br from-[#C2410C] to-[#EA580C] text-white border border-orange-200/18 shadow-[0_0_20px_rgba(234,88,12,0.15),0_1px_0_rgba(255,255,255,0.14)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_26px_rgba(234,88,12,0.22)]"
           >
             <Wallet className="size-4 transition-transform group-hover:scale-110" />
             Nuevo gasto
@@ -593,8 +593,8 @@ function Tabs({
             className={cn(
               "group inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border",
               nuevaActive
-                ? "bg-gradient-to-br from-[#7C3AED] via-[#6366F1] to-[#4F46E5] text-white border-violet-200/34 shadow-[0_0_32px_rgba(124,58,237,0.20),0_1px_0_rgba(255,255,255,0.18)_inset]"
-                : "bg-gradient-to-br from-[#7C3AED] via-[#6366F1] to-[#4F46E5] text-white border-violet-200/26 shadow-[0_0_32px_rgba(124,58,237,0.20),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_38px_rgba(124,58,237,0.28)]"
+                ? "bg-gradient-to-br from-[#6D28D9] via-[#4F46E5] to-[#2563EB] text-white border-violet-200/30 shadow-[0_0_40px_rgba(99,102,241,0.22),0_1px_0_rgba(255,255,255,0.18)_inset]"
+                : "bg-gradient-to-br from-[#6D28D9] via-[#4F46E5] to-[#2563EB] text-white border-violet-200/24 shadow-[0_0_40px_rgba(99,102,241,0.22),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_46px_rgba(99,102,241,0.30)]"
             )}
           >
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
