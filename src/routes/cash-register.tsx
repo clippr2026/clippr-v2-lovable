@@ -216,8 +216,42 @@ function dedupeCajaEventos(events: CajaMovimientoEvento[]) {
   });
 }
 
+function normalizeCajaEventos(events: CajaMovimientoEvento[]) {
+  const cleaned = dedupeCajaEventos(events);
+  return cleaned.reduce<CajaMovimientoEvento[]>((acc, event) => {
+    const tipo = String(event.tipo ?? "").trim();
+    const prev = acc[acc.length - 1];
+    const prevTipo = String(prev?.tipo ?? "").trim();
+
+    // Si por doble click o refresco quedaron dos cierres seguidos o dos reaperturas
+    // seguidas, se muestran/guardan como un solo cambio de estado.
+    if (tipo && tipo === prevTipo) {
+      acc[acc.length - 1] = event;
+      return acc;
+    }
+
+    acc.push(event);
+    return acc;
+  }, []);
+}
+
+function getLastCajaEventoTipo(events: CajaMovimientoEvento[]) {
+  const normalized = normalizeCajaEventos(events);
+  const last = normalized[normalized.length - 1];
+  return String(last?.tipo ?? "").trim();
+}
+
 function appendCajaEvento(events: CajaMovimientoEvento[], event: CajaMovimientoEvento) {
-  return dedupeCajaEventos([...events, event]);
+  const normalized = normalizeCajaEventos(events);
+  const eventTipo = String(event.tipo ?? "").trim();
+
+  // Idempotencia real: no agregamos el mismo estado dos veces seguidas.
+  // cierre + cierre => 1 cierre / reapertura + reapertura => 1 reapertura.
+  if (eventTipo && getLastCajaEventoTipo(normalized) === eventTipo) {
+    return normalized;
+  }
+
+  return normalizeCajaEventos([...normalized, event]);
 }
 
 export const Route = createFileRoute("/cash-register")({
@@ -275,6 +309,10 @@ function CashRegisterPage() {
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
   const reabrirCajaBannerInFlightRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setCajaCerrada(data.cajaStatus === "closed_today" || data.cajaStatus === "closed");
+  }, [data.cajaStatus]);
   const [resumenPanel, setResumenPanel] = useState<"ingresos" | "pendientes" | "gastos">("ingresos");
 
   React.useEffect(() => {
@@ -325,6 +363,12 @@ function CashRegisterPage() {
 
       const now = new Date();
       const eventos = Array.isArray((lastCierre as any).eventos) ? (lastCierre as any).eventos : [];
+      if (getLastCajaEventoTipo(eventos) === "reapertura") {
+        setCajaCerrada(false);
+        setShowClosedHistory(false);
+        await data.refresh();
+        return;
+      }
       const usuario = session.user.email ?? session.user.id;
       const evento = {
         tipo: "reapertura",
@@ -1116,7 +1160,10 @@ function CierreCajaBtn({
         .eq("fecha", today)
         .maybeSingle();
 
-      if ((existing as any)?.estado === "cerrada") {
+      const prevEventos = Array.isArray((existing as any)?.eventos) ? (existing as any).eventos : [];
+      const lastEventTipo = getLastCajaEventoTipo(prevEventos);
+
+      if ((existing as any)?.estado === "cerrada" || lastEventTipo === "cierre") {
         toast.info("La caja ya estaba cerrada");
         setOpen(false);
         setObs("");
@@ -1124,7 +1171,6 @@ function CierreCajaBtn({
         return;
       }
 
-      const prevEventos = Array.isArray((existing as any)?.eventos) ? (existing as any).eventos : [];
       const payload = {
         business_id: businessId,
         fecha: today,
@@ -1297,7 +1343,7 @@ function CierresTab({ businessId, cajaCerrada, userEmail, onCajaReopened }: {
     return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
   }, [loadCierres]);
 
-  const cierreEventos = (cierre: any) => dedupeCajaEventos(Array.isArray(cierre?.eventos) ? cierre.eventos : []);
+  const cierreEventos = (cierre: any) => normalizeCajaEventos(Array.isArray(cierre?.eventos) ? cierre.eventos : []);
 
   // Observation: get from the most recent "cierre" event (not from root field)
   function getCierreObservacion(cierre: any): string | null {
@@ -1323,6 +1369,13 @@ function CierresTab({ businessId, cajaCerrada, userEmail, onCajaReopened }: {
     const usuario = userEmail ?? "Caja";
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
     const prevEventos = cierreEventos(cierre);
+    if (getLastCajaEventoTipo(prevEventos) === "reapertura") {
+      toast.info("La caja ya estaba reabierta");
+      setSelected(null);
+      loadCierres();
+      onCajaReopened();
+      return;
+    }
     const evento = {
       tipo: "reapertura",
       fecha_hora: now.toISOString(),
