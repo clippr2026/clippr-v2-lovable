@@ -584,7 +584,7 @@ function Tabs({
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(135deg,rgba(244,63,94,0.78),rgba(127,29,29,0.86))] text-white border border-rose-300/24 shadow-[0_0_28px_rgba(244,63,94,0.24),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_38px_rgba(244,63,94,0.34)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),transparent_58%)]"
+            className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-rose-500/12 text-rose-200 border border-rose-400/28 ring-1 ring-rose-400/22 shadow-[0_0_28px_rgba(244,63,94,0.20),0_1px_0_rgba(255,255,255,0.12)_inset] hover:-translate-y-0.5 hover:bg-rose-500/18 hover:text-rose-100 hover:shadow-[0_0_40px_rgba(244,63,94,0.30)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.10),transparent_58%)]"
           >
             <Wallet className="size-4 transition-transform group-hover:scale-110" />
             Nuevo gasto
@@ -594,8 +594,8 @@ function Tabs({
             className={cn(
               "group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
               nuevaActive
-                ? "bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(135deg,rgba(16,185,129,0.88),rgba(6,78,59,0.92))] text-white border-emerald-300/36 shadow-[0_0_38px_rgba(16,185,129,0.32),0_1px_0_rgba(255,255,255,0.20)_inset]"
-                : "bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(135deg,rgba(16,185,129,0.88),rgba(6,78,59,0.92))] text-white border-emerald-300/28 shadow-[0_0_34px_rgba(16,185,129,0.28),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_46px_rgba(16,185,129,0.38)]"
+                ? "bg-emerald-400/12 text-emerald-200 border-emerald-400/34 ring-1 ring-emerald-400/24 shadow-[0_0_38px_rgba(16,185,129,0.30),0_1px_0_rgba(255,255,255,0.14)_inset]"
+                : "bg-emerald-400/12 text-emerald-200 border-emerald-400/28 ring-1 ring-emerald-400/22 shadow-[0_0_34px_rgba(16,185,129,0.26),0_1px_0_rgba(255,255,255,0.12)_inset] hover:-translate-y-0.5 hover:bg-emerald-400/18 hover:text-emerald-100 hover:shadow-[0_0_46px_rgba(16,185,129,0.36)]"
             )}
           >
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
@@ -1083,6 +1083,10 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
   const [stockQuery, setStockQuery] = React.useState("");
   const [movementQuery, setMovementQuery] = React.useState("");
   const [adjustingId, setAdjustingId] = React.useState<string | null>(null);
+  const [stockById, setStockById] = React.useState<Record<string, number>>({});
+  const [stockAdjustment, setStockAdjustment] = React.useState<{ item: any; direction: "in" | "out" } | null>(null);
+  const [adjustQty, setAdjustQty] = React.useState("");
+  const [adjustNote, setAdjustNote] = React.useState("");
   const INVENTORY_MOVEMENTS_KEY = "clippr_inventory_movements_v1";
 
   const catalogItems = React.useMemo(() => (data.services ?? []).filter((item: any) => item.is_catalog), [data.services]);
@@ -1091,8 +1095,12 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
 
   const itemImage = (item: any) => item.image_url ?? item.photo_url ?? item.thumbnail_url ?? item.cover_url ?? item.image ?? item.photo ?? null;
   const catalogCategory = (item: any) => String(item.category || item.type || "Productos");
-  const stockNumber = (item: any) => Number(item.stock ?? item.quantity ?? item.qty ?? 0);
   const itemId = (item: any) => String(item.id ?? item.service_id ?? item.product_id ?? item.name ?? crypto.randomUUID());
+  const stockNumber = (item: any) => {
+    const id = itemId(item);
+    if (Object.prototype.hasOwnProperty.call(stockById, id)) return stockById[id];
+    return Number(item.stock ?? item.quantity ?? item.qty ?? 0);
+  };
 
   const formatInventoryDate = (value: string | Date | null | undefined) => {
     const date = value ? new Date(value) : new Date();
@@ -1199,20 +1207,27 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
     </div>
   );
 
-  async function adjustStock(item: any, direction: "in" | "out") {
+  function openStockAdjustment(item: any, direction: "in" | "out") {
+    if (adjustingId) return;
+    setStockAdjustment({ item, direction });
+    setAdjustQty("");
+    setAdjustNote("");
+  }
+
+  async function confirmStockAdjustment() {
+    if (!stockAdjustment) return;
+
+    const item = stockAdjustment.item;
+    const direction = stockAdjustment.direction;
     const id = itemId(item);
     if (adjustingId) return;
 
-    const quantityText = window.prompt(direction === "in" ? "Cantidad a agregar" : "Cantidad a retirar");
-    if (quantityText === null) return;
-
-    const qty = Math.abs(Number(quantityText));
+    const qty = Math.abs(Number(adjustQty));
     if (!Number.isFinite(qty) || qty <= 0) {
       toast.error("Ingresá una cantidad válida");
       return;
     }
 
-    const note = window.prompt("Nota del movimiento (opcional)") ?? "";
     const currentStock = stockNumber(item);
     const nextStock = direction === "in" ? currentStock + qty : Math.max(0, currentStock - qty);
 
@@ -1225,6 +1240,8 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
 
       if (error) throw error;
 
+      setStockById((prev) => ({ ...prev, [id]: nextStock }));
+
       saveLocalMovement({
         id: `${Date.now()}-${id}`,
         created_at: new Date().toISOString(),
@@ -1233,10 +1250,13 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
         qty: direction === "in" ? qty : -qty,
         stockFrom: currentStock,
         stockTo: nextStock,
-        note: note.trim() || null,
+        note: adjustNote.trim() || null,
       });
 
-      toast.success(direction === "in" ? "Stock agregado" : "Stock descontado");
+      toast.success(direction === "in" ? "Stock agregado" : "Stock retirado");
+      setStockAdjustment(null);
+      setAdjustQty("");
+      setAdjustNote("");
       await data.refresh();
     } catch (error: any) {
       toast.error(error?.message ?? "No se pudo actualizar el stock");
@@ -1318,7 +1338,7 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => adjustStock(item, "out")}
+                      onClick={() => openStockAdjustment(item, "out")}
                       disabled={loading}
                       className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition hover:-translate-y-0.5 hover:bg-rose-500/12 hover:text-rose-200 disabled:opacity-50"
                     >
@@ -1326,7 +1346,7 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
                     </button>
                     <button
                       type="button"
-                      onClick={() => adjustStock(item, "in")}
+                      onClick={() => openStockAdjustment(item, "in")}
                       disabled={loading}
                       className="grid size-9 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.18)] transition hover:-translate-y-0.5 hover:bg-emerald-400/18 disabled:opacity-50"
                     >
@@ -1373,6 +1393,66 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
           </div>
         </div>
       </section>
+
+      {stockAdjustment && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.55)]">
+            <div className="border-b border-white/[0.065] px-5 py-5">
+              <div className="text-lg font-bold text-white">{stockAdjustment.direction === "in" ? "Agregar stock" : "Retirar stock"}</div>
+              <div className="mt-1 text-sm text-white/55">{stockAdjustment.item?.name ?? "Producto"}</div>
+            </div>
+            <div className="space-y-4 p-5">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Cantidad</label>
+                <input
+                  value={adjustQty}
+                  onChange={(event) => setAdjustQty(event.target.value)}
+                  type="number"
+                  min={1}
+                  autoFocus
+                  placeholder={stockAdjustment.direction === "in" ? "Cantidad a agregar" : "Cantidad a retirar"}
+                  className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-sm font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Nota</label>
+                <textarea
+                  value={adjustNote}
+                  onChange={(event) => setAdjustNote(event.target.value)}
+                  rows={3}
+                  placeholder="Motivo del movimiento, proveedor, corrección, etc."
+                  className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                />
+              </div>
+              <div className="rounded-2xl border border-white/[0.065] bg-white/[0.025] px-4 py-3 text-sm text-white/60">
+                Stock actual: <span className="font-bold text-white">{stockNumber(stockAdjustment.item)}</span>
+              </div>
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setStockAdjustment(null)}
+                  className="rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.07] hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmStockAdjustment}
+                  disabled={Boolean(adjustingId)}
+                  className={cn(
+                    "rounded-2xl px-5 py-3 text-sm font-bold transition disabled:opacity-50",
+                    stockAdjustment.direction === "in"
+                      ? "bg-emerald-400/12 text-emerald-200 ring-1 ring-emerald-400/24 shadow-[0_0_26px_rgba(16,185,129,0.22)] hover:bg-emerald-400/18"
+                      : "bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/24 shadow-[0_0_26px_rgba(244,63,94,0.20)] hover:bg-rose-500/18"
+                  )}
+                >
+                  {adjustingId ? "Guardando…" : stockAdjustment.direction === "in" ? "Agregar" : "Retirar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
