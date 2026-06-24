@@ -17,7 +17,6 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
-import { PreciosTab } from "@/components/cash-register/precios-tab";
 import { InventarioTab } from "@/components/cash-register/inventario-tab";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
 import { ProfesionalesTab } from "@/components/cash-register/profesionales-tab";
@@ -40,7 +39,14 @@ import {
   Check,
   Loader2,
   Unlock,
-  CalendarDays
+  CalendarDays,
+  Scissors,
+  ShoppingBag,
+  Package,
+  MoreVertical,
+  Shirt,
+  Coffee,
+  Box
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 
@@ -481,7 +487,7 @@ function CashRegisterPage() {
             onSaleDone={() => { setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
           />
         )}
-        {tab === "precios" && <PreciosTab businessId={data.businessId} />}
+        {tab === "precios" && <PreciosPremiumTab data={data} />}
         {tab === "inventario" && (
           <InventarioTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
@@ -534,12 +540,12 @@ function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
   );
 }
 
-const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "resumen",       label: "Resumen",       icon: BarChart3      },
-  { id: "precios",       label: "Precios",       icon: CreditCard     },
-  { id: "inventario",    label: "Inventario",    icon: ClipboardList  },
-  { id: "profesionales", label: "Liquidaciones", icon: Wallet         },
-  { id: "cierres",       label: "Cierre de caja", icon: CalendarDays  },
+const TABS: { id: Tab; label: string }[] = [
+  { id: "resumen",       label: "Resumen"          },
+  { id: "precios",       label: "Precios"           },
+  { id: "inventario",    label: "Inventario"        },
+  { id: "profesionales", label: "Liquidaciones"     },
+  { id: "cierres",       label: "Cierres"           },
 ];
 
 function Tabs({
@@ -559,24 +565,21 @@ function Tabs({
 }) {
   const nuevaActive = tab === "nueva";
   return (
-    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-4">
-      <div className="relative flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] flex-1 min-w-0 sm:flex-none">
-        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
+    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-4">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#090B14]/80 p-1.5 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,.35)] flex-1 min-w-0 sm:flex-none">
         {TABS.map((t) => {
           const active = t.id === tab;
-          const Icon = t.icon;
           return (
             <button
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                "relative rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
                 active
-                  ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
+                  ? "bg-violet-500/14 text-white ring-1 ring-violet-300/24 shadow-[0_0_22px_rgba(139,92,246,0.12),0_1px_0_rgba(255,255,255,0.08)_inset]"
                   : "text-white/55 hover:bg-white/[0.045] hover:text-white/85"
               )}
             >
-              <Icon className={cn("size-4 transition-all", active ? "text-blue-200" : "text-white/40 group-hover:text-white/70")} />
               {t.label}
             </button>
           );
@@ -586,7 +589,7 @@ function Tabs({
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-[linear-gradient(135deg,rgba(217,119,6,0.82),rgba(234,88,12,0.72))] text-white border border-orange-200/18 shadow-[0_0_20px_rgba(234,88,12,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_26px_rgba(234,88,12,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.14),transparent_55%)]"
+            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-gradient-to-br from-[#D97706] to-[#EA580C] text-white border border-orange-200/22 shadow-[0_0_18px_rgba(234,88,12,0.12),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_24px_rgba(234,88,12,0.18)]"
           >
             <Wallet className="size-4 transition-transform group-hover:scale-110" />
             Nuevo gasto
@@ -594,10 +597,10 @@ function Tabs({
           <button
             onClick={() => onChange("nueva")}
             className={cn(
-              "group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
+              "group inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border",
               nuevaActive
-                ? "bg-[linear-gradient(135deg,#3B82F6,#8B5CF6,#B84CFF)] text-white border-blue-200/35 shadow-[0_0_34px_rgba(99,102,241,0.25),0_1px_0_rgba(255,255,255,0.20)_inset]"
-                : "bg-[linear-gradient(135deg,#3B82F6,#8B5CF6,#B84CFF)] text-white border-blue-200/26 shadow-[0_0_30px_rgba(99,102,241,0.22),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_42px_rgba(139,92,246,0.30)]"
+                ? "bg-gradient-to-br from-[#7C3AED] via-[#6366F1] to-[#4F46E5] text-white border-violet-200/34 shadow-[0_0_32px_rgba(124,58,237,0.20),0_1px_0_rgba(255,255,255,0.18)_inset]"
+                : "bg-gradient-to-br from-[#7C3AED] via-[#6366F1] to-[#4F46E5] text-white border-violet-200/26 shadow-[0_0_32px_rgba(124,58,237,0.20),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_38px_rgba(124,58,237,0.28)]"
             )}
           >
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
@@ -685,7 +688,7 @@ function ResumenTab({
       sub: `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`,
       icon: Wallet,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.12),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(59,130,246,0.30)]",
+      cardClass: "border-emerald-400/25 bg-[radial-gradient(circle_at_12%_50%,rgba(34,197,94,0.16),transparent_34%),linear-gradient(135deg,rgba(15,118,110,0.16),rgba(15,23,42,0.56))] shadow-[0_0_40px_rgba(16,185,129,0.08)]",
       iconClass: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/30 shadow-[0_0_26px_rgba(34,197,94,0.20)]",
       amountClass: "text-white",
       chipClass: "bg-emerald-400/12 text-emerald-300 ring-emerald-400/20",
@@ -697,7 +700,7 @@ function ResumenTab({
       sub: `${data.pendingCharges?.length ?? 0} pendiente${(data.pendingCharges?.length ?? 0) === 1 ? "" : "s"}`,
       icon: Clock,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.12),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(139,92,246,0.28)]",
+      cardClass: "border-orange-400/25 bg-[radial-gradient(circle_at_12%_50%,rgba(249,115,22,0.16),transparent_34%),linear-gradient(135deg,rgba(120,53,15,0.16),rgba(15,23,42,0.56))] shadow-[0_0_40px_rgba(249,115,22,0.08)]",
       iconClass: "bg-orange-500/14 text-orange-300 ring-orange-400/30 shadow-[0_0_26px_rgba(249,115,22,0.18)]",
       amountClass: "text-white",
       chipClass: "bg-orange-400/12 text-orange-300 ring-orange-400/20",
@@ -709,7 +712,7 @@ function ResumenTab({
       sub: `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}`,
       icon: TrendingUp,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(99,102,241,0.24)]",
+      cardClass: "border-rose-400/25 bg-[radial-gradient(circle_at_12%_50%,rgba(244,63,94,0.15),transparent_34%),linear-gradient(135deg,rgba(127,29,29,0.15),rgba(15,23,42,0.56))] shadow-[0_0_40px_rgba(244,63,94,0.08)]",
       iconClass: "bg-rose-500/14 text-rose-300 ring-rose-400/30 shadow-[0_0_26px_rgba(244,63,94,0.18)]",
       amountClass: "text-white",
       chipClass: "bg-rose-400/12 text-rose-300 ring-rose-400/20",
@@ -731,7 +734,7 @@ function ResumenTab({
     ingresos: {
       border: "border-emerald-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(135deg,rgba(15,118,110,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -743,7 +746,7 @@ function ResumenTab({
     pendientes: {
       border: "border-orange-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(249,115,22,0.12),transparent_36%),linear-gradient(135deg,rgba(120,53,15,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
@@ -755,7 +758,7 @@ function ResumenTab({
     gastos: {
       border: "border-rose-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(244,63,94,0.11),transparent_36%),linear-gradient(135deg,rgba(127,29,29,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
@@ -897,6 +900,245 @@ function ResumenTab({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+function getItemImageUrl(item: any) {
+  return String(
+    item?.image_url ??
+    item?.photo_url ??
+    item?.thumbnail_url ??
+    item?.cover_url ??
+    item?.avatar_url ??
+    item?.picture_url ??
+    ""
+  ).trim();
+}
+
+function formatMoneyARS(value: unknown) {
+  const n = Number(value ?? 0);
+  return `$${Math.round(Number.isFinite(n) ? n : 0).toLocaleString("es-AR")}`;
+}
+
+function getCashPrice(item: any) {
+  return Number(
+    item?.cash_price ??
+    item?.precio_efectivo ??
+    item?.effective_price ??
+    item?.price_cash ??
+    item?.price ??
+    0
+  );
+}
+
+function getListPrice(item: any) {
+  return Number(
+    item?.list_price ??
+    item?.precio_lista ??
+    item?.regular_price ??
+    item?.price ??
+    0
+  );
+}
+
+function StockBadge({ stock }: { stock: unknown }) {
+  const n = Number(stock ?? 0);
+  const safe = Number.isFinite(n) ? n : 0;
+  const cls = safe <= 0
+    ? "border-rose-400/24 bg-rose-500/10 text-rose-300 shadow-[0_0_18px_rgba(244,63,94,0.10)]"
+    : safe <= 5
+      ? "border-amber-400/24 bg-amber-500/10 text-amber-300 shadow-[0_0_18px_rgba(245,158,11,0.10)]"
+      : "border-emerald-400/24 bg-emerald-500/10 text-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.10)]";
+  const label = safe <= 0 ? "Sin stock" : `Stock ${safe}`;
+  return (
+    <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold", cls)}>
+      <span className="size-2 rounded-full bg-current" />
+      {label}
+    </span>
+  );
+}
+
+function PriceBadge({ label, value, accent = "violet" }: { label: string; value: number; accent?: "violet" | "green" }) {
+  const accentCls = accent === "green"
+    ? "border-emerald-400/20 bg-emerald-400/[0.045] text-emerald-300"
+    : "border-violet-400/22 bg-violet-400/[0.045] text-violet-200";
+  return (
+    <div className={cn("min-w-[104px] rounded-2xl border px-4 py-3", accentCls)}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">{label}</div>
+      <div className="mt-1 text-base font-extrabold tabular-nums text-white">{formatMoneyARS(value)}</div>
+    </div>
+  );
+}
+
+function ImageOrIcon({ item, icon: Icon, className }: { item: any; icon: any; className?: string }) {
+  const src = getItemImageUrl(item);
+  return (
+    <div className={cn("grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/10 bg-violet-500/10 text-violet-300 shadow-[0_0_26px_rgba(139,92,246,0.10)]", className)}>
+      {src ? (
+        <img src={src} alt={String(item?.name ?? item?.service_name ?? "Imagen")} className="h-full w-full object-cover" />
+      ) : (
+        <Icon className="size-7" />
+      )}
+    </div>
+  );
+}
+
+function categoryMeta(category: string) {
+  const key = category.toLowerCase();
+  if (key.includes("bebida")) return { label: "Bebidas", icon: Coffee };
+  if (key.includes("indument") || key.includes("ropa") || key.includes("remera")) return { label: "Indumentaria", icon: Shirt };
+  if (key.includes("producto") || key.includes("catálogo") || key.includes("catalogo")) return { label: "Productos", icon: Package };
+  return { label: category || "Productos", icon: Box };
+}
+
+function PreciosPremiumTab({ data }: { data: ReturnType<typeof useCajaData> }) {
+  const allItems = data.services ?? [];
+  const services = allItems.filter((item: any) => !item.is_catalog);
+  const catalogItems = allItems.filter((item: any) => item.is_catalog);
+
+  const catalogGroups = React.useMemo(() => {
+    const groups = new Map<string, any[]>();
+    for (const item of catalogItems as any[]) {
+      const key = String(item?.category || "Productos");
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+    }
+    return Array.from(groups.entries());
+  }, [catalogItems]);
+
+  return (
+    <div className="animate-fade-up space-y-4">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.02fr_1fr]">
+        <section className="rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(12,8,24,0.94))] shadow-[0_24px_80px_-48px_rgba(99,102,241,0.38)] backdrop-blur-2xl overflow-hidden">
+          <div className="flex items-start gap-4 border-b border-white/[0.06] px-6 py-5">
+            <div className="grid size-11 place-items-center rounded-2xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-300/18 shadow-[0_0_24px_rgba(139,92,246,0.16)]">
+              <Scissors className="size-6" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xl font-extrabold tracking-tight text-white">Servicios disponibles <span className="ml-2 text-white/35">·</span> <span className="ml-2 text-white/55">{services.length}</span></h3>
+              <p className="mt-1 text-sm text-muted-foreground">Servicios que se cobran en caja</p>
+            </div>
+          </div>
+
+          <div className="p-4">
+            {services.length === 0 ? (
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] py-12 text-center text-sm text-muted-foreground">Sin servicios cargados.</div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-white/[0.065] bg-black/10">
+                {services.map((item: any) => {
+                  const duration = Number(item?.duration_min ?? item?.duration ?? item?.minutes ?? 0);
+                  return (
+                    <div key={item.id} className="group grid grid-cols-[1fr_auto_auto_22px] items-center gap-4 border-b border-white/[0.055] px-5 py-4 last:border-0 transition-all duration-200 hover:bg-white/[0.035]">
+                      <div className="flex min-w-0 items-center gap-4">
+                        <ImageOrIcon item={item} icon={Scissors} />
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-extrabold tracking-tight text-white">{item.name ?? item.service_name ?? "Servicio"}</div>
+                          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <Clock className="size-3.5" />
+                            {duration > 0 ? `${duration} min` : "Sin duración"}
+                          </div>
+                        </div>
+                      </div>
+                      <PriceBadge label="Lista" value={getListPrice(item)} />
+                      <PriceBadge label="Efectivo" value={getCashPrice(item)} accent="green" />
+                      <button type="button" className="grid size-8 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.055] hover:text-white">
+                        <MoreVertical className="size-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-white/[0.06] px-6 py-4">
+            <button type="button" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-violet-300 transition hover:bg-violet-400/10 hover:text-violet-200">
+              <ClipboardList className="size-4" />
+              Gestionar servicios
+              <ArrowRight className="size-4" />
+            </button>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(7,10,22,0.96))] shadow-[0_24px_80px_-48px_rgba(59,130,246,0.30)] backdrop-blur-2xl overflow-hidden">
+          <div className="flex items-start gap-4 border-b border-white/[0.06] px-6 py-5">
+            <div className="grid size-11 place-items-center rounded-2xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-300/18 shadow-[0_0_24px_rgba(139,92,246,0.16)]">
+              <ShoppingBag className="size-6" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xl font-extrabold tracking-tight text-white">Catálogo <span className="ml-2 text-white/35">·</span> <span className="ml-2 text-white/55">{catalogItems.length}</span></h3>
+              <p className="mt-1 text-sm text-muted-foreground">Productos, bebidas e indumentaria</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-4">
+            {catalogGroups.length === 0 ? (
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] py-12 text-center text-sm text-muted-foreground">Sin productos cargados.</div>
+            ) : catalogGroups.map(([category, items]) => {
+              const meta = categoryMeta(category);
+              const Icon = meta.icon;
+              return (
+                <div key={category} className="overflow-hidden rounded-2xl border border-white/[0.065] bg-black/10">
+                  <div className="grid grid-cols-[1fr_140px_140px_128px_22px] items-center gap-4 border-b border-white/[0.055] px-5 py-4">
+                    <div className="flex items-center gap-3 text-lg font-extrabold tracking-tight text-violet-100">
+                      <Icon className="size-5 text-violet-300" />
+                      {meta.label}
+                      <span className="text-sm font-semibold text-white/35">· {items.length}</span>
+                    </div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/70">Precio lista</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/70">Efectivo</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/70">Stock</div>
+                    <div />
+                  </div>
+
+                  {items.map((item: any) => (
+                    <div key={item.id} className="group grid grid-cols-[1fr_140px_140px_128px_22px] items-center gap-4 border-b border-white/[0.055] px-5 py-4 last:border-0 transition-all duration-200 hover:bg-white/[0.035]">
+                      <div className="flex min-w-0 items-center gap-4">
+                        <ImageOrIcon item={item} icon={Package} className="size-12 rounded-xl" />
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-extrabold tracking-tight text-white">{item.name ?? item.service_name ?? "Producto"}</div>
+                          {item.description && <div className="mt-0.5 truncate text-xs text-muted-foreground">{item.description}</div>}
+                        </div>
+                      </div>
+                      <div className="text-base font-bold tabular-nums text-white/88">{formatMoneyARS(getListPrice(item))}</div>
+                      <div className="text-base font-extrabold tabular-nums text-emerald-300">{formatMoneyARS(getCashPrice(item))}</div>
+                      <StockBadge stock={item.stock} />
+                      <button type="button" className="grid size-8 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.055] hover:text-white">
+                        <MoreVertical className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-white/[0.06] px-6 py-4">
+            <button type="button" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-violet-300 transition hover:bg-violet-400/10 hover:text-violet-200">
+              <ShoppingBag className="size-4" />
+              Gestionar catálogo
+              <ArrowRight className="size-4" />
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-3xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(18,12,36,0.92))] px-6 py-5 shadow-[0_20px_70px_-50px_rgba(139,92,246,0.45)] backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-300/18">
+            <CreditCard className="size-5" />
+          </div>
+          <div>
+            <div className="text-base font-extrabold text-white">Precios efectivos</div>
+            <p className="mt-1 text-sm text-muted-foreground">El precio efectivo se aplica al seleccionar el método de pago “Efectivo” en el momento del cobro.</p>
+          </div>
+        </div>
+        <button type="button" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-300/20 bg-violet-500/10 px-5 py-3 text-sm font-bold text-violet-200 transition hover:bg-violet-500/16 hover:text-white">
+          <Wallet className="size-4" />
+          Configurar precios
+        </button>
+      </div>
     </div>
   );
 }
@@ -1911,7 +2153,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", the
   const incomeTheme = theme ?? {
     border: "border-emerald-400/24",
     glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-    panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
+    panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(135deg,rgba(15,118,110,0.10),rgba(2,6,23,0.88))]",
     headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
     title: "text-emerald-50",
     chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
