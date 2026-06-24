@@ -415,10 +415,6 @@ function CashRegisterPage() {
               <CierresTab
                 businessId={data.businessId}
                 cajaCerrada={cajaCerrada}
-                paymentsToday={data.paymentsToday}
-                expensesToday={data.expensesToday}
-                userEmail={session.user.email ?? null}
-                onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
                 onCajaReopened={() => {
                   setCajaCerrada(false);
                   setShowClosedHistory(false);
@@ -497,10 +493,6 @@ function CashRegisterPage() {
           <CierresTab
             businessId={data.businessId}
             cajaCerrada={cajaCerrada}
-            paymentsToday={data.paymentsToday}
-            expensesToday={data.expensesToday}
-            userEmail={session.user.email ?? null}
-            onCajaCerrada={() => { setCajaCerrada(true); setShowClosedHistory(false); setPendingToCharge(null); setResumenPanel("ingresos"); setTab("resumen"); }}
             onCajaReopened={() => { setCajaCerrada(false); data.refresh(); }}
           />
         )}
@@ -550,8 +542,8 @@ function Tabs({
 }) {
   const nuevaActive = tab === "nueva";
   return (
-    <div className="mt-6 flex flex-wrap items-end justify-between gap-3 border-b border-white/5">
-      <div className="flex gap-1 overflow-x-auto -mb-px flex-1 min-w-0">
+    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-0">
+      <div className="flex gap-6 overflow-x-auto -mb-px flex-1 min-w-0">
         {TABS.map((t) => {
           const active = t.id === tab;
           return (
@@ -559,37 +551,46 @@ function Tabs({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "relative px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",
-                active ? "text-blue-200" : "text-muted-foreground hover:text-foreground"
+                "relative px-1 py-3 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                active ? "text-white" : "text-muted-foreground hover:text-foreground"
               )}
             >
               {t.label}
               {active && (
-                <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-blue-300/80 via-blue-200 to-blue-400/80 shadow-[0_0_12px] shadow-blue-300/40" />
+                <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-400 to-blue-400 shadow-[0_0_18px_rgba(139,92,246,0.55)]" />
               )}
             </button>
           );
         })}
       </div>
       {tab === "resumen" && (
-        <div className="mb-2 flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-nowrap">
+        <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 bg-gradient-to-b from-orange-400/90 to-amber-600/85 text-white border border-orange-300/25 shadow-[0_0_22px_rgba(249,115,22,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_28px_rgba(249,115,22,0.18)]"
+            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-5 py-3 text-sm font-bold transition-all duration-200 bg-gradient-to-b from-orange-400/95 via-orange-500/90 to-amber-700/90 text-white border border-orange-300/35 shadow-[0_0_28px_rgba(249,115,22,0.20),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_34px_rgba(249,115,22,0.30)]"
           >
-            <Wallet className="size-4" /> Nuevo gasto
+            <Wallet className="size-4 transition-transform group-hover:scale-110" />
+            Nuevo gasto
           </button>
           <button
             onClick={() => onChange("nueva")}
             className={cn(
-              "inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold transition-all duration-200 cash-sale-button-glow",
+              "group inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-7 py-3 text-base font-bold transition-all duration-200 border",
               nuevaActive
-                ? "bg-gradient-to-r from-violet-500 to-blue-500 text-white ring-1 ring-violet-300/60 shadow-[0_0_32px_rgba(139,92,246,0.24)]"
-                : "bg-gradient-to-r from-violet-500/95 to-blue-500/95 text-white hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_34px_rgba(139,92,246,0.26)]"
+                ? "bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 text-white border-violet-300/55 shadow-[0_0_40px_rgba(139,92,246,0.42),0_1px_0_rgba(255,255,255,0.20)_inset]"
+                : "bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 text-white border-violet-300/35 shadow-[0_0_34px_rgba(99,102,241,0.32),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_42px_rgba(139,92,246,0.45)]"
             )}
           >
-            <Plus className="size-5" /> Nueva venta
+            <Plus className="size-5 transition-transform group-hover:rotate-90" />
+            Nueva venta
           </button>
+          <CierreCajaBtn
+            paymentsToday={data.paymentsToday}
+            expensesToday={data.expensesToday}
+            businessId={data.businessId}
+            userEmail={userEmail}
+            onCajaCerrada={onCajaCerrada}
+          />
         </div>
       )}
     </div>
@@ -657,70 +658,109 @@ function ResumenTab({
     id: ActivePanel;
     label: string;
     value: number;
-    sub?: string;
+    sub: string;
     icon: any;
     money: boolean;
-    tone: string;
-    active: string;
-    iconBox: string;
-    amount: string;
+    cardClass: string;
+    iconClass: string;
+    amountClass: string;
+    chipClass: string;
   }[] = [
-    { id: "ingresos", label: "Ingresos", value: data.revHoy, sub: data.cobros ? `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy` : "0 cobros hoy", icon: Wallet, money: true, tone: "from-emerald-400/[0.12] via-emerald-400/[0.035] to-transparent", active: "ring-emerald-400/35 shadow-[0_0_34px_rgba(16,185,129,0.10)]", iconBox: "border-emerald-300/25 bg-emerald-400/10 text-emerald-300", amount: "text-emerald-50" },
-    { id: "pendientes", label: "Pendientes", value: data.pendingAmount, sub: data.pendingCharges?.length ? `${data.pendingCharges.length} pendiente${data.pendingCharges.length === 1 ? "" : "s"}` : "0 pendientes", icon: Clock, money: true, tone: "from-orange-400/[0.12] via-orange-400/[0.035] to-transparent", active: "ring-orange-400/35 shadow-[0_0_34px_rgba(249,115,22,0.10)]", iconBox: "border-orange-300/25 bg-orange-400/10 text-orange-300", amount: "text-orange-50" },
-    { id: "gastos", label: "Gastos", value: data.totalGastos, sub: data.expensesToday.length ? `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}` : "0 gastos", icon: Trash2, money: true, tone: "from-rose-400/[0.12] via-rose-400/[0.035] to-transparent", active: "ring-rose-400/35 shadow-[0_0_34px_rgba(244,63,94,0.10)]", iconBox: "border-rose-300/25 bg-rose-400/10 text-rose-300", amount: "text-rose-50" },
+    {
+      id: "ingresos",
+      label: "Ingresos",
+      value: data.revHoy,
+      sub: `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`,
+      icon: Wallet,
+      money: true,
+      cardClass: "border-emerald-400/25 bg-[radial-gradient(circle_at_12%_50%,rgba(34,197,94,0.16),transparent_34%),linear-gradient(135deg,rgba(15,118,110,0.16),rgba(15,23,42,0.56))] shadow-[0_0_40px_rgba(16,185,129,0.08)]",
+      iconClass: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/30 shadow-[0_0_26px_rgba(34,197,94,0.20)]",
+      amountClass: "text-white",
+      chipClass: "bg-emerald-400/12 text-emerald-300 ring-emerald-400/20",
+    },
+    {
+      id: "pendientes",
+      label: "Pendientes",
+      value: data.pendingAmount,
+      sub: `${data.pendingCharges?.length ?? 0} pendiente${(data.pendingCharges?.length ?? 0) === 1 ? "" : "s"}`,
+      icon: Clock,
+      money: true,
+      cardClass: "border-orange-400/25 bg-[radial-gradient(circle_at_12%_50%,rgba(249,115,22,0.16),transparent_34%),linear-gradient(135deg,rgba(120,53,15,0.16),rgba(15,23,42,0.56))] shadow-[0_0_40px_rgba(249,115,22,0.08)]",
+      iconClass: "bg-orange-500/14 text-orange-300 ring-orange-400/30 shadow-[0_0_26px_rgba(249,115,22,0.18)]",
+      amountClass: "text-white",
+      chipClass: "bg-orange-400/12 text-orange-300 ring-orange-400/20",
+    },
+    {
+      id: "gastos",
+      label: "Gastos",
+      value: data.totalGastos,
+      sub: `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}`,
+      icon: TrendingUp,
+      money: true,
+      cardClass: "border-rose-400/25 bg-[radial-gradient(circle_at_12%_50%,rgba(244,63,94,0.15),transparent_34%),linear-gradient(135deg,rgba(127,29,29,0.15),rgba(15,23,42,0.56))] shadow-[0_0_40px_rgba(244,63,94,0.08)]",
+      iconClass: "bg-rose-500/14 text-rose-300 ring-rose-400/30 shadow-[0_0_26px_rgba(244,63,94,0.18)]",
+      amountClass: "text-white",
+      chipClass: "bg-rose-400/12 text-rose-300 ring-rose-400/20",
+    },
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
+          const Icon = s.icon;
           return (
-            <Card
+            <button
               key={s.id}
+              type="button"
               onClick={() => setActivePanel(s.id)}
               className={cn(
-                "group min-h-[132px] cursor-pointer overflow-hidden p-5 ring-1 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.045]",
-                isActive ? s.active : "ring-white/[0.06]"
+                "group relative min-h-[150px] overflow-hidden rounded-3xl border p-6 text-left transition-all duration-300",
+                "backdrop-blur-xl hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-32px_rgba(0,0,0,0.95)]",
+                s.cardClass,
+                isActive ? "ring-1 ring-white/15" : "ring-1 ring-transparent"
               )}
             >
-              <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90", s.tone)} />
-              <div className="relative flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground/90">{s.label}</p>
-                  <div className="mt-2">
-                    <span className={cn("font-display text-4xl font-semibold tracking-tight tabular-nums", s.amount)}>
-                      <span className="mr-0.5 text-foreground/45">$</span>{Math.round(Number(s.value)).toLocaleString("es-AR")}
-                    </span>
-                  </div>
-                  {s.sub && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{s.sub}</p>}
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.012))]" />
+              <div className="relative flex items-center gap-5">
+                <div className={cn("grid size-16 place-items-center rounded-full ring-1 transition-transform duration-300 group-hover:scale-105", s.iconClass)}>
+                  <Icon className="size-7" />
                 </div>
-                <div className={cn("rounded-2xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-all duration-200 group-hover:scale-105", s.iconBox)}>
-                  <s.icon className="size-4" />
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-foreground/90">{s.label}</p>
+                  <div className="mt-1">
+                    <Money value={Number(s.value)} large />
+                  </div>
+                  <div className={cn("mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1", s.chipClass)}>
+                    <span className="size-1.5 rounded-full bg-current" />
+                    {s.sub}
+                  </div>
                 </div>
               </div>
-            </Card>
+            </button>
           );
         })}
       </div>
 
-
       {activePanel === "ingresos" && (
-        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} title="Ingresos" />
+        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} title="Últimos movimientos" />
       )}
 
       {activePanel === "pendientes" && (
-        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] overflow-hidden cash-panel-glow">
-          <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
-            <div className="text-sm font-semibold">Pendientes de cobro</div>
-            <div className="text-xs text-muted-foreground">{data.pendingCharges.length} pendiente{data.pendingCharges.length !== 1 ? "s" : ""} · ${data.pendingAmount.toLocaleString("es-AR")}</div>
+        <div className="rounded-3xl border border-orange-400/18 bg-white/[0.025] overflow-hidden cash-panel-glow shadow-[0_18px_60px_-36px_rgba(0,0,0,0.9)]">
+          <div className="px-5 py-4 border-b border-white/7 flex items-center justify-between">
+            <div className="text-sm font-semibold text-foreground">Pendientes de cobro</div>
+            <div className="rounded-full bg-orange-400/10 px-3 py-1 text-xs font-semibold text-orange-300 ring-1 ring-orange-400/20">
+              {data.pendingCharges.length} pendiente{data.pendingCharges.length !== 1 ? "s" : ""} · ${data.pendingAmount.toLocaleString("es-AR")}
+            </div>
           </div>
           {data.pendingCharges.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-10">Sin pendientes.</p>
           ) : (
             <div className="divide-y divide-white/5">
               {data.pendingCharges.map((a: any) => (
-                <div key={a.id} className="px-5 py-3.5 flex items-start justify-between gap-3">
+                <div key={a.id} className="px-5 py-3.5 flex items-start justify-between gap-3 hover:bg-white/[0.025] transition">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">{a.client_name ?? "Sin cliente"}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
@@ -729,7 +769,7 @@ function ResumenTab({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-sm font-semibold tabular-nums text-violet-300">${Number(a.service_price ?? 0).toLocaleString("es-AR")}</div>
+                    <div className="text-sm font-semibold tabular-nums text-orange-300">${Number(a.service_price ?? 0).toLocaleString("es-AR")}</div>
                     {equipoEnabled && (
                       <button
                         onClick={() => onCobrarPendiente(a)}
@@ -747,10 +787,12 @@ function ResumenTab({
       )}
 
       {activePanel === "gastos" && (
-        <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] overflow-hidden cash-panel-glow">
-          <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between">
-            <div className="text-sm font-semibold">Gastos</div>
-            <div className="text-xs text-muted-foreground">{data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}</div>
+        <div className="rounded-3xl border border-rose-400/18 bg-white/[0.025] overflow-hidden cash-panel-glow shadow-[0_18px_60px_-36px_rgba(0,0,0,0.9)]">
+          <div className="px-5 py-4 border-b border-white/7 flex items-center justify-between">
+            <div className="text-sm font-semibold text-foreground">Gastos</div>
+            <div className="rounded-full bg-rose-400/10 px-3 py-1 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/20">
+              {data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}
+            </div>
           </div>
           <div className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3 border-b border-white/5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
             <div>Fecha</div>
@@ -773,7 +815,7 @@ function ResumenTab({
                 const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
                 const user = e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
                 return (
-                  <div key={e.id} className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm transition-all duration-200 hover:bg-white/[0.03]">
+                  <div key={e.id} className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm hover:bg-white/[0.025] transition">
                     <div className="text-muted-foreground">{date}</div>
                     <div className="text-muted-foreground capitalize">{category}</div>
                     <div className="min-w-0">
@@ -782,7 +824,7 @@ function ResumenTab({
                         <div className="mt-0.5 truncate text-xs text-muted-foreground/70">{e.note}</div>
                       )}
                     </div>
-                    <div className="text-right font-semibold tabular-nums text-rose-300">-${Number(e.amount ?? 0).toLocaleString("es-AR")}</div>
+                    <div className="text-right font-bold tabular-nums text-rose-300">-${Number(e.amount ?? 0).toLocaleString("es-AR")}</div>
                     <div className="truncate text-muted-foreground">{user}</div>
                   </div>
                 );
@@ -794,6 +836,7 @@ function ResumenTab({
     </div>
   );
 }
+
 function NuevoGastoTab({
   data,
   userEmail,
@@ -1033,14 +1076,12 @@ function CierreCajaBtn({
   businessId,
   userEmail,
   onCajaCerrada,
-  buttonLabel = "Cierre de caja",
 }: {
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
   businessId: string | null;
   userEmail: string | null;
   onCajaCerrada: () => void;
-  buttonLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
@@ -1205,9 +1246,10 @@ function CierreCajaBtn({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 bg-white/[0.045] text-foreground border border-white/10 hover:bg-white/[0.075] hover:-translate-y-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+        className="group inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all duration-200 bg-white/[0.035] text-foreground border border-white/14 hover:-translate-y-0.5 hover:bg-white/[0.065] hover:border-white/20 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.9)]"
       >
-        <Wallet className="size-4" /> {buttonLabel}
+        <Wallet className="size-4 text-white/80 transition-transform group-hover:scale-110" />
+        Cierre de caja
       </button>
 
       {open && (
@@ -1292,21 +1334,9 @@ function CierreCajaBtn({
 
 // ─────────── Cierres de caja — historial tab ─────────────────────────────────
 
-function CierresTab({
-  businessId,
-  cajaCerrada,
-  paymentsToday,
-  expensesToday,
-  userEmail,
-  onCajaCerrada,
-  onCajaReopened,
-}: {
+function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
   businessId: string | null;
   cajaCerrada: boolean;
-  paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
-  expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
-  userEmail: string | null;
-  onCajaCerrada: () => void;
   onCajaReopened: () => void;
 }) {
   const [cierres, setCierres] = useState<any[]>([]);
@@ -1339,11 +1369,6 @@ function CierresTab({
   }, [loadCierres]);
 
   const cierreEventos = (cierre: any) => cleanCajaEventosForDisplay(cajaEventosArray(cierre?.eventos));
-  const latestCierre = cierres[0] ?? null;
-  const latestEventos = latestCierre ? cierreEventos(latestCierre) : [];
-  const lastOpenEvent = [...latestEventos].reverse().find((event: any) => event?.tipo === "reapertura");
-  const lastCloseEvent = [...latestEventos].reverse().find((event: any) => event?.tipo === "cierre");
-  const cajaAbierta = latestCierre ? latestCierre.estado === "reabierta" : !cajaCerrada;
 
   // Observation: get from the most recent "cierre" event (not from root field)
   function getCierreObservacion(cierre: any): string | null {
@@ -1452,40 +1477,6 @@ function CierresTab({
         <p className="mt-1 text-sm text-muted-foreground">Historial de cierres manuales y automáticos.</p>
       </div>
 
-      <Card className="p-5 bg-white/[0.025] ring-1 ring-white/[0.06]">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className={cn("size-2 rounded-full", cajaAbierta ? "bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.45)]" : "bg-rose-400 shadow-[0_0_18px_rgba(251,113,133,0.45)]")} />
-              <span className="text-sm font-semibold text-foreground">{cajaAbierta ? "Caja abierta" : "Caja cerrada"}</span>
-            </div>
-            <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-              <div>Última apertura: <span className="text-foreground/85">{lastOpenEvent?.hora ?? "—"}</span></div>
-              <div>Último cierre: <span className="text-foreground/85">{lastCloseEvent?.hora ?? latestCierre?.hora_cierre ?? "—"}</span></div>
-            </div>
-          </div>
-          {cajaAbierta ? (
-            <CierreCajaBtn
-              paymentsToday={paymentsToday}
-              expensesToday={expensesToday}
-              businessId={businessId}
-              userEmail={userEmail}
-              onCajaCerrada={onCajaCerrada}
-              buttonLabel="Cerrar caja"
-            />
-          ) : latestCierre ? (
-            <button
-              type="button"
-              onClick={() => reabrirCaja(latestCierre)}
-              disabled={reopeningId === latestCierre.id}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 bg-emerald-400/12 text-emerald-200 border border-emerald-300/20 hover:bg-emerald-400/18 disabled:opacity-50"
-            >
-              <Unlock className="size-4" /> {reopeningId === latestCierre.id ? "Abriendo…" : "Abrir caja"}
-            </button>
-          ) : null}
-        </div>
-      </Card>
-
       {loading ? (
         <div className="py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
       ) : cierres.length === 0 ? (
@@ -1503,7 +1494,7 @@ function CierresTab({
             const nCierres = eventos.filter((e: any) => e?.tipo === "cierre").length || 1;
             return (
               <button key={c.id} type="button" onClick={() => setSelected(c)}
-                className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.035] transition-all duration-200 text-left">
+                className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left">
                 <div>
                   <div className="text-foreground text-sm font-medium">
                     {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" })}
@@ -1881,13 +1872,19 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
   return (
     <>
-      <Card style={{ background: "linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72))" }}>
+      <Card
+        className="rounded-3xl border-white/10 shadow-[0_24px_90px_-45px_rgba(0,0,0,0.95)]"
+        style={{ background: "linear-gradient(180deg, oklch(0.18 0.035 260 / 0.70), oklch(0.105 0.028 270 / 0.78))" }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="inline-flex items-center gap-2 text-base font-semibold text-foreground"><ClipboardList className="size-4 text-violet-300" /> Últimos movimientos</h3>
-            <span className="rounded-full bg-white/[0.045] px-3 py-1 text-[11px] text-muted-foreground ring-1 ring-white/[0.06]">
-{data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
+        <div className="flex items-center justify-between gap-3 px-6 py-5 border-b border-white/[0.07]">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="grid size-8 place-items-center rounded-xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-400/20">
+              <ClipboardList className="size-4" />
+            </div>
+            <h3 className="text-lg font-bold tracking-tight text-foreground">{title}</h3>
+            <span className="rounded-full bg-white/[0.045] px-3 py-1 text-xs font-semibold text-muted-foreground ring-1 ring-white/[0.06]">
+              {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
             </span>
             {data.approvalModeEnabled && equipoEnabled && (
               <div className="flex gap-1 ml-1">
@@ -1909,7 +1906,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
         {/* Table header */}
         <div className="overflow-x-auto">
           <div className="min-w-[1080px]">
-            <div className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-[10px] tracking-[0.16em] text-muted-foreground/60 border-b border-white/5 uppercase">
+            <div className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b border-white/[0.07] uppercase bg-white/[0.012]">
               <div>Fecha</div>
               <div>Cliente</div>
               <div>Profesional</div>
@@ -1942,7 +1939,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 bg-blue-400/[0.035] hover:bg-blue-400/[0.06] transition-all duration-200 cursor-pointer"
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] bg-blue-400/[0.035] hover:bg-blue-400/[0.07] transition-all duration-200 cursor-pointer"
                       onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -2008,7 +2005,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
                   return (
                     <div key={p.id}
-                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_90px] items-center gap-x-3 px-5 py-3 text-xs border-b border-white/5 last:border-0 hover:bg-white/[0.035] transition-all duration-200 group cursor-pointer"
+                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 hover:bg-white/[0.035] transition-all duration-200 group cursor-pointer"
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
@@ -2033,12 +2030,17 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
                           </button>
                         )}
                       </div>
-                      <div className="text-emerald-300 tabular-nums font-semibold text-right">
+                      <div className="text-emerald-300 tabular-nums font-bold text-right">
                         ${Number(p.total ?? p.amount ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground truncate">{methodLabel}</div>
-                      <div><span className="inline-flex items-center rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 ring-1 ring-emerald-300/15">● Cobrado</span></div>
-                      <div />
+                      <div><HistorialCell events={historialEvents} /></div>
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="rounded-full bg-emerald-400/12 px-2.5 py-1 text-[11px] font-bold text-emerald-300 ring-1 ring-emerald-400/18">
+                          Cobrado
+                        </span>
+                        <span className="text-lg leading-none text-muted-foreground/70 transition group-hover:text-foreground">⋮</span>
+                      </div>
                     </div>
                   );
                 })}
@@ -2048,7 +2050,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between gap-3">
+        <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3">
           {rows.length > 10 && (
             <button onClick={() => setShowAll(v => !v)}
               className="text-xs text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1.5">
@@ -2057,8 +2059,8 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
             </button>
           )}
           <button onClick={() => window.dispatchEvent(new CustomEvent("clippr:open-closeout"))}
-            className="ml-auto text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-2">
-            <ClipboardList className="size-3.5" /> Ver historial completo
+            className="ml-auto text-xs font-semibold text-violet-300 hover:text-violet-200 inline-flex items-center gap-2 transition">
+            <ClipboardList className="size-3.5" /> Ver historial completo <ArrowRight className="size-3.5" />
           </button>
         </div>
       </Card>
