@@ -542,8 +542,8 @@ function Tabs({
 }) {
   const nuevaActive = tab === "nueva";
   return (
-    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.045] pb-5">
-      <div className="flex min-w-0 flex-1 overflow-x-auto rounded-[22px] border border-white/[0.07] bg-[#151820]/95 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.04)_inset] backdrop-blur-xl sm:flex-none">
+    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-0">
+      <div className="flex gap-6 overflow-x-auto -mb-px flex-1 min-w-0">
         {TABS.map((t) => {
           const active = t.id === tab;
           return (
@@ -551,13 +551,14 @@ function Tabs({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "relative rounded-2xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
-                active
-                  ? "bg-[#252A38] text-white ring-1 ring-violet-400/25 shadow-[0_10px_28px_rgba(0,0,0,0.32),0_1px_0_rgba(255,255,255,0.08)_inset]"
-                  : "text-white/58 hover:bg-white/[0.045] hover:text-white/88"
+                "relative px-1 py-3 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                active ? "text-white" : "text-muted-foreground hover:text-foreground"
               )}
             >
               {t.label}
+              {active && (
+                <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-400 to-blue-400 shadow-[0_0_18px_rgba(139,92,246,0.55)]" />
+              )}
             </button>
           );
         })}
@@ -764,7 +765,7 @@ function ResumenTab({
               onClick={() => setActivePanel(s.id)}
               className={cn(
                 "group relative min-h-[150px] overflow-hidden rounded-3xl border p-6 text-left transition-all duration-300",
-                "backdrop-blur-xl shadow-[0_34px_90px_-42px_rgba(0,0,0,0.98),0_14px_32px_-18px_rgba(0,0,0,0.82),0_1px_0_rgba(255,255,255,0.05)_inset] hover:-translate-y-0.5 hover:shadow-[0_42px_105px_-44px_rgba(0,0,0,1),0_18px_42px_-20px_rgba(0,0,0,0.9),0_1px_0_rgba(255,255,255,0.06)_inset]",
+                "backdrop-blur-xl hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-32px_rgba(0,0,0,0.95)]",
                 s.cardClass,
                 isActive ? "ring-1 ring-white/15" : "ring-1 ring-transparent"
               )}
