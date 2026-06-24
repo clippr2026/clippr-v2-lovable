@@ -528,10 +528,10 @@ const TABS: { id: Tab; label: string }[] = [
 function Tabs({
   tab,
   onChange,
-  data,
-  userEmail,
+  data: _data,
+  userEmail: _userEmail,
   onNuevoGasto,
-  onCajaCerrada,
+  onCajaCerrada: _onCajaCerrada,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
@@ -584,13 +584,6 @@ function Tabs({
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
             Nueva venta
           </button>
-          <CierreCajaBtn
-            paymentsToday={data.paymentsToday}
-            expensesToday={data.expensesToday}
-            businessId={data.businessId}
-            userEmail={userEmail}
-            onCajaCerrada={onCajaCerrada}
-          />
         </div>
       )}
     </div>
@@ -714,10 +707,12 @@ function ResumenTab({
     rowHover: string;
     amount: string;
     badge: string;
+    panelBg: string;
   }> = {
     ingresos: {
       border: "border-emerald-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
+      panelBg: "bg-[linear-gradient(135deg,rgba(6,78,59,0.72),rgba(2,6,23,0.94))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -729,6 +724,7 @@ function ResumenTab({
     pendientes: {
       border: "border-orange-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
+      panelBg: "bg-[linear-gradient(135deg,rgba(120,53,15,0.76),rgba(2,6,23,0.94))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
@@ -740,6 +736,7 @@ function ResumenTab({
     gastos: {
       border: "border-rose-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
+      panelBg: "bg-[linear-gradient(135deg,rgba(127,29,29,0.76),rgba(2,6,23,0.94))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
@@ -796,7 +793,7 @@ function ResumenTab({
       )}
 
       {activePanel === "pendientes" && (
-        <div className={cn("rounded-3xl border bg-white/[0.025] overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.pendientes.border, panelTheme.pendientes.glow)}>
+        <div className={cn("rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.pendientes.panelBg, panelTheme.pendientes.border, panelTheme.pendientes.glow)}>
           <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.pendientes.tableHead)}>
             <div className={cn("text-sm font-semibold", panelTheme.pendientes.title)}>Pendientes de cobro</div>
             <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.pendientes.chip)}>
@@ -835,7 +832,7 @@ function ResumenTab({
       )}
 
       {activePanel === "gastos" && (
-        <div className={cn("rounded-3xl border bg-white/[0.025] overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.gastos.border, panelTheme.gastos.glow)}>
+        <div className={cn("rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.gastos.panelBg, panelTheme.gastos.border, panelTheme.gastos.glow)}>
           <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.gastos.tableHead)}>
             <div className={cn("text-sm font-semibold", panelTheme.gastos.title)}>Gastos</div>
             <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.gastos.chip)}>
@@ -1891,10 +1888,11 @@ function DetailModal({ payment, employees, onClose }: {
   );
 }
 
-function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", theme }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void; title?: string; theme?: { border: string; glow: string; headerIcon: string; title: string; chip: string; tableHead: string; rowHover: string; amount: string; badge: string } }) {
+function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", theme }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void; title?: string; theme?: { border: string; glow: string; headerIcon: string; title: string; chip: string; tableHead: string; rowHover: string; amount: string; badge: string; panelBg: string } }) {
   const incomeTheme = theme ?? {
     border: "border-emerald-400/24",
     glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
+    panelBg: "bg-[linear-gradient(135deg,rgba(6,78,59,0.72),rgba(2,6,23,0.94))]",
     headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
     title: "text-emerald-50",
     chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -1933,8 +1931,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", the
   return (
     <>
       <Card
-        className={cn("rounded-3xl transition-all duration-300", incomeTheme.border, incomeTheme.glow)}
-        style={{ background: "linear-gradient(180deg, oklch(0.18 0.035 260 / 0.70), oklch(0.105 0.028 270 / 0.78))" }}
+        className={cn("rounded-3xl transition-all duration-300", incomeTheme.panelBg, incomeTheme.border, incomeTheme.glow)}
       >
         {/* Header */}
         <div className={cn("flex items-center justify-between gap-3 px-6 py-5 border-b", incomeTheme.tableHead)}>
