@@ -490,11 +490,28 @@ function CashRegisterPage() {
           <ProfesionalesTab businessId={data.businessId} userEmail={session.user.email ?? null} />
         )}
         {tab === "cierres" && (
-          <CierresTab
-            businessId={data.businessId}
-            cajaCerrada={cajaCerrada}
-            onCajaReopened={() => { setCajaCerrada(false); data.refresh(); }}
-          />
+          <>
+            <div className="mb-4 flex justify-end">
+              <CierreCajaBtn
+                paymentsToday={data.paymentsToday}
+                expensesToday={data.expensesToday}
+                businessId={data.businessId}
+                userEmail={session.user.email ?? null}
+                onCajaCerrada={() => {
+                  setCajaCerrada(true);
+                  setShowClosedHistory(false);
+                  setPendingToCharge(null);
+                  setResumenPanel("ingresos");
+                  setTab("resumen");
+                }}
+              />
+            </div>
+            <CierresTab
+              businessId={data.businessId}
+              cajaCerrada={cajaCerrada}
+              onCajaReopened={() => { setCajaCerrada(false); data.refresh(); }}
+            />
+          </>
         )}
       </div>
       </div>
@@ -522,16 +539,16 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "precios",       label: "Precios"           },
   { id: "inventario",    label: "Inventario"        },
   { id: "profesionales", label: "Liquidaciones"     },
-  { id: "cierres",       label: "Cierres de caja"   },
+  { id: "cierres",       label: "Cierres"           },
 ];
 
 function Tabs({
   tab,
   onChange,
-  data,
-  userEmail,
+  data: _data,
+  userEmail: _userEmail,
   onNuevoGasto,
-  onCajaCerrada,
+  onCajaCerrada: _onCajaCerrada,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
@@ -542,8 +559,8 @@ function Tabs({
 }) {
   const nuevaActive = tab === "nueva";
   return (
-    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-0">
-      <div className="flex gap-6 overflow-x-auto -mb-px flex-1 min-w-0">
+    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-4">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#090B14]/80 p-1.5 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,.35)] flex-1 min-w-0 sm:flex-none">
         {TABS.map((t) => {
           const active = t.id === tab;
           return (
@@ -551,14 +568,13 @@ function Tabs({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "relative px-1 py-3 text-sm font-semibold whitespace-nowrap transition-all duration-200",
-                active ? "text-white" : "text-muted-foreground hover:text-foreground"
+                "relative rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                active
+                  ? "bg-violet-500/14 text-white ring-1 ring-violet-300/24 shadow-[0_0_22px_rgba(139,92,246,0.12),0_1px_0_rgba(255,255,255,0.08)_inset]"
+                  : "text-white/55 hover:bg-white/[0.045] hover:text-white/85"
               )}
             >
               {t.label}
-              {active && (
-                <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-400 to-blue-400 shadow-[0_0_18px_rgba(139,92,246,0.55)]" />
-              )}
             </button>
           );
         })}
@@ -567,7 +583,7 @@ function Tabs({
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-5 py-3 text-sm font-bold transition-all duration-200 bg-gradient-to-b from-orange-400/95 via-orange-500/90 to-amber-700/90 text-white border border-orange-300/35 shadow-[0_0_28px_rgba(249,115,22,0.20),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_34px_rgba(249,115,22,0.30)]"
+            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-gradient-to-br from-[#D97706] to-[#EA580C] text-white border border-orange-200/22 shadow-[0_0_18px_rgba(234,88,12,0.12),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_24px_rgba(234,88,12,0.18)]"
           >
             <Wallet className="size-4 transition-transform group-hover:scale-110" />
             Nuevo gasto
@@ -575,22 +591,15 @@ function Tabs({
           <button
             onClick={() => onChange("nueva")}
             className={cn(
-              "group inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-7 py-3 text-base font-bold transition-all duration-200 border",
+              "group inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border",
               nuevaActive
-                ? "bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 text-white border-violet-300/55 shadow-[0_0_40px_rgba(139,92,246,0.42),0_1px_0_rgba(255,255,255,0.20)_inset]"
-                : "bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 text-white border-violet-300/35 shadow-[0_0_34px_rgba(99,102,241,0.32),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_42px_rgba(139,92,246,0.45)]"
+                ? "bg-gradient-to-br from-[#7C3AED] via-[#6366F1] to-[#4F46E5] text-white border-violet-200/34 shadow-[0_0_32px_rgba(124,58,237,0.20),0_1px_0_rgba(255,255,255,0.18)_inset]"
+                : "bg-gradient-to-br from-[#7C3AED] via-[#6366F1] to-[#4F46E5] text-white border-violet-200/26 shadow-[0_0_32px_rgba(124,58,237,0.20),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_38px_rgba(124,58,237,0.28)]"
             )}
           >
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
             Nueva venta
           </button>
-          <CierreCajaBtn
-            paymentsToday={data.paymentsToday}
-            expensesToday={data.expensesToday}
-            businessId={data.businessId}
-            userEmail={userEmail}
-            onCajaCerrada={onCajaCerrada}
-          />
         </div>
       )}
     </div>
@@ -714,10 +723,12 @@ function ResumenTab({
     rowHover: string;
     amount: string;
     badge: string;
+    panelBg: string;
   }> = {
     ingresos: {
       border: "border-emerald-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(135deg,rgba(15,118,110,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -729,6 +740,7 @@ function ResumenTab({
     pendientes: {
       border: "border-orange-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(249,115,22,0.12),transparent_36%),linear-gradient(135deg,rgba(120,53,15,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
@@ -740,6 +752,7 @@ function ResumenTab({
     gastos: {
       border: "border-rose-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(244,63,94,0.11),transparent_36%),linear-gradient(135deg,rgba(127,29,29,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
@@ -796,7 +809,7 @@ function ResumenTab({
       )}
 
       {activePanel === "pendientes" && (
-        <div className={cn("rounded-3xl border bg-white/[0.025] overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.pendientes.border, panelTheme.pendientes.glow)}>
+        <div className={cn("rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.pendientes.panelBg, panelTheme.pendientes.border, panelTheme.pendientes.glow)}>
           <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.pendientes.tableHead)}>
             <div className={cn("text-sm font-semibold", panelTheme.pendientes.title)}>Pendientes de cobro</div>
             <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.pendientes.chip)}>
@@ -835,7 +848,7 @@ function ResumenTab({
       )}
 
       {activePanel === "gastos" && (
-        <div className={cn("rounded-3xl border bg-white/[0.025] overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.gastos.border, panelTheme.gastos.glow)}>
+        <div className={cn("rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.gastos.panelBg, panelTheme.gastos.border, panelTheme.gastos.glow)}>
           <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.gastos.tableHead)}>
             <div className={cn("text-sm font-semibold", panelTheme.gastos.title)}>Gastos</div>
             <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.gastos.chip)}>
@@ -1891,10 +1904,11 @@ function DetailModal({ payment, employees, onClose }: {
   );
 }
 
-function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", theme }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void; title?: string; theme?: { border: string; glow: string; headerIcon: string; title: string; chip: string; tableHead: string; rowHover: string; amount: string; badge: string } }) {
+function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", theme }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void; title?: string; theme?: { border: string; glow: string; headerIcon: string; title: string; chip: string; tableHead: string; rowHover: string; amount: string; badge: string; panelBg: string } }) {
   const incomeTheme = theme ?? {
     border: "border-emerald-400/24",
     glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
+    panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(135deg,rgba(15,118,110,0.10),rgba(2,6,23,0.88))]",
     headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
     title: "text-emerald-50",
     chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -1933,8 +1947,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", the
   return (
     <>
       <Card
-        className={cn("rounded-3xl transition-all duration-300", incomeTheme.border, incomeTheme.glow)}
-        style={{ background: "linear-gradient(180deg, oklch(0.18 0.035 260 / 0.70), oklch(0.105 0.028 270 / 0.78))" }}
+        className={cn("rounded-3xl transition-all duration-300", incomeTheme.panelBg, incomeTheme.border, incomeTheme.glow)}
       >
         {/* Header */}
         <div className={cn("flex items-center justify-between gap-3 px-6 py-5 border-b", incomeTheme.tableHead)}>
