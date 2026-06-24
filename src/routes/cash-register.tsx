@@ -528,10 +528,10 @@ const TABS: { id: Tab; label: string }[] = [
 function Tabs({
   tab,
   onChange,
-  data: _data,
-  userEmail: _userEmail,
+  data,
+  userEmail,
   onNuevoGasto,
-  onCajaCerrada: _onCajaCerrada,
+  onCajaCerrada,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
@@ -584,6 +584,13 @@ function Tabs({
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
             Nueva venta
           </button>
+          <CierreCajaBtn
+            paymentsToday={data.paymentsToday}
+            expensesToday={data.expensesToday}
+            businessId={data.businessId}
+            userEmail={userEmail}
+            onCajaCerrada={onCajaCerrada}
+          />
         </div>
       )}
     </div>
@@ -712,7 +719,7 @@ function ResumenTab({
     ingresos: {
       border: "border-emerald-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-      panelBg: "bg-[linear-gradient(135deg,rgba(6,78,59,0.72),rgba(2,6,23,0.94))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(135deg,rgba(15,118,110,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -724,7 +731,7 @@ function ResumenTab({
     pendientes: {
       border: "border-orange-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
-      panelBg: "bg-[linear-gradient(135deg,rgba(120,53,15,0.76),rgba(2,6,23,0.94))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(249,115,22,0.12),transparent_36%),linear-gradient(135deg,rgba(120,53,15,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
@@ -736,7 +743,7 @@ function ResumenTab({
     gastos: {
       border: "border-rose-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
-      panelBg: "bg-[linear-gradient(135deg,rgba(127,29,29,0.76),rgba(2,6,23,0.94))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(244,63,94,0.11),transparent_36%),linear-gradient(135deg,rgba(127,29,29,0.10),rgba(2,6,23,0.88))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
@@ -1892,7 +1899,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", the
   const incomeTheme = theme ?? {
     border: "border-emerald-400/24",
     glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-    panelBg: "bg-[linear-gradient(135deg,rgba(6,78,59,0.72),rgba(2,6,23,0.94))]",
+    panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(135deg,rgba(15,118,110,0.10),rgba(2,6,23,0.88))]",
     headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
     title: "text-emerald-50",
     chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
