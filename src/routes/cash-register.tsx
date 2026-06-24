@@ -522,16 +522,16 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "precios",       label: "Precios"           },
   { id: "inventario",    label: "Inventario"        },
   { id: "profesionales", label: "Liquidaciones"     },
-  { id: "cierres",       label: "Cierres de caja"   },
+  { id: "cierres",       label: "Cierres"           },
 ];
 
 function Tabs({
   tab,
   onChange,
-  data,
-  userEmail,
+  data: _data,
+  userEmail: _userEmail,
   onNuevoGasto,
-  onCajaCerrada,
+  onCajaCerrada: _onCajaCerrada,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
@@ -542,8 +542,8 @@ function Tabs({
 }) {
   const nuevaActive = tab === "nueva";
   return (
-    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-0">
-      <div className="flex gap-6 overflow-x-auto -mb-px flex-1 min-w-0">
+    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.06] pb-4">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.07] bg-black/15 p-1.5 backdrop-blur-xl flex-1 min-w-0 sm:flex-none">
         {TABS.map((t) => {
           const active = t.id === tab;
           return (
@@ -551,14 +551,13 @@ function Tabs({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "relative px-1 py-3 text-sm font-semibold whitespace-nowrap transition-all duration-200",
-                active ? "text-white" : "text-muted-foreground hover:text-foreground"
+                "relative rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                active
+                  ? "bg-violet-500/14 text-white ring-1 ring-violet-300/24 shadow-[0_0_22px_rgba(139,92,246,0.12),0_1px_0_rgba(255,255,255,0.08)_inset]"
+                  : "text-white/55 hover:bg-white/[0.045] hover:text-white/85"
               )}
             >
               {t.label}
-              {active && (
-                <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-400 to-blue-400 shadow-[0_0_18px_rgba(139,92,246,0.55)]" />
-              )}
             </button>
           );
         })}
@@ -567,7 +566,7 @@ function Tabs({
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-5 py-3 text-sm font-bold transition-all duration-200 bg-gradient-to-b from-orange-400/95 via-orange-500/90 to-amber-700/90 text-white border border-orange-300/35 shadow-[0_0_28px_rgba(249,115,22,0.20),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_34px_rgba(249,115,22,0.30)]"
+            className="group inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-gradient-to-br from-amber-600/92 to-orange-700/88 text-white border border-orange-300/24 shadow-[0_0_18px_rgba(234,88,12,0.18),0_1px_0_rgba(255,255,255,0.14)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_24px_rgba(234,88,12,0.24)]"
           >
             <Wallet className="size-4 transition-transform group-hover:scale-110" />
             Nuevo gasto
@@ -575,22 +574,15 @@ function Tabs({
           <button
             onClick={() => onChange("nueva")}
             className={cn(
-              "group inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-7 py-3 text-base font-bold transition-all duration-200 border",
+              "group inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border",
               nuevaActive
-                ? "bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 text-white border-violet-300/55 shadow-[0_0_40px_rgba(139,92,246,0.42),0_1px_0_rgba(255,255,255,0.20)_inset]"
-                : "bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 text-white border-violet-300/35 shadow-[0_0_34px_rgba(99,102,241,0.32),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_42px_rgba(139,92,246,0.45)]"
+                ? "bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-700 text-white border-violet-200/38 shadow-[0_0_26px_rgba(124,58,237,0.28),0_1px_0_rgba(255,255,255,0.18)_inset]"
+                : "bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-700 text-white border-violet-200/28 shadow-[0_0_24px_rgba(124,58,237,0.25),0_1px_0_rgba(255,255,255,0.15)_inset] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_32px_rgba(124,58,237,0.34)]"
             )}
           >
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
             Nueva venta
           </button>
-          <CierreCajaBtn
-            paymentsToday={data.paymentsToday}
-            expensesToday={data.expensesToday}
-            businessId={data.businessId}
-            userEmail={userEmail}
-            onCajaCerrada={onCajaCerrada}
-          />
         </div>
       )}
     </div>
