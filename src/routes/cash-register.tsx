@@ -558,7 +558,7 @@ function Tabs({
   const nuevaActive = tab === "nueva";
   return (
     <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-4">
-      <div className="relative flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] flex-1 min-w-0 sm:flex-none">
+      <div className="relative flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(15,18,28,0.98),rgba(11,14,23,0.94))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] flex-1 min-w-0 sm:flex-none">
         <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
         {TABS.map((t) => {
           const active = t.id === tab;
@@ -683,7 +683,7 @@ function ResumenTab({
       sub: `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`,
       icon: Wallet,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.12),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(59,130,246,0.30)]",
+      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.12),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_34px_95px_-42px_rgba(0,0,0,0.88),0_0_46px_-24px_rgba(16,185,129,0.35)]",
       iconClass: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/30 shadow-[0_0_26px_rgba(34,197,94,0.20)]",
       amountClass: "text-white",
       chipClass: "bg-emerald-400/12 text-emerald-300 ring-emerald-400/20",
@@ -695,7 +695,7 @@ function ResumenTab({
       sub: `${data.pendingCharges?.length ?? 0} pendiente${(data.pendingCharges?.length ?? 0) === 1 ? "" : "s"}`,
       icon: Clock,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.12),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(139,92,246,0.28)]",
+      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.12),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_34px_95px_-42px_rgba(0,0,0,0.88),0_0_46px_-24px_rgba(249,115,22,0.34)]",
       iconClass: "bg-orange-500/14 text-orange-300 ring-orange-400/30 shadow-[0_0_26px_rgba(249,115,22,0.18)]",
       amountClass: "text-white",
       chipClass: "bg-orange-400/12 text-orange-300 ring-orange-400/20",
@@ -707,7 +707,7 @@ function ResumenTab({
       sub: `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}`,
       icon: TrendingUp,
       money: true,
-      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_22px_70px_-42px_rgba(99,102,241,0.24)]",
+      cardClass: "border-white/[0.085] bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(6,8,18,0.88))] shadow-[0_34px_95px_-42px_rgba(0,0,0,0.88),0_0_46px_-24px_rgba(244,63,94,0.32)]",
       iconClass: "bg-rose-500/14 text-rose-300 ring-rose-400/30 shadow-[0_0_26px_rgba(244,63,94,0.18)]",
       amountClass: "text-white",
       chipClass: "bg-rose-400/12 text-rose-300 ring-rose-400/20",
@@ -729,7 +729,7 @@ function ResumenTab({
     ingresos: {
       border: "border-emerald-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.10),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.34),transparent_52%),linear-gradient(180deg,rgba(7,10,20,0.98),rgba(2,4,10,0.995))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -741,7 +741,7 @@ function ResumenTab({
     pendientes: {
       border: "border-orange-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.11),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.11),transparent_42%),radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.34),transparent_52%),linear-gradient(180deg,rgba(7,10,20,0.98),rgba(2,4,10,0.995))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
@@ -753,7 +753,7 @@ function ResumenTab({
     gastos: {
       border: "border-rose-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),linear-gradient(180deg,rgba(12,16,30,0.94),rgba(5,7,16,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.09),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.10),transparent_42%),radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.34),transparent_52%),linear-gradient(180deg,rgba(7,10,20,0.98),rgba(2,4,10,0.995))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
@@ -767,7 +767,9 @@ function ResumenTab({
   const activeTheme = panelTheme[activePanel];
 
   return (
-    <div className="space-y-6">
+    <div className="relative isolate space-y-6">
+      <div className="pointer-events-none absolute inset-[-46px] -z-10 rounded-[44px] bg-[radial-gradient(circle_at_50%_12%,rgba(0,0,0,0.62),rgba(0,0,0,0.42)_42%,transparent_74%)] blur-2xl" />
+      <div className="pointer-events-none absolute inset-x-[-28px] top-8 -z-10 h-[360px] rounded-[40px] bg-[linear-gradient(180deg,rgba(0,0,0,0.46),rgba(0,0,0,0.68))]" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
@@ -779,7 +781,7 @@ function ResumenTab({
               onClick={() => setActivePanel(s.id)}
               className={cn(
                 "group relative min-h-[150px] overflow-hidden rounded-3xl border p-6 text-left transition-all duration-300",
-                "backdrop-blur-xl hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-32px_rgba(0,0,0,0.95)]",
+                "backdrop-blur-xl shadow-[0_38px_100px_-42px_rgba(0,0,0,0.92),0_18px_45px_-28px_rgba(0,0,0,0.82)] hover:-translate-y-0.5 hover:shadow-[0_48px_120px_-42px_rgba(0,0,0,0.98),0_24px_60px_-32px_rgba(0,0,0,0.9)]",
                 s.cardClass,
                 isActive ? "ring-1 ring-white/15" : "ring-1 ring-transparent"
               )}
