@@ -1465,16 +1465,69 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
   );
 }
 
-function ProfesionalesTab({ businessId: _businessId, userEmail: _userEmail }: { businessId: string | null; userEmail: string | null }) {
+function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: string | null; userEmail: string | null }) {
   const data = useCajaData();
-  const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("all");
+  const today = React.useMemo(() => new Date().toLocaleDateString("sv-SE"), []);
+  const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("");
+  const [startDate, setStartDate] = React.useState(today);
+  const [endDate, setEndDate] = React.useState(today);
+  const [rangePayments, setRangePayments] = React.useState<any[]>([]);
+  const [loadingRange, setLoadingRange] = React.useState(false);
   const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(null);
 
   const money = React.useCallback((value: number) => `$${Math.round(value).toLocaleString("es-AR")}`, []);
 
+  React.useEffect(() => {
+    const firstEmployee = data.employees?.[0]?.id ? String(data.employees[0].id) : "";
+    if (!selectedEmployeeId && firstEmployee) setSelectedEmployeeId(firstEmployee);
+    if (selectedEmployeeId && !(data.employees ?? []).some((employee: any) => String(employee.id) === selectedEmployeeId)) {
+      setSelectedEmployeeId(firstEmployee);
+    }
+  }, [data.employees, selectedEmployeeId]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadPaymentsByRange() {
+      if (!businessId || !startDate || !endDate) {
+        setRangePayments(data.paymentsToday ?? []);
+        return;
+      }
+
+      setLoadingRange(true);
+      try {
+        const from = `${startDate}T00:00:00`;
+        const to = `${endDate}T23:59:59.999`;
+        const { data: payments, error } = await supabase
+          .from("payments" as any)
+          .select("*")
+          .eq("business_id", businessId)
+          .gte("created_at", from)
+          .lte("created_at", to)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        if (!cancelled) setRangePayments(payments ?? []);
+      } catch {
+        const fromTime = new Date(`${startDate}T00:00:00`).getTime();
+        const toTime = new Date(`${endDate}T23:59:59.999`).getTime();
+        const fallback = (data.paymentsToday ?? []).filter((payment: any) => {
+          const createdAt = payment.created_at ? new Date(payment.created_at).getTime() : Date.now();
+          return createdAt >= fromTime && createdAt <= toTime;
+        });
+        if (!cancelled) setRangePayments(fallback);
+      } finally {
+        if (!cancelled) setLoadingRange(false);
+      }
+    }
+
+    loadPaymentsByRange();
+    return () => { cancelled = true; };
+  }, [businessId, startDate, endDate, data.paymentsToday]);
+
   const rows = React.useMemo(() => {
     return (data.employees ?? []).map((employee: any) => {
-      const employeePayments = (data.paymentsToday ?? []).filter((payment: any) => payment.employee_id === employee.id);
+      const employeePayments = (rangePayments ?? []).filter((payment: any) => String(payment.employee_id ?? "") === String(employee.id));
       const sales = employeePayments.length;
       const revenue = employeePayments.reduce((sum: number, payment: any) => {
         return sum + Number(payment.total ?? payment.amount ?? 0);
@@ -1490,43 +1543,31 @@ function ProfesionalesTab({ businessId: _businessId, userEmail: _userEmail }: { 
         role: employee.role ?? employee.position ?? "Profesional",
         sales,
         revenue,
-        commissionPct,
         commission,
         paid,
         pending,
       };
     });
-  }, [data.employees, data.paymentsToday]);
+  }, [data.employees, rangePayments]);
 
-  const visibleRows = React.useMemo(() => {
-    if (selectedEmployeeId === "all") return rows;
-    return rows.filter((row) => row.id === selectedEmployeeId);
+  const selectedRow = React.useMemo(() => {
+    return rows.find((row) => row.id === selectedEmployeeId) ?? rows[0] ?? null;
   }, [rows, selectedEmployeeId]);
-
-  const totals = React.useMemo(() => {
-    return visibleRows.reduce(
-      (acc, row) => {
-        acc.sales += row.sales;
-        acc.commission += row.commission;
-        acc.paid += row.paid;
-        acc.pending += row.pending;
-        return acc;
-      },
-      { sales: 0, commission: 0, paid: 0, pending: 0 },
-    );
-  }, [visibleRows]);
 
   async function payCommission(row: typeof rows[number]) {
     if (!row || row.pending <= 0 || payingEmployeeId) return;
     setPayingEmployeeId(row.id);
     try {
-      // La vista compacta mantiene el cobro visual sin duplicar pantallas.
-      // Si más adelante se conecta una tabla real de liquidaciones, este punto queda centralizado.
       toast.success(`Comisión de ${row.name} marcada para pagar: ${money(row.pending)}`);
     } finally {
       setPayingEmployeeId(null);
     }
   }
+
+  const periodLabel = React.useMemo(() => {
+    const format = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
+    return startDate === endDate ? format(startDate) : `${format(startDate)} → ${format(endDate)}`;
+  }, [startDate, endDate]);
 
   return (
     <div className="animate-fade-up space-y-4">
@@ -1538,24 +1579,38 @@ function ProfesionalesTab({ businessId: _businessId, userEmail: _userEmail }: { 
             </div>
             <div>
               <div className="text-xl font-bold text-white">Liquidaciones</div>
-              <div className="mt-0.5 text-sm text-white/48">Vista compacta de comisiones, pagos y pendientes.</div>
+              <div className="mt-0.5 text-sm text-white/48">Un profesional por vez, con cálculo por rango de fechas.</div>
             </div>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
-              value={selectedEmployeeId}
+              value={selectedRow?.id ?? ""}
               onChange={(event) => setSelectedEmployeeId(event.target.value)}
-              className="h-10 min-w-[220px] rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-sm text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+              className="h-10 min-w-[230px] rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-sm text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
             >
-              <option value="all">Todos los profesionales</option>
-              {rows.map((row) => (
-                <option key={row.id} value={row.id}>{row.name}</option>
+              {(data.employees ?? []).map((employee: any) => (
+                <option key={employee.id} value={String(employee.id)}>{employee.name ?? "Profesional"}</option>
               ))}
             </select>
-            <div className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/16 bg-emerald-400/[0.075] px-3.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/12">
+
+            <div className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/16 bg-emerald-400/[0.075] px-3 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/12">
               <CalendarDays className="size-3.5" />
-              Hoy
+              <span className="hidden sm:inline">{periodLabel}</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                className="h-7 w-[118px] rounded-xl border border-white/[0.08] bg-black/20 px-2 text-xs text-white outline-none"
+              />
+              <span className="text-white/30">→</span>
+              <input
+                type="date"
+                value={endDate}
+                min={startDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                className="h-7 w-[118px] rounded-xl border border-white/[0.08] bg-black/20 px-2 text-xs text-white outline-none"
+              />
             </div>
           </div>
         </div>
@@ -1563,94 +1618,79 @@ function ProfesionalesTab({ businessId: _businessId, userEmail: _userEmail }: { 
         <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
           <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Ventas</div>
-            <div className="mt-1 text-xl font-bold tabular-nums text-white">{totals.sales}</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-white">{selectedRow?.sales ?? 0}</div>
           </div>
           <div className="rounded-2xl border border-violet-300/18 bg-violet-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(167,139,250,0.10)]">
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-200/70">Comisión</div>
-            <div className="mt-1 text-xl font-bold tabular-nums text-violet-300">{money(totals.commission)}</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-violet-300">{money(selectedRow?.commission ?? 0)}</div>
           </div>
           <div className="rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(34,197,94,0.09)]">
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">Pagado</div>
-            <div className="mt-1 text-xl font-bold tabular-nums text-emerald-300">{money(totals.paid)}</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-emerald-300">{money(selectedRow?.paid ?? 0)}</div>
           </div>
           <div className="rounded-2xl border border-rose-400/18 bg-rose-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(251,113,133,0.10)]">
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-200/70">Pendiente</div>
-            <div className="mt-1 text-xl font-bold tabular-nums text-rose-300">{money(totals.pending)}</div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-rose-300">{money(selectedRow?.pending ?? 0)}</div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <div className="min-w-[980px]">
-            <div className="grid grid-cols-[minmax(210px,1.25fr)_90px_130px_150px_140px_150px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
-              <div>Profesional</div>
-              <div>Ventas</div>
-              <div className="text-right">Comisión</div>
-              <div className="text-right">Pagado</div>
-              <div className="text-right">Pendiente</div>
-              <div className="text-right">%</div>
-              <div className="text-right">Acciones</div>
-            </div>
-
-            {data.loading ? (
-              <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-white/45">
-                <Loader2 className="size-4 animate-spin" /> Cargando…
-              </div>
-            ) : visibleRows.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-white/45">Sin profesionales para liquidar.</div>
-            ) : (
-              <div className="divide-y divide-white/[0.055]">
-                {visibleRows.map((row) => {
-                  const hasPending = row.pending > 0;
-                  return (
-                    <div
-                      key={row.id}
-                      className="grid grid-cols-[minmax(210px,1.25fr)_90px_130px_150px_140px_150px_minmax(260px,1fr)] items-center gap-3 px-5 py-3.5 text-sm transition-all duration-200 hover:bg-white/[0.026]"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-bold text-white">{row.name}</div>
-                        <div className="mt-0.5 truncate text-xs text-white/42">{row.role}</div>
-                      </div>
-                      <div className="text-white/62">{row.sales}</div>
-                      <div className="text-right font-bold tabular-nums text-violet-300">{money(row.commission)}</div>
-                      <div className="text-right font-bold tabular-nums text-emerald-300">{money(row.paid)}</div>
-                      <div className={cn("text-right font-bold tabular-nums", hasPending ? "text-rose-300" : "text-white/42")}>{money(row.pending)}</div>
-                      <div className="text-right text-white/50">{row.commissionPct > 0 ? `${row.commissionPct}%` : "—"}</div>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
-                        >
-                          Producción
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
-                        >
-                          Historial
-                        </button>
-                        {hasPending && (
-                          <button
-                            type="button"
-                            onClick={() => payCommission(row)}
-                            disabled={payingEmployeeId === row.id}
-                            className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
-                          >
-                            {payingEmployeeId === row.id ? "Pagando…" : "Pagar"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+        <div className="overflow-hidden">
+          <div className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+            <div>Profesional</div>
+            <div>Ventas</div>
+            <div className="text-right">Comisión</div>
+            <div className="text-right">Pagado</div>
+            <div className="text-right">Pendiente</div>
+            <div className="text-right">Acciones</div>
           </div>
+
+          {data.loading || loadingRange ? (
+            <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-white/45">
+              <Loader2 className="size-4 animate-spin" /> Cargando…
+            </div>
+          ) : !selectedRow ? (
+            <div className="px-5 py-10 text-center text-sm text-white/45">Seleccioná un profesional para liquidar.</div>
+          ) : (
+            <div className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-4 text-sm transition-all duration-200 hover:bg-white/[0.026]">
+              <div className="min-w-0">
+                <div className="truncate font-bold text-white">{selectedRow.name}</div>
+                <div className="mt-0.5 truncate text-xs text-white/42">{selectedRow.role}</div>
+              </div>
+              <div className="text-white/62">{selectedRow.sales}</div>
+              <div className="text-right font-bold tabular-nums text-violet-300">{money(selectedRow.commission)}</div>
+              <div className="text-right font-bold tabular-nums text-emerald-300">{money(selectedRow.paid)}</div>
+              <div className={cn("text-right font-bold tabular-nums", selectedRow.pending > 0 ? "text-rose-300" : "text-white/42")}>{money(selectedRow.pending)}</div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
+                >
+                  Producción
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
+                >
+                  Historial
+                </button>
+                {selectedRow.pending > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => payCommission(selectedRow)}
+                    disabled={payingEmployeeId === selectedRow.id}
+                    className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                  >
+                    {payingEmployeeId === selectedRow.id ? "Pagando…" : "Pagar"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
   );
 }
-
 function NuevoGastoTab({
   data,
   userEmail,
