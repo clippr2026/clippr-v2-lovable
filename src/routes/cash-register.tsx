@@ -704,6 +704,54 @@ function ResumenTab({
     },
   ];
 
+  const panelTheme: Record<ActivePanel, {
+    border: string;
+    glow: string;
+    headerIcon: string;
+    title: string;
+    chip: string;
+    tableHead: string;
+    rowHover: string;
+    amount: string;
+    badge: string;
+  }> = {
+    ingresos: {
+      border: "border-emerald-400/24",
+      glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
+      headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
+      title: "text-emerald-50",
+      chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
+      tableHead: "border-emerald-400/10 bg-emerald-400/[0.018]",
+      rowHover: "hover:bg-emerald-400/[0.045]",
+      amount: "text-emerald-300",
+      badge: "bg-emerald-500/12 text-emerald-300 ring-emerald-400/20",
+    },
+    pendientes: {
+      border: "border-orange-400/24",
+      glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
+      headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
+      title: "text-orange-50",
+      chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
+      tableHead: "border-orange-400/10 bg-orange-400/[0.018]",
+      rowHover: "hover:bg-orange-400/[0.045]",
+      amount: "text-orange-300",
+      badge: "bg-orange-500/12 text-orange-300 ring-orange-400/20",
+    },
+    gastos: {
+      border: "border-rose-400/24",
+      glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
+      headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
+      title: "text-rose-50",
+      chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
+      tableHead: "border-rose-400/10 bg-rose-400/[0.018]",
+      rowHover: "hover:bg-rose-400/[0.045]",
+      amount: "text-rose-300",
+      badge: "bg-rose-500/12 text-rose-300 ring-rose-400/20",
+    },
+  };
+
+  const activeTheme = panelTheme[activePanel];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -744,14 +792,14 @@ function ResumenTab({
       </div>
 
       {activePanel === "ingresos" && (
-        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} title="Últimos movimientos" />
+        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} title="Últimos movimientos" theme={activeTheme} />
       )}
 
       {activePanel === "pendientes" && (
-        <div className="rounded-3xl border border-orange-400/18 bg-white/[0.025] overflow-hidden cash-panel-glow shadow-[0_18px_60px_-36px_rgba(0,0,0,0.9)]">
-          <div className="px-5 py-4 border-b border-white/7 flex items-center justify-between">
-            <div className="text-sm font-semibold text-foreground">Pendientes de cobro</div>
-            <div className="rounded-full bg-orange-400/10 px-3 py-1 text-xs font-semibold text-orange-300 ring-1 ring-orange-400/20">
+        <div className={cn("rounded-3xl border bg-white/[0.025] overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.pendientes.border, panelTheme.pendientes.glow)}>
+          <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.pendientes.tableHead)}>
+            <div className={cn("text-sm font-semibold", panelTheme.pendientes.title)}>Pendientes de cobro</div>
+            <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.pendientes.chip)}>
               {data.pendingCharges.length} pendiente{data.pendingCharges.length !== 1 ? "s" : ""} · ${data.pendingAmount.toLocaleString("es-AR")}
             </div>
           </div>
@@ -760,7 +808,7 @@ function ResumenTab({
           ) : (
             <div className="divide-y divide-white/5">
               {data.pendingCharges.map((a: any) => (
-                <div key={a.id} className="px-5 py-3.5 flex items-start justify-between gap-3 hover:bg-white/[0.025] transition">
+                <div key={a.id} className={cn("px-5 py-3.5 flex items-start justify-between gap-3 transition-all duration-200", panelTheme.pendientes.rowHover)}>
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">{a.client_name ?? "Sin cliente"}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
@@ -773,7 +821,7 @@ function ResumenTab({
                     {equipoEnabled && (
                       <button
                         onClick={() => onCobrarPendiente(a)}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-400/15 text-blue-300 ring-1 ring-blue-400/25 hover:bg-blue-400/25 transition"
+                        className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg ring-1 transition", panelTheme.pendientes.badge, "hover:bg-orange-400/20")}
                       >
                         Cobrar
                       </button>
@@ -787,14 +835,14 @@ function ResumenTab({
       )}
 
       {activePanel === "gastos" && (
-        <div className="rounded-3xl border border-rose-400/18 bg-white/[0.025] overflow-hidden cash-panel-glow shadow-[0_18px_60px_-36px_rgba(0,0,0,0.9)]">
-          <div className="px-5 py-4 border-b border-white/7 flex items-center justify-between">
-            <div className="text-sm font-semibold text-foreground">Gastos</div>
-            <div className="rounded-full bg-rose-400/10 px-3 py-1 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/20">
+        <div className={cn("rounded-3xl border bg-white/[0.025] overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.gastos.border, panelTheme.gastos.glow)}>
+          <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.gastos.tableHead)}>
+            <div className={cn("text-sm font-semibold", panelTheme.gastos.title)}>Gastos</div>
+            <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.gastos.chip)}>
               {data.expensesToday.length} gasto{data.expensesToday.length !== 1 ? "s" : ""} · ${data.totalGastos.toLocaleString("es-AR")}
             </div>
           </div>
-          <div className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3 border-b border-white/5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+          <div className={cn("grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3 border-b text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70", panelTheme.gastos.tableHead)}>
             <div>Fecha</div>
             <div>Categoría</div>
             <div>Descripción</div>
@@ -815,7 +863,7 @@ function ResumenTab({
                 const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
                 const user = e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
                 return (
-                  <div key={e.id} className="grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm hover:bg-white/[0.025] transition">
+                  <div key={e.id} className={cn("grid grid-cols-[90px_160px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm transition-all duration-200", panelTheme.gastos.rowHover)}>
                     <div className="text-muted-foreground">{date}</div>
                     <div className="text-muted-foreground capitalize">{category}</div>
                     <div className="min-w-0">
@@ -1843,7 +1891,19 @@ function DetailModal({ payment, employees, onClose }: {
   );
 }
 
-function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void; title?: string }) {
+function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", theme }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean; onCobrarPendiente: (appt: ReturnType<typeof useCajaData>["pendingCharges"][number]) => void; title?: string; theme?: { border: string; glow: string; headerIcon: string; title: string; chip: string; tableHead: string; rowHover: string; amount: string; badge: string } }) {
+  const incomeTheme = theme ?? {
+    border: "border-emerald-400/24",
+    glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
+    headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
+    title: "text-emerald-50",
+    chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
+    tableHead: "border-emerald-400/10 bg-emerald-400/[0.018]",
+    rowHover: "hover:bg-emerald-400/[0.045]",
+    amount: "text-emerald-300",
+    badge: "bg-emerald-500/12 text-emerald-300 ring-emerald-400/20",
+  };
+
   const rows = data.paymentsToday;
   const pendingRows = data.pendingCharges;
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
@@ -1873,17 +1933,17 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
   return (
     <>
       <Card
-        className="rounded-3xl border-white/10 shadow-[0_24px_90px_-45px_rgba(0,0,0,0.95)]"
+        className={cn("rounded-3xl transition-all duration-300", incomeTheme.border, incomeTheme.glow)}
         style={{ background: "linear-gradient(180deg, oklch(0.18 0.035 260 / 0.70), oklch(0.105 0.028 270 / 0.78))" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-6 py-5 border-b border-white/[0.07]">
+        <div className={cn("flex items-center justify-between gap-3 px-6 py-5 border-b", incomeTheme.tableHead)}>
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="grid size-8 place-items-center rounded-xl bg-violet-500/12 text-violet-300 ring-1 ring-violet-400/20">
+            <div className={cn("grid size-8 place-items-center rounded-xl ring-1", incomeTheme.headerIcon)}>
               <ClipboardList className="size-4" />
             </div>
-            <h3 className="text-lg font-bold tracking-tight text-foreground">{title}</h3>
-            <span className="rounded-full bg-white/[0.045] px-3 py-1 text-xs font-semibold text-muted-foreground ring-1 ring-white/[0.06]">
+            <h3 className={cn("text-lg font-bold tracking-tight", incomeTheme.title)}>{title}</h3>
+            <span className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", incomeTheme.chip)}>
               {data.cobros} cobro{data.cobros === 1 ? "" : "s"} hoy · {pendingRows.length} pendiente{pendingRows.length === 1 ? "" : "s"}
             </span>
             {data.approvalModeEnabled && equipoEnabled && (
@@ -1906,7 +1966,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
         {/* Table header */}
         <div className="overflow-x-auto">
           <div className="min-w-[1080px]">
-            <div className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b border-white/[0.07] uppercase bg-white/[0.012]">
+            <div className={cn("grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase", incomeTheme.tableHead)}>
               <div>Fecha</div>
               <div>Cliente</div>
               <div>Profesional</div>
@@ -1939,7 +1999,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros" }: {
 
                   return (
                     <div key={`pending-${p.id}`}
-                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] bg-blue-400/[0.035] hover:bg-blue-400/[0.07] transition-all duration-200 cursor-pointer"
+                      className={cn("grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] bg-emerald-400/[0.025] transition-all duration-200 cursor-pointer", incomeTheme.rowHover)}
                       onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">{fecha}</div>
