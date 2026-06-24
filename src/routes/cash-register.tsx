@@ -17,7 +17,6 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
-import { InventarioTab } from "@/components/cash-register/inventario-tab";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
 import { ProfesionalesTab } from "@/components/cash-register/profesionales-tab";
 import {
@@ -903,7 +902,8 @@ function ResumenTab({
 
 function PreciosTab({ businessId: _businessId }: { businessId: string | null }) {
   const data = useCajaData();
-  const [query, setQuery] = React.useState("");
+  const [serviceQuery, setServiceQuery] = React.useState("");
+  const [catalogQuery, setCatalogQuery] = React.useState("");
   const [catalogFilter, setCatalogFilter] = React.useState("Todos");
 
   const items = React.useMemo(() => data.services ?? [], [data.services]);
@@ -911,23 +911,27 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
   const catalogItems = React.useMemo(() => items.filter((item: any) => item.is_catalog), [items]);
 
   const catalogCategories = React.useMemo(() => {
-    const cats = Array.from(new Set(catalogItems.map((item: any) => String(item.category || "Productos").trim()).filter(Boolean)));
-    return ["Todos", ...cats];
+    const preferred = ["Productos", "Bebidas", "Indumentaria"];
+    const fromData = Array.from(new Set(catalogItems.map((item: any) => String(item.category || "Productos").trim()).filter(Boolean)));
+    const ordered = [...preferred.filter((cat) => fromData.includes(cat)), ...fromData.filter((cat) => !preferred.includes(cat))];
+    return ["Todos", ...ordered];
   }, [catalogItems]);
 
   React.useEffect(() => {
     if (!catalogCategories.includes(catalogFilter)) setCatalogFilter("Todos");
   }, [catalogCategories, catalogFilter]);
 
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedServiceQuery = serviceQuery.trim().toLowerCase();
+  const normalizedCatalogQuery = catalogQuery.trim().toLowerCase();
+
   const filteredServices = serviceItems.filter((item: any) => {
-    if (!normalizedQuery) return true;
-    return `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedQuery);
+    if (!normalizedServiceQuery) return true;
+    return `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedServiceQuery);
   });
 
   const filteredCatalog = catalogItems.filter((item: any) => {
     const matchesCategory = catalogFilter === "Todos" || String(item.category || "Productos") === catalogFilter;
-    const matchesText = !normalizedQuery || `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedQuery);
+    const matchesText = !normalizedCatalogQuery || `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedCatalogQuery);
     return matchesCategory && matchesText;
   });
 
@@ -937,22 +941,9 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
   const duration = (item: any) => Number(item.duration ?? item.duration_min ?? item.duration_minutes ?? item.minutes ?? 0);
   const catalogCategory = (item: any) => String(item.category || "Productos");
 
-  const stockClass = (stock: number | null) => {
-    if (stock === null || Number.isNaN(stock)) return "bg-white/[0.045] text-white/60 ring-white/10";
-    if (stock <= 0) return "bg-rose-500/12 text-rose-300 ring-rose-400/24";
-    if (stock <= 5) return "bg-amber-400/12 text-amber-300 ring-amber-400/24";
-    return "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24";
-  };
-
-  const stockLabel = (stock: number | null) => {
-    if (stock === null || Number.isNaN(stock)) return "Sin stock";
-    if (stock <= 0) return "Sin stock";
-    return `Stock ${stock}`;
-  };
-
   const PriceBadge = ({ label, value, tone = "violet" }: { label: string; value: number; tone?: "violet" | "green" }) => (
     <div className={cn(
-      "min-w-[104px] rounded-2xl border px-4 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
+      "min-w-[112px] rounded-2xl border px-4 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
       tone === "green"
         ? "border-emerald-400/22 bg-emerald-400/[0.045]"
         : "border-violet-300/18 bg-violet-400/[0.055]"
@@ -971,8 +962,20 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
     );
   };
 
+  const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) => (
+    <div className="relative w-full">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+      />
+    </div>
+  );
+
   const ServiceRow = ({ item }: { item: any }) => (
-    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto_24px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
         <Thumb item={item} fallback="✂" />
         <div className="min-w-0">
@@ -985,61 +988,37 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
       </div>
       <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
       <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
-      <button className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white" type="button">⋮</button>
     </div>
   );
 
-  const CatalogRow = ({ item }: { item: any }) => {
-    const stockRaw = item.stock ?? item.quantity ?? item.qty ?? null;
-    const stock = stockRaw === null || stockRaw === undefined ? null : Number(stockRaw);
-    return (
-      <div className="group grid grid-cols-[minmax(180px,1fr)_130px_130px_130px_24px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
-        <div className="flex min-w-0 items-center gap-4">
-          <Thumb item={item} fallback="□" />
-          <div className="min-w-0">
-            <div className="truncate text-base font-bold text-white">{item.name ?? "Producto"}</div>
-            <div className="mt-1 text-xs text-white/50">{catalogCategory(item)}</div>
-          </div>
+  const CatalogRow = ({ item }: { item: any }) => (
+    <div className="group grid grid-cols-[minmax(180px,1fr)_130px_130px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+      <div className="flex min-w-0 items-center gap-4">
+        <Thumb item={item} fallback="□" />
+        <div className="min-w-0">
+          <div className="truncate text-base font-bold text-white">{item.name ?? "Producto"}</div>
+          <div className="mt-1 text-xs text-white/50">{catalogCategory(item)}</div>
         </div>
-        <div className="text-sm font-semibold tabular-nums text-white/86">{money(Number(item.price ?? 0))}</div>
-        <div className="text-sm font-bold tabular-nums text-emerald-300">{money(effectivePrice(item))}</div>
-        <div>
-          <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1", stockClass(stock))}>
-            <span className="size-2 rounded-full bg-current" />
-            {stockLabel(stock)}
-          </span>
-        </div>
-        <button className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white" type="button">⋮</button>
       </div>
-    );
-  };
+      <div className="text-sm font-semibold tabular-nums text-white/86">{money(Number(item.price ?? 0))}</div>
+      <div className="text-sm font-bold tabular-nums text-emerald-300">{money(effectivePrice(item))}</div>
+    </div>
+  );
 
   return (
-    <div className="space-y-5 animate-fade-up">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">Precio lista y efectivo</div>
-        <div className="relative w-full md:w-[340px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar servicio o producto"
-            className="h-11 w-full rounded-2xl border border-white/[0.085] bg-[#060812]/80 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-          />
-        </div>
-      </div>
-
+    <div className="-mt-2 space-y-4 animate-fade-up">
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
-          <div className="flex items-center justify-between border-b border-white/[0.065] px-5 py-5">
-            <div className="flex items-center gap-4">
-              <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">✂</div>
-              <div>
+          <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">✂</div>
                 <div className="text-xl font-bold text-white">Servicios disponibles <span className="text-white/35">·</span> <span className="text-white/55">{serviceItems.length}</span></div>
               </div>
             </div>
+            <SearchBox value={serviceQuery} onChange={setServiceQuery} placeholder="Buscar servicio" />
           </div>
-          <div className="max-h-[430px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             {filteredServices.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">Sin servicios.</div>
             ) : (
@@ -1054,10 +1033,9 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
           <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
             <div className="flex items-center gap-4">
               <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">▣</div>
-              <div>
-                <div className="text-xl font-bold text-white">Catálogo <span className="text-white/35">·</span> <span className="text-white/55">{catalogItems.length}</span></div>
-              </div>
+              <div className="text-xl font-bold text-white">Catálogo <span className="text-white/35">·</span> <span className="text-white/55">{catalogItems.length}</span></div>
             </div>
+            <SearchBox value={catalogQuery} onChange={setCatalogQuery} placeholder="Buscar producto" />
             <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.07] bg-black/25 p-1.5">
               {catalogCategories.map((cat) => {
                 const active = catalogFilter === cat;
@@ -1079,14 +1057,12 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
               })}
             </div>
           </div>
-          <div className="max-h-[430px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
-              <div className="grid grid-cols-[minmax(180px,1fr)_130px_130px_130px_24px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+              <div className="grid grid-cols-[minmax(180px,1fr)_130px_130px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
                 <div>Artículo</div>
                 <div>Precio lista</div>
                 <div>Efectivo</div>
-                <div>Stock</div>
-                <div />
               </div>
               {filteredCatalog.length === 0 ? (
                 <div className="py-16 text-center text-sm text-white/45">Sin artículos.</div>
@@ -1097,6 +1073,166 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+
+function InventarioTab({ businessId: _businessId, userEmail: _userEmail }: { businessId: string | null; userEmail: string | null }) {
+  const data = useCajaData();
+  const [stockQuery, setStockQuery] = React.useState("");
+  const [movementQuery, setMovementQuery] = React.useState("");
+
+  const catalogItems = React.useMemo(() => (data.services ?? []).filter((item: any) => item.is_catalog), [data.services]);
+  const normalizedStockQuery = stockQuery.trim().toLowerCase();
+  const normalizedMovementQuery = movementQuery.trim().toLowerCase();
+
+  const money = (value: unknown) => `$${Number(value ?? 0).toLocaleString("es-AR")}`;
+  const effectivePrice = (item: any) => Number(item.cash_price ?? item.price_cash ?? item.efectivo_price ?? item.effective_price ?? item.cashPrice ?? item.price ?? 0);
+  const itemImage = (item: any) => item.image_url ?? item.photo_url ?? item.thumbnail_url ?? item.cover_url ?? item.image ?? item.photo ?? null;
+  const catalogCategory = (item: any) => String(item.category || "Productos");
+  const stockNumber = (item: any) => Number(item.stock ?? item.quantity ?? item.qty ?? 0);
+
+  const filteredStock = catalogItems.filter((item: any) => {
+    if (!normalizedStockQuery) return true;
+    return `${item.name ?? ""} ${item.category ?? ""}`.toLowerCase().includes(normalizedStockQuery);
+  });
+
+  const inventoryMovements = React.useMemo(() => {
+    const sales = (data.paymentsToday ?? []).flatMap((payment: any) => {
+      const name = payment.service_name ?? payment.service ?? payment.item_name ?? payment.name ?? "Venta";
+      return [{
+        id: `sale-${payment.id}`,
+        type: "Salida",
+        name,
+        detail: payment.client_name ?? payment.cliente ?? "Venta en caja",
+        amount: Number(payment.total ?? payment.amount ?? 0),
+        created_at: payment.created_at,
+      }];
+    });
+
+    const expenses = (data.expensesToday ?? []).map((expense: any) => ({
+      id: `expense-${expense.id}`,
+      type: "Gasto",
+      name: expense.name ?? expense.concept ?? expense.description ?? "Gasto",
+      detail: expense.type ?? expense.category ?? "Caja",
+      amount: -Number(expense.amount ?? 0),
+      created_at: expense.created_at ?? expense.date,
+    }));
+
+    return [...sales, ...expenses].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  }, [data.paymentsToday, data.expensesToday]);
+
+  const filteredMovements = inventoryMovements.filter((item: any) => {
+    if (!normalizedMovementQuery) return true;
+    return `${item.name ?? ""} ${item.detail ?? ""} ${item.type ?? ""}`.toLowerCase().includes(normalizedMovementQuery);
+  });
+
+  const stockClass = (stock: number) => {
+    if (stock <= 0) return "bg-rose-500/12 text-rose-300 ring-rose-400/24";
+    if (stock <= 5) return "bg-amber-400/12 text-amber-300 ring-amber-400/24";
+    return "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24";
+  };
+
+  const StockBadge = ({ stock }: { stock: number }) => (
+    <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1", stockClass(stock))}>
+      <span className="size-2 rounded-full bg-current" />
+      {stock <= 0 ? "Sin stock" : `Stock ${stock}`}
+    </span>
+  );
+
+  const Thumb = ({ item }: { item: any }) => {
+    const src = itemImage(item);
+    return (
+      <div className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
+        {src ? <img src={src} alt={item.name ?? ""} className="h-full w-full object-cover" /> : <span>□</span>}
+      </div>
+    );
+  };
+
+  const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) => (
+    <div className="relative w-full">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+      />
+    </div>
+  );
+
+  return (
+    <div className="-mt-2 grid grid-cols-1 gap-5 xl:grid-cols-2 animate-fade-up">
+      <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
+        <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
+          <div className="flex items-center gap-4">
+            <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18"><ClipboardList className="size-6" /></div>
+            <div className="text-xl font-bold text-white">Stock <span className="text-white/35">·</span> <span className="text-white/55">{catalogItems.length}</span></div>
+          </div>
+          <SearchBox value={stockQuery} onChange={setStockQuery} placeholder="Buscar artículo" />
+        </div>
+        <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
+            <div className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+              <div>Artículo</div>
+              <div>Lista</div>
+              <div>Efectivo</div>
+              <div>Stock</div>
+            </div>
+            {filteredStock.length === 0 ? (
+              <div className="py-16 text-center text-sm text-white/45">Sin artículos.</div>
+            ) : filteredStock.map((item: any) => {
+              const stock = stockNumber(item);
+              return (
+                <div key={item.id} className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <Thumb item={item} />
+                    <div className="min-w-0">
+                      <div className="truncate font-bold text-white">{item.name ?? "Producto"}</div>
+                      <div className="mt-1 text-xs text-white/50">{catalogCategory(item)}</div>
+                    </div>
+                  </div>
+                  <div className="font-semibold tabular-nums text-white/86">{money(Number(item.price ?? 0))}</div>
+                  <div className="font-bold tabular-nums text-emerald-300">{money(effectivePrice(item))}</div>
+                  <StockBadge stock={stock} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
+        <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
+          <div className="flex items-center gap-4">
+            <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18"><ArrowRight className="size-6" /></div>
+            <div className="text-xl font-bold text-white">Últimos movimientos <span className="text-white/35">·</span> <span className="text-white/55">{inventoryMovements.length}</span></div>
+          </div>
+          <SearchBox value={movementQuery} onChange={setMovementQuery} placeholder="Buscar movimiento" />
+        </div>
+        <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
+            <div className="grid grid-cols-[110px_minmax(180px,1fr)_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+              <div>Tipo</div>
+              <div>Detalle</div>
+              <div className="text-right">Monto</div>
+            </div>
+            {filteredMovements.length === 0 ? (
+              <div className="py-16 text-center text-sm text-white/45">Sin movimientos.</div>
+            ) : filteredMovements.map((item: any) => (
+              <div key={item.id} className="grid grid-cols-[110px_minmax(180px,1fr)_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
+                <div className={cn("inline-flex w-fit rounded-full px-3 py-1 text-xs font-bold ring-1", item.type === "Salida" ? "bg-rose-500/10 text-rose-300 ring-rose-400/20" : "bg-violet-500/10 text-violet-200 ring-violet-300/20")}>{item.type}</div>
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-white">{item.name}</div>
+                  <div className="mt-1 truncate text-xs text-white/50">{item.detail}</div>
+                </div>
+                <div className={cn("text-right font-bold tabular-nums", item.amount >= 0 ? "text-emerald-300" : "text-rose-300")}>{money(item.amount)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
