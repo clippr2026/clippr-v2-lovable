@@ -1483,14 +1483,19 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
         }
 
         /* Métricas: Comisión / Pagado / Pendiente */
+        .liquidaciones-premium [class*="grid-cols-3"] > div {
+          padding-top: 0.9rem !important;
+          padding-bottom: 0.9rem !important;
+        }
         .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) {
-          border-color: rgba(167,139,250,.18) !important;
-          background: linear-gradient(135deg, rgba(167,139,250,.075), rgba(255,255,255,.018)) !important;
-          box-shadow: 0 0 34px rgba(167,139,250,.10), inset 0 1px 0 rgba(255,255,255,.055) !important;
+          border-color: rgba(167,139,250,.20) !important;
+          background: linear-gradient(135deg, rgba(167,139,250,.05), rgba(255,255,255,.018)) !important;
+          box-shadow: 0 0 30px rgba(167,139,250,.11), inset 0 1px 0 rgba(255,255,255,.055) !important;
         }
         .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-blue"],
         .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-cyan"],
-        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-sky"] {
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-sky"],
+        .liquidaciones-premium [class*="grid-cols-3"] > div:nth-child(1) [class*="text-muted"] {
           color: #A78BFA !important;
         }
 
@@ -1517,30 +1522,37 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
           color: #FB7185 !important;
         }
 
-        /* Botones secundarios: Producción / Historial */
+        /* Tarjetas más compactas dentro de Liquidaciones */
+        .liquidaciones-premium .glass,
+        .liquidaciones-premium section,
+        .liquidaciones-premium [class*="rounded-2xl"] {
+          gap: 0.75rem !important;
+        }
+
+        /* Botones secundarios: Producción / Historial de pagos */
         .liquidaciones-premium button {
-          border-color: rgba(255,255,255,.10) !important;
-          background: rgba(255,255,255,.035) !important;
-          color: rgba(255,255,255,.64) !important;
+          border-color: rgba(255,255,255,.08) !important;
+          background: rgba(255,255,255,.03) !important;
+          color: rgba(255,255,255,.70) !important;
           box-shadow: inset 0 1px 0 rgba(255,255,255,.045) !important;
         }
         .liquidaciones-premium button:hover {
-          background: rgba(255,255,255,.07) !important;
+          background: rgba(255,255,255,.065) !important;
           color: rgba(255,255,255,.92) !important;
           transform: translateY(-1px);
         }
 
-        /* Acción principal: Pagar comisión suele ser el último botón del grupo */
+        /* Acción principal: Pagar comisión */
         .liquidaciones-premium button:last-child:not(:disabled) {
-          border-color: rgba(34,197,94,.28) !important;
-          background: linear-gradient(135deg, rgba(34,197,94,.18), rgba(6,95,70,.28)) !important;
-          color: #86EFAC !important;
-          box-shadow: 0 0 30px rgba(34,197,94,.18), inset 0 1px 0 rgba(255,255,255,.08) !important;
+          border-color: rgba(34,197,94,.38) !important;
+          background: linear-gradient(135deg, #22C55E, #16A34A) !important;
+          color: #FFFFFF !important;
+          box-shadow: 0 0 34px rgba(34,197,94,.26), 0 0 72px rgba(34,197,94,.12), inset 0 1px 0 rgba(255,255,255,.22) !important;
         }
         .liquidaciones-premium button:last-child:not(:disabled):hover {
-          background: linear-gradient(135deg, rgba(34,197,94,.26), rgba(6,95,70,.38)) !important;
+          background: linear-gradient(135deg, #34D399, #16A34A) !important;
           color: #FFFFFF !important;
-          box-shadow: 0 0 44px rgba(34,197,94,.26), inset 0 1px 0 rgba(255,255,255,.10) !important;
+          box-shadow: 0 0 48px rgba(34,197,94,.36), 0 0 92px rgba(34,197,94,.18), inset 0 1px 0 rgba(255,255,255,.26) !important;
         }
       `}</style>
 
