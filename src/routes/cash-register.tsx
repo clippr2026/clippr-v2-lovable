@@ -18,7 +18,7 @@ import {
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
-import { ProfesionalesTab } from "@/components/cash-register/profesionales-tab";
+import { ProfesionalesTab as LegacyProfesionalesTab } from "@/components/cash-register/profesionales-tab";
 import {
   Search,
   Plus,
@@ -584,7 +584,7 @@ function Tabs({
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
           <button
             onClick={onNuevoGasto}
-            className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all duration-200 bg-rose-500/12 text-rose-200 border border-rose-400/28 ring-1 ring-rose-400/22 shadow-[0_0_28px_rgba(244,63,94,0.20),0_1px_0_rgba(255,255,255,0.12)_inset] hover:-translate-y-0.5 hover:bg-rose-500/18 hover:text-rose-100 hover:shadow-[0_0_40px_rgba(244,63,94,0.30)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.10),transparent_58%)]"
+            className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-extrabold transition-all duration-200 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 border border-rose-300/38 ring-1 ring-rose-400/30 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]"
           >
             <Wallet className="size-4 transition-transform group-hover:scale-110" />
             Nuevo gasto
@@ -594,8 +594,8 @@ function Tabs({
             className={cn(
               "group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
               nuevaActive
-                ? "bg-emerald-400/12 text-emerald-200 border-emerald-400/34 ring-1 ring-emerald-400/24 shadow-[0_0_38px_rgba(16,185,129,0.30),0_1px_0_rgba(255,255,255,0.14)_inset]"
-                : "bg-emerald-400/12 text-emerald-200 border-emerald-400/28 ring-1 ring-emerald-400/22 shadow-[0_0_34px_rgba(16,185,129,0.26),0_1px_0_rgba(255,255,255,0.12)_inset] hover:-translate-y-0.5 hover:bg-emerald-400/18 hover:text-emerald-100 hover:shadow-[0_0_46px_rgba(16,185,129,0.36)]"
+                ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.30),rgba(6,95,70,0.62))] text-emerald-50 border-emerald-300/42 ring-1 ring-emerald-400/32 shadow-[0_0_44px_rgba(16,185,129,0.40),0_0_90px_rgba(16,185,129,0.16),0_1px_0_rgba(255,255,255,0.18)_inset]"
+                : "bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] text-emerald-50 border-emerald-300/36 ring-1 ring-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]"
             )}
           >
             <Plus className="size-5 transition-transform group-hover:rotate-90" />
@@ -1118,6 +1118,7 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
     stockFrom: number | null;
     stockTo: number | null;
     note: string | null;
+    user: string | null;
   };
 
   const readLocalMovements = React.useCallback((): InventoryMovement[] => {
@@ -1251,6 +1252,7 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
         stockFrom: currentStock,
         stockTo: nextStock,
         note: adjustNote.trim() || null,
+        user: userEmail ?? "Caja",
       });
 
       toast.success(direction === "in" ? "Stock agregado" : "Stock retirado");
@@ -1278,8 +1280,9 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
         stockFrom: null,
         stockTo: null,
         note: "Venta en caja",
+        user: payment.user_name ?? payment.charged_by ?? payment.created_by ?? userEmail ?? "Caja",
       }));
-  }, [data.paymentsToday, catalogItems]);
+  }, [data.paymentsToday, catalogItems, userEmail]);
 
   const inventoryMovements = React.useMemo(() => {
     return [...localMovements, ...salesMovements]
@@ -1288,7 +1291,7 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
 
   const filteredMovements = inventoryMovements.filter((item: InventoryMovement) => {
     if (!normalizedMovementQuery) return true;
-    return `${item.product ?? ""} ${item.note ?? ""} ${item.type ?? ""}`.toLowerCase().includes(normalizedMovementQuery);
+    return `${item.product ?? ""} ${item.note ?? ""} ${item.type ?? ""} ${item.user ?? ""}`.toLowerCase().includes(normalizedMovementQuery);
   });
 
   const movementTypeClass = (type: InventoryMovement["type"]) =>
@@ -1370,24 +1373,26 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
         </div>
         <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
-            <div className="grid grid-cols-[150px_minmax(140px,1fr)_100px_80px_90px_minmax(110px,1fr)] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+            <div className="grid grid-cols-[145px_minmax(120px,1fr)_95px_70px_80px_minmax(105px,1fr)_minmax(120px,1fr)] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Fecha</div>
               <div>Producto</div>
               <div>Tipo</div>
               <div>Cant.</div>
               <div>Stock</div>
               <div>Nota</div>
+              <div>Usuario</div>
             </div>
             {filteredMovements.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">Sin movimientos.</div>
             ) : filteredMovements.map((item: InventoryMovement) => (
-              <div key={item.id} className="grid grid-cols-[150px_minmax(140px,1fr)_100px_80px_90px_minmax(110px,1fr)] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
+              <div key={item.id} className="grid grid-cols-[145px_minmax(120px,1fr)_95px_70px_80px_minmax(105px,1fr)_minmax(120px,1fr)] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]">
                 <div className="text-xs text-white/50">{formatInventoryDate(item.created_at)}</div>
                 <div className="truncate font-semibold text-white">{item.product}</div>
                 <div className={cn("inline-flex w-fit rounded-full px-3 py-1 text-xs font-bold ring-1", movementTypeClass(item.type))}>{item.type}</div>
                 <div className={cn("font-bold tabular-nums", item.qty >= 0 ? "text-emerald-300" : "text-rose-300")}>{qtyText(item.qty)}</div>
                 <div className="text-white/60">{stockFlow(item)}</div>
                 <div className="truncate text-white/50">{item.note || "—"}</div>
+                <div className="truncate text-white/50">{item.user || "Caja"}</div>
               </div>
             ))}
           </div>
@@ -1453,6 +1458,29 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null; userEmail: string | null }) {
+  return (
+    <div className="animate-fade-up space-y-5">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)]">
+        <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
+          <div className="border-b border-white/[0.065] px-5 py-5">
+            <div className="flex items-center gap-4">
+              <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18"><Wallet className="size-6" /></div>
+              <div>
+                <div className="text-xl font-bold text-white">Liquidaciones</div>
+                <div className="mt-1 text-sm text-white/48">Comisiones, pagos e historial por profesional.</div>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 [&_button]:transition-all [&_button]:duration-200 [&_.glass]:border-white/[0.085] [&_.glass]:bg-white/[0.025] [&_.glass]:backdrop-blur-xl">
+            <LegacyProfesionalesTab businessId={businessId} userEmail={userEmail} />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
