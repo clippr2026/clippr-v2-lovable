@@ -1472,6 +1472,8 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
   const [rangeOpen, setRangeOpen] = React.useState(false);
   const [startDate, setStartDate] = React.useState(today);
   const [endDate, setEndDate] = React.useState(today);
+  const [rangeSelectingStart, setRangeSelectingStart] = React.useState(true);
+  const [calendarMonth, setCalendarMonth] = React.useState(() => new Date(`${today}T12:00:00`));
   const [rangePayments, setRangePayments] = React.useState<any[]>([]);
   const [loadingRange, setLoadingRange] = React.useState(false);
   const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(null);
@@ -1588,6 +1590,82 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     return startDate === endDate ? format(startDate) : `${format(startDate)} → ${format(endDate)}`;
   }, [startDate, endDate]);
 
+  const toDateKey = React.useCallback((date: Date) => date.toLocaleDateString("sv-SE"), []);
+  const addDays = React.useCallback((date: Date, days: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  }, []);
+  const setQuickRange = React.useCallback((from: Date, to: Date) => {
+    const fromKey = toDateKey(from);
+    const toKey = toDateKey(to);
+    setStartDate(fromKey <= toKey ? fromKey : toKey);
+    setEndDate(fromKey <= toKey ? toKey : fromKey);
+    setCalendarMonth(new Date(`${fromKey}T12:00:00`));
+    setRangeSelectingStart(true);
+    setRangeOpen(false);
+  }, [toDateKey]);
+
+  const calendarDays = React.useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const first = new Date(year, month, 1);
+    const mondayBasedStart = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return [
+      ...Array.from({ length: mondayBasedStart }, () => null as Date | null),
+      ...Array.from({ length: daysInMonth }, (_, index) => new Date(year, month, index + 1)),
+    ];
+  }, [calendarMonth]);
+
+  const calendarTitle = React.useMemo(() => {
+    const raw = calendarMonth.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }, [calendarMonth]);
+
+  function pickCalendarDay(day: Date) {
+    const key = toDateKey(day);
+    if (rangeSelectingStart) {
+      setStartDate(key);
+      setEndDate(key);
+      setRangeSelectingStart(false);
+      return;
+    }
+
+    if (key < startDate) {
+      setEndDate(startDate);
+      setStartDate(key);
+    } else {
+      setEndDate(key);
+    }
+    setRangeSelectingStart(true);
+    setRangeOpen(false);
+  }
+
+  const selectedProfessionalStats = selectedRow ? [
+    {
+      label: "Comisión",
+      value: selectedRow.commission,
+      valueClass: "text-violet-300",
+      cardClass: "border-violet-300/24 bg-[radial-gradient(circle_at_16%_0%,rgba(167,139,250,0.14),transparent_36%),linear-gradient(180deg,rgba(28,24,48,0.58),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(167,139,250,0.10)]",
+      labelClass: "text-violet-200/72",
+    },
+    {
+      label: "Pagado",
+      value: selectedRow.paid,
+      valueClass: "text-emerald-300",
+      cardClass: "border-emerald-400/22 bg-[radial-gradient(circle_at_16%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(180deg,rgba(10,37,32,0.54),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(34,197,94,0.09)]",
+      labelClass: "text-emerald-200/72",
+    },
+    {
+      label: "Pendiente",
+      value: selectedRow.pending,
+      valueClass: selectedRow.pending > 0 ? "text-rose-300" : "text-white/45",
+      cardClass: "border-rose-400/22 bg-[radial-gradient(circle_at_16%_0%,rgba(251,113,133,0.12),transparent_36%),linear-gradient(180deg,rgba(50,16,28,0.54),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(251,113,133,0.10)]",
+      labelClass: "text-rose-200/72",
+    },
+  ] : [];
+
   return (
     <div className="animate-fade-up space-y-4">
       <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
@@ -1619,7 +1697,10 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setRangeOpen((value) => !value)}
+                onClick={() => {
+                  setRangeOpen((value) => !value);
+                  setRangeSelectingStart(true);
+                }}
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/16 bg-emerald-400/[0.075] px-3.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/12 transition hover:bg-emerald-400/[0.11] hover:text-emerald-200"
               >
                 <CalendarDays className="size-3.5" />
@@ -1627,46 +1708,67 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
               </button>
 
               {rangeOpen && (
-                <div className="absolute right-0 top-12 z-30 w-[310px] rounded-3xl border border-white/[0.10] bg-[#070A13]/95 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-white">Rango de fechas</div>
-                      <div className="text-xs text-white/45">Seleccioná desde y hasta</div>
+                <div className="absolute right-0 top-12 z-30 w-[380px] overflow-hidden rounded-[28px] border border-white/[0.10] bg-[#050711]/95 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-2xl">
+                  <div className="flex flex-wrap gap-2 border-b border-white/[0.07] p-4">
+                    <button type="button" onClick={() => setQuickRange(new Date(), new Date())} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Hoy</button>
+                    <button type="button" onClick={() => { const yesterday = addDays(new Date(), -1); setQuickRange(yesterday, yesterday); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Ayer</button>
+                    <button type="button" onClick={() => { const now = new Date(); const start = addDays(now, -((now.getDay() + 6) % 7)); setQuickRange(start, now); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Esta semana</button>
+                    <button type="button" onClick={() => { const now = new Date(); setQuickRange(new Date(now.getFullYear(), now.getMonth(), 1), now); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Este mes</button>
+                    <button type="button" onClick={() => { const now = new Date(); setQuickRange(new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 0)); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Mes anterior</button>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="mb-4 flex items-center justify-between px-1">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+                        className="grid size-9 place-items-center rounded-full text-2xl text-white/42 transition hover:bg-white/[0.05] hover:text-white"
+                      >
+                        ‹
+                      </button>
+                      <div className="text-base font-bold text-white">{calendarTitle}</div>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+                        className="grid size-9 place-items-center rounded-full text-2xl text-white/42 transition hover:bg-white/[0.05] hover:text-white"
+                      >
+                        ›
+                      </button>
                     </div>
-                    <CalendarDays className="size-4 text-emerald-300" />
+
+                    <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-white/34">
+                      {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((day) => <div key={day} className="py-2">{day}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {calendarDays.map((day, index) => {
+                        if (!day) return <div key={`empty-${index}`} className="h-10" />;
+                        const key = toDateKey(day);
+                        const selectedStart = key === startDate;
+                        const selectedEnd = key === endDate;
+                        const inRange = key > startDate && key < endDate;
+                        const isToday = key === today;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => pickCalendarDay(day)}
+                            className={cn(
+                              "h-10 rounded-xl text-sm font-semibold transition-all",
+                              inRange && "bg-blue-500/18 text-white",
+                              (selectedStart || selectedEnd) && "bg-gradient-to-br from-blue-500 to-violet-500 text-white shadow-[0_0_22px_rgba(139,92,246,0.32)]",
+                              !inRange && !selectedStart && !selectedEnd && "text-white/80 hover:bg-white/[0.055] hover:text-white",
+                              isToday && !selectedStart && !selectedEnd && "ring-1 ring-blue-400/70 text-blue-300"
+                            )}
+                          >
+                            {day.getDate()}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 text-center text-xs text-white/32">
+                      {rangeSelectingStart ? "Seleccioná la fecha inicial" : "Seleccioná la fecha final"}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                      Desde
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setStartDate(value);
-                          if (endDate < value) setEndDate(value);
-                        }}
-                        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
-                      />
-                    </label>
-                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                      Hasta
-                      <input
-                        type="date"
-                        value={endDate}
-                        min={startDate}
-                        onChange={(event) => setEndDate(event.target.value)}
-                        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
-                      />
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setRangeOpen(false)}
-                    className="mt-4 w-full rounded-2xl bg-emerald-500/16 px-4 py-2.5 text-sm font-bold text-emerald-200 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/22"
-                  >
-                    Aplicar rango
-                  </button>
                 </div>
               )}
             </div>
@@ -1691,6 +1793,18 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-200/70">Pendiente</div>
               <div className="mt-1 text-xl font-bold tabular-nums text-rose-300">{money(totals.pending)}</div>
             </div>
+          </div>
+        )}
+
+
+        {!showingAllEmployees && selectedRow && (
+          <div className="grid grid-cols-1 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-3">
+            {selectedProfessionalStats.map((card) => (
+              <div key={card.label} className={cn("min-h-[96px] rounded-3xl border px-5 py-4", card.cardClass)}>
+                <div className={cn("text-[10px] font-bold uppercase tracking-[0.18em]", card.labelClass)}>{card.label}</div>
+                <div className={cn("mt-2 text-2xl font-extrabold tabular-nums", card.valueClass)}>{money(card.value)}</div>
+              </div>
+            ))}
           </div>
         )}
 
