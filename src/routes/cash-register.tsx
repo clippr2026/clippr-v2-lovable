@@ -3921,7 +3921,7 @@ function CierresTab({
 
               {/* Full event history — always shown */}
               {cierreEventos(selected).length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
                     Historial de movimientos
                   </div>
@@ -5466,7 +5466,7 @@ function NuevaVentaTab({
   }
 
   return (
-    <div className="relative mx-auto flex h-[calc(100vh-215px)] min-h-[620px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
+    <div className="relative mx-auto flex h-[calc(100vh-235px)] min-h-[560px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
@@ -5534,7 +5534,7 @@ function NuevaVentaTab({
       <div className="relative z-10 h-px shrink-0 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
 
       {step === 1 && (
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col space-y-3">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
           <div className="shrink-0">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-200/80">1 · Profesional</p>
             <h2 className="mt-1 text-lg font-bold text-white">Seleccioná un profesional</h2>
@@ -5659,7 +5659,7 @@ function NuevaVentaTab({
 
           {/* 1 + 2. Buscador + resultados — solo visible si no hay cliente seleccionado */}
           {!clientId && (
-            <Card className="p-4 space-y-3">
+            <Card className="max-h-[300px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
               <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
                 Buscar cliente existente
               </p>
@@ -5724,7 +5724,7 @@ function NuevaVentaTab({
                 }
               }
               return (
-                <Card className="p-4 space-y-3">
+                <Card className="max-h-[300px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
                       Nuevo cliente
@@ -5892,10 +5892,10 @@ function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible rounded-3xl p-4 space-y-2.5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl p-3.5 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
-            <h3 className="mt-1 text-xl font-bold text-white">Confirmá el pago</h3>
+            <h3 className="mt-1 text-lg font-bold text-white">Confirmá el pago</h3>
           </div>
           <div className="space-y-2">
             <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
@@ -5921,11 +5921,11 @@ function NuevaVentaTab({
               <Money value={total} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-black/35 border border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
+          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-black/35 border border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
             <button
               onClick={() => setPaymentMode("simple")}
               className={cn(
-                "rounded-lg py-2.5 text-sm font-semibold",
+                "rounded-lg py-2 text-sm font-semibold",
                 paymentMode === "simple"
                   ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
                   : "text-muted-foreground hover:text-foreground",
@@ -5936,7 +5936,7 @@ function NuevaVentaTab({
             <button
               onClick={() => setPaymentMode("multiple")}
               className={cn(
-                "rounded-lg py-2.5 text-sm font-semibold",
+                "rounded-lg py-2 text-sm font-semibold",
                 paymentMode === "multiple"
                   ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
                   : "text-muted-foreground hover:text-foreground",
@@ -6003,7 +6003,7 @@ function NuevaVentaTab({
               )}
             </>
           ) : (
-            <div className={cn("space-y-3", splits.length >= 3 && "max-h-[260px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
+            <div className={cn("space-y-3", splits.length >= 3 && "max-h-[190px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
                 PAGO MÚLTIPLE
               </p>
@@ -6080,7 +6080,7 @@ function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="relative z-20 mt-2 shrink-0">
+      <div className="relative z-20 mt-auto shrink-0 pt-3">
         <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3 py-2 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
@@ -6091,7 +6091,7 @@ function NuevaVentaTab({
           >
             ← Volver
           </button>
-          <div className="flex-1 min-w-0 text-right sm:text-left">
+          <div className="min-w-0 flex-1 text-right sm:text-left">
             <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">
               TOTAL
             </p>
