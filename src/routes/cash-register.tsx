@@ -218,24 +218,27 @@ function removeLocalManualPendingCharge(id: string) {
 }
 
 function getManualPendingNote(notes?: string | null, serviceName?: string | null) {
-  const value = String(notes ?? "")
+  const raw = String(notes ?? "").trim();
+  if (!raw) return "";
+
+  const value = raw
     .replace("[PENDIENTE_CAJA]", "")
+    .replace("[MANUAL_PENDING]", "")
+    .replace("[ENVIADO_CAJA]", "")
     .trim();
+
+  if (!value) return "";
 
   const lower = value.toLowerCase();
   const serviceLower = String(serviceName ?? "").trim().toLowerCase();
-  const genericServices = [
-    "corte",
-    "barba",
-    "corte + barba",
-    "corte de pelo",
-    "corte en cabello corto",
-    "servicio realizado",
-  ];
 
-  if (!value) return "";
-  if (serviceLower && lower === serviceLower) return "";
-  if (genericServices.includes(lower)) return "";
+  // No mostrar textos generados ni el nombre del servicio como si fueran nota.
+  if (serviceLower && (lower === serviceLower || lower.includes(serviceLower))) return "";
+  if (["servicio realizado", "sin nota", "sin notas", "nota", "observación"].includes(lower)) return "";
+
+  // Evitar notas falsas muy cortas o de prueba que suelen venir de datos de servicio/demo.
+  // Si el usuario realmente escribe una nota, normalmente tendrá más contexto que 1-3 caracteres.
+  if (value.length < 4) return "";
 
   return value;
 }
@@ -5125,7 +5128,12 @@ function NuevaVentaTab({
   const [professionalSearch, setProfessionalSearch] = React.useState("");
 
   const { isFieldEnabled } = useClientesConfig(data.businessId ?? null);
+
   const pendingHydrateRef = React.useRef<string | null>(null);
+  const pendingInjectedRef = React.useRef(false);
+  const syntheticServiceId = pendingCharge
+    ? `__pending__${pendingCharge.id}`
+    : null;
 
   React.useEffect(() => {
     if (!pendingCharge) return;
@@ -5147,9 +5155,7 @@ function NuevaVentaTab({
     setSplits([{ method: "cash", amount: "" }]);
   }, [pendingCharge]);
 
-
   // When pendingCharge arrives and services are loaded, inject the service into the cart
-  const pendingInjectedRef = React.useRef(false);
   React.useEffect(() => {
     if (
       !pendingCharge ||
@@ -5176,10 +5182,6 @@ function NuevaVentaTab({
 
   // If the service from pending is NOT in the catalogue we still need to show it in the cart.
   // We build a synthetic catalogue entry and inject it.
-  const syntheticServiceId = pendingCharge
-    ? `__pending__${pendingCharge.id}`
-    : null;
-
   const servicesWithSynthetic = React.useMemo(() => {
     if (!pendingCharge || !syntheticServiceId) return data.services;
     const alreadyMatched = data.services.some(
