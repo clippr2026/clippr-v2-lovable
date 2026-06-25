@@ -217,6 +217,42 @@ function removeLocalManualPendingCharge(id: string) {
   }
 }
 
+function displayCashActor(row: any, fallback = "Usuario") {
+  const candidates = [
+    row?.charged_by_name,
+    row?.charged_by_username,
+    row?.charged_by_user,
+    row?.cashier_name,
+    row?.cashier_username,
+    row?.cashier,
+    row?.approved_by_name,
+    row?.approved_by_username,
+    row?.approved_by,
+    row?.created_by_name,
+    row?.created_by_username,
+    row?.created_by_email,
+    row?.created_by,
+    row?.user_name,
+    row?.user_email,
+    row?.user,
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate ?? "").trim();
+    if (!value) continue;
+
+    const normalized = value.toLowerCase();
+    if (["caja", "recepción", "recepcion", "admin", "usuario"].includes(normalized)) {
+      continue;
+    }
+
+    if (value.includes("@")) return value.split("@")[0] || fallback;
+    return value;
+  }
+
+  return fallback;
+}
+
 function displayResponsibleUser(value?: string | null) {
   const raw = String(value ?? "").trim();
   if (!raw) return "Caja";
@@ -1245,7 +1281,7 @@ function ResumenTab({
                       const description =
                         e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
                       const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                      const user = displayResponsibleUser(e.user_name ?? e.user_email ?? e.created_by ?? "Caja");
+                      const user = displayCashActor(e);
                       return (
                         <div
                           key={e.id}
@@ -1356,7 +1392,7 @@ function ResumenTab({
                       const category = e.category ?? e.type ?? "—";
                       const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
                       const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                      const user = displayResponsibleUser(e.user_name ?? e.user_email ?? e.created_by ?? "Caja");
+                      const user = displayCashActor(e);
                       return (
                         <div
                           key={`history-${e.id}`}
@@ -5148,7 +5184,7 @@ function History({
                           : "—";
                         const amount = Number(p.total ?? p.amount ?? 0);
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
-                        const responsible = displayResponsibleUser(p.user_name ?? p.user_email ?? "Caja");
+                        const responsible = displayCashActor(p);
                         const paymentNote = getCashRowNote(p, p.service_name);
 
                         return (
@@ -5224,7 +5260,7 @@ function History({
                           })}hs`
                         : "—";
                       const amount = Number(p.service_price ?? p.amount ?? 0);
-                      const responsible = displayResponsibleUser(p.user_name ?? p.user_email ?? p.created_by ?? "Profesional");
+                      const responsible = displayCashActor(p, "Profesional");
                       const pendingNote = getCashRowNote(p, p.service_name);
 
                       return (
