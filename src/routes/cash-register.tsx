@@ -1221,7 +1221,7 @@ function ResumenTab({
           >
             <div
               className={cn(
-                "flex min-h-[64px] items-center justify-between gap-3 px-6 py-4 border-b",
+                "flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 border-b",
                 panelTheme.gastos.tableHead,
               )}
             >
@@ -1342,7 +1342,7 @@ function ResumenTab({
             className="w-full max-w-6xl overflow-hidden rounded-3xl border border-rose-300/18 bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(18,8,18,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1),0_0_60px_-38px_rgba(244,63,94,0.45)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rose-300/10 px-6 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rose-300/10 px-5 py-4">
               <div>
                 <h3 className="text-lg font-bold text-rose-50">Historial completo de gastos</h3>
                 <p className="mt-1 text-xs text-white/45">Hoy y rango por fechas.</p>
@@ -1654,7 +1654,7 @@ function PreciosTab({
   );
 
   return (
-    <div className="-mt-2 h-[calc(100vh-260px)] min-h-[520px] overflow-hidden animate-fade-up">
+    <div className="-mt-5 h-[calc(100vh-235px)] min-h-[500px] overflow-hidden animate-fade-up">
       <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
           <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
@@ -2173,7 +2173,7 @@ function InventarioTab({
       : `${movement.stockFrom} → ${movement.stockTo}`;
 
   return (
-    <div className="-mt-2 grid h-[calc(100vh-260px)] min-h-[540px] grid-cols-1 gap-5 overflow-hidden xl:grid-cols-2 animate-fade-up">
+    <div className="-mt-5 grid h-[calc(100vh-235px)] min-h-[500px] grid-cols-1 gap-5 overflow-hidden xl:grid-cols-2 animate-fade-up">
       <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
           <div className="flex items-center gap-4">
@@ -4868,7 +4868,7 @@ function History({
         {/* Header */}
         <div
           className={cn(
-            "flex min-h-[64px] items-center justify-between gap-3 px-6 py-4 border-b",
+            "flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 border-b",
             incomeTheme.tableHead,
           )}
         >
@@ -5156,7 +5156,7 @@ function History({
           >
             <div
               className={cn(
-                "flex items-center justify-between border-b px-6 py-5",
+                "flex items-center justify-between border-b px-5 py-4",
                 incomeTheme.tableHead,
               )}
             >
@@ -5241,7 +5241,7 @@ function History({
                             <div className="truncate text-muted-foreground">
                               {p.employee_name ?? p.professional_name ?? "—"}
                             </div>
-                            <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
                               <div className="truncate text-foreground/88">
                                 {p.service_name ?? p.item_name ?? "—"}
                               </div>
@@ -5256,7 +5256,7 @@ function History({
                                     });
                                   }}
                                   className={cn(
-                                    "mt-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 transition hover:brightness-125",
+                                    "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 transition hover:brightness-125",
                                     incomeTheme.chip,
                                   )}
                                 >
@@ -5330,7 +5330,7 @@ function History({
                                   })
                                 }
                                 className={cn(
-                                  "mt-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 transition hover:brightness-125",
+                                  "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 transition hover:brightness-125",
                                   incomeTheme.chip,
                                 )}
                               >
@@ -5845,7 +5845,6 @@ function NuevaVentaTab({
         setReceived("");
         setSplits([{ method: "cash", amount: "" }]);
         setPaymentMode("simple");
-        setStep(1);
         normalSaleCompleted = true;
       }
 
@@ -6421,7 +6420,7 @@ function NuevaVentaTab({
                       onChange={(e) =>
                         updateSplit(idx, "method", e.target.value)
                       }
-                      className="h-12 rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
+                      className="h-10 rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
                     >
                       {paymentOptions.map((o) => (
                         <option key={o.id} value={o.id}>
