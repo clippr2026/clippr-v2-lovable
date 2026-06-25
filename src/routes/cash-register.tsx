@@ -2739,10 +2739,10 @@ function ProfesionalesTab({
           "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
           id === "pagar"
             ? active
-              ? "border-emerald-300/45 bg-emerald-500/22 text-emerald-50 shadow-[0_0_30px_rgba(34,197,94,0.24)]"
+              ? "border-white/[0.12] bg-white/[0.05] text-white shadow-[0_0_18px_rgba(255,255,255,0.06)]"
               : "border-emerald-400/30 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/20 hover:text-white"
             : active
-              ? "border-violet-300/28 bg-violet-500/14 text-white shadow-[0_0_24px_rgba(139,92,246,0.16)]"
+              ? "border-emerald-300/45 bg-emerald-500/22 text-emerald-50 shadow-[0_0_30px_rgba(34,197,94,0.24)]"
               : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
         )}
       >
