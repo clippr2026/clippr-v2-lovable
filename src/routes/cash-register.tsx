@@ -1470,6 +1470,8 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
   const today = React.useMemo(() => new Date().toLocaleDateString("sv-SE"), []);
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("all");
   const [rangeOpen, setRangeOpen] = React.useState(false);
+  const [rangeStep, setRangeStep] = React.useState<"start" | "end">("start");
+  const [calendarMonth, setCalendarMonth] = React.useState(() => new Date(`${today}T12:00:00`));
   const [startDate, setStartDate] = React.useState(today);
   const [endDate, setEndDate] = React.useState(today);
   const [rangePayments, setRangePayments] = React.useState<any[]>([]);
@@ -1651,9 +1653,98 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
   }
 
   const periodLabel = React.useMemo(() => {
-    const format = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
-    return startDate === endDate ? format(startDate) : `${format(startDate)} → ${format(endDate)}`;
+    const start = new Date(`${startDate}T12:00:00`);
+    const end = new Date(`${endDate}T12:00:00`);
+    const startText = start.toLocaleDateString("es-AR", { day: "2-digit", month: "short" }).replace(".", "");
+    const endText = end.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }).replace(".", "");
+    return startDate === endDate ? endText : `${startText} → ${endText}`;
   }, [startDate, endDate]);
+
+  const calendarDays = React.useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const days: Array<{ iso: string; day: number; inMonth: boolean }> = [];
+
+    for (let index = 0; index < startOffset; index += 1) {
+      days.push({ iso: "", day: 0, inMonth: false });
+    }
+
+    for (let day = 1; day <= lastDay.getDate(); day += 1) {
+      const date = new Date(year, month, day);
+      days.push({ iso: date.toLocaleDateString("sv-SE"), day, inMonth: true });
+    }
+
+    while (days.length % 7 !== 0) {
+      days.push({ iso: "", day: 0, inMonth: false });
+    }
+
+    return days;
+  }, [calendarMonth]);
+
+  const calendarTitle = React.useMemo(() => {
+    const raw = calendarMonth.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }, [calendarMonth]);
+
+  const todayIso = React.useMemo(() => new Date().toLocaleDateString("sv-SE"), []);
+
+  function applyDatePreset(kind: "today" | "yesterday" | "week" | "month" | "prevMonth") {
+    const now = new Date();
+    let from = new Date(now);
+    let to = new Date(now);
+
+    if (kind === "yesterday") {
+      from.setDate(now.getDate() - 1);
+      to = new Date(from);
+    }
+
+    if (kind === "week") {
+      const offset = (now.getDay() + 6) % 7;
+      from = new Date(now);
+      from.setDate(now.getDate() - offset);
+      to = new Date(now);
+    }
+
+    if (kind === "month") {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+      to = new Date(now);
+    }
+
+    if (kind === "prevMonth") {
+      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      to = new Date(now.getFullYear(), now.getMonth(), 0);
+    }
+
+    setStartDate(from.toLocaleDateString("sv-SE"));
+    setEndDate(to.toLocaleDateString("sv-SE"));
+    setCalendarMonth(new Date(from.getFullYear(), from.getMonth(), 1));
+    setRangeStep("start");
+    setRangeOpen(false);
+  }
+
+  function handleCalendarDayClick(iso: string) {
+    if (!iso) return;
+
+    if (rangeStep === "start") {
+      setStartDate(iso);
+      setEndDate(iso);
+      setRangeStep("end");
+      return;
+    }
+
+    if (iso < startDate) {
+      setEndDate(startDate);
+      setStartDate(iso);
+    } else {
+      setEndDate(iso);
+    }
+
+    setRangeStep("start");
+    setRangeOpen(false);
+  }
 
   const StatCard = ({ label, value, tone }: { label: string; value: React.ReactNode; tone: "neutral" | "violet" | "green" | "rose" }) => {
     const toneClass = {
@@ -1740,46 +1831,78 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
               </button>
 
               {rangeOpen && (
-                <div className="absolute right-0 top-12 z-30 w-[310px] rounded-3xl border border-white/[0.10] bg-[#070A13]/95 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-white">Rango de fechas</div>
-                      <div className="text-xs text-white/45">Seleccioná desde y hasta</div>
+                <div className="absolute right-0 top-12 z-30 w-[430px] overflow-hidden rounded-[30px] border border-white/[0.10] bg-[#050612]/95 shadow-[0_34px_110px_rgba(0,0,0,0.78)] backdrop-blur-2xl">
+                  <div className="flex flex-wrap gap-2 border-b border-white/[0.07] px-4 py-4">
+                    {[
+                      ["today", "Hoy"],
+                      ["yesterday", "Ayer"],
+                      ["week", "Esta semana"],
+                      ["month", "Este mes"],
+                      ["prevMonth", "Mes anterior"],
+                    ].map(([kind, label]) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => applyDatePreset(kind as "today" | "yesterday" | "week" | "month" | "prevMonth")}
+                        className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-2 text-sm font-semibold text-white/58 transition hover:bg-white/[0.07] hover:text-white"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="px-4 pb-5 pt-5">
+                    <div className="mb-5 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth((date) => new Date(date.getFullYear(), date.getMonth() - 1, 1))}
+                        className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                      >
+                        ‹
+                      </button>
+                      <div className="text-lg font-bold capitalize text-white">{calendarTitle}</div>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1))}
+                        className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                      >
+                        ›
+                      </button>
                     </div>
-                    <CalendarDays className="size-4 text-emerald-300" />
+
+                    <div className="grid grid-cols-7 text-center text-xs font-semibold uppercase tracking-[0.16em] text-white/28">
+                      {['LU', 'MA', 'MI', 'JU', 'VI', 'SÁ', 'DO'].map((day) => <div key={day} className="py-2">{day}</div>)}
+                    </div>
+
+                    <div className="mt-1 grid grid-cols-7 overflow-hidden rounded-2xl">
+                      {calendarDays.map((day, index) => {
+                        const isSelectedStart = day.iso === startDate;
+                        const isSelectedEnd = day.iso === endDate;
+                        const inRange = Boolean(day.iso && day.iso >= startDate && day.iso <= endDate);
+                        const isToday = day.iso === todayIso;
+                        return (
+                          <button
+                            key={`${day.iso || 'empty'}-${index}`}
+                            type="button"
+                            disabled={!day.inMonth}
+                            onClick={() => handleCalendarDayClick(day.iso)}
+                            className={cn(
+                              "relative h-11 text-sm font-semibold transition disabled:pointer-events-none disabled:opacity-0",
+                              inRange ? "bg-blue-500/26 text-white" : "text-white/78 hover:bg-white/[0.06]",
+                              (isSelectedStart || isSelectedEnd) && "bg-gradient-to-br from-blue-400 to-fuchsia-500 text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]",
+                              isToday && !(isSelectedStart || isSelectedEnd) && "text-sky-300 ring-1 ring-sky-400/55 ring-inset"
+                            )}
+                          >
+                            {day.day || ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-5 text-center text-xs text-white/28">
+                      {rangeStep === "end" ? "Seleccioná la fecha final" : "Seleccioná la fecha inicial"}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                      Desde
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setStartDate(value);
-                          if (endDate < value) setEndDate(value);
-                        }}
-                        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
-                      />
-                    </label>
-                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                      Hasta
-                      <input
-                        type="date"
-                        value={endDate}
-                        min={startDate}
-                        onChange={(event) => setEndDate(event.target.value)}
-                        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
-                      />
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setRangeOpen(false)}
-                    className="mt-4 w-full rounded-2xl bg-emerald-500/16 px-4 py-2.5 text-sm font-bold text-emerald-200 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/22"
-                  >
-                    Aplicar rango
-                  </button>
                 </div>
               )}
             </div>
