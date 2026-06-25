@@ -233,13 +233,21 @@ function getManualPendingNote(notes?: string | null, serviceName?: string | null
   const serviceLower = String(serviceName ?? "").trim().toLowerCase();
 
   // No mostrar textos generados ni el nombre del servicio como si fueran nota.
-  if (serviceLower && (lower === serviceLower || lower.includes(serviceLower))) return "";
-  if (["servicio realizado", "sin nota", "sin notas", "nota", "observación"].includes(lower)) return "";
+  if (serviceLower && lower === serviceLower) return "";
 
-  // Evitar notas falsas muy cortas o de prueba que suelen venir de datos de servicio/demo.
-  // Si el usuario realmente escribe una nota, normalmente tendrá más contexto que 1-3 caracteres.
-  if (value.length < 4) return "";
+  const generatedNotes = [
+    "servicio realizado",
+    "sin nota",
+    "sin notas",
+    "nota",
+    "observación",
+    "observacion",
+  ];
 
+  if (generatedNotes.includes(lower)) return "";
+
+  // IMPORTANTE:
+  // No filtrar por largo. Una nota real puede ser corta: "ok", "aa", "no", etc.
   return value;
 }
 
@@ -4933,154 +4941,244 @@ function History({
         </div>
       )}
 
-      {/* Closeout modal */}
+      {/* Historial completo */}
       {closeoutOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-5xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setCloseoutOpen(false)}
+        >
+          <div
+            className={cn(
+              "w-full max-w-7xl overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(5,8,15,0.98),rgba(7,10,22,0.97),rgba(2,4,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1)]",
+              incomeTheme.border,
+              incomeTheme.glow,
+            )}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              className={cn(
+                "flex items-center justify-between border-b px-6 py-5",
+                incomeTheme.tableHead,
+              )}
+            >
               <div>
-                <h3 className="text-lg font-semibold">Cierre de caja</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {panel === "pendientes" ? "Cobros pendientes enviados a caja." : "Detalle de cobros de hoy por método de pago."}
+                <h3 className={cn("text-lg font-bold", incomeTheme.title)}>
+                  {panel === "pendientes"
+                    ? "Historial completo de pendientes"
+                    : "Historial completo de ingresos"}
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {panel === "pendientes"
+                    ? "Todos los cobros pendientes del día."
+                    : "Todos los ingresos del día."}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setCloseoutOpen(false)}
-                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+                className="rounded-2xl bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/[0.10] hover:text-white"
               >
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-3 max-h-[78vh] overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-[0.85fr_1.15fr] gap-4">
-                <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-2 border-b border-white/5">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                      Total facturado
-                    </div>
-                    <div className="mt-1 text-3xl font-semibold tabular-nums">
-                      ${totalFacturado.toLocaleString("es-AR")}
-                    </div>
-                  </div>
-                  {closeout.length === 0 ? (
-                    <div className="p-6 text-sm text-muted-foreground text-center">
-                      No hay cobros registrados hoy.
+
+            <div className="max-h-[72vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+              <div className="min-w-[1180px]">
+                <div
+                  className={cn(
+                    panel === "pendientes"
+                      ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase"
+                      : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                    incomeTheme.tableHead,
+                  )}
+                >
+                  <div>Fecha</div>
+                  <div>Cliente</div>
+                  <div>Profesional</div>
+                  <div>Servicio / Catálogo</div>
+                  <div className="text-right">Monto</div>
+                  <div>Método</div>
+                  <div>Historial</div>
+                  {panel === "pendientes" && <div>Acción</div>}
+                </div>
+
+                {panel === "ingresos" ? (
+                  rows.length === 0 ? (
+                    <div className="px-6 py-14 text-center text-sm text-muted-foreground">
+                      Sin cobros.
                     </div>
                   ) : (
-                    <div className="divide-y divide-white/5">
-                      {closeout.map((group) => {
-                        const method = group.method as PayMethod;
-                        const active = selectedGroup?.method === group.method;
+                    <div>
+                      {rows.map((p: any) => {
+                        const date = p.created_at
+                          ? new Date(p.created_at).toLocaleDateString("es-AR", {
+                              day: "numeric",
+                              month: "numeric",
+                            })
+                          : "—";
+                        const time = p.created_at
+                          ? `${new Date(p.created_at).toLocaleTimeString("es-AR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            })}hs`
+                          : "—";
+                        const amount = Number(p.total ?? p.amount ?? 0);
+                        const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
+                        const responsible = p.user_name ?? p.user_email ?? "Caja";
+                        const paymentNote = getManualPendingNote(
+                          (p.observations as string | null) ??
+                            (p.notes as string | null) ??
+                            null,
+                          p.service_name,
+                        );
+
                         return (
-                          <button
-                            key={group.method}
-                            type="button"
-                            onClick={() => setSelectedMethod(group.method)}
+                          <div
+                            key={`historial-ingreso-${p.id}`}
+                            onClick={() => setDetailPayment(p)}
                             className={cn(
-                              "w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition",
-                              active
-                                ? "bg-white/[0.07]"
-                                : "hover:bg-white/[0.045]",
+                              "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 border-b border-white/[0.055] px-6 py-3 text-xs transition-all duration-200 last:border-0 cursor-pointer",
+                              incomeTheme.rowHover,
                             )}
                           >
-                            <div>
-                              <div className="text-sm font-semibold">
-                                {PAY_METHOD_LABEL[method] ?? group.method}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {group.count} cobro
-                                {group.count === 1 ? "" : "s"}
-                              </div>
+                            <div className="text-muted-foreground">{date}</div>
+                            <div className="truncate text-foreground">{p.client_name ?? "—"}</div>
+                            <div className="truncate text-muted-foreground">
+                              {p.employee_name ?? p.professional_name ?? "—"}
                             </div>
-                            <div className="text-sm font-semibold tabular-nums text-emerald-300">
-                              ${group.total.toLocaleString("es-AR")}
+                            <div className="min-w-0">
+                              <div className="truncate text-foreground/88">
+                                {p.service_name ?? p.item_name ?? "—"}
+                              </div>
+                              {paymentNote && (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setPendingNoteModal({
+                                      title: p.service_name ?? "Nota",
+                                      note: paymentNote,
+                                    });
+                                  }}
+                                  className={cn(
+                                    "mt-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 transition hover:brightness-125",
+                                    incomeTheme.chip,
+                                  )}
+                                >
+                                  Ver nota
+                                </button>
+                              )}
                             </div>
-                          </button>
+                            <div className={cn("text-right font-bold tabular-nums", incomeTheme.amount)}>
+                              ${amount.toLocaleString("es-AR")}
+                            </div>
+                            <div className="truncate text-muted-foreground">{methodLabel}</div>
+                            <div className="truncate text-muted-foreground">
+                              <span>{time}</span>{" "}
+                              <span className="font-semibold text-foreground">{responsible}</span>{" "}
+                              <span className={incomeTheme.amount}>→ Cobró</span>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
-                  )}
-                </div>
-                <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">
-                        {selectedGroup
-                          ? (PAY_METHOD_LABEL[
-                              selectedGroup.method as PayMethod
-                            ] ?? selectedGroup.method)
-                          : "Detalle"}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {selectedGroup
-                          ? `${selectedGroup.count} cobro${selectedGroup.count === 1 ? "" : "s"} · $${selectedGroup.total.toLocaleString("es-AR")}`
-                          : "Seleccioná un método de pago."}
-                      </div>
-                    </div>
+                  )
+                ) : pendingRows.length === 0 ? (
+                  <div className="px-6 py-14 text-center text-sm text-muted-foreground">
+                    Sin pendientes.
                   </div>
-                  {!selectedGroup ? (
-                    <div className="p-6 text-sm text-muted-foreground text-center">
-                      Seleccioná un método para ver el detalle.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-white/10">
-                            {["Hora", "Cliente", "Servicio", "Monto"].map(
-                              (h) => (
-                                <th
-                                  key={h}
-                                  className="px-4 py-3 text-left whitespace-nowrap"
-                                >
-                                  {h}
-                                </th>
-                              ),
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedGroup.rows.map((payment) => {
-                            const hour = new Date(
-                              payment.created_at,
-                            ).toLocaleTimeString("es-AR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            });
-                            return (
-                              <tr
-                                key={payment.id}
-                                className="border-b border-white/5 last:border-0"
+                ) : (
+                  <div>
+                    {pendingRows.map((p: any) => {
+                      const created = p.created_at ? new Date(p.created_at) : null;
+                      const date = created
+                        ? created.toLocaleDateString("es-AR", {
+                            day: "numeric",
+                            month: "numeric",
+                          })
+                        : "—";
+                      const time = created
+                        ? `${created.toLocaleTimeString("es-AR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          })}hs`
+                        : "—";
+                      const amount = Number(p.service_price ?? p.amount ?? 0);
+                      const responsible = p.user_name ?? p.user_email ?? p.created_by ?? "Profesional";
+                      const pendingNote = getManualPendingNote(p.notes, p.service_name);
+
+                      return (
+                        <div
+                          key={`historial-pendiente-${p.id}`}
+                          className={cn(
+                            "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 border-b border-white/[0.055] px-6 py-3 text-xs transition-all duration-200 last:border-0",
+                            incomeTheme.rowHover,
+                          )}
+                        >
+                          <div className="text-muted-foreground">{date}</div>
+                          <div className="truncate text-foreground">{p.client_name ?? "—"}</div>
+                          <div className="truncate text-muted-foreground">
+                            {p.employee_name ?? p.professional_name ?? "—"}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-foreground/88">
+                              {p.service_name ?? "—"}
+                            </div>
+                            {pendingNote && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPendingNoteModal({
+                                    title: p.service_name ?? "Nota",
+                                    note: pendingNote,
+                                  })
+                                }
+                                className={cn(
+                                  "mt-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 transition hover:brightness-125",
+                                  incomeTheme.chip,
+                                )}
                               >
-                                <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                                  {hour}
-                                </td>
-                                <td className="px-4 py-3 text-foreground whitespace-nowrap">
-                                  {payment.client_name ?? "—"}
-                                </td>
-                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                                  {payment.service_name ?? "—"}
-                                </td>
-                                <td className="px-4 py-3 text-emerald-300 font-semibold tabular-nums whitespace-nowrap">
-                                  $
-                                  {Number(
-                                    payment.total ?? payment.amount ?? 0,
-                                  ).toLocaleString("es-AR")}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
+                                Ver nota
+                              </button>
+                            )}
+                          </div>
+                          <div className={cn("text-right font-bold tabular-nums", incomeTheme.amount)}>
+                            ${amount.toLocaleString("es-AR")}
+                          </div>
+                          <div className="truncate text-muted-foreground">—</div>
+                          <div className="truncate text-muted-foreground">
+                            <span>{time}</span>{" "}
+                            <span className="font-semibold text-foreground">{responsible}</span>{" "}
+                            <span className={incomeTheme.amount}>→ Envió a caja</span>
+                          </div>
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCloseoutOpen(false);
+                                onCobrarPendiente(p);
+                              }}
+                              className={cn(
+                                "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition hover:brightness-125",
+                                incomeTheme.badge,
+                              )}
+                            >
+                              Cobrar
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
+
     </>
   );
 }
