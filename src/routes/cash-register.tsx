@@ -1195,7 +1195,7 @@ function ResumenTab({
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-end gap-3">
+            <div className="px-6 py-3 border-t border-white/[0.07] flex items-center justify-end gap-3">
               <button
                 onClick={() =>
                   window.dispatchEvent(new CustomEvent("clippr:open-closeout"))
@@ -3087,7 +3087,7 @@ function NuevoGastoTab({
 
   return (
     <div className="animate-fade-up">
-      <Card className="mx-auto w-full max-w-3xl p-5 md:p-6">
+      <Card className="mx-auto w-full max-w-3xl p-4 md:p-5">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold text-foreground">
@@ -3106,7 +3106,7 @@ function NuevoGastoTab({
           </button>
         </div>
 
-        <div className={cn("space-y-3", paymentMode === "multiple" && splits.length >= 3 && "max-h-[220px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
+        <div className="space-y-3">
           <input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -3841,7 +3841,7 @@ function CierresTab({
       {selected && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden max-h-[88vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 sticky top-0 bg-[oklch(0.11_0.04_275)] z-10">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 sticky top-0 bg-[oklch(0.11_0.04_275)] z-10">
               <div>
                 <div className="font-semibold text-sm">Detalle del cierre</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
@@ -3865,7 +3865,7 @@ function CierresTab({
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-5 text-sm">
+            <div className="p-5 space-y-4 text-sm">
               {/* KPIs */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
@@ -4762,7 +4762,7 @@ function History({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-between gap-3">
+        <div className="px-6 py-3 border-t border-white/[0.07] flex items-center justify-between gap-3">
           {rows.length > 10 && (
             <button
               onClick={() => setShowAll((v) => !v)}
@@ -4855,7 +4855,7 @@ function History({
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-5 max-h-[78vh] overflow-y-auto">
+            <div className="p-5 space-y-4 max-h-[78vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-[0.85fr_1.15fr] gap-4">
                 <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/5">
@@ -5892,7 +5892,7 @@ function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 min-h-0 flex-1 rounded-3xl p-5 space-y-5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+        <Card className="relative z-10 min-h-0 flex-1 overflow-hidden rounded-3xl p-5 space-y-4 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
             <h3 className="mt-1 text-xl font-bold text-white">Confirmá el pago</h3>
@@ -5960,7 +5960,7 @@ function NuevaVentaTab({
                         key={m.id}
                         onClick={() => setMethod(m.id as PayMethod)}
                         className={cn(
-                          "flex flex-col items-center gap-2 rounded-2xl border p-4 transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
+                          "flex flex-col items-center gap-1.5 rounded-2xl border px-4 py-3 transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
                           active
                             ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
                             : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
@@ -6000,7 +6000,7 @@ function NuevaVentaTab({
               )}
             </>
           ) : (
-            <div className="space-y-3">
+            <div className={cn("space-y-3", splits.length >= 3 && "max-h-[210px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
                 PAGO MÚLTIPLE
               </p>
