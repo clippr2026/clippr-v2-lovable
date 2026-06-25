@@ -221,19 +221,27 @@ function getManualPendingNote(notes?: string | null, serviceName?: string | null
   const raw = String(notes ?? "").trim();
   if (!raw) return "";
 
-  const value = raw
+  let value = raw
     .replace("[PENDIENTE_CAJA]", "")
     .replace("[MANUAL_PENDING]", "")
     .replace("[ENVIADO_CAJA]", "")
     .trim();
+
+  // Panel Profesional puede guardar: "nota real | Servicio $18.900".
+  // En Caja solo debe mostrarse la nota real.
+  if (value.includes("|")) {
+    value = value.split("|")[0]?.trim() ?? "";
+  }
 
   if (!value) return "";
 
   const lower = value.toLowerCase();
   const serviceLower = String(serviceName ?? "").trim().toLowerCase();
 
-  // No mostrar textos generados ni el nombre del servicio como si fueran nota.
-  if (serviceLower && lower === serviceLower) return "";
+  // No mostrar textos generados, el nombre del servicio ni "Servicio $precio".
+  if (serviceLower && (lower === serviceLower || lower.startsWith(`${serviceLower} $`))) {
+    return "";
+  }
 
   const generatedNotes = [
     "servicio realizado",
@@ -246,8 +254,6 @@ function getManualPendingNote(notes?: string | null, serviceName?: string | null
 
   if (generatedNotes.includes(lower)) return "";
 
-  // IMPORTANTE:
-  // No filtrar por largo. Una nota real puede ser corta: "ok", "aa", "no", etc.
   return value;
 }
 
@@ -279,6 +285,21 @@ function getCashRowNote(row: any, serviceName?: string | null) {
 
   return "";
 }
+
+function getCashItemImage(item: any) {
+  return (
+    item?.image_url ??
+    item?.photo_url ??
+    item?.thumbnail_url ??
+    item?.cover_url ??
+    item?.service_image_url ??
+    item?.product_image_url ??
+    item?.image ??
+    item?.photo ??
+    null
+  );
+}
+
 
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -1464,7 +1485,7 @@ function PreciosTab({
   }) => (
     <div
       className={cn(
-        "min-w-[112px] rounded-2xl border px-4 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
+        "min-w-[90px] rounded-xl border px-3 py-2 text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
         tone === "green"
           ? "border-emerald-400/22 bg-emerald-400/[0.045]"
           : "border-violet-300/18 bg-violet-400/[0.055]",
@@ -1472,13 +1493,13 @@ function PreciosTab({
     >
       <div
         className={cn(
-          "text-[10px] font-bold uppercase tracking-[0.16em]",
+          "text-[9px] font-bold uppercase tracking-[0.14em]",
           tone === "green" ? "text-emerald-300" : "text-violet-200",
         )}
       >
         {label}
       </div>
-      <div className="mt-1 text-base font-bold tabular-nums text-white">
+      <div className="mt-0.5 text-sm font-bold tabular-nums text-white">
         {money(value)}
       </div>
     </div>
@@ -1487,7 +1508,7 @@ function PreciosTab({
   const Thumb = ({ item, fallback }: { item: any; fallback: string }) => {
     const src = itemImage(item);
     return (
-      <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-2xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
+      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]">
         {src ? (
           <img
             src={src}
@@ -1522,14 +1543,14 @@ function PreciosTab({
   );
 
   const ServiceRow = ({ item }: { item: any }) => (
-    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2.5 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
         <Thumb item={item} fallback="✂" />
         <div className="min-w-0">
-          <div className="truncate text-base font-bold text-white">
+          <div className="truncate text-sm font-bold text-white">
             {item.name ?? "Servicio"}
           </div>
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-white/55">
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
             <Clock className="size-3.5" />
             {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
           </div>
@@ -1541,38 +1562,38 @@ function PreciosTab({
   );
 
   const CatalogRow = ({ item }: { item: any }) => (
-    <div className="group grid grid-cols-[minmax(180px,1fr)_130px_130px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+    <div className="group grid grid-cols-[minmax(160px,1fr)_110px_110px] items-center gap-3 border-b border-white/[0.055] px-3 py-2.5 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
         <Thumb item={item} fallback="□" />
         <div className="min-w-0">
-          <div className="truncate text-base font-bold text-white">
+          <div className="truncate text-sm font-bold text-white">
             {item.name ?? "Producto"}
           </div>
-          <div className="mt-1 text-xs text-white/50">
+          <div className="mt-0.5 text-[11px] text-white/50">
             {catalogCategory(item)}
           </div>
         </div>
       </div>
-      <div className="text-sm font-semibold tabular-nums text-white/86">
+      <div className="text-xs font-semibold tabular-nums text-white/86">
         {money(Number(item.price ?? 0))}
       </div>
-      <div className="text-sm font-bold tabular-nums text-emerald-300">
+      <div className="text-xs font-bold tabular-nums text-emerald-300">
         {money(effectivePrice(item))}
       </div>
     </div>
   );
 
   return (
-    <div className="-mt-2 space-y-3 animate-fade-up">
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
-          <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
+    <div className="-mt-2 h-[calc(100vh-260px)] min-h-[520px] overflow-hidden animate-fade-up">
+      <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
+          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">
+                <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">
                   ✂
                 </div>
-                <div className="text-xl font-bold text-white">
+                <div className="text-lg font-bold text-white">
                   Servicios disponibles <span className="text-white/35">·</span>{" "}
                   <span className="text-white/55">{serviceItems.length}</span>
                 </div>
@@ -1584,7 +1605,7 @@ function PreciosTab({
               placeholder="Buscar servicio"
             />
           </div>
-          <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             {filteredServices.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">
                 Sin servicios.
@@ -1599,13 +1620,13 @@ function PreciosTab({
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
-          <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
+          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
             <div className="flex items-center gap-4">
-              <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">
+              <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">
                 ▣
               </div>
-              <div className="text-xl font-bold text-white">
+              <div className="text-lg font-bold text-white">
                 Catálogo <span className="text-white/35">·</span>{" "}
                 <span className="text-white/55">{catalogItems.length}</span>
               </div>
@@ -1636,7 +1657,7 @@ function PreciosTab({
               })}
             </div>
           </div>
-          <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
               <div className="grid grid-cols-[minmax(180px,1fr)_130px_130px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
                 <div>Artículo</div>
@@ -4763,10 +4784,9 @@ function History({
                     <div
                       key={`pending-${p.id}`}
                       className={cn(
-                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200 cursor-pointer",
+                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200",
                         incomeTheme.rowHover,
                       )}
-                      onClick={() => onCobrarPendiente(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">
                         {fecha}
@@ -4808,7 +4828,7 @@ function History({
                           <button
                             type="button"
                             onClick={() => onCobrarPendiente(p)}
-                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold bg-blue-300/15 text-blue-200 ring-1 ring-blue-300/30 hover:bg-blue-300/25 transition whitespace-nowrap"
+                            className="inline-flex items-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-1.5 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] ring-1 ring-emerald-400/20 transition hover:border-emerald-300/70 hover:bg-emerald-400/28 hover:text-white whitespace-nowrap"
                           >
                             Cobrar
                           </button>
@@ -6053,6 +6073,7 @@ function NuevaVentaTab({
             ) : (
               filtered.map((it) => {
                 const qty = cart[it.id] ?? 0;
+                const imageSrc = getCashItemImage(it);
                 const noStock =
                   it.is_catalog &&
                   typeof it.stock === "number" &&
@@ -6063,21 +6084,34 @@ function NuevaVentaTab({
                     className={cn("p-4 space-y-3 rounded-2xl border-white/[0.07] bg-[linear-gradient(145deg,rgba(8,11,20,0.94),rgba(5,8,15,0.96),rgba(2,4,12,0.98))] shadow-[0_20px_60px_-36px_rgba(0,0,0,1)] hover:-translate-y-0.5 hover:border-blue-300/24 hover:shadow-[0_26px_72px_-36px_rgba(0,0,0,1),0_0_28px_rgba(96,165,250,0.10)] transition-all duration-200", qty > 0 && "border-blue-300/35 bg-[linear-gradient(145deg,rgba(30,64,175,0.20),rgba(8,11,20,0.95),rgba(2,4,12,0.98))] shadow-[0_0_28px_rgba(96,165,250,0.14),0_20px_60px_-36px_rgba(0,0,0,1)]", noStock && "opacity-50")}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {it.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {it.category ?? "ítem"}
-                          {it.duration ? ` · ${it.duration} min` : ""}
-                          {noStock && (
-                            <span className="ml-2 text-rose-300">
-                              Sin stock
-                            </span>
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(96,165,250,0.10),rgba(139,92,246,0.10))] text-lg text-blue-100 shadow-[0_0_22px_rgba(96,165,250,0.10)]">
+                          {imageSrc ? (
+                            <img
+                              src={imageSrc}
+                              alt={it.name ?? "Ítem"}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span>{it.is_catalog ? "□" : "✂"}</span>
                           )}
-                        </p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {it.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {it.category ?? "ítem"}
+                            {it.duration ? ` · ${it.duration} min` : ""}
+                            {noStock && (
+                              <span className="ml-2 text-rose-300">
+                                Sin stock
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <span className="text-sm font-semibold text-foreground tabular-nums">
+                      <span className="shrink-0 text-sm font-semibold text-foreground tabular-nums">
                         ${Number(it.price).toLocaleString("es-AR")}
                       </span>
                     </div>
