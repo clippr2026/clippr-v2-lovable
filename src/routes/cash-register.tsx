@@ -2082,7 +2082,7 @@ function InventarioTab({
                   onClick={confirmStockAdjustment}
                   disabled={Boolean(adjustingId)}
                   className={cn(
-                    "rounded-2xl px-5 py-3 text-sm font-bold transition disabled:opacity-50",
+                    "rounded-2xl px-5 py-2.5 text-sm font-bold transition disabled:opacity-50",
                     stockAdjustment.direction === "in"
                       ? "bg-emerald-400/12 text-emerald-200 ring-1 ring-emerald-400/24 shadow-[0_0_26px_rgba(16,185,129,0.22)] hover:bg-emerald-400/18"
                       : "bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/24 shadow-[0_0_26px_rgba(244,63,94,0.20)] hover:bg-rose-500/18",
@@ -3499,7 +3499,7 @@ function CierreCajaBtn({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all duration-200 bg-white/[0.035] text-foreground border border-white/14 hover:-translate-y-0.5 hover:bg-white/[0.065] hover:border-white/20 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.9)]"
+        className="group inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-bold transition-all duration-200 bg-white/[0.035] text-foreground border border-white/14 hover:-translate-y-0.5 hover:bg-white/[0.065] hover:border-white/20 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.9)]"
       >
         <Wallet className="size-4 text-white/80 transition-transform group-hover:scale-110" />
         Cierre de caja
@@ -5028,6 +5028,7 @@ function NuevaVentaTab({
   const [submitting, setSubmitting] = React.useState(false);
   const [newClientOpen, setNewClientOpen] = React.useState(false);
   const [clientNotes, setClientNotes] = React.useState("");
+  const [professionalSearch, setProfessionalSearch] = React.useState("");
 
   const { isFieldEnabled } = useClientesConfig(data.businessId ?? null);
 
@@ -5189,6 +5190,15 @@ function NuevaVentaTab({
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
   const splitsRemaining = total - splitsTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
+  const filteredSaleEmployees = React.useMemo(() => {
+    const q = professionalSearch.trim().toLowerCase();
+    if (!q) return data.employees;
+    return data.employees.filter((employee: any) =>
+      `${employee.name ?? ""} ${employee.role ?? ""} ${employee.email ?? ""}`
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [data.employees, professionalSearch]);
   const hasSelectedClient = Boolean(clientId);
   const serviceSummary =
     cartItems.length > 0
@@ -5456,10 +5466,10 @@ function NuevaVentaTab({
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-5xl space-y-5 overflow-hidden rounded-[34px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-5 md:p-7 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
+    <div className="relative mx-auto flex h-[calc(100vh-260px)] min-h-[560px] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-4 md:p-5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
-      <Card className="relative z-10 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
+      <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
         <div className="grid grid-cols-4 gap-2">
           {stepItems.map((s, index) => {
             const active = step === s.n;
@@ -5480,7 +5490,7 @@ function NuevaVentaTab({
                   setStep(s.n);
                 }}
                 className={cn(
-                  "group relative overflow-hidden rounded-2xl border px-3 py-2.5 text-left transition-all duration-300",
+                  "group relative overflow-hidden rounded-2xl border px-3 py-2 text-left transition-all duration-300",
                   active
                     ? "border-blue-200/38 bg-[linear-gradient(135deg,rgba(96,165,250,0.86),rgba(139,92,246,0.88))] text-white shadow-[0_0_34px_rgba(99,102,241,0.28),0_18px_45px_-24px_rgba(0,0,0,0.90),0_1px_0_rgba(255,255,255,0.24)_inset]"
                     : done
@@ -5497,7 +5507,7 @@ function NuevaVentaTab({
                 )}
                 <div className="relative flex items-center gap-3">
                   <span className={cn(
-                    "grid size-9 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105",
+                    "grid size-8 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105",
                     active
                       ? "bg-white/18 text-white ring-white/35"
                       : done
@@ -5521,75 +5531,74 @@ function NuevaVentaTab({
         </div>
       </Card>
 
-      <div className="relative z-10 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+      <div className="relative z-10 h-px shrink-0 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
 
       {step === 1 && (
-        <div className="space-y-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 1</p>
-            <h3 className="mt-1 text-xl font-bold text-white">Seleccioná un profesional</h3>
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col space-y-3">
+          <div className="shrink-0">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-200/80">1 · Profesional</p>
+            <h2 className="mt-2 text-xl font-bold text-white">Seleccioná un profesional</h2>
+            <p className="mt-1 text-sm text-white/45">Elegí quién realizó la venta.</p>
           </div>
-          {data.employees.length === 0 ? (
-            <Card className="px-4 py-10 text-center text-sm text-muted-foreground">
-              No hay profesionales activos. Cargalos en Configuración → Equipo →
-              Profesionales.
-            </Card>
-          ) : (
-            data.employees.map((e) => {
-              const active = employeeId === e.id;
-              return (
-                <button
-                  key={e.id}
-                  type="button"
-                  onClick={() => setEmployeeId(e.id)}
-                  className={cn(
-                    "w-full rounded-2xl border px-4 py-3.5 flex items-center gap-3 text-left transition-all duration-200 shadow-[0_18px_45px_-36px_rgba(0,0,0,0.85)]",
-                    active
-                      ? "border-sky-300/45 bg-[linear-gradient(135deg,rgba(59,130,246,0.20),rgba(15,23,42,0.86))] ring-1 ring-sky-300/18"
-                      : "border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(2,6,23,0.72))] hover:border-white/[0.12] hover:bg-white/[0.055]",
-                  )}
-                >
-                  {(() => {
-                    const avatarUrl =
-                      (
-                        e as {
-                          avatar_url?: string | null;
-                          photo_url?: string | null;
-                          image_url?: string | null;
-                        }
-                      ).avatar_url ||
-                      (e as { photo_url?: string | null }).photo_url ||
-                      (e as { image_url?: string | null }).image_url ||
-                      null;
-                    return avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt={e.name || "Profesional"}
-                        className="size-9 rounded-full object-cover ring-1 ring-white/15 bg-white/[0.04]"
-                      />
-                    ) : (
-                      <span className="size-9 rounded-full bg-gradient-to-br from-blue-200/80 to-blue-500/80 text-black font-semibold grid place-items-center">
-                        {(e.name || "P").slice(0, 1).toUpperCase()}
-                      </span>
-                    );
-                  })()}
-                  <span className="flex-1">
-                    <span className="block text-sm font-semibold text-foreground">
-                      {e.name}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      Profesional
-                    </span>
-                  </span>
-                  {active ? (
-                    <Check className="size-4 text-blue-200" />
-                  ) : (
-                    <ArrowRight className="size-4 text-muted-foreground" />
-                  )}
-                </button>
-              );
-            })
-          )}
+
+          <div className="relative shrink-0">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+            <input
+              value={professionalSearch}
+              onChange={(event) => setProfessionalSearch(event.target.value)}
+              placeholder="Buscar profesional..."
+              className="h-11 w-full rounded-2xl border border-white/[0.075] bg-black/35 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-blue-300/35 focus:ring-2 focus:ring-blue-400/10"
+            />
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            <div className="grid grid-cols-1 gap-2.5">
+              {filteredSaleEmployees.length === 0 ? (
+                <Card className="px-4 py-8 text-center text-sm text-white/45">
+                  No encontramos profesionales.
+                </Card>
+              ) : (
+                filteredSaleEmployees.map((e: any) => {
+                  const active = employeeId === e.id;
+                  const avatar =
+                    e.avatar_url || e.photo_url || e.image_url || e.profile_image_url;
+                  return (
+                    <Card
+                      key={e.id}
+                      onClick={() => setEmployeeId(e.id)}
+                      className={cn(
+                        "group cursor-pointer px-4 py-3 transition-all duration-200",
+                        active
+                          ? "border-blue-300/50 bg-[linear-gradient(135deg,rgba(59,130,246,0.20),rgba(8,11,20,0.94))] shadow-[0_0_28px_rgba(96,165,250,0.12)]"
+                          : "hover:border-white/14 hover:bg-white/[0.035]",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-sm font-bold text-violet-100 ring-1 ring-white/10">
+                          {avatar ? (
+                            <img src={avatar} alt={e.name} className="h-full w-full object-cover" />
+                          ) : (
+                            initials(e.name)
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-white">{e.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {e.role || "Profesional"}
+                          </p>
+                        </div>
+                        {active ? (
+                          <Check className="size-4 text-blue-200" />
+                        ) : (
+                          <ArrowRight className="size-4 text-white/40 transition-transform group-hover:translate-x-0.5 group-hover:text-white/70" />
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -5772,7 +5781,7 @@ function NuevaVentaTab({
       )}
 
       {step === 3 && (
-        <div className="space-y-4">
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto pr-1 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 flex items-center gap-3 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
             <Search className="size-4 text-muted-foreground" />
             <input
@@ -5881,7 +5890,7 @@ function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="rounded-3xl p-5 space-y-5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+        <Card className="relative z-10 min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent] rounded-3xl p-5 space-y-5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
             <h3 className="mt-1 text-xl font-bold text-white">Confirmá el pago</h3>
@@ -6066,14 +6075,14 @@ function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="sticky bottom-4 z-20">
-        <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3.5 flex items-center gap-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
+      <div className="relative z-20 shrink-0">
+        <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 flex items-center gap-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
               setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s))
             }
             disabled={step === 1}
-            className="rounded-2xl px-5 py-3 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-40 transition-all"
+            className="rounded-2xl px-5 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-40 transition-all"
           >
             ← Volver
           </button>
