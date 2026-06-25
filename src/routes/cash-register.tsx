@@ -251,6 +251,35 @@ function getManualPendingNote(notes?: string | null, serviceName?: string | null
   return value;
 }
 
+
+function getCashRowNote(row: any, serviceName?: string | null) {
+  const candidates = [
+    row?.cash_note,
+    row?.pending_note,
+    row?.professional_note,
+    row?.professional_notes,
+    row?.appointment_note,
+    row?.appointment_notes,
+    row?.client_note,
+    row?.client_notes,
+    row?.customer_note,
+    row?.observation,
+    row?.observations,
+    row?.note,
+    row?.notes,
+    row?.message,
+    row?.comment,
+    row?.comments,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = getManualPendingNote(candidate, serviceName);
+    if (parsed) return parsed;
+  }
+
+  return "";
+}
+
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
     depositAppointmentId: (search.depositAppointmentId as string) ?? null,
@@ -4719,7 +4748,7 @@ function History({
                   const empName =
                     data.employees.find((e) => e.id === p.employee_id)?.name ??
                     "—";
-                  const pendingNote = getManualPendingNote(p.notes, p.service_name);
+                  const pendingNote = getCashRowNote(p, p.service_name);
                   const historialEvents = getHistorialCobro(p.id);
                   // Mostrar "Cobrar" si: existe "Envió a caja" y NO existe "Cobró"
                   const envioACaja = historialEvents.some(
@@ -4808,12 +4837,7 @@ function History({
                     chargeType,
                   );
                   const saleDetail = getSaleDetailLabel(paymentRecord);
-                  const paymentNote = getManualPendingNote(
-                    (paymentRecord.observations as string | null) ??
-                      (paymentRecord.notes as string | null) ??
-                      null,
-                    saleDetail,
-                  );
+                  const paymentNote = getCashRowNote(paymentRecord, saleDetail);
                   const historialEvents = buildPaidHistorialEvents(
                     paymentRecord,
                     {
@@ -5026,12 +5050,7 @@ function History({
                         const amount = Number(p.total ?? p.amount ?? 0);
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
                         const responsible = p.user_name ?? p.user_email ?? "Caja";
-                        const paymentNote = getManualPendingNote(
-                          (p.observations as string | null) ??
-                            (p.notes as string | null) ??
-                            null,
-                          p.service_name,
-                        );
+                        const paymentNote = getCashRowNote(p, p.service_name);
 
                         return (
                           <div
@@ -5107,7 +5126,7 @@ function History({
                         : "—";
                       const amount = Number(p.service_price ?? p.amount ?? 0);
                       const responsible = p.user_name ?? p.user_email ?? p.created_by ?? "Profesional";
-                      const pendingNote = getManualPendingNote(p.notes, p.service_name);
+                      const pendingNote = getCashRowNote(p, p.service_name);
 
                       return (
                         <div
@@ -5572,7 +5591,7 @@ function NuevaVentaTab({
           : undefined;
 
       if (pendingCharge) {
-        const professionalNote = getManualPendingNote(pendingCharge.notes, pendingCharge.service_name);
+        const professionalNote = getCashRowNote(pendingCharge, pendingCharge.service_name);
 
         // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
         // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno
