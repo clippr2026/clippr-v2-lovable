@@ -1104,7 +1104,7 @@ function ResumenTab({
           >
             <div
               className={cn(
-                "flex min-h-[78px] items-center justify-between gap-3 px-6 py-5 border-b",
+                "flex min-h-[64px] items-center justify-between gap-3 px-6 py-4 border-b",
                 panelTheme.gastos.tableHead,
               )}
             >
@@ -1122,7 +1122,7 @@ function ResumenTab({
               <div className="min-w-[1080px]">
                 <div
                   className={cn(
-                    "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                    "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                     panelTheme.gastos.tableHead,
                   )}
                 >
@@ -1136,7 +1136,7 @@ function ResumenTab({
                 </div>
 
                 {data.expensesToday.length === 0 ? (
-                  <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                  <div className="px-5 py-10 text-center text-sm text-muted-foreground">
                     Sin gastos registrados.
                   </div>
                 ) : (
@@ -1170,7 +1170,7 @@ function ResumenTab({
                         <div
                           key={e.id}
                           className={cn(
-                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
+                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
                             panelTheme.gastos.rowHover,
                           )}
                         >
@@ -1203,6 +1203,7 @@ function ResumenTab({
             </div>
 
             <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-end gap-3">
+              {data.expensesToday.length > 0 && (
               <button
                 onClick={() => setGastosHistoryOpen(true)}
                 className="ml-auto text-xs font-semibold text-rose-300 hover:text-rose-200 inline-flex items-center gap-2 transition"
@@ -1210,6 +1211,7 @@ function ResumenTab({
                 <ClipboardList className="size-3.5" /> Ver historial completo{" "}
                 <ArrowRight className="size-3.5" />
               </button>
+            )}
             </div>
           </Card>
         </div>
@@ -1229,30 +1231,7 @@ function ResumenTab({
                 <h3 className="text-lg font-bold text-rose-50">Historial completo de gastos</h3>
                 <p className="mt-1 text-xs text-white/45">Hoy y rango por fechas.</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="date"
-                  value={gastosHistoryFrom}
-                  onChange={(event) => setGastosHistoryFrom(event.target.value)}
-                  className="h-10 rounded-2xl border border-white/10 bg-black/35 px-3 text-xs text-white outline-none focus:border-rose-300/45"
-                />
-                <span className="text-white/35">→</span>
-                <input
-                  type="date"
-                  value={gastosHistoryTo}
-                  onChange={(event) => setGastosHistoryTo(event.target.value)}
-                  className="h-10 rounded-2xl border border-white/10 bg-black/35 px-3 text-xs text-white outline-none focus:border-rose-300/45"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGastosHistoryFrom(todayForHistory);
-                    setGastosHistoryTo(todayForHistory);
-                  }}
-                  className="h-10 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 hover:bg-rose-400/15"
-                >
-                  Hoy
-                </button>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setGastosHistoryOpen(false)}
@@ -1276,7 +1255,7 @@ function ResumenTab({
                 </div>
 
                 {data.expensesToday.length === 0 ? (
-                  <div className="px-5 py-12 text-center text-sm text-white/45">
+                  <div className="px-5 py-10 text-center text-sm text-white/45">
                     Sin gastos registrados.
                   </div>
                 ) : (
@@ -1284,10 +1263,6 @@ function ResumenTab({
                     {data.expensesToday.map((e: any) => {
                       const createdDate = e.created_at ? new Date(e.created_at) : null;
                       const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
-                      const inRange =
-                        (!gastosHistoryFrom || rawDate >= gastosHistoryFrom) &&
-                        (!gastosHistoryTo || rawDate <= gastosHistoryTo);
-                      if (!inRange) return null;
                       const date = rawDate
                         ? new Date(`${rawDate}T00:00:00`).toLocaleDateString("es-AR", {
                             day: "2-digit",
@@ -3634,7 +3609,7 @@ function CierreCajaBtn({
           <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold">Cierre de caja</h3>
+                <h3 className="text-lg font-semibold">{panel === "pendientes" ? "Historial completo de pendientes" : "Historial completo de ingresos"}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {new Date().toLocaleDateString("es-AR", {
                     weekday: "long",
@@ -4616,7 +4591,7 @@ function History({
   } | null>(null);
   const [showAll, setShowAll] = React.useState(false);
 
-  const visibleRows = showAll ? rows : rows.slice(0, 5);
+  const visibleRows = rows.slice(0, 5);
   const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {
@@ -4667,7 +4642,7 @@ function History({
         {/* Header */}
         <div
           className={cn(
-            "flex min-h-[78px] items-center justify-between gap-3 px-6 py-5 border-b",
+            "flex min-h-[64px] items-center justify-between gap-3 px-6 py-4 border-b",
             incomeTheme.tableHead,
           )}
         >
@@ -4689,7 +4664,7 @@ function History({
           <div className="min-w-[1080px]">
             <div
               className={cn(
-                "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                 incomeTheme.tableHead,
               )}
             >
@@ -4705,11 +4680,11 @@ function History({
 
             {/* Rows */}
             {data.loading ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
                 <Loader2 className="size-4 animate-spin" /> Cargando…
               </div>
             ) : !hasAnyRows ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">
                 {panel === "pendientes" ? "Sin pendientes." : "Sin cobros"}
               </div>
             ) : (
@@ -4738,7 +4713,7 @@ function History({
                     <div
                       key={`pending-${p.id}`}
                       className={cn(
-                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200 cursor-pointer",
+                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200 cursor-pointer",
                         incomeTheme.rowHover,
                       )}
                       onClick={() => onCobrarPendiente(p)}
@@ -4829,7 +4804,7 @@ function History({
                   return (
                     <div
                       key={p.id}
-                      className={cn("grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
+                      className={cn("grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">
@@ -4887,27 +4862,18 @@ function History({
 
         {/* Footer */}
         <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-between gap-3">
-          {rows.length > 5 && (
+          {((panel === "ingresos" && rows.length > 0) || (panel === "pendientes" && pendingRows.length > 0)) && (
             <button
-              onClick={() => setShowAll((v) => !v)}
-              className="text-xs text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1.5"
+              onClick={() => setCloseoutOpen(true)}
+              className={cn(
+                "ml-auto text-xs font-semibold inline-flex items-center gap-2 transition hover:brightness-125",
+                incomeTheme.amount,
+              )}
             >
-              <ArrowRight
-                className={cn("size-3.5 transition", showAll && "rotate-90")}
-              />
-              {showAll ? "Mostrar menos" : `Ver ${rows.length - 5} cobros más`}
+              <ClipboardList className="size-3.5" /> Ver historial completo{" "}
+              <ArrowRight className="size-3.5" />
             </button>
           )}
-          <button
-            onClick={() => setCloseoutOpen(true)}
-            className={cn(
-              "ml-auto text-xs font-semibold inline-flex items-center gap-2 transition hover:brightness-125",
-              incomeTheme.amount,
-            )}
-          >
-            <ClipboardList className="size-3.5" /> Ver historial completo{" "}
-            <ArrowRight className="size-3.5" />
-          </button>
         </div>
       </Card>
 
@@ -4966,7 +4932,7 @@ function History({
               <div>
                 <h3 className="text-lg font-semibold">Cierre de caja</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Detalle de cobros de hoy por método de pago. Usá el historial de caja para rangos anteriores.
+                  {panel === "pendientes" ? "Cobros pendientes enviados a caja." : "Detalle de cobros de hoy por método de pago."}
                 </p>
               </div>
               <button
