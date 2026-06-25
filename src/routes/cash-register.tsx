@@ -5456,12 +5456,10 @@ function NuevaVentaTab({
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-5xl">
+    <div className="relative mx-auto w-full max-w-5xl space-y-5 overflow-hidden rounded-[34px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-5 md:p-7 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
-      <div className="relative overflow-hidden rounded-[34px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-5 md:p-7 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
-        <div className="relative z-10 space-y-5">
-      <Card className="overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
+      <Card className="relative z-10 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
         <div className="grid grid-cols-4 gap-2">
           {stepItems.map((s, index) => {
             const active = step === s.n;
@@ -5523,7 +5521,7 @@ function NuevaVentaTab({
         </div>
       </Card>
 
-          <div className="h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+      <div className="relative z-10 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
 
       {step === 1 && (
         <div className="space-y-3">
@@ -6068,7 +6066,7 @@ function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="sticky bottom-4 z-10">
+      <div className="sticky bottom-4 z-20">
         <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3.5 flex items-center gap-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
@@ -6125,7 +6123,6 @@ function NuevaVentaTab({
             </button>
           )}
         </Card>
-        </div>
       </div>
     </div>
   );
