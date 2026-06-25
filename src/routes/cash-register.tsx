@@ -5466,7 +5466,7 @@ function NuevaVentaTab({
   }
 
   return (
-    <div className="relative mx-auto flex h-[calc(100vh-260px)] min-h-[560px] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-4 md:p-5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
+    <div className="relative mx-auto flex h-[calc(100vh-260px)] min-h-[560px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-4 md:p-5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
@@ -5551,8 +5551,14 @@ function NuevaVentaTab({
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-            <div className="grid grid-cols-1 gap-2.5">
+          <div className={cn("min-h-0 flex-1 pr-1", filteredSaleEmployees.length > 12 && "overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
+            <div className={cn(
+              "grid gap-2.5",
+              filteredSaleEmployees.length <= 3 && "grid-cols-1",
+              filteredSaleEmployees.length === 4 && "grid-cols-2",
+              filteredSaleEmployees.length >= 5 && filteredSaleEmployees.length <= 6 && "grid-cols-2",
+              filteredSaleEmployees.length >= 7 && "grid-cols-3 xl:grid-cols-4",
+            )}>
               {filteredSaleEmployees.length === 0 ? (
                 <Card className="px-4 py-8 text-center text-sm text-white/45">
                   No encontramos profesionales.
@@ -5567,7 +5573,7 @@ function NuevaVentaTab({
                       key={e.id}
                       onClick={() => setEmployeeId(e.id)}
                       className={cn(
-                        "group cursor-pointer px-4 py-3 transition-all duration-200",
+                        "group cursor-pointer px-3 py-3 transition-all duration-200",
                         active
                           ? "border-blue-300/50 bg-[linear-gradient(135deg,rgba(59,130,246,0.20),rgba(8,11,20,0.94))] shadow-[0_0_28px_rgba(96,165,250,0.12)]"
                           : "hover:border-white/14 hover:bg-white/[0.035]",
@@ -6075,7 +6081,7 @@ function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="relative z-20 shrink-0">
+      <div className="relative z-20 mt-auto shrink-0">
         <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 flex items-center gap-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
