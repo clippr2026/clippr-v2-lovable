@@ -1490,6 +1490,7 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
 
   React.useEffect(() => {
     setSelectedDetail("produccion");
+    setPaymentForm({ amount: "", method: "transferencia", note: "" });
   }, [selectedEmployeeId]);
 
   React.useEffect(() => {
@@ -1615,16 +1616,10 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
     return commissionPayments.filter((payment: any) => String(payment.employeeId) === selectedRow.id);
   }, [commissionPayments, selectedRow]);
 
-  const productionTotal = React.useMemo(() => {
-    return selectedProduction.reduce((sum: number, payment: any) => sum + Number(payment.total ?? payment.amount ?? 0), 0);
-  }, [selectedProduction]);
-
-  const productionAverage = selectedProduction.length > 0 ? Math.round(productionTotal / selectedProduction.length) : 0;
-
   async function payCommission(row: typeof rows[number] | null) {
     if (!row || row.pending <= 0 || payingEmployeeId) return;
 
-    const amount = Number(paymentForm.amount || row.pending);
+    const amount = Number(paymentForm.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Ingresá un monto válido");
       return;
@@ -1688,7 +1683,12 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
     return (
       <button
         type="button"
-        onClick={() => setSelectedDetail(id)}
+        onClick={() => {
+          if (id === "pagar" && selectedRow && paymentForm.amount === "") {
+            setPaymentForm((form) => ({ ...form, amount: String(selectedRow.pending) }));
+          }
+          setSelectedDetail(id);
+        }}
         className={cn(
           "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
           active
@@ -1861,21 +1861,6 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
 
             {selectedDetail === "produccion" && (
               <div className="px-5 py-4">
-                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Servicios realizados</div>
-                    <div className="mt-1 text-xl font-bold text-white">{selectedProduction.length}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Facturación generada</div>
-                    <div className="mt-1 text-xl font-bold text-emerald-300">{money(productionTotal)}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Ticket promedio</div>
-                    <div className="mt-1 text-xl font-bold text-violet-300">{money(productionAverage)}</div>
-                  </div>
-                </div>
-
                 <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
                   <div className="grid grid-cols-[90px_minmax(120px,1fr)_minmax(180px,1.3fr)_120px_130px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha</div>
@@ -1962,7 +1947,7 @@ function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null
                         type="number"
                         min={0}
                         max={selectedRow.pending}
-                        value={paymentForm.amount || String(selectedRow.pending)}
+                        value={paymentForm.amount}
                         onChange={(event) => setPaymentForm((form) => ({ ...form, amount: event.target.value }))}
                         className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-sm text-white outline-none focus:border-emerald-300/35"
                       />
