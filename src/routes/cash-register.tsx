@@ -3106,7 +3106,7 @@ function NuevoGastoTab({
           </button>
         </div>
 
-        <div className="space-y-3">
+        <div className={cn("space-y-3", paymentMode === "multiple" && splits.length >= 3 && "max-h-[220px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
           <input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -5783,7 +5783,7 @@ function NuevaVentaTab({
       )}
 
       {step === 3 && (
-        <div className={cn("relative z-10 min-h-0 flex-1 pr-1 space-y-4", servicesWithSynthetic.length > 12 && "overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto pr-1 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 flex items-center gap-3 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
             <Search className="size-4 text-muted-foreground" />
             <input
@@ -5892,7 +5892,7 @@ function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent] rounded-3xl p-5 space-y-5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+        <Card className="relative z-10 min-h-0 flex-1 rounded-3xl p-5 space-y-5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
             <h3 className="mt-1 text-xl font-bold text-white">Confirmá el pago</h3>
