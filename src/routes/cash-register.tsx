@@ -1435,6 +1435,7 @@ function PreciosTab({
   const data = useCajaData();
   const [serviceQuery, setServiceQuery] = React.useState("");
   const [catalogQuery, setCatalogQuery] = React.useState("");
+  const [serviceFilter, setServiceFilter] = React.useState("Todos");
   const [catalogFilter, setCatalogFilter] = React.useState("Todos");
 
   const items = React.useMemo(() => data.services ?? [], [data.services]);
@@ -1446,6 +1447,26 @@ function PreciosTab({
     () => items.filter((item: any) => item.is_catalog),
     [items],
   );
+
+  const serviceCategory = (item: any) =>
+    String(item.category || item.type || "Servicios").trim() || "Servicios";
+
+  const serviceCategories = React.useMemo(() => {
+    const preferred = ["Cortes", "Color", "Barba", "Tratamientos", "Peinados"];
+    const fromData = Array.from(
+      new Set(
+        serviceItems
+          .map((item: any) => serviceCategory(item))
+          .filter(Boolean),
+      ),
+    );
+    const ordered = [
+      ...preferred.filter((cat) => fromData.includes(cat)),
+      ...fromData.filter((cat) => !preferred.includes(cat)),
+    ];
+    return ["Todos", ...ordered];
+  }, [serviceItems]);
+
 
   const catalogCategories = React.useMemo(() => {
     const preferred = ["Productos", "Bebidas", "Indumentaria"];
@@ -1464,6 +1485,10 @@ function PreciosTab({
   }, [catalogItems]);
 
   React.useEffect(() => {
+    if (!serviceCategories.includes(serviceFilter)) setServiceFilter("Todos");
+  }, [serviceCategories, serviceFilter]);
+
+  React.useEffect(() => {
     if (!catalogCategories.includes(catalogFilter)) setCatalogFilter("Todos");
   }, [catalogCategories, catalogFilter]);
 
@@ -1471,10 +1496,14 @@ function PreciosTab({
   const normalizedCatalogQuery = catalogQuery.trim().toLowerCase();
 
   const filteredServices = serviceItems.filter((item: any) => {
-    if (!normalizedServiceQuery) return true;
-    return `${item.name ?? ""} ${item.category ?? ""}`
-      .toLowerCase()
-      .includes(normalizedServiceQuery);
+    const matchesCategory =
+      serviceFilter === "Todos" || serviceCategory(item) === serviceFilter;
+    const matchesText =
+      !normalizedServiceQuery ||
+      `${item.name ?? ""} ${item.category ?? ""} ${item.type ?? ""}`
+        .toLowerCase()
+        .includes(normalizedServiceQuery);
+    return matchesCategory && matchesText;
   });
 
   const filteredCatalog = catalogItems.filter((item: any) => {
@@ -1607,7 +1636,7 @@ function PreciosTab({
   );
 
   const CatalogRow = ({ item }: { item: any }) => (
-    <div className="group grid grid-cols-[minmax(160px,1fr)_110px_110px] items-center gap-3 border-b border-white/[0.055] px-3 py-2.5 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2.5 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
         <Thumb item={item} fallback="□" />
         <div className="min-w-0">
@@ -1619,12 +1648,8 @@ function PreciosTab({
           </div>
         </div>
       </div>
-      <div className="text-xs font-semibold tabular-nums text-white/86">
-        {money(Number(item.price ?? 0))}
-      </div>
-      <div className="text-xs font-bold tabular-nums text-emerald-300">
-        {money(effectivePrice(item))}
-      </div>
+      <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
+      <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
     </div>
   );
 
@@ -1649,6 +1674,26 @@ function PreciosTab({
               onChange={setServiceQuery}
               placeholder="Buscar servicio"
             />
+            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.07] bg-black/25 p-1.5">
+              {serviceCategories.map((cat) => {
+                const active = serviceFilter === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setServiceFilter(cat)}
+                    className={cn(
+                      "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
+                      active
+                        ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
+                        : "text-white/50 hover:bg-white/[0.045] hover:text-white/80",
+                    )}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             {filteredServices.length === 0 ? (
@@ -1704,11 +1749,6 @@ function PreciosTab({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
-              <div className="grid grid-cols-[minmax(180px,1fr)_130px_130px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
-                <div>Artículo</div>
-                <div>Precio lista</div>
-                <div>Efectivo</div>
-              </div>
               {filteredCatalog.length === 0 ? (
                 <div className="py-16 text-center text-sm text-white/45">
                   Sin artículos.
