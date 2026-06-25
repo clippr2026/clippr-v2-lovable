@@ -1210,6 +1210,8 @@ function ResumenTab({
         </div>
       )}
     </div>
+      </div>
+    </div>
   );
 }
 
@@ -5769,7 +5771,7 @@ function NuevaVentaTab({
       )}
 
       {step === 3 && (
-        <div className="space-y-4">
+        <div className="relative z-10 space-y-4">
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 flex items-center gap-3 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
             <Search className="size-4 text-muted-foreground" />
             <input
