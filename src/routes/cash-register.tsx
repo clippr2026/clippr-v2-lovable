@@ -1089,101 +1089,124 @@ function ResumenTab({
       )}
 
       {activePanel === "gastos" && (
-        <div
-          className={cn(
-            "relative z-10 rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300",
-            panelTheme.gastos.panelBg,
-            panelTheme.gastos.border,
-            panelTheme.gastos.glow,
-          )}
-        >
-          <div
+        <div className="relative z-10">
+          <Card
             className={cn(
-              "px-5 py-4 border-b flex items-center justify-between",
-              panelTheme.gastos.tableHead,
+              "rounded-3xl transition-all duration-300",
+              panelTheme.gastos.panelBg,
+              panelTheme.gastos.border,
+              panelTheme.gastos.glow,
             )}
           >
             <div
-              className={cn("text-sm font-semibold", panelTheme.gastos.title)}
+              className={cn(
+                "flex items-center justify-between gap-3 px-6 py-5 border-b",
+                panelTheme.gastos.tableHead,
+              )}
             >
-              Gastos
+              <h3
+                className={cn(
+                  "text-base font-bold tracking-tight",
+                  panelTheme.gastos.title,
+                )}
+              >
+                Gastos
+              </h3>
             </div>
-          </div>
-          <div
-            className={cn(
-              "grid grid-cols-[80px_80px_150px_1fr_130px_190px] gap-4 px-5 py-3 border-b text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70",
-              panelTheme.gastos.tableHead,
-            )}
-          >
-            <div>Fecha</div>
-            <div>Hora</div>
-            <div>Categoría</div>
-            <div>Descripción</div>
-            <div className="text-right">Monto</div>
-            <div>Usuario responsable</div>
-          </div>
-          {data.expensesToday.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">
-              Sin gastos registrados.
-            </p>
-          ) : (
-            <div className="divide-y divide-white/5">
-              {data.expensesToday.map((e: any) => {
-                const createdDate = e.created_at
-                  ? new Date(e.created_at)
-                  : null;
-                const date = e.date
-                  ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                    })
-                  : createdDate
-                    ? createdDate.toLocaleDateString("es-AR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                      })
-                    : "—";
-                const hora =
-                  createdDate && !Number.isNaN(createdDate.getTime())
-                    ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
-                    : "—";
-                const category = e.category ?? e.type ?? "—";
-                const description =
-                  e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
-                const user =
-                  e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
-                return (
-                  <div
-                    key={e.id}
-                    className={cn(
-                      "grid grid-cols-[80px_80px_150px_1fr_130px_190px] gap-4 px-5 py-3.5 items-center text-sm transition-all duration-200",
-                      panelTheme.gastos.rowHover,
-                    )}
-                  >
-                    <div className="text-muted-foreground">{date}</div>
-                    <div className="text-muted-foreground">{hora}</div>
-                    <div className="text-muted-foreground capitalize">
-                      {category}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-foreground/90">
-                        {description}
-                      </div>
-                      {e.note && e.note !== description && (
-                        <div className="mt-0.5 truncate text-xs text-muted-foreground/70">
-                          {e.note}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-right font-bold tabular-nums text-rose-300">
-                      -${Number(e.amount ?? 0).toLocaleString("es-AR")}
-                    </div>
-                    <div className="truncate text-muted-foreground">{user}</div>
+
+            <div className="overflow-x-auto">
+              <div className="min-w-[1080px]">
+                <div
+                  className={cn(
+                    "grid grid-cols-[80px_90px_150px_minmax(280px,1fr)_140px_220px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                    panelTheme.gastos.tableHead,
+                  )}
+                >
+                  <div>Fecha</div>
+                  <div>Hora</div>
+                  <div>Categoría</div>
+                  <div>Descripción</div>
+                  <div className="text-right">Monto</div>
+                  <div>Usuario responsable</div>
+                </div>
+
+                {data.expensesToday.length === 0 ? (
+                  <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                    Sin gastos registrados.
                   </div>
-                );
-              })}
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {data.expensesToday.map((e: any) => {
+                      const createdDate = e.created_at
+                        ? new Date(e.created_at)
+                        : null;
+                      const date = e.date
+                        ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                          })
+                        : createdDate
+                          ? createdDate.toLocaleDateString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                            })
+                          : "—";
+                      const hora =
+                        createdDate && !Number.isNaN(createdDate.getTime())
+                          ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
+                          : "—";
+                      const category = e.category ?? e.type ?? "—";
+                      const description =
+                        e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                      const user =
+                        e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
+                      return (
+                        <div
+                          key={e.id}
+                          className={cn(
+                            "grid grid-cols-[80px_90px_150px_minmax(280px,1fr)_140px_220px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
+                            panelTheme.gastos.rowHover,
+                          )}
+                        >
+                          <div className="text-muted-foreground whitespace-nowrap">{date}</div>
+                          <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
+                          <div className="text-muted-foreground capitalize truncate">
+                            {category}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-foreground/90">
+                              {description}
+                            </div>
+                            {e.note && e.note !== description && (
+                              <div className="mt-0.5 truncate text-xs text-muted-foreground/70">
+                                {e.note}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right font-bold tabular-nums text-rose-300">
+                            -${Number(e.amount ?? 0).toLocaleString("es-AR")}
+                          </div>
+                          <div className="truncate text-muted-foreground">{user}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+
+            <div className="px-6 py-4 border-t border-white/[0.07] flex items-center justify-end gap-3">
+              <button
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent("clippr:open-closeout"))
+                }
+                className="ml-auto text-xs font-semibold text-rose-300 hover:text-rose-200 inline-flex items-center gap-2 transition"
+              >
+                <ClipboardList className="size-3.5" /> Ver historial completo{" "}
+                <ArrowRight className="size-3.5" />
+              </button>
+            </div>
+          </Card>
         </div>
       )}
     </div>
@@ -4755,7 +4778,10 @@ function History({
             onClick={() =>
               window.dispatchEvent(new CustomEvent("clippr:open-closeout"))
             }
-            className="ml-auto text-xs font-semibold text-violet-300 hover:text-violet-200 inline-flex items-center gap-2 transition"
+            className={cn(
+              "ml-auto text-xs font-semibold inline-flex items-center gap-2 transition hover:brightness-125",
+              incomeTheme.amount,
+            )}
           >
             <ClipboardList className="size-3.5" /> Ver historial completo{" "}
             <ArrowRight className="size-3.5" />
