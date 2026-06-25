@@ -1118,7 +1118,7 @@ function ResumenTab({
               <div className="min-w-[1080px]">
                 <div
                   className={cn(
-                    "grid grid-cols-[80px_90px_150px_minmax(280px,1fr)_140px_220px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                    "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                     panelTheme.gastos.tableHead,
                   )}
                 >
@@ -1127,6 +1127,7 @@ function ResumenTab({
                   <div>Categoría</div>
                   <div>Descripción</div>
                   <div className="text-right">Monto</div>
+                  <div>Método</div>
                   <div>Usuario responsable</div>
                 </div>
 
@@ -1158,13 +1159,14 @@ function ResumenTab({
                       const category = e.category ?? e.type ?? "—";
                       const description =
                         e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                      const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
                       const user =
                         e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
                       return (
                         <div
                           key={e.id}
                           className={cn(
-                            "grid grid-cols-[80px_90px_150px_minmax(280px,1fr)_140px_220px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
+                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
                             panelTheme.gastos.rowHover,
                           )}
                         >
@@ -1186,6 +1188,7 @@ function ResumenTab({
                           <div className="text-right font-bold tabular-nums text-rose-300">
                             -${Number(e.amount ?? 0).toLocaleString("es-AR")}
                           </div>
+                          <div className="truncate text-muted-foreground">{method}</div>
                           <div className="truncate text-muted-foreground">{user}</div>
                         </div>
                       );
@@ -3066,6 +3069,7 @@ function NuevoGastoTab({
     if (!name) return toast.error("El nombre del gasto es obligatorio.");
     if (!amount || amount <= 0)
       return toast.error("El monto debe ser mayor a 0.");
+    if (!form.method) return toast.error("Seleccioná el método de pago.");
     setSaving(true);
     const { error } = await supabase.from("expenses").insert({
       business_id: data.businessId,
@@ -3141,7 +3145,7 @@ function NuevoGastoTab({
               }
               className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-blue-300/50"
             >
-              <option value="">Método de pago</option>
+              <option value="">Método de pago *</option>
               {GMETHODS.map((m) => (
                 <option key={m} value={m}>
                   {m.charAt(0).toUpperCase() + m.slice(1)}
