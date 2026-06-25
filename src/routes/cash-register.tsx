@@ -4809,7 +4809,9 @@ function History({
                             type="button"
                             onClick={() => onCobrarPendiente(p)}
                             className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold bg-blue-300/15 text-blue-200 ring-1 ring-blue-300/30 hover:bg-blue-300/25 transition whitespace-nowrap"
-                           className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 hover:border-emerald-500/50">Cobrar</button>
+                          >
+                            Cobrar
+                          </button>
                         )}
                       </div>
                     </div>
@@ -5177,11 +5179,10 @@ function History({
                                 setCloseoutOpen(false);
                                 onCobrarPendiente(p);
                               }}
-                              className={cn(
-                                "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition hover:brightness-125",
-                                incomeTheme.badge,
-                              )}
-                             className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 hover:border-emerald-500/50">Cobrar</button>
+                              className="rounded-full border border-emerald-300/45 bg-emerald-400/18 px-4 py-1.5 text-xs font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] transition hover:bg-emerald-400/28 hover:border-emerald-300/70 hover:text-white"
+                            >
+                              Cobrar
+                            </button>
                           </div>
                         </div>
                       );
