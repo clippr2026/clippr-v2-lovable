@@ -5893,30 +5893,6 @@ function NuevaVentaTab({
 
       {step === 4 && (
         <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl p-3.5 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
-          <div className="space-y-2">
-            <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
-              RESUMEN
-            </p>
-            {cartItems.map(({ svc, qty }) => (
-              <div
-                key={svc.id}
-                className="flex items-center justify-between gap-3 text-sm border-b border-white/5 pb-1.5"
-              >
-                <span className="text-muted-foreground">
-                  {svc.name} x{qty}
-                </span>
-                <span className="text-foreground tabular-nums">
-                  ${(Number(svc.price) * qty).toLocaleString("es-AR")}
-                </span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-lg font-semibold text-foreground">
-                Total
-              </span>
-              <Money value={total} />
-            </div>
-          </div>
           <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-black/35 border border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
             <button
               onClick={() => setPaymentMode("simple")}
@@ -6007,7 +5983,7 @@ function NuevaVentaTab({
               )}
             </>
           ) : (
-            <div className={cn("space-y-3", splits.length >= 3 && "max-h-[190px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
+            <div className={cn("rounded-3xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-4 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-3", splits.length >= 3 && "max-h-[230px] overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.40)_transparent]")}>
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
                 PAGO MÚLTIPLE
               </p>
@@ -6024,7 +6000,7 @@ function NuevaVentaTab({
                       onChange={(e) =>
                         updateSplit(idx, "method", e.target.value)
                       }
-                      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-foreground outline-none"
+                      className="h-12 rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
                     >
                       {paymentOptions.map((o) => (
                         <option key={o.id} value={o.id}>
@@ -6039,12 +6015,12 @@ function NuevaVentaTab({
                       }
                       inputMode="numeric"
                       placeholder="Monto"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
+                      className="h-12 w-full rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-lg font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
                     />
                     <button
                       onClick={() => removeSplit(idx)}
                       disabled={splits.length <= 1}
-                      className="h-10 w-9 rounded-xl border border-white/10 bg-white/[0.03] grid place-items-center text-muted-foreground hover:text-rose-300 disabled:opacity-30 transition-colors"
+                      className="h-12 w-11 rounded-2xl border border-white/10 bg-black/35 grid place-items-center text-muted-foreground hover:border-rose-300/35 hover:text-rose-300 disabled:opacity-30 transition-colors"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -6054,11 +6030,11 @@ function NuevaVentaTab({
               <button
                 onClick={addSplit}
                 disabled={splits.length >= paymentOptions.length}
-                className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                className="inline-flex items-center gap-2 rounded-2xl border border-blue-300/20 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
               >
                 <Plus className="size-3.5" /> Agregar método de pago
               </button>
-              <div className="flex items-center justify-between text-sm rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3">
+              <div className="flex items-center justify-between text-sm rounded-2xl border border-blue-300/20 bg-black/35 px-4 py-3">
                 <span className="text-muted-foreground">
                   Total cargado: ${splitsTotal.toLocaleString("es-AR")}
                 </span>
@@ -6084,7 +6060,7 @@ function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="relative z-20 mt-auto shrink-0 pt-3 pb-2">
+      <div className="relative z-20 mt-auto shrink-0 pt-3 pb-4">
         <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3 py-2 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
