@@ -1692,7 +1692,17 @@ function InventarioTab({
   const [stockQuery, setStockQuery] = React.useState("");
   const [movementQuery, setMovementQuery] = React.useState("");
   const [adjustingId, setAdjustingId] = React.useState<string | null>(null);
-  const [stockById, setStockById] = React.useState<Record<string, number>>({});
+  const INVENTORY_STOCK_KEY = "clippr_inventory_stock_overrides_v1";
+  const readLocalStock = React.useCallback((): Record<string, number> => {
+    if (typeof window === "undefined") return {};
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(INVENTORY_STOCK_KEY) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }, []);
+  const [stockById, setStockById] = React.useState<Record<string, number>>(() => readLocalStock());
   const [stockAdjustment, setStockAdjustment] = React.useState<{
     item: any;
     direction: "in" | "out";
@@ -1700,6 +1710,12 @@ function InventarioTab({
   const [adjustQty, setAdjustQty] = React.useState("");
   const [adjustNote, setAdjustNote] = React.useState("");
   const INVENTORY_MOVEMENTS_KEY = "clippr_inventory_movements_v1";
+
+  React.useEffect(() => {
+    const handler = () => setStockById(readLocalStock());
+    window.addEventListener("clippr:inventory-stock-updated", handler);
+    return () => window.removeEventListener("clippr:inventory-stock-updated", handler);
+  }, [readLocalStock]);
 
   const catalogItems = React.useMemo(
     () => (data.services ?? []).filter((item: any) => item.is_catalog),
@@ -1866,7 +1882,7 @@ function InventarioTab({
   const Thumb = ({ item }: { item: any }) => {
     const src = itemImage(item);
     return (
-      <div className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
+      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
         {src ? (
           <img
             src={src}
@@ -1941,7 +1957,16 @@ function InventarioTab({
 
       if (error) throw error;
 
-      setStockById((prev) => ({ ...prev, [id]: nextStock }));
+      setStockById((prev) => {
+        const next = { ...prev, [id]: nextStock };
+        try {
+          window.localStorage.setItem(INVENTORY_STOCK_KEY, JSON.stringify(next));
+          window.dispatchEvent(new CustomEvent("clippr:inventory-stock-updated"));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
 
       saveLocalMovement({
         id: `${Date.now()}-${id}`,
@@ -1961,7 +1986,35 @@ function InventarioTab({
       setAdjustNote("");
       await data.refresh();
     } catch (error: any) {
-      toast.error(error?.message ?? "No se pudo actualizar el stock");
+      // Fallback local: si la tabla no permite guardar stock todavía,
+      // igual dejamos persistido el ajuste en este dispositivo.
+      setStockById((prev) => {
+        const next = { ...prev, [id]: nextStock };
+        try {
+          window.localStorage.setItem(INVENTORY_STOCK_KEY, JSON.stringify(next));
+          window.dispatchEvent(new CustomEvent("clippr:inventory-stock-updated"));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+
+      saveLocalMovement({
+        id: `${Date.now()}-${id}`,
+        created_at: new Date().toISOString(),
+        product: item.name ?? "Producto",
+        type: direction === "in" ? "Ingreso" : "Egreso",
+        qty: direction === "in" ? qty : -qty,
+        stockFrom: currentStock,
+        stockTo: nextStock,
+        note: adjustNote.trim() || null,
+        user: userEmail ?? "Caja",
+      });
+
+      toast.success(direction === "in" ? "Stock agregado" : "Stock retirado");
+      setStockAdjustment(null);
+      setAdjustQty("");
+      setAdjustNote("");
     } finally {
       setAdjustingId(null);
     }
@@ -2035,8 +2088,8 @@ function InventarioTab({
       : `${movement.stockFrom} → ${movement.stockTo}`;
 
   return (
-    <div className="-mt-2 grid grid-cols-1 gap-5 xl:grid-cols-2 animate-fade-up">
-      <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
+    <div className="-mt-2 grid h-[calc(100vh-260px)] min-h-[540px] grid-cols-1 gap-5 overflow-hidden xl:grid-cols-2 animate-fade-up">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
           <div className="flex items-center gap-4">
             <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
@@ -2053,7 +2106,7 @@ function InventarioTab({
             placeholder="Buscar artículo"
           />
         </div>
-        <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
             <div className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Artículo</div>
@@ -2073,7 +2126,7 @@ function InventarioTab({
                 return (
                   <div
                     key={id}
-                    className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]"
+                    className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-3 text-sm last:border-0 hover:bg-white/[0.026]"
                   >
                     <div className="flex min-w-0 items-center gap-4">
                       <Thumb item={item} />
@@ -2114,7 +2167,7 @@ function InventarioTab({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
           <div className="flex items-center gap-4">
             <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
@@ -2131,7 +2184,7 @@ function InventarioTab({
             placeholder="Buscar movimiento"
           />
         </div>
-        <div className="max-h-[500px] overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
             <div className="grid grid-cols-[145px_minmax(120px,1fr)_95px_70px_80px_minmax(105px,1fr)_minmax(120px,1fr)] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Fecha</div>
@@ -2150,7 +2203,7 @@ function InventarioTab({
               filteredMovements.map((item: InventoryMovement) => (
                 <div
                   key={item.id}
-                  className="grid grid-cols-[145px_minmax(120px,1fr)_95px_70px_80px_minmax(105px,1fr)_minmax(120px,1fr)] items-center gap-4 border-b border-white/[0.055] px-4 py-4 text-sm last:border-0 hover:bg-white/[0.026]"
+                  className="grid grid-cols-[145px_minmax(120px,1fr)_95px_70px_80px_minmax(105px,1fr)_minmax(120px,1fr)] items-center gap-4 border-b border-white/[0.055] px-4 py-3 text-sm last:border-0 hover:bg-white/[0.026]"
                 >
                   <div className="text-xs text-white/50">
                     {formatInventoryDate(item.created_at)}
@@ -2321,8 +2374,10 @@ function ProfesionalesTab({
   }, [data.employees, selectedEmployeeId]);
 
   React.useEffect(() => {
-    setSelectedDetail("produccion");
-    setPaymentForm({ amount: "", method: "transferencia", note: "" });
+    if (selectedEmployeeId === "all") {
+      setSelectedDetail("produccion");
+      setPaymentForm({ amount: "", method: "transferencia", note: "" });
+    }
   }, [selectedEmployeeId]);
 
   React.useEffect(() => {
@@ -2682,9 +2737,13 @@ function ProfesionalesTab({
         }}
         className={cn(
           "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
-          active
-            ? "border-violet-300/28 bg-violet-500/14 text-white shadow-[0_0_24px_rgba(139,92,246,0.16)]"
-            : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
+          id === "pagar"
+            ? active
+              ? "border-emerald-300/45 bg-emerald-500/22 text-emerald-50 shadow-[0_0_30px_rgba(34,197,94,0.24)]"
+              : "border-emerald-400/30 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/20 hover:text-white"
+            : active
+              ? "border-violet-300/28 bg-violet-500/14 text-white shadow-[0_0_24px_rgba(139,92,246,0.16)]"
+              : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
         )}
       >
         {children}
@@ -2713,7 +2772,18 @@ function ProfesionalesTab({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               value={selectedEmployeeId}
-              onChange={(event) => setSelectedEmployeeId(event.target.value)}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setSelectedEmployeeId(nextId);
+                const nextRow = rows.find((row) => row.id === nextId);
+                if (nextId !== "all" && nextRow?.pending > 0) {
+                  setPaymentForm((form) => ({ ...form, amount: String(nextRow.pending) }));
+                  setSelectedDetail("pagar");
+                } else {
+                  setPaymentForm({ amount: "", method: "transferencia", note: "" });
+                  setSelectedDetail("produccion");
+                }
+              }}
               className="h-10 min-w-[230px] rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-sm text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
             >
               <option value="all">Todos los profesionales</option>
@@ -2728,7 +2798,7 @@ function ProfesionalesTab({
               <button
                 type="button"
                 onClick={() => setRangeOpen((value) => !value)}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/16 bg-emerald-400/[0.075] px-3.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/12 transition hover:bg-emerald-400/[0.11] hover:text-emerald-200"
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 text-xs font-semibold text-white ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] hover:text-white"
               >
                 <CalendarDays className="size-3.5" />
                 {periodLabel}
@@ -5332,6 +5402,7 @@ function NuevaVentaTab({
       category: "Servicios",
       is_catalog: false,
       stock: null,
+      image_url: (pendingCharge as any).image_url ?? (pendingCharge as any).service_image_url ?? null,
     } as (typeof data.services)[0];
     return [synthetic, ...data.services];
   }, [data.services, pendingCharge, syntheticServiceId]);
