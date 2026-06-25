@@ -699,7 +699,7 @@ const TABS: {
 function Tabs({
   tab,
   onChange,
-  data: _data,
+  data,
   userEmail: _userEmail,
   resumenPanel,
   onNuevoGasto,
@@ -747,6 +747,32 @@ function Tabs({
       </div>
       {tab === "resumen" && resumenPanel !== "pendientes" && (
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
+          {resumenPanel === "ingresos" && data.approvalModeEnabled && (
+            <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-1.5 backdrop-blur-xl">
+              {([
+                { id: "auto", label: "Automático", title: "El profesional cobra desde su panel y el cobro impacta directo en ingresos." },
+                { id: "manual", label: "Manual", title: "El profesional envía el cobro a pendientes y Caja lo confirma." },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => data.setApprovalMode(opt.id)}
+                  title={opt.title}
+                  className={cn(
+                    "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
+                    data.approvalMode === opt.id
+                      ? opt.id === "auto"
+                        ? "bg-emerald-400/14 text-emerald-200 ring-1 ring-emerald-300/24"
+                        : "bg-sky-400/14 text-sky-200 ring-1 ring-sky-300/24"
+                      : "text-white/50 hover:bg-white/[0.045] hover:text-white/80"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {resumenPanel === "gastos" && (
             <button
               onClick={onNuevoGasto}
@@ -894,11 +920,11 @@ function ResumenTab({
       icon: Clock,
       money: true,
       cardClass:
-        "border-orange-400/24 bg-[radial-gradient(circle_at_14%_50%,rgba(249,115,22,0.18),transparent_34%),linear-gradient(135deg,rgba(124,45,18,0.22),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-45px_rgba(249,115,22,0.50),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
+        "border-sky-400/24 bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.22),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-45px_rgba(14,165,233,0.46),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
       iconClass:
-        "bg-orange-500/14 text-orange-300 ring-orange-400/30 shadow-[0_0_26px_rgba(249,115,22,0.18)]",
+        "bg-sky-500/14 text-sky-300 ring-sky-400/30 shadow-[0_0_26px_rgba(14,165,233,0.18)]",
       amountClass: "text-white",
-      chipClass: "bg-orange-400/12 text-orange-300 ring-orange-400/20",
+      chipClass: "bg-sky-400/12 text-sky-300 ring-sky-400/20",
     },
     {
       id: "gastos",
@@ -945,17 +971,17 @@ function ResumenTab({
       badge: "bg-emerald-500/12 text-emerald-300 ring-emerald-400/20",
     },
     pendientes: {
-      border: "border-orange-400/24",
-      glow: "shadow-[0_30px_90px_-48px_rgba(249,115,22,0.32),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
+      border: "border-sky-400/24",
+      glow: "shadow-[0_30px_90px_-48px_rgba(14,165,233,0.32),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
       panelBg:
-        "bg-[radial-gradient(circle_at_14%_50%,rgba(249,115,22,0.18),transparent_34%),linear-gradient(135deg,rgba(124,45,18,0.22),rgba(3,7,18,0.94))]",
-      headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
-      title: "text-orange-50",
-      chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
-      tableHead: "border-orange-400/10 bg-black/[0.10]",
-      rowHover: "hover:bg-orange-400/[0.035]",
-      amount: "text-orange-300",
-      badge: "bg-orange-500/12 text-orange-300 ring-orange-400/20",
+        "bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.22),rgba(3,7,18,0.94))]",
+      headerIcon: "bg-sky-500/14 text-sky-300 ring-sky-400/25",
+      title: "text-sky-50",
+      chip: "bg-sky-400/10 text-sky-300 ring-sky-400/18",
+      tableHead: "border-sky-400/10 bg-black/[0.10]",
+      rowHover: "hover:bg-sky-400/[0.035]",
+      amount: "text-sky-300",
+      badge: "bg-sky-500/12 text-sky-300 ring-sky-400/20",
     },
     gastos: {
       border: "border-rose-400/24",
@@ -1001,7 +1027,9 @@ function ResumenTab({
                 <div
                   className={cn(
                     "grid size-16 place-items-center rounded-full ring-1 transition-transform duration-300 group-hover:scale-105",
-                    s.iconClass,
+                    isActive
+                      ? s.iconClass
+                      : "bg-white/[0.045] text-white/70 ring-white/10 shadow-[0_0_22px_rgba(255,255,255,0.04)]",
                   )}
                 >
                   <Icon className="size-7" />
@@ -1016,7 +1044,7 @@ function ResumenTab({
                   <div
                     className={cn(
                       "mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1",
-                      s.chipClass,
+                      isActive ? s.chipClass : "bg-white/[0.045] text-white/70 ring-white/10",
                     )}
                   >
                     <span className="size-1.5 rounded-full bg-current" />
@@ -1098,7 +1126,7 @@ function ResumenTab({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-sm font-semibold tabular-nums text-orange-300">
+                    <div className={cn("text-sm font-semibold tabular-nums", panelTheme.pendientes.amount)}>
                       ${Number(a.service_price ?? 0).toLocaleString("es-AR")}
                     </div>
                     {equipoEnabled && (
@@ -1107,7 +1135,7 @@ function ResumenTab({
                         className={cn(
                           "text-xs font-semibold px-2.5 py-1 rounded-lg ring-1 transition",
                           panelTheme.pendientes.badge,
-                          "hover:bg-orange-400/20",
+                          "hover:bg-sky-400/20",
                         )}
                       >
                         Cobrar
@@ -4572,44 +4600,6 @@ function History({
             >
               {title}
             </h3>
-
-            {data.approvalModeEnabled && equipoEnabled && (
-              <div className="flex gap-1 ml-1">
-                {(
-                  [
-                    {
-                      id: "auto",
-                      label: "Automático",
-                      title:
-                        "El profesional cobra desde su panel sin confirmación",
-                      activeCls:
-                        "bg-emerald-500/15 ring-emerald-400/35 text-emerald-300",
-                    },
-                    {
-                      id: "manual",
-                      label: "Manual",
-                      title: "Caja/recepción confirma y cobra cada servicio",
-                      activeCls:
-                        "bg-blue-500/15  ring-blue-400/35  text-blue-300",
-                    },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => data.setApprovalMode(opt.id)}
-                    title={opt.title}
-                    className={cn(
-                      "px-2.5 py-1 rounded-full text-[11px] font-medium ring-1 transition",
-                      data.approvalMode === opt.id
-                        ? opt.activeCls
-                        : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
