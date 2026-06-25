@@ -754,31 +754,24 @@ function CashRegisterPage() {
             />
           )}
           {tab === "cierres" && (
-            <>
-              <div className="mb-4 flex justify-end">
-                <CierreCajaBtn
-                  paymentsToday={data.paymentsToday}
-                  expensesToday={data.expensesToday}
-                  businessId={data.businessId}
-                  userEmail={session.user.email ?? null}
-                  onCajaCerrada={() => {
-                    setCajaCerrada(true);
-                    setShowClosedHistory(false);
-                    setPendingToCharge(null);
-                    setResumenPanel("ingresos");
-                    setTab("resumen");
-                  }}
-                />
-              </div>
-              <CierresTab
-                businessId={data.businessId}
-                cajaCerrada={cajaCerrada}
-                onCajaReopened={() => {
-                  setCajaCerrada(false);
-                  data.refresh();
-                }}
-              />
-            </>
+            <CierresTab
+              businessId={data.businessId}
+              cajaCerrada={cajaCerrada}
+              paymentsToday={data.paymentsToday}
+              expensesToday={data.expensesToday}
+              userEmail={session.user.email ?? null}
+              onCajaCerrada={() => {
+                setCajaCerrada(true);
+                setShowClosedHistory(false);
+                setPendingToCharge(null);
+                setResumenPanel("ingresos");
+                setTab("resumen");
+              }}
+              onCajaReopened={() => {
+                setCajaCerrada(false);
+                data.refresh();
+              }}
+            />
           )}
         </div>
       </div>
@@ -1654,7 +1647,7 @@ function PreciosTab({
   );
 
   return (
-    <div className="-mt-5 h-[calc(100vh-235px)] min-h-[500px] overflow-hidden animate-fade-up">
+    <div className="-mt-5 h-[calc(100vh-270px)] min-h-[470px] overflow-hidden pb-6 animate-fade-up">
       <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
           <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
@@ -2173,7 +2166,7 @@ function InventarioTab({
       : `${movement.stockFrom} → ${movement.stockTo}`;
 
   return (
-    <div className="-mt-5 grid h-[calc(100vh-235px)] min-h-[500px] grid-cols-1 gap-5 overflow-hidden xl:grid-cols-2 animate-fade-up">
+    <div className="-mt-5 grid h-[calc(100vh-270px)] min-h-[470px] grid-cols-1 gap-5 overflow-hidden pb-6 xl:grid-cols-2 animate-fade-up">
       <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
           <div className="flex items-center gap-4">
@@ -3954,16 +3947,25 @@ function CierreCajaBtn({
 function CierresTab({
   businessId,
   cajaCerrada,
+  paymentsToday,
+  expensesToday,
+  userEmail,
+  onCajaCerrada,
   onCajaReopened,
 }: {
   businessId: string | null;
   cajaCerrada: boolean;
+  paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
+  expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
+  userEmail: string | null;
+  onCajaCerrada: () => void;
   onCajaReopened: () => void;
 }) {
   const [cierres, setCierres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const [subtab, setSubtab] = useState<"dia" | "historial">("dia");
 
   const loadCierres = React.useCallback(() => {
     if (!businessId) return;
@@ -3986,17 +3988,25 @@ function CierresTab({
     loadCierres();
     const handler = () => loadCierres();
     window.addEventListener("clippr:caja-cierre-guardado", handler);
-    return () =>
-      window.removeEventListener("clippr:caja-cierre-guardado", handler);
+    return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
   }, [loadCierres]);
 
   const cierreEventos = (cierre: any) =>
     cleanCajaEventosForDisplay(cajaEventosArray(cierre?.eventos));
 
-  // Observation: get from the most recent "cierre" event (not from root field)
+  const latestCierre = cierres[0] ?? null;
+  const latestEventos = latestCierre ? cierreEventos(latestCierre) : [];
+  const cierreEvent = [...latestEventos].reverse().find((e: any) => e?.tipo === "cierre");
+  const aperturaEvent = [...latestEventos].find((e: any) => e?.tipo === "apertura") ?? latestEventos[0];
+
+  const actor = (value?: string | null) => displayResponsibleUser(value ?? userEmail ?? "Usuario");
+  const openedBy = actor(aperturaEvent?.usuario ?? latestCierre?.opened_by ?? latestCierre?.created_by ?? userEmail);
+  const closedBy = actor(cierreEvent?.usuario ?? latestCierre?.closed_by ?? latestCierre?.user_email ?? userEmail);
+  const openedAt = aperturaEvent?.hora ?? latestCierre?.hora_apertura ?? "—";
+  const closedAt = cierreEvent?.hora ?? latestCierre?.hora_cierre ?? "—";
+
   function getCierreObservacion(cierre: any): string | null {
     const eventos = cierreEventos(cierre);
-    // Find last cierre event that has an observacion
     const lastCierre = [...eventos]
       .reverse()
       .find((e: any) => e?.tipo === "cierre" && e?.observacion);
@@ -4006,8 +4016,7 @@ function CierresTab({
   async function reabrirCaja(cierre: any) {
     if (!businessId || !cierre?.id || reopeningId) return;
 
-    const reason =
-      window.prompt("Motivo de reapertura de caja (opcional)") ?? "";
+    const reason = window.prompt("Motivo de reapertura de caja (opcional)") ?? "";
     setReopeningId(cierre.id);
 
     try {
@@ -4038,7 +4047,7 @@ function CierresTab({
       }
 
       const now = new Date();
-      const user = "Caja";
+      const user = userEmail ? displayResponsibleUser(userEmail) : "Usuario";
       const hora = now.toLocaleTimeString("es-AR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -4098,101 +4107,188 @@ function CierresTab({
     }
   }
 
+  const renderEstado = (c: any) => (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 text-xs font-bold ring-1",
+        c?.estado === "reabierta"
+          ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
+          : "bg-rose-500/10 text-rose-300 ring-rose-400/25",
+      )}
+    >
+      {c?.estado === "reabierta" ? "Reabierta" : "Cerrada"}
+    </span>
+  );
+
   return (
-    <div className="space-y-3 animate-fade-up">
-      <div>
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          Cierres de caja
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Historial de cierres manuales y automáticos.
-        </p>
+    <div className="-mt-3 space-y-4 animate-fade-up">
+      <div className="inline-flex rounded-3xl border border-white/[0.085] bg-black/35 p-1.5">
+        {[
+          ["dia", "Caja del día"],
+          ["historial", "Historial"],
+        ].map(([id, label]) => {
+          const active = subtab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setSubtab(id as "dia" | "historial")}
+              className={cn(
+                "rounded-2xl px-4 py-2 text-sm font-bold transition",
+                active
+                  ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/25"
+                  : "text-white/55 hover:bg-white/[0.045] hover:text-white",
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
-      {loading ? (
-        <div className="py-10 text-center text-sm text-muted-foreground animate-pulse">
+      {subtab === "dia" ? (
+        <div className="rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.98),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-6 shadow-[0_35px_110px_-60px_rgba(0,0,0,1)]">
+          {!cajaCerrada ? (
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="inline-flex rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
+                  Caja abierta
+                </div>
+                <h3 className="mt-4 text-2xl font-bold text-white">Operación diaria activa</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Responsable: <span className="font-semibold text-white">{openedBy}</span>
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Hora de apertura: <span className="font-semibold text-white">{openedAt}</span>
+                </p>
+              </div>
+              <CierreCajaBtn
+                paymentsToday={paymentsToday}
+                expensesToday={expensesToday}
+                businessId={businessId}
+                userEmail={userEmail}
+                onCajaCerrada={() => {
+                  onCajaCerrada();
+                  loadCierres();
+                }}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="inline-flex rounded-full border border-rose-400/25 bg-rose-400/10 px-3 py-1 text-xs font-bold text-rose-300">
+                  Caja cerrada
+                </div>
+                <h3 className="mt-4 text-2xl font-bold text-white">La caja está bloqueada</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Cerró: <span className="font-semibold text-white">{closedBy}</span>
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Hora de cierre: <span className="font-semibold text-white">{closedAt}</span>
+                </p>
+                <p className="mt-4 rounded-2xl border border-amber-300/18 bg-amber-300/[0.06] px-4 py-3 text-sm text-amber-100/85">
+                  No se pueden registrar nuevas ventas hasta reabrir la caja.
+                </p>
+              </div>
+              {latestCierre && (
+                <button
+                  type="button"
+                  disabled={reopeningId === latestCierre.id}
+                  onClick={() => reabrirCaja(latestCierre)}
+                  className="rounded-2xl border border-emerald-300/35 bg-emerald-400/16 px-5 py-3 text-sm font-extrabold text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.16)] transition hover:bg-emerald-400/24 disabled:opacity-50"
+                >
+                  {reopeningId === latestCierre.id ? "Reabriendo…" : "Reabrir caja"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : loading ? (
+        <div className="rounded-3xl border border-white/[0.08] bg-black/30 py-12 text-center text-sm text-muted-foreground animate-pulse">
           Cargando…
         </div>
       ) : cierres.length === 0 ? (
-        <div className="glass rounded-2xl py-12 text-center text-sm text-muted-foreground cash-panel-glow">
+        <div className="rounded-3xl border border-white/[0.08] bg-black/30 py-12 text-center text-sm text-muted-foreground">
           Sin cierres registrados todavía.
         </div>
       ) : (
-        <div className="glass rounded-2xl overflow-hidden cash-panel-glow">
-          <div className="grid grid-cols-[1fr_160px] px-5 py-2 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
+        <div className="overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.98),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] shadow-[0_35px_110px_-60px_rgba(0,0,0,1)]">
+          <div className="grid grid-cols-[100px_1fr_120px_120px_120px_120px_120px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
             <div>Fecha</div>
-            <div className="text-right">Estado</div>
+            <div>Responsable</div>
+            <div>Apertura</div>
+            <div>Cierre</div>
+            <div>Estado</div>
+            <div>Diferencia</div>
+            <div className="text-right">Detalle</div>
           </div>
-          {cierres.map((c) => {
-            const eventos = cierreEventos(c);
-            const nCierres =
-              eventos.filter((e: any) => e?.tipo === "cierre").length || 1;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setSelected(c)}
-                className="w-full grid grid-cols-[1fr_160px] items-center px-5 py-3.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/[0.025] transition text-left"
-              >
-                <div>
-                  <div className="text-foreground text-sm font-medium">
-                    {new Date(c.fecha + "T12:00:00").toLocaleDateString(
-                      "es-AR",
-                      { weekday: "short", day: "numeric", month: "numeric" },
-                    )}
+          <div className="max-h-[52vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            {cierres.map((c) => {
+              const eventos = cierreEventos(c);
+              const cierre = [...eventos].reverse().find((e: any) => e?.tipo === "cierre");
+              const apertura = eventos.find((e: any) => e?.tipo === "apertura") ?? eventos[0];
+              const responsable = actor(cierre?.usuario ?? c.closed_by ?? c.user_email ?? c.created_by);
+              const diferencia = Number(c.diferencia ?? c.cash_difference ?? 0);
+              return (
+                <div
+                  key={c.id}
+                  className="grid grid-cols-[100px_1fr_120px_120px_120px_120px_120px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0"
+                >
+                  <div className="text-white/80">
+                    {new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", {
+                      day: "numeric",
+                      month: "numeric",
+                    })}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {nCierres} cierre{nCierres === 1 ? "" : "s"}
+                  <div className="truncate font-semibold text-white/85">{responsable}</div>
+                  <div className="text-muted-foreground">{apertura?.hora ?? c.hora_apertura ?? "—"}</div>
+                  <div className="text-muted-foreground">{cierre?.hora ?? c.hora_cierre ?? "—"}</div>
+                  <div>{renderEstado(c)}</div>
+                  <div className={cn("font-bold tabular-nums", diferencia === 0 ? "text-white/45" : diferencia > 0 ? "text-emerald-300" : "text-rose-300")}>
+                    {diferencia ? `$${diferencia.toLocaleString("es-AR")}` : "—"}
+                  </div>
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => setSelected(c)}
+                      className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-white/75 transition hover:bg-white/[0.08] hover:text-white"
+                    >
+                      Ver detalle
+                    </button>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span
-                    className={cn(
-                      "text-xs px-2 py-0.5 rounded-full ring-1",
-                      c.estado === "reabierta"
-                        ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-300"
-                        : "bg-rose-500/10 ring-rose-400/20 text-rose-300",
-                    )}
-                  >
-                    {c.estado === "reabierta" ? "Reabierta" : "Cerrada"}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {selected && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden max-h-[88vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-2 border-b border-white/10 sticky top-0 bg-[oklch(0.11_0.04_275)] z-10">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/[0.10] bg-[linear-gradient(135deg,rgba(5,8,15,0.99),rgba(10,12,24,0.98),rgba(2,4,12,0.99))] shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/35 px-5 py-4">
               <div>
-                <div className="font-semibold text-sm">Detalle del cierre</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {new Date(selected.fecha + "T12:00:00").toLocaleDateString(
-                    "es-AR",
-                    {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    },
-                  )}{" "}
+                <div className="font-semibold text-sm text-white">Detalle del cierre</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {new Date(selected.fecha + "T12:00:00").toLocaleDateString("es-AR", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}{" "}
                   · {selected.hora_cierre ?? "—"}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+                className="rounded-xl bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
               >
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-3 text-sm">
-              {/* KPIs */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="max-h-[76vh] overflow-y-auto p-5 text-sm [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[
                   {
                     l: "Cobrado",
@@ -4213,218 +4309,74 @@ function CierresTab({
                         : "text-rose-300",
                   },
                   {
-                    l: "Cobros",
-                    v: String(selected.cantidad_cobros ?? "—"),
-                    cls: "text-foreground",
+                    l: "Diferencia",
+                    v:
+                      selected.diferencia != null
+                        ? `$${Number(selected.diferencia).toLocaleString("es-AR")}`
+                        : "—",
+                    cls: "text-white",
                   },
-                ].map((r) => (
-                  <div
-                    key={r.l}
-                    className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3"
-                  >
-                    <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
-                      {r.l}
+                ].map((k) => (
+                  <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                      {k.l}
                     </div>
-                    <div className={`mt-1 font-semibold tabular-nums ${r.cls}`}>
-                      {r.v}
+                    <div className={cn("mt-1 text-lg font-extrabold tabular-nums", k.cls)}>
+                      {k.v}
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Observation for THIS specific cierre — from last cierre event */}
-              {getCierreObservacion(selected) && (
-                <div className="rounded-xl bg-blue-500/[0.06] ring-1 ring-blue-400/15 px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-blue-300/60 mb-1">
-                    Observación del cierre
+              {selected.detalle_metodos && (
+                <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                    Medios de pago
                   </div>
-                  <p className="text-sm text-foreground/80 whitespace-pre-wrap">
-                    {getCierreObservacion(selected)}
-                  </p>
-                </div>
-              )}
-
-              {/* Full event history — always shown */}
-              {cierreEventos(selected).length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
-                    Historial de movimientos
-                  </div>
-                  <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden divide-y divide-white/5">
-                    {cierreEventos(selected).map((ev: any, i: number) => {
-                      const hora =
-                        ev.hora ??
-                        (ev.fecha_hora
-                          ? new Date(ev.fecha_hora).toLocaleTimeString(
-                              "es-AR",
-                              { hour: "2-digit", minute: "2-digit" },
-                            )
-                          : "—");
-                      const fecha = ev.fecha_hora
-                        ? new Date(ev.fecha_hora).toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                          })
-                        : "";
-                      const isReopen = ev.tipo === "reapertura";
-                      return (
-                        <div key={i} className="px-4 py-3 text-xs space-y-0.5">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={cn(
-                                  "size-1.5 rounded-full shrink-0",
-                                  isReopen ? "bg-emerald-400" : "bg-rose-400",
-                                )}
-                              />
-                              <span
-                                className={cn(
-                                  "font-semibold",
-                                  isReopen
-                                    ? "text-emerald-300"
-                                    : "text-rose-300",
-                                )}
-                              >
-                                {isReopen ? "Reabrió caja" : "Cerró caja"}
-                              </span>
-                            </div>
-                            <span className="text-muted-foreground tabular-nums">
-                              {fecha} {hora}
-                            </span>
-                          </div>
-                          <div className="pl-3.5 text-muted-foreground">
-                            Usuario:{" "}
-                            <span className="text-foreground">
-                              {ev.usuario ?? "—"}
-                            </span>
-                            {ev.motivo && (
-                              <span>
-                                {" "}
-                                · Motivo:{" "}
-                                <span className="text-foreground">
-                                  {ev.motivo}
-                                </span>
-                              </span>
-                            )}
-                            {ev.observacion && (
-                              <span>
-                                {" "}
-                                · Obs:{" "}
-                                <span className="text-foreground">
-                                  {ev.observacion}
-                                </span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Detalle por método */}
-              {selected.detalle_metodos_pago &&
-                Object.keys(selected.detalle_metodos_pago).length > 0 && (
-                  <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                    <div className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">
-                      <div>Método</div>
-                      <div className="text-right">Ingresos</div>
-                      <div className="text-right">Gastos</div>
-                      <div className="text-right">Utilidad</div>
-                    </div>
-                    {Object.entries(
-                      selected.detalle_metodos_pago as Record<
-                        string,
-                        CierreMetodoDetalle
-                      >,
-                    ).map(([m, row]) => (
-                      <div
-                        key={m}
-                        className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 last:border-0"
-                      >
-                        <span className="text-muted-foreground capitalize">
-                          {paymentMethodLabel(m)}
-                        </span>
-                        <span className="text-right font-semibold tabular-nums text-emerald-300">
-                          ${Number(row.ingresos ?? 0).toLocaleString("es-AR")}
-                        </span>
-                        <span className="text-right font-semibold tabular-nums text-rose-300">
-                          ${Number(row.gastos ?? 0).toLocaleString("es-AR")}
-                        </span>
-                        <span
-                          className={`text-right font-semibold tabular-nums ${Number(row.utilidad ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                        >
-                          ${Number(row.utilidad ?? 0).toLocaleString("es-AR")}
-                        </span>
+                  <div className="space-y-2">
+                    {Object.entries(selected.detalle_metodos as Record<string, any>).map(([method, row]) => (
+                      <div key={method} className="grid grid-cols-4 gap-2 rounded-xl bg-black/22 px-3 py-2 text-xs">
+                        <div className="font-semibold text-white">{paymentMethodLabel(method)}</div>
+                        <div className="text-emerald-300">Ingresos ${Number(row.ingresos ?? 0).toLocaleString("es-AR")}</div>
+                        <div className="text-rose-300">Gastos ${Number(row.gastos ?? 0).toLocaleString("es-AR")}</div>
+                        <div className="text-white/80">Neto ${Number(row.utilidad ?? 0).toLocaleString("es-AR")}</div>
                       </div>
                     ))}
                   </div>
-                )}
+                </div>
+              )}
 
-              {Array.isArray(selected.cobros_snapshot) &&
-                selected.cobros_snapshot.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
-                      Cobros incluidos
-                    </div>
-                    <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden divide-y divide-white/5">
-                      {selected.cobros_snapshot.map((c: any, i: number) => (
-                        <div
-                          key={c.id ?? i}
-                          className="grid grid-cols-[55px_1fr_1fr_90px] gap-2 px-4 py-2.5 text-xs"
-                        >
-                          <span className="text-muted-foreground">
-                            {c.hora ?? "—"}
-                          </span>
-                          <span>{c.cliente ?? "Sin cliente"}</span>
-                          <span className="text-muted-foreground truncate">
-                            {c.servicio ?? "Venta"}
-                          </span>
-                          <span className="text-right font-semibold tabular-nums">
-                            ${Number(c.monto ?? 0).toLocaleString("es-AR")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+              {getCierreObservacion(selected) && (
+                <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                    Observaciones
                   </div>
-                )}
+                  <p className="mt-2 text-white/80">{getCierreObservacion(selected)}</p>
+                </div>
+              )}
 
-              {Array.isArray(selected.gastos_snapshot) &&
-                selected.gastos_snapshot.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
-                      Gastos incluidos
+              <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+                <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                  Auditoría
+                </div>
+                <div className="space-y-2">
+                  {cierreEventos(selected).map((e: any, index: number) => (
+                    <div key={`${e?.tipo}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-xs">
+                      <span className="font-semibold text-white">{e?.tipo ?? "evento"}</span>
+                      <span className="text-muted-foreground">
+                        {e?.hora ?? "—"} · {actor(e?.usuario)}
+                      </span>
                     </div>
-                    <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden divide-y divide-white/5">
-                      {selected.gastos_snapshot.map((g: any, i: number) => (
-                        <div
-                          key={g.id ?? i}
-                          className="grid grid-cols-[55px_1fr_1fr_90px] gap-2 px-4 py-2.5 text-xs"
-                        >
-                          <span className="text-muted-foreground">
-                            {g.hora ?? "—"}
-                          </span>
-                          <span>{g.nombre ?? "Gasto"}</span>
-                          <span className="text-muted-foreground truncate">
-                            {g.metodo ?? g.tipo ?? "—"}
-                          </span>
-                          <span className="text-right font-semibold tabular-nums text-rose-300">
-                            -${Number(g.monto ?? 0).toLocaleString("es-AR")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  ))}
+                </div>
+              </div>
 
-              {/* Reabrir — only show when caja is actually closed (not already reopened) */}
-              {cajaCerrada && selected.estado !== "reabierta" && (
+              {selected.estado !== "reabierta" && (
                 <button
                   type="button"
-                  onClick={() => reabrirCaja(selected)}
                   disabled={reopeningId === selected.id}
-                  className="w-full rounded-xl bg-white/[0.04] hover:bg-white/[0.07] ring-1 ring-white/10 px-4 py-3 text-sm font-semibold transition disabled:opacity-50"
+                  onClick={() => reabrirCaja(selected)}
+                  className="mt-4 w-full rounded-2xl border border-emerald-300/35 bg-emerald-400/16 px-4 py-3 text-sm font-extrabold text-emerald-100 transition hover:bg-emerald-400/24 disabled:opacity-50"
                 >
                   {reopeningId === selected.id ? "Reabriendo…" : "Reabrir caja"}
                 </button>
@@ -4436,31 +4388,6 @@ function CierresTab({
     </div>
   );
 }
-
-// helpers
-const CHARGE_TYPE_META: Record<string, { label: string; cls: string }> = {
-  auto: {
-    label: "Automático",
-    cls: "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300",
-  },
-  manual: {
-    label: "Manual",
-    cls: "bg-blue-500/10  ring-blue-400/25  text-blue-200",
-  },
-  caja: {
-    label: "Caja",
-    cls: "bg-sky-500/10    ring-sky-400/25    text-sky-300",
-  },
-};
-
-const STATUS_META: Record<string, { label: string; dot: string }> = {
-  cobrado: { label: "Cobrado", dot: "bg-emerald-400" },
-  pendiente: { label: "Pendiente", dot: "bg-blue-400" },
-  pending_payment: { label: "Pendiente", dot: "bg-blue-400" },
-  aprobado: { label: "Aprobado", dot: "bg-sky-400" },
-  anulado: { label: "Anulado", dot: "bg-rose-400" },
-  reembolsado: { label: "Reembolsado", dot: "bg-violet-400" },
-};
 
 function StatusPill({ status }: { status: string }) {
   const m = STATUS_META[status] ?? { label: status, dot: "bg-white/40" };
@@ -5104,7 +5031,7 @@ function History({
 
       {pendingNoteModal && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[80] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setPendingNoteModal(null)}
         >
           <div
