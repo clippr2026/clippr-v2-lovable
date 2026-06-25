@@ -747,33 +747,7 @@ function Tabs({
       </div>
       {tab === "resumen" && resumenPanel !== "pendientes" && (
         <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
-          {resumenPanel === "ingresos" && data.approvalModeEnabled && (
-            <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-1.5 backdrop-blur-xl">
-              {([
-                { id: "auto", label: "Automático", title: "El profesional cobra desde su panel y el cobro impacta directo en ingresos." },
-                { id: "manual", label: "Manual", title: "El profesional envía el cobro a pendientes y Caja lo confirma." },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => data.setApprovalMode(opt.id)}
-                  title={opt.title}
-                  className={cn(
-                    "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
-                    data.approvalMode === opt.id
-                      ? opt.id === "auto"
-                        ? "bg-emerald-400/14 text-emerald-200 ring-1 ring-emerald-300/24"
-                        : "bg-sky-400/14 text-sky-200 ring-1 ring-sky-300/24"
-                      : "text-white/50 hover:bg-white/[0.045] hover:text-white/80"
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {resumenPanel === "gastos" && (
+                    {resumenPanel === "gastos" && (
             <button
               onClick={onNuevoGasto}
               className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-extrabold transition-all duration-200 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 border border-rose-300/38 ring-1 ring-rose-400/30 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]"
@@ -841,6 +815,37 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
       <span className="text-muted-foreground/70 mr-0.5">$</span>
       {integer}
     </span>
+  );
+}
+
+
+function ApprovalModeToggle({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
+  if (!data.approvalModeEnabled || !equipoEnabled) return null;
+
+  return (
+    <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-1.5 backdrop-blur-xl">
+      {([
+        { id: "auto", label: "Automático", title: "El profesional cobra desde su panel y el cobro impacta directo en ingresos." },
+        { id: "manual", label: "Manual", title: "El profesional envía el cobro a pendientes y Caja lo confirma." },
+      ] as const).map((opt) => (
+        <button
+          key={opt.id}
+          type="button"
+          onClick={() => data.setApprovalMode(opt.id)}
+          title={opt.title}
+          className={cn(
+            "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
+            data.approvalMode === opt.id
+              ? opt.id === "auto"
+                ? "bg-emerald-400/14 text-emerald-200 ring-1 ring-emerald-300/24"
+                : "bg-sky-400/14 text-sky-200 ring-1 ring-sky-300/24"
+              : "text-white/50 hover:bg-white/[0.045] hover:text-white/80",
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -1064,88 +1069,22 @@ function ResumenTab({
             equipoEnabled={equipoEnabled}
             onCobrarPendiente={onCobrarPendiente}
             title="Últimos ingresos"
+            panel="ingresos"
             theme={activeTheme}
           />
         </div>
       )}
 
       {activePanel === "pendientes" && (
-        <div
-          className={cn(
-            "relative z-10 rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300",
-            panelTheme.pendientes.panelBg,
-            panelTheme.pendientes.border,
-            panelTheme.pendientes.glow,
-          )}
-        >
-          <div
-            className={cn(
-              "px-5 py-4 border-b flex items-center justify-between",
-              panelTheme.pendientes.tableHead,
-            )}
-          >
-            <div
-              className={cn(
-                "text-sm font-semibold",
-                panelTheme.pendientes.title,
-              )}
-            >
-              Pendientes de cobro
-            </div>
-          </div>
-          {data.pendingCharges.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">
-              Sin pendientes.
-            </p>
-          ) : (
-            <div className="divide-y divide-white/5">
-              {data.pendingCharges.map((a: any) => (
-                <div
-                  key={a.id}
-                  className={cn(
-                    "px-5 py-3.5 flex items-start justify-between gap-3 transition-all duration-200",
-                    panelTheme.pendientes.rowHover,
-                  )}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">
-                      {a.client_name ?? "Sin cliente"}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {a.service_name ?? "—"}
-                      {a.starts_at && (
-                        <span>
-                          {" "}
-                          ·{" "}
-                          {new Date(a.starts_at).toLocaleTimeString("es-AR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className={cn("text-sm font-semibold tabular-nums", panelTheme.pendientes.amount)}>
-                      ${Number(a.service_price ?? 0).toLocaleString("es-AR")}
-                    </div>
-                    {equipoEnabled && (
-                      <button
-                        onClick={() => onCobrarPendiente(a)}
-                        className={cn(
-                          "text-xs font-semibold px-2.5 py-1 rounded-lg ring-1 transition",
-                          panelTheme.pendientes.badge,
-                          "hover:bg-sky-400/20",
-                        )}
-                      >
-                        Cobrar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="relative z-10">
+          <History
+            data={data}
+            equipoEnabled={equipoEnabled}
+            onCobrarPendiente={onCobrarPendiente}
+            title="Pendientes de cobro"
+            panel="pendientes"
+            theme={activeTheme}
+          />
         </div>
       )}
 
@@ -4478,6 +4417,7 @@ function History({
   equipoEnabled,
   onCobrarPendiente,
   title = "Cobros",
+  panel = "ingresos",
   theme,
 }: {
   data: ReturnType<typeof useCajaData>;
@@ -4486,6 +4426,7 @@ function History({
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
   title?: string;
+  panel?: "ingresos" | "pendientes";
   theme?: {
     border: string;
     glow: string;
@@ -4513,8 +4454,8 @@ function History({
     badge: "bg-emerald-500/12 text-emerald-300 ring-emerald-400/20",
   };
 
-  const rows = data.paymentsToday;
-  const pendingRows = data.pendingCharges;
+  const rows = panel === "ingresos" ? data.paymentsToday : [];
+  const pendingRows = panel === "pendientes" ? data.pendingCharges : [];
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(
     null,
@@ -4584,23 +4525,16 @@ function History({
           )}
         >
           <div className="flex items-center gap-3 flex-wrap">
-            <div
-              className={cn(
-                "grid size-8 place-items-center rounded-xl ring-1",
-                incomeTheme.headerIcon,
-              )}
-            >
-              <ClipboardList className="size-4" />
-            </div>
             <h3
               className={cn(
-                "text-lg font-bold tracking-tight",
+                "text-base font-bold tracking-tight",
                 incomeTheme.title,
               )}
             >
               {title}
             </h3>
           </div>
+          <ApprovalModeToggle data={data} equipoEnabled={equipoEnabled} />
         </div>
 
         {/* Table header */}
@@ -4629,7 +4563,7 @@ function History({
               </div>
             ) : !hasAnyRows ? (
               <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                Sin cobros
+                {panel === "pendientes" ? "Sin pendientes." : "Sin cobros"}
               </div>
             ) : (
               <>
@@ -4657,7 +4591,7 @@ function History({
                     <div
                       key={`pending-${p.id}`}
                       className={cn(
-                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] bg-emerald-400/[0.025] transition-all duration-200 cursor-pointer",
+                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200 cursor-pointer",
                         incomeTheme.rowHover,
                       )}
                       onClick={() => onCobrarPendiente(p)}
@@ -4690,7 +4624,7 @@ function History({
                           </button>
                         )}
                       </div>
-                      <div className="text-foreground tabular-nums font-medium text-right">
+                      <div className={cn("tabular-nums font-bold text-right", incomeTheme.amount)}>
                         ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground">—</div>
@@ -4748,7 +4682,7 @@ function History({
                   return (
                     <div
                       key={p.id}
-                      className="grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 hover:bg-white/[0.035] transition-all duration-200 group cursor-pointer"
+                      className={cn("grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3.5 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">
