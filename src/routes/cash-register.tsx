@@ -1100,7 +1100,7 @@ function ResumenTab({
           >
             <div
               className={cn(
-                "flex items-center justify-between gap-3 px-6 py-5 border-b",
+                "flex min-h-[78px] items-center justify-between gap-3 px-6 py-5 border-b",
                 panelTheme.gastos.tableHead,
               )}
             >
@@ -4543,7 +4543,7 @@ function History({
         {/* Header */}
         <div
           className={cn(
-            "flex items-center justify-between gap-3 px-6 py-5 border-b",
+            "flex min-h-[78px] items-center justify-between gap-3 px-6 py-5 border-b",
             incomeTheme.tableHead,
           )}
         >
@@ -5442,44 +5442,77 @@ function NuevaVentaTab({
   }
 
   const stepItems = [
-    { n: 1, label: "Profesional" },
-    { n: 2, label: "Cliente" },
-    { n: 3, label: "Servicios" },
-    { n: 4, label: "Pago" },
+    { n: 1, label: "Profesional", hint: selectedEmployee?.name ?? "Elegí quién atiende", icon: Wallet },
+    { n: 2, label: "Cliente", hint: clientId ? client || "Cliente seleccionado" : "Buscá o creá cliente", icon: Search },
+    { n: 3, label: "Servicios", hint: cartCount > 0 ? `${cartCount} ítem${cartCount === 1 ? "" : "s"}` : "Agregá servicios", icon: ClipboardList },
+    { n: 4, label: "Pago", hint: total > 0 ? `$${total.toLocaleString("es-AR")}` : "Confirmá cobro", icon: CreditCard },
   ] as const;
 
+  function canOpenStep(target: 1 | 2 | 3 | 4) {
+    if (target > 1 && !employeeId) return false;
+    if (target > 2 && !clientId) return false;
+    if (target > 3 && cartItems.length === 0) return false;
+    return true;
+  }
+
   return (
-    <div className="max-w-3xl mx-auto w-full space-y-5">
-      <Card className="p-1.5">
-        <div className="grid grid-cols-4 gap-1">
-          {stepItems.map((s) => {
+    <div className="max-w-4xl mx-auto w-full space-y-5">
+      <Card className="overflow-hidden rounded-3xl border-white/[0.08] bg-[linear-gradient(135deg,rgba(15,23,42,0.78),rgba(20,13,40,0.62),rgba(3,7,18,0.88))] p-2 shadow-[0_30px_90px_-55px_rgba(139,92,246,0.45)]">
+        <div className="grid grid-cols-4 gap-2">
+          {stepItems.map((s, index) => {
             const active = step === s.n;
+            const done = step > s.n;
+            const enabled = canOpenStep(s.n);
+            const Icon = s.icon;
             return (
               <button
                 key={s.n}
+                type="button"
                 onClick={() => {
-                  if (s.n > 1 && !employeeId) {
-                    toast.error("Seleccioná un profesional.");
-                    return;
-                  }
-                  if (s.n > 2 && !clientId) {
-                    toast.error("Seleccioná o creá un cliente.");
-                    return;
-                  }
-                  if (s.n > 3 && cartItems.length === 0) {
-                    toast.error("Agregá al menos un servicio o producto.");
+                  if (!enabled) {
+                    if (s.n > 1 && !employeeId) toast.error("Seleccioná un profesional.");
+                    else if (s.n > 2 && !clientId) toast.error("Seleccioná o creá un cliente.");
+                    else if (s.n > 3 && cartItems.length === 0) toast.error("Agregá al menos un servicio o producto.");
                     return;
                   }
                   setStep(s.n);
                 }}
                 className={cn(
-                  "rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border",
+                  "group relative overflow-hidden rounded-2xl border px-3 py-3 text-left transition-all duration-300",
                   active
-                    ? "bg-gradient-to-b from-blue-200 to-blue-300 text-black border-blue-200"
-                    : "text-muted-foreground border-white/10 bg-white/[0.02] hover:text-foreground",
+                    ? "border-sky-300/35 bg-[linear-gradient(135deg,rgba(125,211,252,0.95),rgba(167,139,250,0.92))] text-slate-950 shadow-[0_0_34px_rgba(125,211,252,0.28),0_1px_0_rgba(255,255,255,0.35)_inset]"
+                    : done
+                      ? "border-emerald-300/20 bg-emerald-400/[0.055] text-emerald-100 hover:bg-emerald-400/[0.08]"
+                      : "border-white/[0.075] bg-white/[0.025] text-white/55 hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-white/85",
+                  !enabled && !active && "cursor-not-allowed opacity-55",
                 )}
               >
-                {s.n} · {s.label}
+                {index < stepItems.length - 1 && (
+                  <span className={cn(
+                    "pointer-events-none absolute right-[-10px] top-1/2 hidden h-px w-5 -translate-y-1/2 md:block",
+                    done ? "bg-emerald-300/40" : "bg-white/10",
+                  )} />
+                )}
+                <div className="relative flex items-center gap-3">
+                  <span className={cn(
+                    "grid size-9 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105",
+                    active
+                      ? "bg-white/30 text-slate-950 ring-white/45"
+                      : done
+                        ? "bg-emerald-400/14 text-emerald-200 ring-emerald-300/24"
+                        : "bg-white/[0.045] text-white/55 ring-white/10",
+                  )}>
+                    {done ? <Check className="size-4" /> : <Icon className="size-4" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={cn("block text-sm font-extrabold", active ? "text-slate-950" : "text-current")}>
+                      {s.n} · {s.label}
+                    </span>
+                    <span className={cn("mt-0.5 block truncate text-[11px] font-medium", active ? "text-slate-900/70" : "text-white/40")}>
+                      {s.hint}
+                    </span>
+                  </span>
+                </div>
               </button>
             );
           })}
@@ -5488,9 +5521,10 @@ function NuevaVentaTab({
 
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Seleccioná un profesional
-          </p>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 1</p>
+            <h3 className="mt-1 text-xl font-bold text-white">Seleccioná un profesional</h3>
+          </div>
           {data.employees.length === 0 ? (
             <Card className="px-4 py-10 text-center text-sm text-muted-foreground">
               No hay profesionales activos. Cargalos en Configuración → Equipo →
@@ -5735,7 +5769,7 @@ function NuevaVentaTab({
 
       {step === 3 && (
         <div className="space-y-4">
-          <Card className="px-4 py-3 flex items-center gap-3">
+          <Card className="rounded-2xl border-white/[0.08] bg-white/[0.035] px-4 py-3 flex items-center gap-3">
             <Search className="size-4 text-muted-foreground" />
             <input
               value={query}
@@ -5843,7 +5877,11 @@ function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="p-5 space-y-5">
+        <Card className="rounded-3xl p-5 space-y-5 bg-[linear-gradient(135deg,rgba(15,23,42,0.76),rgba(20,13,40,0.72),rgba(3,7,18,0.9))] shadow-[0_30px_90px_-55px_rgba(139,92,246,0.45)]">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
+            <h3 className="mt-1 text-xl font-bold text-white">Confirmá el pago</h3>
+          </div>
           <div className="space-y-2">
             <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
               RESUMEN
@@ -6025,7 +6063,7 @@ function NuevaVentaTab({
       )}
 
       <div className="sticky bottom-4 z-10">
-        <Card className="px-4 py-3 flex items-center gap-4">
+        <Card className="rounded-3xl border-white/[0.10] bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(28,18,54,0.78),rgba(3,7,18,0.92))] px-4 py-3 flex items-center gap-4 shadow-[0_24px_70px_-42px_rgba(139,92,246,0.45)]">
           <button
             onClick={() =>
               setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s))
