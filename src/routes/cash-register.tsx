@@ -6080,7 +6080,7 @@ function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="relative z-20 mt-auto shrink-0 pt-3">
+      <div className="relative z-20 mt-auto shrink-0 pt-3 pb-2">
         <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3 py-2 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
