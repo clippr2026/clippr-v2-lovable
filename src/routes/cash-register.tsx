@@ -217,15 +217,25 @@ function removeLocalManualPendingCharge(id: string) {
   }
 }
 
-function getManualPendingNote(notes?: string | null) {
+function getManualPendingNote(notes?: string | null, serviceName?: string | null) {
   const value = String(notes ?? "")
     .replace("[PENDIENTE_CAJA]", "")
     .trim();
 
   const lower = value.toLowerCase();
-  const genericServices = ["corte", "barba", "corte + barba", "corte de pelo"];
+  const serviceLower = String(serviceName ?? "").trim().toLowerCase();
+  const genericServices = [
+    "corte",
+    "barba",
+    "corte + barba",
+    "corte de pelo",
+    "corte en cabello corto",
+    "servicio realizado",
+  ];
 
-  if (!value || genericServices.includes(lower)) return "";
+  if (!value) return "";
+  if (serviceLower && lower === serviceLower) return "";
+  if (genericServices.includes(lower)) return "";
 
   return value;
 }
@@ -4664,7 +4674,7 @@ function History({
           <div className="min-w-[1080px]">
             <div
               className={cn(
-                "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                panel === "pendientes" ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase" : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                 incomeTheme.tableHead,
               )}
             >
@@ -4675,7 +4685,7 @@ function History({
               <div className="text-right">Monto</div>
               <div>Método</div>
               <div>Historial</div>
-              <div>Acción</div>
+              {panel === "pendientes" && <div>Acción</div>}
             </div>
 
             {/* Rows */}
@@ -4698,7 +4708,7 @@ function History({
                   const empName =
                     data.employees.find((e) => e.id === p.employee_id)?.name ??
                     "—";
-                  const pendingNote = getManualPendingNote(p.notes);
+                  const pendingNote = getManualPendingNote(p.notes, p.service_name);
                   const historialEvents = getHistorialCobro(p.id);
                   // Mostrar "Cobrar" si: existe "Envió a caja" y NO existe "Cobró"
                   const envioACaja = historialEvents.some(
@@ -4791,6 +4801,7 @@ function History({
                     (paymentRecord.observations as string | null) ??
                       (paymentRecord.notes as string | null) ??
                       null,
+                    saleDetail,
                   );
                   const historialEvents = buildPaidHistorialEvents(
                     paymentRecord,
@@ -4804,7 +4815,7 @@ function History({
                   return (
                     <div
                       key={p.id}
-                      className={cn("grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
+                      className={cn("grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">
@@ -4846,11 +4857,6 @@ function History({
                       </div>
                       <div>
                         <HistorialCell events={historialEvents} />
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="rounded-full bg-emerald-400/12 px-2.5 py-1 text-[11px] font-bold text-emerald-300 ring-1 ring-emerald-400/18">
-                          Cobrado
-                        </span>
                       </div>
                     </div>
                   );
@@ -5092,11 +5098,11 @@ function NuevaVentaTab({
   onPendingDone?: () => void;
   onSaleDone?: () => void;
 }) {
-  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 3 : 1);
+  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 4 : 1);
   const [cart, setCart] = React.useState<Record<string, number>>({});
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState<string>("");
-  const [clientId, setClientId] = React.useState<string | null>(null);
+  const [clientId, setClientId] = React.useState<string | null>(pendingCharge ? `__pending_client__${pendingCharge.id}` : null);
   const [client, setClient] = React.useState(pendingCharge?.client_name ?? "");
   const [clientSearch, setClientSearch] = React.useState("");
   const [phone, setPhone] = React.useState("");
@@ -5119,6 +5125,28 @@ function NuevaVentaTab({
   const [professionalSearch, setProfessionalSearch] = React.useState("");
 
   const { isFieldEnabled } = useClientesConfig(data.businessId ?? null);
+  const pendingHydrateRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!pendingCharge) return;
+    if (pendingHydrateRef.current === pendingCharge.id) return;
+
+    pendingHydrateRef.current = pendingCharge.id;
+    pendingInjectedRef.current = false;
+    setStep(4);
+    setEmployeeId(pendingCharge.employee_id ?? "");
+    setClientId(`__pending_client__${pendingCharge.id}`);
+    setClient(pendingCharge.client_name ?? "Cliente del mostrador");
+    setClientSearch("");
+    setPhone("");
+    setEmail("");
+    setBirthDate("");
+    setClientNotes("");
+    setReceived("");
+    setPaymentMode("simple");
+    setSplits([{ method: "cash", amount: "" }]);
+  }, [pendingCharge]);
+
 
   // When pendingCharge arrives and services are loaded, inject the service into the cart
   const pendingInjectedRef = React.useRef(false);
@@ -5139,14 +5167,12 @@ function NuevaVentaTab({
 
     if (match) {
       setCart({ [match.id]: 1 });
-    } else if (pendingCharge.service_name) {
-      // Service not in catalogue — inject a virtual item keyed by a sentinel
-      // We'll handle the amount manually via a synthetic service entry below
-      // For now just leave cart empty; the service row will be shown via pendingCharge
+      pendingInjectedRef.current = true;
+    } else if (pendingCharge.service_name && syntheticServiceId) {
+      setCart({ [syntheticServiceId]: 1 });
+      pendingInjectedRef.current = true;
     }
-
-    pendingInjectedRef.current = true;
-  }, [pendingCharge, data.services]);
+  }, [pendingCharge, data.services, syntheticServiceId]);
 
   // If the service from pending is NOT in the catalogue we still need to show it in the cart.
   // We build a synthetic catalogue entry and inject it.
@@ -5287,7 +5313,7 @@ function NuevaVentaTab({
         .includes(q),
     );
   }, [data.employees, professionalSearch]);
-  const hasSelectedClient = Boolean(clientId);
+  const hasSelectedClient = Boolean(clientId || pendingCharge?.client_name);
   const serviceSummary =
     cartItems.length > 0
       ? cartItems
@@ -5348,7 +5374,8 @@ function NuevaVentaTab({
 
   async function saveClientIfNeeded(): Promise<string | null> {
     if (!data.businessId || !client.trim()) return clientId;
-    if (clientId) return clientId;
+    if (clientId && !clientId.startsWith("__pending_client__")) return clientId;
+    if (pendingCharge?.client_name) return null;
     try {
       const { data: created, error } = await supabase
         .from("clients")
@@ -5380,7 +5407,7 @@ function NuevaVentaTab({
       setStep(1);
       return;
     }
-    if (!clientId) {
+    if (!hasSelectedClient) {
       toast.error("Seleccioná o creá un cliente.");
       setStep(2);
       return;
@@ -5445,7 +5472,7 @@ function NuevaVentaTab({
           : undefined;
 
       if (pendingCharge) {
-        const professionalNote = getManualPendingNote(pendingCharge.notes);
+        const professionalNote = getManualPendingNote(pendingCharge.notes, pendingCharge.service_name);
 
         // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
         // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno
@@ -5472,7 +5499,7 @@ function NuevaVentaTab({
             client.trim() ||
             pendingCharge.client_name ||
             "Cliente del mostrador",
-          clientId: savedClientId,
+          clientId: savedClientId?.startsWith?.("__pending_client__") ? null : savedClientId,
           items,
           method,
           splits: validSplits,
@@ -5548,7 +5575,7 @@ function NuevaVentaTab({
 
   function canOpenStep(target: 1 | 2 | 3 | 4) {
     if (target > 1 && !employeeId) return false;
-    if (target > 2 && !clientId) return false;
+    if (target > 2 && !hasSelectedClient) return false;
     if (target > 3 && cartItems.length === 0) return false;
     return true;
   }
@@ -5571,7 +5598,7 @@ function NuevaVentaTab({
                 onClick={() => {
                   if (!enabled) {
                     if (s.n > 1 && !employeeId) toast.error("Seleccioná un profesional.");
-                    else if (s.n > 2 && !clientId) toast.error("Seleccioná o creá un cliente.");
+                    else if (s.n > 2 && !hasSelectedClient) toast.error("Seleccioná o creá un cliente.");
                     else if (s.n > 3 && cartItems.length === 0) toast.error("Agregá al menos un servicio o producto.");
                     return;
                   }
