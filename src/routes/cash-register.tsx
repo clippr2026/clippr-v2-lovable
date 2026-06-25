@@ -728,7 +728,7 @@ function ResumenTab({
     ingresos: {
       border: "border-emerald-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_14%_0%,rgba(16,185,129,0.16),transparent_42%),linear-gradient(180deg,rgba(5,40,32,0.62),rgba(3,7,18,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_14%_50%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,rgba(6,95,70,0.20),rgba(3,7,18,0.94))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
@@ -740,7 +740,7 @@ function ResumenTab({
     pendientes: {
       border: "border-orange-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_14%_0%,rgba(249,115,22,0.16),transparent_42%),linear-gradient(180deg,rgba(67,28,12,0.64),rgba(3,7,18,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_14%_50%,rgba(249,115,22,0.18),transparent_34%),linear-gradient(135deg,rgba(124,45,18,0.22),rgba(3,7,18,0.94))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
@@ -752,7 +752,7 @@ function ResumenTab({
     gastos: {
       border: "border-rose-400/24",
       glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
-      panelBg: "bg-[radial-gradient(circle_at_14%_0%,rgba(244,63,94,0.16),transparent_42%),linear-gradient(180deg,rgba(76,18,28,0.64),rgba(3,7,18,0.98))]",
+      panelBg: "bg-[radial-gradient(circle_at_14%_50%,rgba(244,63,94,0.17),transparent_34%),linear-gradient(135deg,rgba(127,29,29,0.22),rgba(3,7,18,0.94))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
@@ -766,8 +766,10 @@ function ResumenTab({
   const activeTheme = panelTheme[activePanel];
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div className="relative space-y-6 py-2">
+      <div className="pointer-events-none absolute inset-x-[-44px] top-[-42px] bottom-[-54px] z-0 rounded-[46px] bg-[radial-gradient(circle_at_50%_28%,rgba(0,0,0,0.58),rgba(0,0,0,0.34)_36%,rgba(0,0,0,0.16)_58%,transparent_78%)] blur-2xl" />
+      <div className="pointer-events-none absolute inset-x-[-22px] top-[-18px] bottom-[-28px] z-0 rounded-[38px] bg-[linear-gradient(180deg,rgba(0,0,0,0.22),rgba(0,0,0,0.42)_52%,rgba(0,0,0,0.20))]" />
+      <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
           const Icon = s.icon;
@@ -805,11 +807,13 @@ function ResumenTab({
       </div>
 
       {activePanel === "ingresos" && (
-        <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} title="Últimos movimientos" theme={activeTheme} />
+        <div className="relative z-10">
+          <History data={data} equipoEnabled={equipoEnabled} onCobrarPendiente={onCobrarPendiente} title="Últimos movimientos" theme={activeTheme} />
+        </div>
       )}
 
       {activePanel === "pendientes" && (
-        <div className={cn("rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.pendientes.panelBg, panelTheme.pendientes.border, panelTheme.pendientes.glow)}>
+        <div className={cn("relative z-10 rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.pendientes.panelBg, panelTheme.pendientes.border, panelTheme.pendientes.glow)}>
           <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.pendientes.tableHead)}>
             <div className={cn("text-sm font-semibold", panelTheme.pendientes.title)}>Pendientes de cobro</div>
             <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.pendientes.chip)}>
@@ -848,7 +852,7 @@ function ResumenTab({
       )}
 
       {activePanel === "gastos" && (
-        <div className={cn("rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.gastos.panelBg, panelTheme.gastos.border, panelTheme.gastos.glow)}>
+        <div className={cn("relative z-10 rounded-3xl border overflow-hidden cash-panel-glow transition-all duration-300", panelTheme.gastos.panelBg, panelTheme.gastos.border, panelTheme.gastos.glow)}>
           <div className={cn("px-5 py-4 border-b flex items-center justify-between", panelTheme.gastos.tableHead)}>
             <div className={cn("text-sm font-semibold", panelTheme.gastos.title)}>Gastos</div>
             <div className={cn("rounded-full px-3 py-1 text-xs font-semibold ring-1", panelTheme.gastos.chip)}>
@@ -3131,7 +3135,7 @@ function History({ data, equipoEnabled, onCobrarPendiente, title = "Cobros", the
   const incomeTheme = theme ?? {
     border: "border-emerald-400/24",
     glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
-    panelBg: "bg-[radial-gradient(circle_at_14%_0%,rgba(16,185,129,0.16),transparent_42%),linear-gradient(180deg,rgba(5,40,32,0.62),rgba(3,7,18,0.98))]",
+    panelBg: "bg-[radial-gradient(circle_at_14%_50%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,rgba(6,95,70,0.20),rgba(3,7,18,0.94))]",
     headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
     title: "text-emerald-50",
     chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
