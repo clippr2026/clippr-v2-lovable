@@ -1465,19 +1465,21 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
   );
 }
 
-function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: string | null; userEmail: string | null }) {
+function ProfesionalesTab({ businessId, userEmail }: { businessId: string | null; userEmail: string | null }) {
   const data = useCajaData();
   const today = React.useMemo(() => new Date().toLocaleDateString("sv-SE"), []);
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("all");
   const [rangeOpen, setRangeOpen] = React.useState(false);
   const [startDate, setStartDate] = React.useState(today);
   const [endDate, setEndDate] = React.useState(today);
-  const [rangeSelectingStart, setRangeSelectingStart] = React.useState(true);
-  const [calendarMonth, setCalendarMonth] = React.useState(() => new Date(`${today}T12:00:00`));
   const [rangePayments, setRangePayments] = React.useState<any[]>([]);
   const [loadingRange, setLoadingRange] = React.useState(false);
   const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = React.useState<"produccion" | "historial" | "pagar">("produccion");
+  const [paymentForm, setPaymentForm] = React.useState({ amount: "", method: "transferencia", note: "" });
+  const [commissionPaymentsVersion, setCommissionPaymentsVersion] = React.useState(0);
 
+  const COMMISSION_PAYMENTS_KEY = "clippr_commission_payments_v1";
   const money = React.useCallback((value: number) => `$${Math.round(value).toLocaleString("es-AR")}`, []);
 
   React.useEffect(() => {
@@ -1485,6 +1487,10 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     const exists = (data.employees ?? []).some((employee: any) => String(employee.id) === selectedEmployeeId);
     if (!exists) setSelectedEmployeeId("all");
   }, [data.employees, selectedEmployeeId]);
+
+  React.useEffect(() => {
+    setSelectedDetail("produccion");
+  }, [selectedEmployeeId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1526,6 +1532,25 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     return () => { cancelled = true; };
   }, [businessId, startDate, endDate, data.paymentsToday]);
 
+  function readCommissionPayments() {
+    if (typeof window === "undefined") return [] as any[];
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(COMMISSION_PAYMENTS_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [] as any[];
+    }
+  }
+
+  function saveCommissionPayment(payment: any) {
+    if (typeof window === "undefined") return;
+    const next = [payment, ...readCommissionPayments()].slice(0, 200);
+    window.localStorage.setItem(COMMISSION_PAYMENTS_KEY, JSON.stringify(next));
+    setCommissionPaymentsVersion((value) => value + 1);
+  }
+
+  const commissionPayments = React.useMemo(() => readCommissionPayments(), [commissionPaymentsVersion]);
+
   const rows = React.useMemo(() => {
     return (data.employees ?? []).map((employee: any) => {
       const employeePayments = (rangePayments ?? []).filter((payment: any) => String(payment.employee_id ?? "") === String(employee.id));
@@ -1535,7 +1560,9 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
       }, 0);
       const commissionPct = Number(employee.commission_pct ?? employee.commission ?? employee.comision ?? 0);
       const commission = commissionPct > 0 ? Math.round(revenue * (commissionPct / 100)) : 0;
-      const paid = Number(employee.commission_paid ?? employee.paid_commission ?? employee.paid ?? 0);
+      const paid = commissionPayments
+        .filter((payment: any) => String(payment.employeeId) === String(employee.id))
+        .reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0);
       const pending = Math.max(commission - paid, 0);
 
       return {
@@ -1547,9 +1574,11 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
         commission,
         paid,
         pending,
+        commissionPct,
+        payments: employeePayments,
       };
     });
-  }, [data.employees, rangePayments]);
+  }, [data.employees, rangePayments, commissionPayments]);
 
   const showingAllEmployees = selectedEmployeeId === "all";
 
@@ -1564,7 +1593,8 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
   }, [rows, selectedRow, showingAllEmployees]);
 
   const totals = React.useMemo(() => {
-    return rows.reduce(
+    const source = selectedRow ? [selectedRow] : rows;
+    return source.reduce(
       (acc, row) => ({
         sales: acc.sales + row.sales,
         commission: acc.commission + row.commission,
@@ -1573,13 +1603,53 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
       }),
       { sales: 0, commission: 0, paid: 0, pending: 0 },
     );
-  }, [rows]);
+  }, [rows, selectedRow]);
 
-  async function payCommission(row: typeof rows[number]) {
+  const selectedProduction = React.useMemo(() => {
+    if (!selectedRow) return [] as any[];
+    return [...selectedRow.payments].sort((a: any, b: any) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  }, [selectedRow]);
+
+  const selectedPaymentHistory = React.useMemo(() => {
+    if (!selectedRow) return [] as any[];
+    return commissionPayments.filter((payment: any) => String(payment.employeeId) === selectedRow.id);
+  }, [commissionPayments, selectedRow]);
+
+  const productionTotal = React.useMemo(() => {
+    return selectedProduction.reduce((sum: number, payment: any) => sum + Number(payment.total ?? payment.amount ?? 0), 0);
+  }, [selectedProduction]);
+
+  const productionAverage = selectedProduction.length > 0 ? Math.round(productionTotal / selectedProduction.length) : 0;
+
+  async function payCommission(row: typeof rows[number] | null) {
     if (!row || row.pending <= 0 || payingEmployeeId) return;
+
+    const amount = Number(paymentForm.amount || row.pending);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Ingresá un monto válido");
+      return;
+    }
+    if (amount > row.pending) {
+      toast.error("El monto no puede superar el pendiente");
+      return;
+    }
+
     setPayingEmployeeId(row.id);
     try {
-      toast.success(`Comisión de ${row.name} marcada para pagar: ${money(row.pending)}`);
+      saveCommissionPayment({
+        id: `${Date.now()}-${row.id}`,
+        employeeId: row.id,
+        employeeName: row.name,
+        amount,
+        method: paymentForm.method || "transferencia",
+        note: paymentForm.note.trim() || null,
+        user: userEmail ?? "Caja",
+        created_at: new Date().toISOString(),
+        range: { startDate, endDate },
+      });
+      toast.success(`Pago registrado para ${row.name}: ${money(amount)}`);
+      setPaymentForm({ amount: "", method: "transferencia", note: "" });
+      setSelectedDetail("historial");
     } finally {
       setPayingEmployeeId(null);
     }
@@ -1590,96 +1660,46 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     return startDate === endDate ? format(startDate) : `${format(startDate)} → ${format(endDate)}`;
   }, [startDate, endDate]);
 
-  const toDateKey = React.useCallback((date: Date) => date.toLocaleDateString("sv-SE"), []);
-  const addDays = React.useCallback((date: Date, days: number) => {
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
-  }, []);
-  const setQuickRange = React.useCallback((from: Date, to: Date) => {
-    const fromKey = toDateKey(from);
-    const toKey = toDateKey(to);
-    setStartDate(fromKey <= toKey ? fromKey : toKey);
-    setEndDate(fromKey <= toKey ? toKey : fromKey);
-    setCalendarMonth(new Date(`${fromKey}T12:00:00`));
-    setRangeSelectingStart(true);
-    setRangeOpen(false);
-  }, [toDateKey]);
+  const StatCard = ({ label, value, tone }: { label: string; value: React.ReactNode; tone: "neutral" | "violet" | "green" | "rose" }) => {
+    const toneClass = {
+      neutral: "border-white/[0.075] bg-white/[0.025] text-white shadow-[0_0_28px_rgba(255,255,255,0.035)]",
+      violet: "border-violet-300/18 bg-violet-400/[0.055] text-violet-300 shadow-[0_0_28px_rgba(167,139,250,0.10)]",
+      green: "border-emerald-400/18 bg-emerald-400/[0.055] text-emerald-300 shadow-[0_0_28px_rgba(34,197,94,0.09)]",
+      rose: "border-rose-400/18 bg-rose-400/[0.055] text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]",
+    }[tone];
 
-  const calendarDays = React.useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const first = new Date(year, month, 1);
-    const mondayBasedStart = (first.getDay() + 6) % 7;
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    return [
-      ...Array.from({ length: mondayBasedStart }, () => null as Date | null),
-      ...Array.from({ length: daysInMonth }, (_, index) => new Date(year, month, index + 1)),
-    ];
-  }, [calendarMonth]);
+    const labelClass = {
+      neutral: "text-white/38",
+      violet: "text-violet-200/70",
+      green: "text-emerald-200/70",
+      rose: "text-rose-200/70",
+    }[tone];
 
-  const calendarTitle = React.useMemo(() => {
-    const raw = calendarMonth.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  }, [calendarMonth]);
+    return (
+      <div className={cn("rounded-2xl border px-4 py-3", toneClass)}>
+        <div className={cn("text-[10px] font-bold uppercase tracking-[0.16em]", labelClass)}>{label}</div>
+        <div className="mt-1 text-xl font-bold tabular-nums">{value}</div>
+      </div>
+    );
+  };
 
-  function pickCalendarDay(day: Date) {
-    const key = toDateKey(day);
-    if (rangeSelectingStart) {
-      setStartDate(key);
-      setEndDate(key);
-      setRangeSelectingStart(false);
-      return;
-    }
-
-    if (key < startDate) {
-      setEndDate(startDate);
-      setStartDate(key);
-    } else {
-      setEndDate(key);
-    }
-    setRangeSelectingStart(true);
-    setRangeOpen(false);
-  }
-
-  const summarySource = showingAllEmployees
-    ? totals
-    : selectedRow ?? { sales: 0, commission: 0, paid: 0, pending: 0 };
-
-  const liquidacionSummaryCards = [
-    {
-      label: "Ventas",
-      value: summarySource.sales,
-      valueClass: "text-white",
-      cardClass: "border-white/[0.10] bg-[radial-gradient(circle_at_16%_0%,rgba(148,163,184,0.10),transparent_36%),linear-gradient(180deg,rgba(15,23,42,0.62),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(15,23,42,0.20)]",
-      labelClass: "text-white/46",
-      isMoney: false,
-    },
-    {
-      label: "Comisión",
-      value: summarySource.commission,
-      valueClass: "text-violet-300",
-      cardClass: "border-violet-300/24 bg-[radial-gradient(circle_at_16%_0%,rgba(167,139,250,0.14),transparent_36%),linear-gradient(180deg,rgba(28,24,48,0.58),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(167,139,250,0.10)]",
-      labelClass: "text-violet-200/72",
-      isMoney: true,
-    },
-    {
-      label: "Pagado",
-      value: summarySource.paid,
-      valueClass: "text-emerald-300",
-      cardClass: "border-emerald-400/22 bg-[radial-gradient(circle_at_16%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(180deg,rgba(10,37,32,0.54),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(34,197,94,0.09)]",
-      labelClass: "text-emerald-200/72",
-      isMoney: true,
-    },
-    {
-      label: "Pendiente",
-      value: summarySource.pending,
-      valueClass: summarySource.pending > 0 ? "text-rose-300" : "text-white/45",
-      cardClass: "border-rose-400/22 bg-[radial-gradient(circle_at_16%_0%,rgba(251,113,133,0.12),transparent_36%),linear-gradient(180deg,rgba(50,16,28,0.54),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(251,113,133,0.10)]",
-      labelClass: "text-rose-200/72",
-      isMoney: true,
-    },
-  ];
+  const ActionButton = ({ id, children }: { id: "produccion" | "historial" | "pagar"; children: React.ReactNode }) => {
+    const active = selectedDetail === id;
+    return (
+      <button
+        type="button"
+        onClick={() => setSelectedDetail(id)}
+        className={cn(
+          "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
+          active
+            ? "border-violet-300/28 bg-violet-500/14 text-white shadow-[0_0_24px_rgba(139,92,246,0.16)]"
+            : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white"
+        )}
+      >
+        {children}
+      </button>
+    );
+  };
 
   return (
     <div className="animate-fade-up space-y-4">
@@ -1712,10 +1732,7 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
             <div className="relative">
               <button
                 type="button"
-                onClick={() => {
-                  setRangeOpen((value) => !value);
-                  setRangeSelectingStart(true);
-                }}
+                onClick={() => setRangeOpen((value) => !value)}
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/16 bg-emerald-400/[0.075] px-3.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/12 transition hover:bg-emerald-400/[0.11] hover:text-emerald-200"
               >
                 <CalendarDays className="size-3.5" />
@@ -1723,88 +1740,65 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
               </button>
 
               {rangeOpen && (
-                <div className="absolute right-0 top-12 z-30 w-[380px] overflow-hidden rounded-[28px] border border-white/[0.10] bg-[#050711]/95 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-2xl">
-                  <div className="flex flex-wrap gap-2 border-b border-white/[0.07] p-4">
-                    <button type="button" onClick={() => setQuickRange(new Date(), new Date())} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Hoy</button>
-                    <button type="button" onClick={() => { const yesterday = addDays(new Date(), -1); setQuickRange(yesterday, yesterday); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Ayer</button>
-                    <button type="button" onClick={() => { const now = new Date(); const start = addDays(now, -((now.getDay() + 6) % 7)); setQuickRange(start, now); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Esta semana</button>
-                    <button type="button" onClick={() => { const now = new Date(); setQuickRange(new Date(now.getFullYear(), now.getMonth(), 1), now); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Este mes</button>
-                    <button type="button" onClick={() => { const now = new Date(); setQuickRange(new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 0)); }} className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-sm font-semibold text-white/68 transition hover:bg-white/[0.07] hover:text-white">Mes anterior</button>
+                <div className="absolute right-0 top-12 z-30 w-[310px] rounded-3xl border border-white/[0.10] bg-[#070A13]/95 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-bold text-white">Rango de fechas</div>
+                      <div className="text-xs text-white/45">Seleccioná desde y hasta</div>
+                    </div>
+                    <CalendarDays className="size-4 text-emerald-300" />
                   </div>
-
-                  <div className="p-4">
-                    <div className="mb-4 flex items-center justify-between px-1">
-                      <button
-                        type="button"
-                        onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-                        className="grid size-9 place-items-center rounded-full text-2xl text-white/42 transition hover:bg-white/[0.05] hover:text-white"
-                      >
-                        ‹
-                      </button>
-                      <div className="text-base font-bold text-white">{calendarTitle}</div>
-                      <button
-                        type="button"
-                        onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-                        className="grid size-9 place-items-center rounded-full text-2xl text-white/42 transition hover:bg-white/[0.05] hover:text-white"
-                      >
-                        ›
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-white/34">
-                      {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((day) => <div key={day} className="py-2">{day}</div>)}
-                    </div>
-                    <div className="grid grid-cols-7 gap-1">
-                      {calendarDays.map((day, index) => {
-                        if (!day) return <div key={`empty-${index}`} className="h-10" />;
-                        const key = toDateKey(day);
-                        const selectedStart = key === startDate;
-                        const selectedEnd = key === endDate;
-                        const inRange = key > startDate && key < endDate;
-                        const isToday = key === today;
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => pickCalendarDay(day)}
-                            className={cn(
-                              "h-10 rounded-xl text-sm font-semibold transition-all",
-                              inRange && "bg-blue-500/18 text-white",
-                              (selectedStart || selectedEnd) && "bg-gradient-to-br from-blue-500 to-violet-500 text-white shadow-[0_0_22px_rgba(139,92,246,0.32)]",
-                              !inRange && !selectedStart && !selectedEnd && "text-white/80 hover:bg-white/[0.055] hover:text-white",
-                              isToday && !selectedStart && !selectedEnd && "ring-1 ring-blue-400/70 text-blue-300"
-                            )}
-                          >
-                            {day.getDate()}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-4 text-center text-xs text-white/32">
-                      {rangeSelectingStart ? "Seleccioná la fecha inicial" : "Seleccioná la fecha final"}
-                    </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                      Desde
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setStartDate(value);
+                          if (endDate < value) setEndDate(value);
+                        }}
+                        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
+                      />
+                    </label>
+                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                      Hasta
+                      <input
+                        type="date"
+                        value={endDate}
+                        min={startDate}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
+                      />
+                    </label>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setRangeOpen(false)}
+                    className="mt-4 w-full rounded-2xl bg-emerald-500/16 px-4 py-2.5 text-sm font-bold text-emerald-200 ring-1 ring-emerald-400/20 transition hover:bg-emerald-500/22"
+                  >
+                    Aplicar rango
+                  </button>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {(showingAllEmployees || selectedRow) && (
-          <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
-            {liquidacionSummaryCards.map((card) => (
-              <div key={card.label} className={cn("min-h-[96px] rounded-3xl border px-5 py-4", card.cardClass)}>
-                <div className={cn("text-[10px] font-bold uppercase tracking-[0.18em]", card.labelClass)}>{card.label}</div>
-                <div className={cn("mt-2 text-2xl font-extrabold tabular-nums", card.valueClass)}>
-                  {card.isMoney ? money(card.value) : card.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
+          <StatCard label="Ventas" value={totals.sales} tone="neutral" />
+          <StatCard label="Comisión" value={money(totals.commission)} tone="violet" />
+          <StatCard label="Pagado" value={money(totals.paid)} tone="green" />
+          <StatCard label="Pendiente" value={money(totals.pending)} tone="rose" />
+        </div>
 
-        <div className="overflow-hidden">
-          {showingAllEmployees ? (
+        {data.loading || loadingRange ? (
+          <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-white/45">
+            <Loader2 className="size-4 animate-spin" /> Cargando…
+          </div>
+        ) : showingAllEmployees ? (
+          <div className="overflow-hidden">
             <div className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Profesional</div>
               <div>Ventas</div>
@@ -1813,79 +1807,212 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
               <div className="text-right">Pendiente</div>
               <div className="text-right">Acciones</div>
             </div>
-          ) : (
-            <div className="flex items-center justify-end border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
-              <div className="text-right">Acciones</div>
-            </div>
-          )}
-
-          {data.loading || loadingRange ? (
-            <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-white/45">
-              <Loader2 className="size-4 animate-spin" /> Cargando…
-            </div>
-          ) : visibleRows.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-white/45">No hay profesionales para liquidar.</div>
-          ) : (
-            <div className="divide-y divide-white/[0.055]">
-              {visibleRows.map((row) => (
-                <div
-                  key={row.id}
-                  className={cn(
-                    "items-center gap-3 px-5 py-4 text-sm transition-all duration-200 hover:bg-white/[0.026]",
-                    showingAllEmployees
-                      ? "grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)]"
-                      : "flex justify-end"
-                  )}
-                >
-                  {showingAllEmployees && (
+            {visibleRows.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-white/45">No hay profesionales para liquidar.</div>
+            ) : (
+              <div className="divide-y divide-white/[0.055]">
+                {visibleRows.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-4 text-sm transition-all duration-200 hover:bg-white/[0.026]">
                     <div className="min-w-0">
                       <div className="truncate font-bold text-white">{row.name}</div>
                       <div className="mt-0.5 truncate text-xs text-white/42">{row.role}</div>
                     </div>
-                  )}
-
-                  {showingAllEmployees && (
-                    <>
-                      <div className="text-white/62">{row.sales}</div>
-                      <div className="text-right font-bold tabular-nums text-violet-300">{money(row.commission)}</div>
-                      <div className="text-right font-bold tabular-nums text-emerald-300">{money(row.paid)}</div>
-                      <div className={cn("text-right font-bold tabular-nums", row.pending > 0 ? "text-rose-300" : "text-white/42")}>{money(row.pending)}</div>
-                    </>
-                  )}
-
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
-                    >
-                      Producción
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
-                    >
-                      Historial
-                    </button>
-                    {row.pending > 0 && (
+                    <div className="text-white/62">{row.sales}</div>
+                    <div className="text-right font-bold tabular-nums text-violet-300">{money(row.commission)}</div>
+                    <div className="text-right font-bold tabular-nums text-emerald-300">{money(row.paid)}</div>
+                    <div className={cn("text-right font-bold tabular-nums", row.pending > 0 ? "text-rose-300" : "text-white/42")}>{money(row.pending)}</div>
+                    <div className="flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => payCommission(row)}
-                        disabled={payingEmployeeId === row.id}
-                        className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                        onClick={() => { setSelectedEmployeeId(row.id); setSelectedDetail("produccion"); }}
+                        className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
                       >
-                        {payingEmployeeId === row.id ? "Pagando…" : "Pagar"}
+                        Producción
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedEmployeeId(row.id); setSelectedDetail("historial"); }}
+                        className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
+                      >
+                        Historial
+                      </button>
+                      {row.pending > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedEmployeeId(row.id); setPaymentForm((form) => ({ ...form, amount: String(row.pending) })); setSelectedDetail("pagar"); }}
+                          className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110"
+                        >
+                          Pagar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : selectedRow ? (
+          <div>
+            <div className="flex justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
+              <ActionButton id="produccion">Producción</ActionButton>
+              <ActionButton id="historial">Historial</ActionButton>
+              {selectedRow.pending > 0 && <ActionButton id="pagar">Pagar</ActionButton>}
+            </div>
+
+            {selectedDetail === "produccion" && (
+              <div className="px-5 py-4">
+                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Servicios realizados</div>
+                    <div className="mt-1 text-xl font-bold text-white">{selectedProduction.length}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Facturación generada</div>
+                    <div className="mt-1 text-xl font-bold text-emerald-300">{money(productionTotal)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Ticket promedio</div>
+                    <div className="mt-1 text-xl font-bold text-violet-300">{money(productionAverage)}</div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
+                  <div className="grid grid-cols-[90px_minmax(120px,1fr)_minmax(180px,1.3fr)_120px_130px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                    <div>Fecha</div>
+                    <div>Cliente</div>
+                    <div>Servicio</div>
+                    <div className="text-right">Monto venta</div>
+                    <div>Método</div>
+                  </div>
+                  {selectedProduction.length === 0 ? (
+                    <div className="px-4 py-10 text-center text-sm text-white/45">Sin servicios realizados en este rango.</div>
+                  ) : (
+                    <div className="divide-y divide-white/[0.05]">
+                      {selectedProduction.map((payment: any) => {
+                        const date = payment.created_at ? new Date(payment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }) : "—";
+                        const client = payment.client_name ?? payment.client ?? payment.customer_name ?? "Sin cliente";
+                        const service = payment.service_name ?? payment.service ?? payment.item_name ?? "Servicio";
+                        const amount = Number(payment.total ?? payment.amount ?? 0);
+                        const method = PAY_METHOD_LABEL[String(payment.method ?? payment.payment_method ?? "") as PayMethod] ?? payment.method ?? payment.payment_method ?? "—";
+                        return (
+                          <div key={payment.id ?? `${date}-${client}-${service}`} className="grid grid-cols-[90px_minmax(120px,1fr)_minmax(180px,1.3fr)_120px_130px] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]">
+                            <div className="text-white/52">{date}</div>
+                            <div className="truncate text-white/82">{client}</div>
+                            <div className="truncate text-white/82">{service}</div>
+                            <div className="text-right font-bold tabular-nums text-emerald-300">{money(amount)}</div>
+                            <div className="text-white/52">{method}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {selectedDetail === "historial" && (
+              <div className="px-5 py-4">
+                <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
+                  <div className="grid grid-cols-[90px_80px_120px_140px_minmax(140px,1fr)_minmax(180px,1fr)] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                    <div>Fecha</div>
+                    <div>Hora</div>
+                    <div className="text-right">Monto</div>
+                    <div>Método</div>
+                    <div>Usuario</div>
+                    <div>Nota</div>
+                  </div>
+                  {selectedPaymentHistory.length === 0 ? (
+                    <div className="px-4 py-10 text-center text-sm text-white/45">Sin pagos de comisión registrados.</div>
+                  ) : (
+                    <div className="divide-y divide-white/[0.05]">
+                      {selectedPaymentHistory.map((payment: any) => {
+                        const created = payment.created_at ? new Date(payment.created_at) : new Date();
+                        return (
+                          <div key={payment.id} className="grid grid-cols-[90px_80px_120px_140px_minmax(140px,1fr)_minmax(180px,1fr)] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]">
+                            <div className="text-white/52">{created.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</div>
+                            <div className="text-white/52">{created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div>
+                            <div className="text-right font-bold tabular-nums text-emerald-300">{money(Number(payment.amount ?? 0))}</div>
+                            <div className="capitalize text-white/68">{payment.method ?? "—"}</div>
+                            <div className="truncate text-white/68">{payment.user ?? "Caja"}</div>
+                            <div className="truncate text-white/52">{payment.note ?? "—"}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {selectedDetail === "pagar" && (
+              <div className="px-5 py-4">
+                <div className="mx-auto max-w-2xl rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.035] p-4 shadow-[0_0_35px_rgba(34,197,94,0.08)]">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-bold text-white">Liquidar comisión</div>
+                      <div className="mt-0.5 text-sm text-white/48">Pendiente actual: <span className="font-bold text-rose-300">{money(selectedRow.pending)}</span></div>
+                    </div>
+                    <div className="rounded-full bg-emerald-400/12 px-3 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/20">{selectedRow.name}</div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                      Monto a pagar
+                      <input
+                        type="number"
+                        min={0}
+                        max={selectedRow.pending}
+                        value={paymentForm.amount || String(selectedRow.pending)}
+                        onChange={(event) => setPaymentForm((form) => ({ ...form, amount: event.target.value }))}
+                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-sm text-white outline-none focus:border-emerald-300/35"
+                      />
+                    </label>
+                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                      Método
+                      <select
+                        value={paymentForm.method}
+                        onChange={(event) => setPaymentForm((form) => ({ ...form, method: event.target.value }))}
+                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-sm text-white outline-none focus:border-emerald-300/35"
+                      >
+                        <option value="efectivo">Efectivo</option>
+                        <option value="transferencia">Transferencia</option>
+                        <option value="debito">Débito</option>
+                        <option value="mercado pago">Mercado Pago</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="mt-3 block space-y-1.5 text-xs font-semibold text-white/55">
+                    Nota
+                    <textarea
+                      value={paymentForm.note}
+                      onChange={(event) => setPaymentForm((form) => ({ ...form, note: event.target.value }))}
+                      placeholder="Ej: liquidación semana, adelanto, diferencia, etc."
+                      rows={3}
+                      className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-white/32 focus:border-emerald-300/35"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => payCommission(selectedRow)}
+                    disabled={payingEmployeeId === selectedRow.id || selectedRow.pending <= 0}
+                    className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-emerald-300/28 bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                  >
+                    {payingEmployeeId === selectedRow.id ? "Registrando pago…" : "Confirmar pago"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="px-5 py-10 text-center text-sm text-white/45">Seleccioná un profesional.</div>
+        )}
       </section>
     </div>
   );
 }
+
 function NuevoGastoTab({
   data,
   userEmail,
