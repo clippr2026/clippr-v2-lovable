@@ -868,6 +868,10 @@ function ResumenTab({
   type ActivePanel = "ingresos" | "pendientes" | "gastos";
   const [activePanel, setActivePanel] =
     React.useState<ActivePanel>(initialPanel);
+  const [gastosHistoryOpen, setGastosHistoryOpen] = React.useState(false);
+  const todayForHistory = new Date().toISOString().slice(0, 10);
+  const [gastosHistoryFrom, setGastosHistoryFrom] = React.useState(todayForHistory);
+  const [gastosHistoryTo, setGastosHistoryTo] = React.useState(todayForHistory);
 
   React.useEffect(() => {
     setActivePanel(initialPanel);
@@ -1137,7 +1141,7 @@ function ResumenTab({
                   </div>
                 ) : (
                   <div className="divide-y divide-white/5">
-                    {data.expensesToday.map((e: any) => {
+                    {data.expensesToday.slice(0, 5).map((e: any) => {
                       const createdDate = e.created_at
                         ? new Date(e.created_at)
                         : null;
@@ -1200,9 +1204,7 @@ function ResumenTab({
 
             <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-end gap-3">
               <button
-                onClick={() =>
-                  window.dispatchEvent(new CustomEvent("clippr:open-closeout"))
-                }
+                onClick={() => setGastosHistoryOpen(true)}
                 className="ml-auto text-xs font-semibold text-rose-300 hover:text-rose-200 inline-flex items-center gap-2 transition"
               >
                 <ClipboardList className="size-3.5" /> Ver historial completo{" "}
@@ -1212,6 +1214,124 @@ function ResumenTab({
           </Card>
         </div>
       )}
+    
+      {gastosHistoryOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setGastosHistoryOpen(false)}
+        >
+          <div
+            className="w-full max-w-6xl overflow-hidden rounded-3xl border border-rose-300/18 bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(18,8,18,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1),0_0_60px_-38px_rgba(244,63,94,0.45)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rose-300/10 px-6 py-5">
+              <div>
+                <h3 className="text-lg font-bold text-rose-50">Historial completo de gastos</h3>
+                <p className="mt-1 text-xs text-white/45">Hoy y rango por fechas.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={gastosHistoryFrom}
+                  onChange={(event) => setGastosHistoryFrom(event.target.value)}
+                  className="h-10 rounded-2xl border border-white/10 bg-black/35 px-3 text-xs text-white outline-none focus:border-rose-300/45"
+                />
+                <span className="text-white/35">→</span>
+                <input
+                  type="date"
+                  value={gastosHistoryTo}
+                  onChange={(event) => setGastosHistoryTo(event.target.value)}
+                  className="h-10 rounded-2xl border border-white/10 bg-black/35 px-3 text-xs text-white outline-none focus:border-rose-300/45"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGastosHistoryFrom(todayForHistory);
+                    setGastosHistoryTo(todayForHistory);
+                  }}
+                  className="h-10 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 hover:bg-rose-400/15"
+                >
+                  Hoy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGastosHistoryOpen(false)}
+                  className="h-10 rounded-2xl bg-white/[0.06] px-4 text-xs font-semibold text-white/70 hover:bg-white/[0.09] hover:text-white"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto p-4 [scrollbar-width:thin] [scrollbar-color:rgba(244,63,94,0.35)_transparent]">
+              <div className="min-w-[1080px] overflow-hidden rounded-2xl border border-rose-300/12 bg-black/25">
+                <div className="grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 border-b border-rose-300/10 bg-rose-400/[0.035] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                  <div>Fecha</div>
+                  <div>Hora</div>
+                  <div>Categoría</div>
+                  <div>Descripción</div>
+                  <div className="text-right">Monto</div>
+                  <div>Método</div>
+                  <div>Usuario responsable</div>
+                </div>
+
+                {data.expensesToday.length === 0 ? (
+                  <div className="px-5 py-12 text-center text-sm text-white/45">
+                    Sin gastos registrados.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {data.expensesToday.map((e: any) => {
+                      const createdDate = e.created_at ? new Date(e.created_at) : null;
+                      const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
+                      const inRange =
+                        (!gastosHistoryFrom || rawDate >= gastosHistoryFrom) &&
+                        (!gastosHistoryTo || rawDate <= gastosHistoryTo);
+                      if (!inRange) return null;
+                      const date = rawDate
+                        ? new Date(`${rawDate}T00:00:00`).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                          })
+                        : "—";
+                      const hora =
+                        createdDate && !Number.isNaN(createdDate.getTime())
+                          ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
+                          : "—";
+                      const category = e.category ?? e.type ?? "—";
+                      const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                      const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
+                      const user = e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
+                      return (
+                        <div
+                          key={`history-${e.id}`}
+                          className="grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-5 py-3.5 text-xs transition hover:bg-rose-400/[0.045]"
+                        >
+                          <div className="text-white/55">{date}</div>
+                          <div className="text-white/55">{hora}</div>
+                          <div className="truncate capitalize text-white/55">{category}</div>
+                          <div className="min-w-0">
+                            <div className="truncate text-white/88">{description}</div>
+                            {e.note && e.note !== description && (
+                              <div className="mt-0.5 truncate text-xs text-white/45">{e.note}</div>
+                            )}
+                          </div>
+                          <div className="text-right font-bold tabular-nums text-rose-300">
+                            -${Number(e.amount ?? 0).toLocaleString("es-AR")}
+                          </div>
+                          <div className="truncate text-white/55">{method}</div>
+                          <div className="truncate text-white/55">{user}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -4496,7 +4616,7 @@ function History({
   } | null>(null);
   const [showAll, setShowAll] = React.useState(false);
 
-  const visibleRows = showAll ? rows : rows.slice(0, 10);
+  const visibleRows = showAll ? rows : rows.slice(0, 5);
   const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {
@@ -4767,7 +4887,7 @@ function History({
 
         {/* Footer */}
         <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-between gap-3">
-          {rows.length > 10 && (
+          {rows.length > 5 && (
             <button
               onClick={() => setShowAll((v) => !v)}
               className="text-xs text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1.5"
@@ -4775,13 +4895,11 @@ function History({
               <ArrowRight
                 className={cn("size-3.5 transition", showAll && "rotate-90")}
               />
-              {showAll ? "Mostrar menos" : `Ver ${rows.length - 10} cobros más`}
+              {showAll ? "Mostrar menos" : `Ver ${rows.length - 5} cobros más`}
             </button>
           )}
           <button
-            onClick={() =>
-              window.dispatchEvent(new CustomEvent("clippr:open-closeout"))
-            }
+            onClick={() => setCloseoutOpen(true)}
             className={cn(
               "ml-auto text-xs font-semibold inline-flex items-center gap-2 transition hover:brightness-125",
               incomeTheme.amount,
@@ -4848,7 +4966,7 @@ function History({
               <div>
                 <h3 className="text-lg font-semibold">Cierre de caja</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Detalle de cobros del día por método de pago.
+                  Detalle de cobros de hoy por método de pago. Usá el historial de caja para rangos anteriores.
                 </p>
               </div>
               <button
