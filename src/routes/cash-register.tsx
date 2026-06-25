@@ -5893,10 +5893,6 @@ function NuevaVentaTab({
 
       {step === 4 && (
         <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl p-3.5 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
-            <h3 className="mt-1 text-lg font-bold text-white">Confirmá el pago</h3>
-          </div>
           <div className="space-y-2">
             <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
               RESUMEN
@@ -5974,29 +5970,37 @@ function NuevaVentaTab({
                 </div>
               </div>
               {method === "cash" && (
-                <div className="grid grid-cols-[1fr_auto] items-end gap-3 rounded-2xl border border-white/[0.075] bg-black/25 p-3">
-                  <label className="space-y-1.5 text-xs text-muted-foreground">
-                    <span>¿Con cuánto paga?</span>
-                    <input
-                      value={received}
-                      onChange={(e) => setReceived(e.target.value)}
-                      inputMode="numeric"
-                      placeholder="Monto entregado"
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-blue-300/40"
-                    />
+                <div className="rounded-3xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-4 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-blue-200/85">
+                      Monto recibido
+                    </span>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-white/55">
+                        $
+                      </span>
+                      <input
+                        value={received}
+                        onChange={(e) => setReceived(e.target.value)}
+                        inputMode="numeric"
+                        placeholder="0"
+                        className="h-14 w-full rounded-2xl border border-blue-300/30 bg-black/45 pl-9 pr-4 text-2xl font-extrabold tabular-nums text-white outline-none placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
+                      />
+                    </div>
                   </label>
-                  <div className="min-w-[150px] text-right text-xs text-muted-foreground">
-                    {receivedNumber > 0 ? (
-                      <>
-                        <p>Entregado: ${receivedNumber.toLocaleString("es-AR")}</p>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+                    <p className="text-white/45">Ingresá con cuánto dinero pagó el cliente.</p>
+                    {receivedNumber > 0 && (
+                      <div className="text-right">
+                        <p className="text-white/60">
+                          Entregado: ${receivedNumber.toLocaleString("es-AR")}
+                        </p>
                         {change > 0 && (
-                          <p className="font-semibold text-emerald-300">
+                          <p className="font-bold text-emerald-300">
                             Vuelto: ${change.toLocaleString("es-AR")}
                           </p>
                         )}
-                      </>
-                    ) : (
-                      <p>Ingresá el monto abonado.</p>
+                      </div>
                     )}
                   </div>
                 </div>
