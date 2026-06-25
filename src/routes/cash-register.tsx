@@ -479,7 +479,7 @@ function CashRegisterPage() {
               </p>
             </div>
           </div>
-          <div className="mt-8 space-y-4">
+          <div className="mt-8 space-y-3">
             {/* Estado banner */}
             <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow backdrop-blur-xl px-6 py-6 flex items-center gap-5">
               <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-400/20 grid place-items-center shrink-0">
@@ -1195,7 +1195,7 @@ function ResumenTab({
               </div>
             </div>
 
-            <div className="px-6 py-3 border-t border-white/[0.07] flex items-center justify-end gap-3">
+            <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-end gap-3">
               <button
                 onClick={() =>
                   window.dispatchEvent(new CustomEvent("clippr:open-closeout"))
@@ -1415,7 +1415,7 @@ function PreciosTab({
   );
 
   return (
-    <div className="-mt-2 space-y-4 animate-fade-up">
+    <div className="-mt-2 space-y-3 animate-fade-up">
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
           <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
@@ -2032,7 +2032,7 @@ function InventarioTab({
                 {stockAdjustment.item?.name ?? "Producto"}
               </div>
             </div>
-            <div className="space-y-4 p-5">
+            <div className="space-y-3 p-5">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                   Cantidad
@@ -2082,7 +2082,7 @@ function InventarioTab({
                   onClick={confirmStockAdjustment}
                   disabled={Boolean(adjustingId)}
                   className={cn(
-                    "rounded-2xl px-5 py-2.5 text-sm font-bold transition disabled:opacity-50",
+                    "rounded-2xl px-4 py-2 text-sm font-bold transition disabled:opacity-50",
                     stockAdjustment.direction === "in"
                       ? "bg-emerald-400/12 text-emerald-200 ring-1 ring-emerald-400/24 shadow-[0_0_26px_rgba(16,185,129,0.22)] hover:bg-emerald-400/18"
                       : "bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/24 shadow-[0_0_26px_rgba(244,63,94,0.20)] hover:bg-rose-500/18",
@@ -2524,7 +2524,7 @@ function ProfesionalesTab({
   };
 
   return (
-    <div className="animate-fade-up space-y-4">
+    <div className="animate-fade-up space-y-3">
       <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
@@ -2988,7 +2988,7 @@ function ProfesionalesTab({
                     </label>
                   </div>
 
-                  <label className="mt-3 block space-y-1.5 text-xs font-semibold text-white/55">
+                  <label className="mt-2 block space-y-1.5 text-xs font-semibold text-white/55">
                     Nota
                     <textarea
                       value={paymentForm.note}
@@ -3011,7 +3011,7 @@ function ProfesionalesTab({
                       payingEmployeeId === selectedRow.id ||
                       selectedRow.pending <= 0
                     }
-                    className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-emerald-300/28 bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                    className="mt-2 inline-flex w-full items-center justify-center rounded-2xl border border-emerald-300/28 bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
                   >
                     {payingEmployeeId === selectedRow.id
                       ? "Registrando pago…"
@@ -3087,7 +3087,7 @@ function NuevoGastoTab({
 
   return (
     <div className="animate-fade-up">
-      <Card className="mx-auto w-full max-w-3xl p-4 md:p-5">
+      <Card className="mx-auto w-full max-w-3xl p-3 md:p-4">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold text-foreground">
@@ -3216,7 +3216,7 @@ function ApprovalMode({
         </div>
         <span
           className={cn(
-            "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium tracking-wide border",
+            "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-medium tracking-wide border",
             chipCls[mode],
           )}
         >
@@ -3224,7 +3224,7 @@ function ApprovalMode({
           {labelMap[mode]}
         </span>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
+      <div className="mt-2 grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">
         {options.map((o) => {
           const active = mode === o.id;
           return (
@@ -3499,7 +3499,7 @@ function CierreCajaBtn({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-bold transition-all duration-200 bg-white/[0.035] text-foreground border border-white/14 hover:-translate-y-0.5 hover:bg-white/[0.065] hover:border-white/20 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.9)]"
+        className="group inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold transition-all duration-200 bg-white/[0.035] text-foreground border border-white/14 hover:-translate-y-0.5 hover:bg-white/[0.065] hover:border-white/20 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.9)]"
       >
         <Wallet className="size-4 text-white/80 transition-transform group-hover:scale-110" />
         Cierre de caja
@@ -3528,7 +3528,7 @@ function CierreCajaBtn({
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-3">
               <div className="grid grid-cols-3 gap-3">
                 {[
                   {
@@ -3774,7 +3774,7 @@ function CierresTab({
   }
 
   return (
-    <div className="space-y-4 animate-fade-up">
+    <div className="space-y-3 animate-fade-up">
       <div>
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           Cierres de caja
@@ -3794,7 +3794,7 @@ function CierresTab({
         </div>
       ) : (
         <div className="glass rounded-2xl overflow-hidden cash-panel-glow">
-          <div className="grid grid-cols-[1fr_160px] px-5 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
+          <div className="grid grid-cols-[1fr_160px] px-5 py-2 border-b border-white/10 text-[10px] uppercase tracking-[0.13em] text-muted-foreground/60">
             <div>Fecha</div>
             <div className="text-right">Estado</div>
           </div>
@@ -3841,7 +3841,7 @@ function CierresTab({
       {selected && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden max-h-[88vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 sticky top-0 bg-[oklch(0.11_0.04_275)] z-10">
+            <div className="flex items-center justify-between px-5 py-2 border-b border-white/10 sticky top-0 bg-[oklch(0.11_0.04_275)] z-10">
               <div>
                 <div className="font-semibold text-sm">Detalle del cierre</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
@@ -3865,7 +3865,7 @@ function CierresTab({
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-4 text-sm">
+            <div className="p-5 space-y-3 text-sm">
               {/* KPIs */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
@@ -4317,7 +4317,7 @@ function DetailModal({
 
         <div className="px-5 py-1 max-h-[72vh] overflow-y-auto">
           {/* Total + estado */}
-          <div className="py-3 border-b border-white/5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="py-2 border-b border-white/5 flex items-center justify-between gap-3 flex-wrap">
             <span className="font-display text-2xl font-semibold tabular-nums">
               $
               {Number(payment.total ?? payment.amount ?? 0).toLocaleString(
@@ -4331,7 +4331,7 @@ function DetailModal({
           </div>
 
           {/* Bloque: Quién */}
-          <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
             <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
               Participantes
             </p>
@@ -4342,7 +4342,7 @@ function DetailModal({
           </div>
 
           {/* Bloque: Qué */}
-          <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
             <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
               Detalle del servicio
             </p>
@@ -4379,7 +4379,7 @@ function DetailModal({
           </div>
 
           {/* Bloque: Cómo se cobró */}
-          <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
             <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
               Método de cobro
             </p>
@@ -4398,7 +4398,7 @@ function DetailModal({
           </div>
 
           {/* Bloque: Trazabilidad */}
-          <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
             <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
               Trazabilidad
             </p>
@@ -4418,7 +4418,7 @@ function DetailModal({
           </div>
 
           {obs && (
-            <div className="mt-3 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
               <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
                 Nota / Observaciones
               </p>
@@ -4762,7 +4762,7 @@ function History({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-white/[0.07] flex items-center justify-between gap-3">
+        <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-between gap-3">
           {rows.length > 10 && (
             <button
               onClick={() => setShowAll((v) => !v)}
@@ -4855,10 +4855,10 @@ function History({
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-4 max-h-[78vh] overflow-y-auto">
+            <div className="p-5 space-y-3 max-h-[78vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-[0.85fr_1.15fr] gap-4">
                 <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/5">
+                  <div className="px-4 py-2 border-b border-white/5">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
                       Total facturado
                     </div>
@@ -4906,7 +4906,7 @@ function History({
                   )}
                 </div>
                 <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
+                  <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold">
                         {selectedGroup
@@ -5466,7 +5466,7 @@ function NuevaVentaTab({
   }
 
   return (
-    <div className="relative mx-auto flex h-[calc(100vh-260px)] min-h-[560px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-4 md:p-5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
+    <div className="relative mx-auto flex h-[calc(100vh-230px)] min-h-[590px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-4 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
@@ -5490,7 +5490,7 @@ function NuevaVentaTab({
                   setStep(s.n);
                 }}
                 className={cn(
-                  "group relative overflow-hidden rounded-2xl border px-3 py-2 text-left transition-all duration-300",
+                  "group relative overflow-hidden rounded-2xl border px-3 py-1.5 text-left transition-all duration-300",
                   active
                     ? "border-blue-200/38 bg-[linear-gradient(135deg,rgba(96,165,250,0.86),rgba(139,92,246,0.88))] text-white shadow-[0_0_34px_rgba(99,102,241,0.28),0_18px_45px_-24px_rgba(0,0,0,0.90),0_1px_0_rgba(255,255,255,0.24)_inset]"
                     : done
@@ -5507,7 +5507,7 @@ function NuevaVentaTab({
                 )}
                 <div className="relative flex items-center gap-3">
                   <span className={cn(
-                    "grid size-8 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105",
+                    "grid size-7 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105",
                     active
                       ? "bg-white/18 text-white ring-white/35"
                       : done
@@ -5520,7 +5520,7 @@ function NuevaVentaTab({
                     <span className={cn("block text-sm font-extrabold", active ? "text-white" : "text-current")}>
                       {s.n} · {s.label}
                     </span>
-                    <span className={cn("mt-0.5 block truncate text-[11px] font-medium", active ? "text-white/75" : "text-white/40")}>
+                    <span className={cn("mt-0.5 block truncate text-[10px] font-medium", active ? "text-white/75" : "text-white/40")}>
                       {s.hint}
                     </span>
                   </span>
@@ -5537,7 +5537,7 @@ function NuevaVentaTab({
         <div className="relative z-10 flex min-h-0 flex-1 flex-col space-y-3">
           <div className="shrink-0">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-200/80">1 · Profesional</p>
-            <h2 className="mt-2 text-xl font-bold text-white">Seleccioná un profesional</h2>
+            <h2 className="mt-1 text-lg font-bold text-white">Seleccioná un profesional</h2>
             <p className="mt-1 text-sm text-white/45">Elegí quién realizó la venta.</p>
           </div>
 
@@ -5783,7 +5783,7 @@ function NuevaVentaTab({
       )}
 
       {step === 3 && (
-        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto pr-1 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto pr-1 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 flex items-center gap-3 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
             <Search className="size-4 text-muted-foreground" />
             <input
@@ -5892,7 +5892,7 @@ function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 min-h-0 flex-1 overflow-hidden rounded-3xl p-5 space-y-4 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl p-5 space-y-3 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
             <h3 className="mt-1 text-xl font-bold text-white">Confirmá el pago</h3>
@@ -5960,7 +5960,7 @@ function NuevaVentaTab({
                         key={m.id}
                         onClick={() => setMethod(m.id as PayMethod)}
                         className={cn(
-                          "flex flex-col items-center gap-1.5 rounded-2xl border px-4 py-3 transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
+                          "flex flex-col items-center gap-1 rounded-2xl border px-3 py-2.5 transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
                           active
                             ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
                             : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
@@ -6000,7 +6000,7 @@ function NuevaVentaTab({
               )}
             </>
           ) : (
-            <div className={cn("space-y-3", splits.length >= 3 && "max-h-[210px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
+            <div className={cn("space-y-3", splits.length >= 3 && "max-h-[180px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
                 PAGO MÚLTIPLE
               </p>
@@ -6078,13 +6078,13 @@ function NuevaVentaTab({
       )}
 
       <div className="relative z-20 mt-auto shrink-0">
-        <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 flex items-center gap-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
+        <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3.5 py-2.5 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
               setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s))
             }
             disabled={step === 1}
-            className="rounded-2xl px-5 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-40 transition-all"
+            className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-40 transition-all"
           >
             ← Volver
           </button>
@@ -6120,7 +6120,7 @@ function NuevaVentaTab({
                 (paymentMode === "multiple" && splitsRemaining !== 0)
               }
               onClick={handleCobrar}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
             >
               {submitting ? (
                 <>
