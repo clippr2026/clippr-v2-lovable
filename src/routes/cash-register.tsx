@@ -727,37 +727,37 @@ function ResumenTab({
   }> = {
     ingresos: {
       border: "border-emerald-400/24",
-      glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
+      glow: "shadow-[0_30px_90px_-48px_rgba(16,185,129,0.36),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
       panelBg: "bg-[radial-gradient(circle_at_14%_50%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,rgba(6,95,70,0.20),rgba(3,7,18,0.94))]",
       headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
       title: "text-emerald-50",
       chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
-      tableHead: "border-emerald-400/10 bg-emerald-400/[0.018]",
-      rowHover: "hover:bg-emerald-400/[0.045]",
+      tableHead: "border-emerald-400/10 bg-black/[0.10]",
+      rowHover: "hover:bg-emerald-400/[0.035]",
       amount: "text-emerald-300",
       badge: "bg-emerald-500/12 text-emerald-300 ring-emerald-400/20",
     },
     pendientes: {
       border: "border-orange-400/24",
-      glow: "shadow-[0_24px_90px_-45px_rgba(249,115,22,0.42)]",
+      glow: "shadow-[0_30px_90px_-48px_rgba(249,115,22,0.32),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
       panelBg: "bg-[radial-gradient(circle_at_14%_50%,rgba(249,115,22,0.18),transparent_34%),linear-gradient(135deg,rgba(124,45,18,0.22),rgba(3,7,18,0.94))]",
       headerIcon: "bg-orange-500/14 text-orange-300 ring-orange-400/25",
       title: "text-orange-50",
       chip: "bg-orange-400/10 text-orange-300 ring-orange-400/18",
-      tableHead: "border-orange-400/10 bg-orange-400/[0.018]",
-      rowHover: "hover:bg-orange-400/[0.045]",
+      tableHead: "border-orange-400/10 bg-black/[0.10]",
+      rowHover: "hover:bg-orange-400/[0.035]",
       amount: "text-orange-300",
       badge: "bg-orange-500/12 text-orange-300 ring-orange-400/20",
     },
     gastos: {
       border: "border-rose-400/24",
-      glow: "shadow-[0_24px_90px_-45px_rgba(244,63,94,0.42)]",
+      glow: "shadow-[0_30px_90px_-48px_rgba(244,63,94,0.30),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
       panelBg: "bg-[radial-gradient(circle_at_14%_50%,rgba(244,63,94,0.17),transparent_34%),linear-gradient(135deg,rgba(127,29,29,0.22),rgba(3,7,18,0.94))]",
       headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
       title: "text-rose-50",
       chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
-      tableHead: "border-rose-400/10 bg-rose-400/[0.018]",
-      rowHover: "hover:bg-rose-400/[0.045]",
+      tableHead: "border-rose-400/10 bg-black/[0.10]",
+      rowHover: "hover:bg-rose-400/[0.035]",
       amount: "text-rose-300",
       badge: "bg-rose-500/12 text-rose-300 ring-rose-400/20",
     },
@@ -767,8 +767,8 @@ function ResumenTab({
 
   return (
     <div className="relative space-y-6 py-2">
-      <div className="pointer-events-none absolute inset-x-[-44px] top-[-42px] bottom-[-54px] z-0 rounded-[46px] bg-[radial-gradient(circle_at_50%_28%,rgba(0,0,0,0.58),rgba(0,0,0,0.34)_36%,rgba(0,0,0,0.16)_58%,transparent_78%)] blur-2xl" />
-      <div className="pointer-events-none absolute inset-x-[-22px] top-[-18px] bottom-[-28px] z-0 rounded-[38px] bg-[linear-gradient(180deg,rgba(0,0,0,0.22),rgba(0,0,0,0.42)_52%,rgba(0,0,0,0.20))]" />
+      <div className="pointer-events-none absolute inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
       <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
