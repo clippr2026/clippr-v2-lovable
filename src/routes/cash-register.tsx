@@ -217,6 +217,16 @@ function removeLocalManualPendingCharge(id: string) {
   }
 }
 
+function displayResponsibleUser(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Caja";
+
+  // Si viene email, mostrar solo antes del @.
+  if (raw.includes("@")) return raw.split("@")[0] || "Caja";
+
+  return raw;
+}
+
 function getManualPendingNote(notes?: string | null, serviceName?: string | null) {
   const raw = String(notes ?? "").trim();
   if (!raw) return "";
@@ -1193,7 +1203,7 @@ function ResumenTab({
               <div className="min-w-[1080px]">
                 <div
                   className={cn(
-                    "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                    "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                     panelTheme.gastos.tableHead,
                   )}
                 >
@@ -1235,13 +1245,12 @@ function ResumenTab({
                       const description =
                         e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
                       const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                      const user =
-                        e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
+                      const user = displayResponsibleUser(e.user_name ?? e.user_email ?? e.created_by ?? "Caja");
                       return (
                         <div
                           key={e.id}
                           className={cn(
-                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
+                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
                             panelTheme.gastos.rowHover,
                           )}
                         >
@@ -1347,7 +1356,7 @@ function ResumenTab({
                       const category = e.category ?? e.type ?? "—";
                       const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
                       const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                      const user = e.user_name ?? e.user_email ?? e.created_by ?? "Caja";
+                      const user = displayResponsibleUser(e.user_name ?? e.user_email ?? e.created_by ?? "Caja");
                       return (
                         <div
                           key={`history-${e.id}`}
@@ -4805,7 +4814,7 @@ function History({
           <div className="min-w-[1080px]">
             <div
               className={cn(
-                panel === "pendientes" ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase" : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                panel === "pendientes" ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase" : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                 incomeTheme.tableHead,
               )}
             >
@@ -4854,7 +4863,7 @@ function History({
                     <div
                       key={`pending-${p.id}`}
                       className={cn(
-                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200",
+                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200",
                         incomeTheme.rowHover,
                       )}
                     >
@@ -4940,7 +4949,7 @@ function History({
                   return (
                     <div
                       key={p.id}
-                      className={cn("grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
+                      className={cn("grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">
@@ -5101,8 +5110,8 @@ function History({
                 <div
                   className={cn(
                     panel === "pendientes"
-                      ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase"
-                      : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-3 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                      ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase"
+                      : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                     incomeTheme.tableHead,
                   )}
                 >
@@ -5139,7 +5148,7 @@ function History({
                           : "—";
                         const amount = Number(p.total ?? p.amount ?? 0);
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
-                        const responsible = p.user_name ?? p.user_email ?? "Caja";
+                        const responsible = displayResponsibleUser(p.user_name ?? p.user_email ?? "Caja");
                         const paymentNote = getCashRowNote(p, p.service_name);
 
                         return (
@@ -5147,7 +5156,7 @@ function History({
                             key={`historial-ingreso-${p.id}`}
                             onClick={() => setDetailPayment(p)}
                             className={cn(
-                              "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 border-b border-white/[0.055] px-6 py-3 text-xs transition-all duration-200 last:border-0 cursor-pointer",
+                              "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 border-b border-white/[0.055] px-6 py-2 text-xs transition-all duration-200 last:border-0 cursor-pointer",
                               incomeTheme.rowHover,
                             )}
                           >
@@ -5215,14 +5224,14 @@ function History({
                           })}hs`
                         : "—";
                       const amount = Number(p.service_price ?? p.amount ?? 0);
-                      const responsible = p.user_name ?? p.user_email ?? p.created_by ?? "Profesional";
+                      const responsible = displayResponsibleUser(p.user_name ?? p.user_email ?? p.created_by ?? "Profesional");
                       const pendingNote = getCashRowNote(p, p.service_name);
 
                       return (
                         <div
                           key={`historial-pendiente-${p.id}`}
                           className={cn(
-                            "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 border-b border-white/[0.055] px-6 py-3 text-xs transition-all duration-200 last:border-0",
+                            "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 border-b border-white/[0.055] px-6 py-2 text-xs transition-all duration-200 last:border-0",
                             incomeTheme.rowHover,
                           )}
                         >
