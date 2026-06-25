@@ -789,7 +789,7 @@ function Card({
     <div
       {...props}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-card-glow",
+        "relative overflow-hidden rounded-2xl border border-white/[0.075] bg-[linear-gradient(135deg,rgba(5,8,15,0.96),rgba(8,11,20,0.94),rgba(2,4,12,0.98))] cash-card-glow",
         "shadow-[0_1px_0_oklch(1_0_0/0.04)_inset,0_20px_50px_-20px_oklch(0_0_0/0.6)]",
         "backdrop-blur-xl",
         className,
@@ -5458,7 +5458,7 @@ function NuevaVentaTab({
   return (
     <div className="relative max-w-4xl mx-auto w-full space-y-5">
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
-      <Card className="overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-2 shadow-[0_32px_95px_-50px_rgba(0,0,0,0.98),0_0_55px_-34px_rgba(139,92,246,0.55)]">
+      <Card className="overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
         <div className="grid grid-cols-4 gap-2">
           {stepItems.map((s, index) => {
             const active = step === s.n;
@@ -5479,9 +5479,9 @@ function NuevaVentaTab({
                   setStep(s.n);
                 }}
                 className={cn(
-                  "group relative overflow-hidden rounded-2xl border px-3 py-3 text-left transition-all duration-300",
+                  "group relative overflow-hidden rounded-2xl border px-3 py-2.5 text-left transition-all duration-300",
                   active
-                    ? "border-sky-200/45 bg-[linear-gradient(135deg,rgba(147,197,253,0.98),rgba(167,139,250,0.95))] text-slate-950 shadow-[0_0_34px_rgba(125,211,252,0.22),0_18px_45px_-24px_rgba(0,0,0,0.85),0_1px_0_rgba(255,255,255,0.35)_inset]"
+                    ? "border-blue-200/38 bg-[linear-gradient(135deg,rgba(96,165,250,0.86),rgba(139,92,246,0.88))] text-white shadow-[0_0_34px_rgba(99,102,241,0.28),0_18px_45px_-24px_rgba(0,0,0,0.90),0_1px_0_rgba(255,255,255,0.24)_inset]"
                     : done
                       ? "border-emerald-300/18 bg-[linear-gradient(135deg,rgba(16,185,129,0.10),rgba(2,6,23,0.72))] text-emerald-100 hover:bg-emerald-400/[0.08]"
                       : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(2,6,23,0.68))] text-white/55 hover:border-white/[0.12] hover:bg-white/[0.055] hover:text-white/85",
@@ -5498,7 +5498,7 @@ function NuevaVentaTab({
                   <span className={cn(
                     "grid size-9 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105",
                     active
-                      ? "bg-white/30 text-slate-950 ring-white/45"
+                      ? "bg-white/18 text-white ring-white/35"
                       : done
                         ? "bg-emerald-400/14 text-emerald-200 ring-emerald-300/24"
                         : "bg-white/[0.045] text-white/55 ring-white/10",
@@ -5506,10 +5506,10 @@ function NuevaVentaTab({
                     {done ? <Check className="size-4" /> : <Icon className="size-4" />}
                   </span>
                   <span className="min-w-0">
-                    <span className={cn("block text-sm font-extrabold", active ? "text-slate-950" : "text-current")}>
+                    <span className={cn("block text-sm font-extrabold", active ? "text-white" : "text-current")}>
                       {s.n} · {s.label}
                     </span>
-                    <span className={cn("mt-0.5 block truncate text-[11px] font-medium", active ? "text-slate-900/70" : "text-white/40")}>
+                    <span className={cn("mt-0.5 block truncate text-[11px] font-medium", active ? "text-white/75" : "text-white/40")}>
                       {s.hint}
                     </span>
                   </span>
@@ -5815,7 +5815,7 @@ function NuevaVentaTab({
                 return (
                   <Card
                     key={it.id}
-                    className={cn("p-4 space-y-3 rounded-2xl border-white/[0.075] bg-[linear-gradient(145deg,rgba(255,255,255,0.045),rgba(15,23,42,0.78),rgba(2,6,23,0.92))] shadow-[0_22px_55px_-42px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:border-violet-300/18 hover:bg-white/[0.045] transition-all duration-200", noStock && "opacity-50")}
+                    className={cn("p-4 space-y-3 rounded-2xl border-white/[0.07] bg-[linear-gradient(145deg,rgba(8,11,20,0.94),rgba(5,8,15,0.96),rgba(2,4,12,0.98))] shadow-[0_20px_60px_-36px_rgba(0,0,0,1)] hover:-translate-y-0.5 hover:border-blue-300/24 hover:shadow-[0_26px_72px_-36px_rgba(0,0,0,1),0_0_28px_rgba(96,165,250,0.10)] transition-all duration-200", qty > 0 && "border-blue-300/35 bg-[linear-gradient(145deg,rgba(30,64,175,0.20),rgba(8,11,20,0.95),rgba(2,4,12,0.98))] shadow-[0_0_28px_rgba(96,165,250,0.14),0_20px_60px_-36px_rgba(0,0,0,1)]", noStock && "opacity-50")}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -5844,11 +5844,11 @@ function NuevaVentaTab({
                       ) : (
                         <span />
                       )}
-                      <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+                      <div className="flex items-center gap-1 rounded-xl border border-white/[0.10] bg-black/35 p-1 shadow-[0_1px_0_rgba(255,255,255,0.05)_inset]">
                         <button
                           onClick={() => sub(it.id)}
                           disabled={noStock && qty === 0}
-                          className="size-8 grid place-items-center rounded-md hover:bg-white/5 text-muted-foreground hover:text-foreground"
+                          className="size-8 grid place-items-center rounded-lg hover:bg-white/8 text-muted-foreground hover:text-foreground"
                         >
                           <Minus className="size-3.5" />
                         </button>
@@ -5863,7 +5863,7 @@ function NuevaVentaTab({
                               typeof it.stock === "number" &&
                               qty >= it.stock)
                           }
-                          className="size-8 grid place-items-center rounded-md hover:bg-white/5 text-foreground disabled:opacity-40"
+                          className="size-8 grid place-items-center rounded-lg hover:bg-white/8 text-foreground disabled:opacity-40"
                         >
                           <Plus className="size-3.5" />
                         </button>
@@ -5878,7 +5878,7 @@ function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="rounded-3xl p-5 space-y-5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.16),transparent_40%),linear-gradient(135deg,rgba(5,8,18,0.96),rgba(12,8,28,0.92),rgba(2,4,12,0.98))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+        <Card className="rounded-3xl p-5 space-y-5 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200/70">Paso 4</p>
             <h3 className="mt-1 text-xl font-bold text-white">Confirmá el pago</h3>
@@ -5913,7 +5913,7 @@ function NuevaVentaTab({
               className={cn(
                 "rounded-lg py-2.5 text-sm font-semibold",
                 paymentMode === "simple"
-                  ? "bg-[linear-gradient(135deg,rgba(191,219,254,0.96),rgba(167,139,250,0.90))] text-slate-950 shadow-[0_0_24px_rgba(125,211,252,0.18)]"
+                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -5924,7 +5924,7 @@ function NuevaVentaTab({
               className={cn(
                 "rounded-lg py-2.5 text-sm font-semibold",
                 paymentMode === "multiple"
-                  ? "bg-[linear-gradient(135deg,rgba(191,219,254,0.96),rgba(167,139,250,0.90))] text-slate-950 shadow-[0_0_24px_rgba(125,211,252,0.18)]"
+                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -5946,10 +5946,10 @@ function NuevaVentaTab({
                         key={m.id}
                         onClick={() => setMethod(m.id as PayMethod)}
                         className={cn(
-                          "flex flex-col items-center gap-2 rounded-2xl border p-4 transition-all duration-200 shadow-[0_18px_45px_-36px_rgba(0,0,0,0.85)]",
+                          "flex flex-col items-center gap-2 rounded-2xl border p-4 transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
                           active
-                            ? "border-sky-300/45 bg-[linear-gradient(135deg,rgba(59,130,246,0.16),rgba(15,23,42,0.88))] text-white ring-1 ring-sky-300/16"
-                            : "border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(2,6,23,0.72))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.055] hover:text-foreground",
+                            ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
+                            : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
                         )}
                       >
                         <m.icon className="size-5" />{" "}
@@ -6064,7 +6064,7 @@ function NuevaVentaTab({
       )}
 
       <div className="sticky bottom-4 z-10">
-        <Card className="rounded-3xl border-white/[0.08] bg-[linear-gradient(135deg,rgba(3,7,18,0.96),rgba(13,10,30,0.92),rgba(2,4,12,0.98))] px-4 py-3 flex items-center gap-4 shadow-[0_32px_95px_-55px_rgba(0,0,0,1),0_0_52px_-38px_rgba(139,92,246,0.56)]">
+        <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3.5 flex items-center gap-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
           <button
             onClick={() =>
               setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s))
@@ -6106,7 +6106,7 @@ function NuevaVentaTab({
                 (paymentMode === "multiple" && splitsRemaining !== 0)
               }
               onClick={handleCobrar}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white bg-[linear-gradient(135deg,#60A5FA,#8B5CF6)] shadow-[0_0_34px_rgba(96,165,250,0.24)] hover:-translate-y-0.5 hover:shadow-[0_0_46px_rgba(139,92,246,0.36)] disabled:opacity-40 transition-all"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
             >
               {submitting ? (
                 <>
