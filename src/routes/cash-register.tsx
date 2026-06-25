@@ -5708,6 +5708,10 @@ function NuevaVentaTab({
                   toast.error("Ingresá el teléfono del cliente.");
                   return;
                 }
+    if (!email.trim()) {
+      toast.error("Ingresá el email del cliente.");
+      return null;
+    }
                 const saved = await saveClientIfNeeded();
                 if (saved) {
                   setClientId(saved);
@@ -5752,16 +5756,8 @@ function NuevaVentaTab({
                     <input
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Email"
+                      placeholder="Email *"
                       type="email"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
-                    />
-                  )}
-                  {isFieldEnabled("fecha_nacimiento") && (
-                    <input
-                      value={birthDate}
-                      onChange={(e) => setBirthDate(e.target.value)}
-                      type="date"
                       className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
                     />
                   )}
@@ -5787,7 +5783,7 @@ function NuevaVentaTab({
       )}
 
       {step === 3 && (
-        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto pr-1 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+        <div className={cn("relative z-10 min-h-0 flex-1 pr-1 space-y-4", servicesWithSynthetic.length > 12 && "overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]")}>
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 flex items-center gap-3 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
             <Search className="size-4 text-muted-foreground" />
             <input
