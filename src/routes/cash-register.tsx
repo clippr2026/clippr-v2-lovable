@@ -1642,10 +1642,14 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     setRangeOpen(false);
   }
 
-  const selectedProfessionalStats = selectedRow ? [
+  const summarySource = showingAllEmployees
+    ? totals
+    : selectedRow ?? { sales: 0, commission: 0, paid: 0, pending: 0 };
+
+  const liquidacionSummaryCards = [
     {
       label: "Ventas",
-      value: selectedRow.sales,
+      value: summarySource.sales,
       valueClass: "text-white",
       cardClass: "border-white/[0.10] bg-[radial-gradient(circle_at_16%_0%,rgba(148,163,184,0.10),transparent_36%),linear-gradient(180deg,rgba(15,23,42,0.62),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(15,23,42,0.20)]",
       labelClass: "text-white/46",
@@ -1653,7 +1657,7 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     },
     {
       label: "Comisión",
-      value: selectedRow.commission,
+      value: summarySource.commission,
       valueClass: "text-violet-300",
       cardClass: "border-violet-300/24 bg-[radial-gradient(circle_at_16%_0%,rgba(167,139,250,0.14),transparent_36%),linear-gradient(180deg,rgba(28,24,48,0.58),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(167,139,250,0.10)]",
       labelClass: "text-violet-200/72",
@@ -1661,7 +1665,7 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     },
     {
       label: "Pagado",
-      value: selectedRow.paid,
+      value: summarySource.paid,
       valueClass: "text-emerald-300",
       cardClass: "border-emerald-400/22 bg-[radial-gradient(circle_at_16%_0%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(180deg,rgba(10,37,32,0.54),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(34,197,94,0.09)]",
       labelClass: "text-emerald-200/72",
@@ -1669,13 +1673,13 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
     },
     {
       label: "Pendiente",
-      value: selectedRow.pending,
-      valueClass: selectedRow.pending > 0 ? "text-rose-300" : "text-white/45",
+      value: summarySource.pending,
+      valueClass: summarySource.pending > 0 ? "text-rose-300" : "text-white/45",
       cardClass: "border-rose-400/22 bg-[radial-gradient(circle_at_16%_0%,rgba(251,113,133,0.12),transparent_36%),linear-gradient(180deg,rgba(50,16,28,0.54),rgba(7,8,18,0.94))] shadow-[0_0_34px_rgba(251,113,133,0.10)]",
       labelClass: "text-rose-200/72",
       isMoney: true,
     },
-  ] : [];
+  ];
 
   return (
     <div className="animate-fade-up space-y-4">
@@ -1786,31 +1790,9 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
           </div>
         </div>
 
-        {showingAllEmployees && (
+        {(showingAllEmployees || selectedRow) && (
           <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
-            <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] px-4 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Ventas</div>
-              <div className="mt-1 text-xl font-bold tabular-nums text-white">{totals.sales}</div>
-            </div>
-            <div className="rounded-2xl border border-violet-300/18 bg-violet-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(167,139,250,0.10)]">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-200/70">Comisión</div>
-              <div className="mt-1 text-xl font-bold tabular-nums text-violet-300">{money(totals.commission)}</div>
-            </div>
-            <div className="rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(34,197,94,0.09)]">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">Pagado</div>
-              <div className="mt-1 text-xl font-bold tabular-nums text-emerald-300">{money(totals.paid)}</div>
-            </div>
-            <div className="rounded-2xl border border-rose-400/18 bg-rose-400/[0.055] px-4 py-3 shadow-[0_0_28px_rgba(251,113,133,0.10)]">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-200/70">Pendiente</div>
-              <div className="mt-1 text-xl font-bold tabular-nums text-rose-300">{money(totals.pending)}</div>
-            </div>
-          </div>
-        )}
-
-
-        {!showingAllEmployees && selectedRow && (
-          <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
-            {selectedProfessionalStats.map((card) => (
+            {liquidacionSummaryCards.map((card) => (
               <div key={card.label} className={cn("min-h-[96px] rounded-3xl border px-5 py-4", card.cardClass)}>
                 <div className={cn("text-[10px] font-bold uppercase tracking-[0.18em]", card.labelClass)}>{card.label}</div>
                 <div className={cn("mt-2 text-2xl font-extrabold tabular-nums", card.valueClass)}>
@@ -1832,8 +1814,7 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
               <div className="text-right">Acciones</div>
             </div>
           ) : (
-            <div className="grid grid-cols-[minmax(180px,1fr)_auto] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
-              <div>Profesional</div>
+            <div className="flex items-center justify-end border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div className="text-right">Acciones</div>
             </div>
           )}
@@ -1853,13 +1834,15 @@ function ProfesionalesTab({ businessId, userEmail: _userEmail }: { businessId: s
                     "items-center gap-3 px-5 py-4 text-sm transition-all duration-200 hover:bg-white/[0.026]",
                     showingAllEmployees
                       ? "grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)]"
-                      : "grid grid-cols-[minmax(180px,1fr)_auto]"
+                      : "flex justify-end"
                   )}
                 >
-                  <div className="min-w-0">
-                    <div className="truncate font-bold text-white">{row.name}</div>
-                    <div className="mt-0.5 truncate text-xs text-white/42">{row.role}</div>
-                  </div>
+                  {showingAllEmployees && (
+                    <div className="min-w-0">
+                      <div className="truncate font-bold text-white">{row.name}</div>
+                      <div className="mt-0.5 truncate text-xs text-white/42">{row.role}</div>
+                    </div>
+                  )}
 
                   {showingAllEmployees && (
                     <>
