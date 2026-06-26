@@ -300,6 +300,16 @@ function ProfessionalsPage() {
   const activeColor = useMemo(() => COLORS[(visibleProfessionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [visibleProfessionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
 
+  const selectedDayLabel = useMemo(() => {
+    const [y, m, d] = fromDate.split("-").map(Number);
+    if (!y || !m || !d) return "Elegir día";
+    return new Date(y, m - 1, d).toLocaleDateString("es-AR", {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+    }).replace(".", "");
+  }, [fromDate]);
+
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando profesionales…</div>
@@ -426,7 +436,7 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      <div className="flex justify-end -mt-2">
+      <div className="flex justify-end -mt-3">
         {tab === "turnos" ? (
           <div className="flex items-center gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
             <button
@@ -441,17 +451,24 @@ function ProfessionalsPage() {
             >
               Hoy
             </button>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => {
-                const day = e.target.value;
-                setRange("custom");
-                setFromDate(day);
-                setToDate(day);
-              }}
-              className="h-8 rounded-full border-0 bg-transparent px-3 text-xs font-semibold text-foreground outline-none [color-scheme:dark]"
-            />
+
+            <label className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-white/[0.035] px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.06] hover:ring-white/20">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="capitalize tabular-nums">{selectedDayLabel}</span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => {
+                  const day = e.target.value;
+                  setRange("custom");
+                  setFromDate(day);
+                  setToDate(day);
+                }}
+                aria-label="Elegir día"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 [color-scheme:dark]"
+                onKeyDown={(e) => e.preventDefault()}
+              />
+            </label>
           </div>
         ) : (
           <DateRangePicker
@@ -1388,12 +1405,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const timelineHeight = (dayBounds.endHour - dayBounds.startHour) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
-    <div className="space-y-3 animate-fade-up max-w-4xl mx-auto">
+    <div className="space-y-2 animate-fade-up max-w-4xl mx-auto">
 
       {/* El rango se elige arriba con el calendario tipo Dashboard */}
 
       {/* Status pills — compact left aligned */}
-      <div className="flex items-center gap-1.5 flex-wrap -mt-3 mb-0 justify-start">
+      <div className="flex items-center gap-1.5 flex-wrap -mt-4 mb-1 justify-start">
         {statusCards.map((card) => (
           <button
             key={card.label}
