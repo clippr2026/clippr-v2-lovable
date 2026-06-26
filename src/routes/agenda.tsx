@@ -1196,6 +1196,14 @@ function AgendaPage() {
           onApptClick={handleApptClick}
           onChangeStatus={handleChangeStatus}
           onCobrar={handleCobrar}
+          onBreakClick={(item) => {
+            setBreakModal({
+              employeeId: item.employeeId === "__none__" ? null : item.employeeId,
+              date: cursor,
+              breakStart: minToHHMM(item.startMin),
+              breakEnd: minToHHMM(item.endMin),
+            });
+          }}
         />
 
         {slotMenu ? (
@@ -1384,6 +1392,9 @@ const fmtHM = (d: Date) =>
 // Tracks the appointment currently being dragged so onDragOver (which cannot
 // read dataTransfer for security reasons) knows its duration for the preview.
 const draggedApptRef: { current: Appointment | null } = { current: null };
+const draggedBreakRef: {
+  current: { employeeId: string; startMin: number; endMin: number } | null;
+} = { current: null };
 
 function getApptEnd(a: Appointment) {
   if (a.ends_at) return new Date(a.ends_at);
@@ -1464,6 +1475,7 @@ const DayView = React.memo(function DayView({
   onApptClick,
   onChangeStatus,
   onCobrar,
+  onBreakClick,
 }: {
   date: Date;
   data: ReturnType<typeof useAgendaData>;
@@ -1473,6 +1485,7 @@ const DayView = React.memo(function DayView({
   onApptClick: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
+  onBreakClick: (item: { employeeId: string; startMin: number; endMin: number }) => void;
 }) {
   const [now, setNow] = React.useState(() => new Date());
   const [hoverTime, setHoverTime] = React.useState<{
@@ -1597,17 +1610,166 @@ const DayView = React.memo(function DayView({
   React.useEffect(() => {
     const clear = () => {
       draggedApptRef.current = null;
+      draggedBreakRef.current = null;
       setDragPreview(null);
     };
     window.addEventListener("dragend", clear);
     return () => window.removeEventListener("dragend", clear);
   }, []);
+  const persistMovedBreak = async (args: {
+    employeeId: string;
+    startMin: number;
+    endMin: number;
+  }) => {
+    if (!data.businessId) {
+      toast.error("No se encontró el negocio.");
+      return;
+    }
+
+    const targetEmpId = args.employeeId === "__none__" ? null : args.employeeId;
+    if (!targetEmpId) {
+      toast.error("Seleccioná un profesional para mover el descanso.");
+      return;
+    }
+
+    const day = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      targetEmpId,
+      date,
+    );
+
+    if (!day || !day.enabled) {
+      toast.error("El profesional no trabaja este día.");
+      return;
+    }
+
+    const openMin = Math.round(parseScheduleTime(day.start) * 60);
+    const closeMin = Math.round(parseScheduleTime(day.end) * 60);
+    if (args.startMin < openMin || args.endMin > closeMin) {
+      toast.error("El descanso debe quedar dentro del horario del profesional.");
+      return;
+    }
+
+    const newStart = new Date(date);
+    newStart.setHours(Math.floor(args.startMin / 60), args.startMin % 60, 0, 0);
+    if (isPastSlot(newStart)) {
+      toast.error("No podés mover un descanso a un horario que ya pasó.");
+      return;
+    }
+
+    const newEnd = new Date(date);
+    newEnd.setHours(Math.floor(args.endMin / 60), args.endMin % 60, 0, 0);
+
+    const conflict = data.appointments.find((o) => {
+      if (o.status === "cancelled") return false;
+      if (o.employee_id !== targetEmpId) return false;
+      const oStart = new Date(o.starts_at);
+      const oEnd = getApptEnd(o);
+      return oStart < newEnd && oEnd > newStart;
+    });
+
+    if (conflict) {
+      const t = new Date(conflict.starts_at).toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      toast.error(
+        conflict.status === "blocked"
+          ? `Horario bloqueado (${t}).`
+          : `Profesional ocupado: ya tiene un turno a las ${t}${conflict.client_name ? ` · ${conflict.client_name}` : ""}.`,
+      );
+      return;
+    }
+
+    try {
+      const { data: row, error: readError } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", data.businessId)
+        .maybeSingle();
+
+      if (readError) throw readError;
+
+      const sched = (row?.schedule ?? {}) as Record<string, any>;
+      const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<
+        string,
+        Record<string, unknown>
+      >;
+      const forEmp = (empSpecial[targetEmpId] ?? {}) as Record<string, unknown>;
+      const key = toDateKey(date);
+
+      const nextDay: DaySchedule = {
+        ...day,
+        enabled: day.enabled !== false,
+        breakStart: minToHHMM(args.startMin),
+        breakEnd: minToHHMM(args.endMin),
+      };
+
+      const nextSchedule = {
+        ...sched,
+        _employeeSpecialDates: {
+          ...empSpecial,
+          [targetEmpId]: {
+            ...forEmp,
+            [key]: nextDay,
+          },
+        },
+      };
+
+      const { error } = await supabase.from("business_settings").upsert(
+        { business_id: data.businessId, schedule: nextSchedule },
+        { onConflict: "business_id" },
+      );
+
+      if (error) throw error;
+
+      data.refresh();
+      toast.success("Descanso movido");
+    } catch (ex) {
+      toast.error(`Error al guardar: ${(ex as Error).message}`);
+    }
+  };
+
   // Drop is handled at the COLUMN level (not per hour-cell) so it works whether
   // you release over an empty slot or on top of another card. The minute is
   // derived from the cursor's Y within the column, snapped to DRAG_SNAP_MIN.
   const handleDrop = async (e: React.DragEvent, empId: string) => {
     e.preventDefault();
     setDragPreview(null);
+
+    const breakDrag = draggedBreakRef.current;
+    const droppedEmpId = empId === "__none__" ? null : empId;
+    if (breakDrag) {
+      draggedBreakRef.current = null;
+      draggedApptRef.current = null;
+
+      if (!droppedEmpId || droppedEmpId !== breakDrag.employeeId) {
+        toast.error("El descanso solo se puede mover dentro del mismo profesional.");
+        return;
+      }
+
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
+      const dur = breakDrag.endMin - breakDrag.startMin;
+      const { openMin, closeMin } = effectiveWindowFor(empId);
+      const maxStart = closeMin - dur;
+      const snappedMin = Math.max(
+        openMin,
+        Math.min(maxStart, Math.round(rawMin / DRAG_SNAP_MIN) * DRAG_SNAP_MIN),
+      );
+
+      await persistMovedBreak({
+        employeeId: breakDrag.employeeId,
+        startMin: snappedMin,
+        endMin: snappedMin + dur,
+      });
+      return;
+    }
+
     const apptId = e.dataTransfer.getData("apptId") || draggedApptRef.current?.id || "";
     draggedApptRef.current = null;
     if (!apptId) return;
@@ -1748,21 +1910,27 @@ const DayView = React.memo(function DayView({
   // Reuse the same snap math as the drop, off the cursor Y within the column.
   const previewFromColumn = (col: HTMLElement, clientY: number, empId: string) => {
     const appt = draggedApptRef.current;
-    if (!appt) return;
-    const durMin = Number(appt.duration_min ?? 30);
+    const br = draggedBreakRef.current;
+    if (!appt && !br) return;
+
+    const durMin = br ? br.endMin - br.startMin : Number(appt?.duration_min ?? 30);
     const rect = col.getBoundingClientRect();
     const y = clientY - rect.top;
     const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
-    const maxStart = HOUR_END * 60 - durMin;
+
+    const bounds = br && br.employeeId === empId ? effectiveWindowFor(empId) : null;
+    const minStart = bounds ? bounds.openMin : HOUR_START * 60;
+    const maxStart = (bounds ? bounds.closeMin : HOUR_END * 60) - durMin;
+
     const snappedMin = Math.max(
-      HOUR_START * 60,
+      minStart,
       Math.min(maxStart, Math.round(rawMin / DRAG_SNAP_MIN) * DRAG_SNAP_MIN),
     );
     const top = (snappedMin / 60 - HOUR_START) * rowPx;
     const height = Math.max((durMin / 60) * rowPx, 18);
     const s = new Date(date);
     s.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
-    const label = `${fmtHM(s)} - ${fmtHM(new Date(s.getTime() + durMin * 60000))}`;
+    const label = `${br ? "Descanso · " : ""}${fmtHM(s)} - ${fmtHM(new Date(s.getTime() + durMin * 60000))}`;
     setDragPreview((prev) =>
       prev && prev.empId === empId && prev.top === top && prev.label === label
         ? prev
@@ -2046,9 +2214,19 @@ const DayView = React.memo(function DayView({
                   top: (a / 60 - HOUR_START) * rowPx,
                   height: ((b - a) / 60) * rowPx,
                   label: `${minToHHMM(br.startMin)} - ${minToHHMM(br.endMin)}`,
+                  startMin: br.startMin,
+                  endMin: br.endMin,
                 };
               })
-              .filter((x): x is { top: number; height: number; label: string } => x !== null);
+              .filter(
+                (x): x is {
+                  top: number;
+                  height: number;
+                  label: string;
+                  startMin: number;
+                  endMin: number;
+                } => x !== null,
+              );
             return (
               <div
                 key={e.id}
@@ -2108,23 +2286,43 @@ const DayView = React.memo(function DayView({
                   />
                 ))}
 
-                {/* Descanso: bloque real "DESCANSO" con su rango horario. */}
+                {/* Descanso: bloque real "DESCANSO". Ahora se puede tocar y arrastrar
+                    igual que un turno, pero solo dentro del mismo profesional. */}
                 {breakBlocks.map((b, i) => (
                   <div
                     key={`break-${i}`}
-                    className="pointer-events-none absolute inset-x-0.5 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md px-1 text-center"
+                    draggable
+                    onDragStart={(ev) => {
+                      ev.dataTransfer.setData("breakMove", `${e.id}:${b.startMin}:${b.endMin}`);
+                      ev.dataTransfer.effectAllowed = "move";
+                      draggedBreakRef.current = {
+                        employeeId: e.id === "__none__" ? "__none__" : e.id,
+                        startMin: b.startMin,
+                        endMin: b.endMin,
+                      };
+                    }}
+                    onDragEnd={() => {
+                      draggedBreakRef.current = null;
+                      setDragPreview(null);
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onBreakClick({ employeeId: e.id, startMin: b.startMin, endMin: b.endMin });
+                    }}
+                    className="absolute inset-x-0.5 z-[1] flex cursor-grab flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md px-1 text-center transition hover:z-10 hover:scale-[1.01] active:cursor-grabbing"
                     style={{
                       top: b.top,
                       height: b.height,
-                      border: "1px solid rgba(148,163,184,0.28)",
+                      border: "1px solid rgba(148,163,184,0.34)",
                       background:
-                        "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
+                        "repeating-linear-gradient(135deg, rgba(148,163,184,0.12) 0, rgba(148,163,184,0.12) 8px, rgba(148,163,184,0.22) 8px, rgba(148,163,184,0.22) 16px)",
                     }}
+                    title="Arrastrar descanso"
                   >
-                    <span className="text-[10px] font-semibold uppercase tracking-wide leading-none text-slate-300/85">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide leading-none text-slate-300/90">
                       Descanso
                     </span>
-                    <span className="text-[10px] tabular-nums leading-none text-slate-400/75">
+                    <span className="text-[10px] tabular-nums leading-none text-slate-400/85">
                       {b.label}
                     </span>
                   </div>
