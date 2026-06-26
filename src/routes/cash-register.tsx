@@ -4400,32 +4400,16 @@ function CierresTab({
                 </div>
               </div>
             ) : (
-              <div className="rounded-[28px] border border-amber-300/18 bg-[linear-gradient(135deg,rgba(245,158,11,0.09),rgba(0,0,0,0.22))] p-5">
+              <div className="rounded-[28px] border border-red-500/18 bg-[linear-gradient(90deg,rgba(90,18,28,0.22)_0%,rgba(35,12,18,0.15)_55%,rgba(15,15,20,0.10)_100%)] p-5 shadow-[0_0_45px_rgba(239,68,68,0.10)]">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="inline-flex rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-bold text-red-300">
+                    <div className="inline-flex rounded-full border border-red-500/28 bg-red-500/12 px-3 py-1 text-xs font-bold text-red-300">
                       Caja cerrada
                     </div>
-                    <p className="mt-4 text-sm text-muted-foreground">
-                      Cerró: <span className="font-semibold text-white">{lastClosedBy}</span>
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Hora de cierre: <span className="font-semibold text-white">{lastClosedToday}</span>
-                    </p>
+                    <h3 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight text-white">
+                      La caja de hoy ya fue cerrada. Podés reabrirla hasta las 00:00.
+                    </h3>
                   </div>
-                  {latestCierre && (
-                    <button
-                      type="button"
-                      disabled={reopeningId === latestCierre.id}
-                      onClick={() => {
-                        setReopenTarget(latestCierre);
-                        setReopenNote("");
-                      }}
-                      className="rounded-2xl border border-white/[0.10] bg-white/[0.055] px-5 py-3 text-sm font-extrabold text-white shadow-[0_20px_70px_-45px_rgba(0,0,0,1)] transition hover:bg-white/[0.09] disabled:opacity-50"
-                    >
-                      Reabrir caja
-                    </button>
-                  )}
                 </div>
               </div>
             )}
