@@ -1793,23 +1793,36 @@ const DayView = React.memo(function DayView({
 
       const rect = col.getBoundingClientRect();
       const y = Math.max(0, Math.min(gridBodyHeight, clientY - rect.top));
-      const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
 
-      // Como AgendaPro: el indicador acompaña la fila/slot visible.
-      const snap = Math.max(5, Math.min(15, slotMinutes));
-      const snappedMin = Math.max(
-        HOUR_START * 60,
-        Math.min(HOUR_END * 60, Math.round(rawMin / snap) * snap),
+      const startMin = HOUR_START * 60;
+      const endMin = HOUR_END * 60;
+
+      // El hover usa EXACTAMENTE el mismo paso visual que la columna izquierda.
+      // Si la agenda está en 50 min, salta 11:00 → 11:50 → 12:40.
+      // Si está en 30 min, salta 11:00 → 11:30 → 12:00.
+      const slotIndex = Math.max(
+        0,
+        Math.min(
+          Math.max(0, timeSlots.length - 1),
+          Math.round(y / Math.max(1, slotHeightPx)),
+        ),
       );
 
-      const top = (snappedMin / 60 - HOUR_START) * rowPx;
+      const snappedMin = Math.max(
+        startMin,
+        Math.min(endMin, startMin + slotIndex * slotMinutes),
+      );
+
+      // Misma fórmula de render que usan los slots:
+      // índice de slot * alto de slot. Así queda alineado al píxel.
+      const top = slotIndex * slotHeightPx;
       const label = minToHHMM(snappedMin);
 
       setHoverTime((prev) =>
         prev && prev.top === top && prev.label === label ? prev : { top, label },
       );
     },
-    [HOUR_START, HOUR_END, rowPx, slotMinutes, gridBodyHeight],
+    [HOUR_START, HOUR_END, slotMinutes, slotHeightPx, gridBodyHeight, timeSlots.length],
   );
 
   const clearHoverTime = React.useCallback(() => {
@@ -2002,8 +2015,8 @@ const DayView = React.memo(function DayView({
             ))}
             {hoverTime && (
               <div
-                className="pointer-events-none absolute right-1 z-50 -translate-y-1/2 rounded-full border border-violet-300/25 bg-[#111323]/95 px-2 py-0.5 text-[11px] font-bold tabular-nums text-violet-100 shadow-[0_0_24px_rgba(139,92,246,0.24)]"
-                style={{ top: hoverTime.top }}
+                className="pointer-events-none absolute right-1 z-50 rounded-full border border-violet-300/25 bg-[#111323]/95 px-2 py-0.5 text-[11px] font-bold tabular-nums text-violet-100 shadow-[0_0_24px_rgba(139,92,246,0.24)]"
+                style={{ top: hoverTime.top + 4 }}
               >
                 {hoverTime.label}
               </div>
