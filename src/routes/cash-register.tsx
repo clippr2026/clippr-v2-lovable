@@ -623,8 +623,9 @@ function CashRegisterPage() {
           </div>
           <div className="mt-8 space-y-3">
             {/* Estado banner */}
-            <div className="rounded-2xl border border-white/[0.085] bg-white/[0.028] cash-panel-glow backdrop-blur-xl px-6 py-6 flex items-center gap-5">
-              <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-400/20 grid place-items-center shrink-0">
+            {!showClosedHistory && (
+            <div className="rounded-2xl border border-red-500/18 bg-[linear-gradient(90deg,rgba(90,18,28,0.24)_0%,rgba(35,12,18,0.16)_55%,rgba(8,10,16,0.92)_100%)] shadow-[0_0_45px_rgba(239,68,68,0.10)] backdrop-blur-xl px-6 py-6 flex items-center gap-5">
+              <div className="h-14 w-14 rounded-2xl bg-red-500/12 border border-red-500/28 grid place-items-center shrink-0">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -635,7 +636,7 @@ function CashRegisterPage() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-rose-300"
+                  className="text-red-300"
                 >
                   <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -652,12 +653,10 @@ function CashRegisterPage() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => setShowClosedHistory((v) => !v)}
+                  onClick={() => setShowClosedHistory(true)}
                   className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.045] border border-white/10 hover:bg-white/[0.09] transition-all text-foreground"
                 >
-                  {showClosedHistory
-                    ? "Ocultar historial"
-                    : "Historial"}
+                  Historial
                 </button>
                 <button
                   onClick={handleReabrirCajaDesdeBanner}
@@ -668,6 +667,7 @@ function CashRegisterPage() {
                 </button>
               </div>
             </div>
+            )}
             {showClosedHistory && (
               <div className="mt-5">
                 <CierresTab
