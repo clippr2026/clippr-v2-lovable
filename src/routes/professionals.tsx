@@ -343,9 +343,9 @@ function ProfessionalsPage() {
                 approvalMode === "manual" && "bg-cyan-500/10 ring-cyan-400/30 text-cyan-300",
                 approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
               )}>
-                {approvalMode === "auto" && <><Zap className="h-3 w-3 fill-emerald-300" /> Automático</>}
-                {approvalMode === "manual" && <>👁 Manual</>}
-                {approvalMode === "disabled" && <>🚫 Desactivado</>}
+                {approvalMode === "auto" && <>Automático</>}
+                {approvalMode === "manual" && <>Manual</>}
+                {approvalMode === "disabled" && <>Desactivado</>}
               </div>}
             </div>
           </div>
@@ -421,12 +421,7 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      {/* Rango de fechas — mismo calendario que Dashboard */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Rango</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">Elegí desde / hasta con el mismo calendario del Dashboard.</div>
-        </div>
+      <div className="flex justify-end">
         <DateRangePicker
           from={fromDate}
           to={toDate}
@@ -786,7 +781,7 @@ function CobroModal({
           {/* Mode banner */}
           <div className={cn("rounded-2xl px-4 py-2.5 text-sm ring-1",
             mode === "auto" ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-200" : "bg-cyan-500/10 ring-cyan-400/20 text-cyan-200")}>
-            <span className="font-semibold">{mode === "auto" ? "⚡ Cobro automático" : "👁 Enviar a Caja"}</span>
+            <span className="font-semibold">{mode === "auto" ? "Cobro automático" : "Enviar a Caja"}</span>
             <span className="text-xs opacity-70 ml-2">{mode === "auto" ? "Se registra directamente en caja." : "Recepción revisará y confirmará."}</span>
           </div>
 
@@ -1363,19 +1358,6 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
 
       {/* El rango se elige arriba con el calendario tipo Dashboard */}
-
-      {/* Mode banner */}
-      {approvalModeEnabled && canOperate && (
-        <div className={cn("rounded-2xl px-4 py-3 text-xs ring-1",
-          approvalMode === "auto" && "bg-emerald-500/8 ring-emerald-400/15 text-emerald-300",
-          approvalMode === "manual" && "bg-cyan-500/8 ring-cyan-400/15 text-cyan-300",
-          approvalMode === "disabled" && "bg-rose-500/8 ring-rose-400/15 text-rose-300",
-        )}>
-          {approvalMode === "auto" && "⚡ Cobro automático — el profesional ve el botón Cobrar y al confirmar queda como Cobrado."}
-          {approvalMode === "manual" && "👁 Cobro manual — el profesional ve Enviar; al enviarlo queda Pendiente hasta que Caja lo cobre."}
-          {approvalMode === "disabled" && "🚫 Cobro desactivado — el profesional solo consulta turnos; Caja realiza todos los cobros."}
-        </div>
-      )}
 
       {/* Status pills — compact left aligned */}
       <div className="flex items-center gap-2 flex-wrap mb-0 justify-start">
@@ -2136,12 +2118,8 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   return (
     <div className="space-y-4 animate-fade-up">
       <div className="max-w-5xl mx-auto space-y-3">
-        <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Historial de ventas</div>
-
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
           <span>Total de ventas: <strong className="text-foreground">{enriched.length}</strong></span>
-          <span className="text-white/20">•</span>
-          <span>Comisiones: <strong className="text-cyan-300">${totalComisiones.toLocaleString("es-AR")}</strong></span>
         </div>
 
         {loading ? (
