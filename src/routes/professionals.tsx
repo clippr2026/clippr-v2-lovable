@@ -993,6 +993,66 @@ const DAY_MS = 86_400_000;
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
 function endOfDay(d: Date)   { const x = new Date(d); x.setHours(23,59,59,999); return x; }
 
+function parseScheduleTime(value?: string | null) {
+  if (!value) return 0;
+  const [hh, mm = "0"] = String(value).split(":");
+  return (Number(hh) || 0) + (Number(mm) || 0) / 60;
+}
+
+function minutesOfDayFromISO(value: string) {
+  const d = new Date(value);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function minToHHMM(min: number) {
+  const safe = Math.max(0, Math.min(24 * 60, Math.round(min)));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function dateKeyAR(value: Date | string) {
+  const d = typeof value === "string" ? new Date(value) : value;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function weekdayKey(date: Date) {
+  return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][date.getDay()];
+}
+
+function readScheduleDay(schedule: any, empId: string | null, date: Date) {
+  const key = weekdayKey(date);
+  const dateKey = dateKeyAR(date);
+
+  const empSpecial =
+    empId && schedule?._employeeSpecialDates?.[empId]?.[dateKey]
+      ? schedule._employeeSpecialDates[empId][dateKey]
+      : null;
+  if (empSpecial) return empSpecial;
+
+  const businessSpecial = schedule?._businessSpecialDates?.[dateKey] ?? schedule?.specialDates?.[dateKey] ?? null;
+  const employeeNormal =
+    empId && schedule?._employeeSchedules?.[empId]?.[key]
+      ? schedule._employeeSchedules[empId][key]
+      : empId && schedule?.employees?.[empId]?.[key]
+        ? schedule.employees[empId][key]
+        : null;
+  const businessNormal = schedule?.[key] ?? schedule?.days?.[key] ?? null;
+
+  return employeeNormal ?? businessSpecial ?? businessNormal ?? null;
+}
+
+function readBreakRange(schedule: any, empId: string | null, date: Date) {
+  const day = readScheduleDay(schedule, empId, date);
+  if (!day || day.enabled === false || !day.breakStart || !day.breakEnd) return null;
+  const startMin = Math.round(parseScheduleTime(day.breakStart) * 60);
+  const endMin = Math.round(parseScheduleTime(day.breakEnd) * 60);
+  return endMin > startMin ? { startMin, endMin } : null;
+}
+
 // ── DayStripNav — same component as in agenda.tsx ────────────────────────────
 function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) => void }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -1076,6 +1136,20 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [historialVersion, setHistorialVersion] = React.useState(0);
+  const [businessSchedule, setBusinessSchedule] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    if (!businessId) {
+      setBusinessSchedule(null);
+      return;
+    }
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => setBusinessSchedule((data?.schedule as any) ?? null));
+  }, [businessId]);
 
   React.useEffect(() => {
     if (turnos.length > 0) {
@@ -1227,30 +1301,63 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     },
   ];
 
-  const DAY_START_HOUR = 11;
-  const DAY_END_HOUR = 20;
   const HOUR_HEIGHT = 118;
-  const timelineHours = React.useMemo(
-    () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i),
-    []
-  );
+  const TIMELINE_TOP_OFFSET = 36;
   const agendaTurnos = React.useMemo(
     () => [...activeTurnos].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()),
     [activeTurnos]
   );
-  const minutesFromDayStart = (value: string) => {
-    const d = new Date(value);
-    return Math.max(0, (d.getHours() - DAY_START_HOUR) * 60 + d.getMinutes());
-  };
+
+  const timelineBaseDate = React.useMemo(() => {
+    const first = agendaTurnos[0]?.starts_at ?? `${from}T11:00:00`;
+    return new Date(first);
+  }, [agendaTurnos, from]);
+
+  const breakRange = React.useMemo(
+    () => readBreakRange(businessSchedule, empId, timelineBaseDate),
+    [businessSchedule, empId, timelineBaseDate],
+  );
+
+  const dayBounds = React.useMemo(() => {
+    const mins = [
+      11 * 60,
+      20 * 60,
+      ...agendaTurnos.flatMap((t) => {
+        const start = minutesOfDayFromISO(t.starts_at);
+        const end = t.ends_at
+          ? minutesOfDayFromISO(t.ends_at)
+          : start + Math.max(30, Number(t.duration_min ?? 30));
+        return [start, end];
+      }),
+      ...(breakRange ? [breakRange.startMin, breakRange.endMin] : []),
+    ];
+    const minHour = Math.floor(Math.min(...mins) / 60);
+    const maxHour = Math.ceil(Math.max(...mins) / 60);
+    return {
+      startHour: Math.max(0, minHour),
+      endHour: Math.min(24, maxHour),
+    };
+  }, [agendaTurnos, breakRange]);
+
+  const timelineHours = React.useMemo(
+    () => Array.from({ length: dayBounds.endHour - dayBounds.startHour + 1 }, (_, i) => dayBounds.startHour + i),
+    [dayBounds.startHour, dayBounds.endHour],
+  );
+
+  const minutesFromDayStart = (value: string) => Math.max(0, minutesOfDayFromISO(value) - dayBounds.startHour * 60);
   const getBlockTop = (value: string) => (minutesFromDayStart(value) / 60) * HOUR_HEIGHT;
-  const getBlockHeight = (t: import("@/hooks/use-professionals-data").ProfTurno) => {
-    const start = new Date(t.starts_at).getTime();
-    const end = t.ends_at ? new Date(t.ends_at).getTime() : start + 30 * 60_000;
-    const durationMin = Math.max(30, Math.round((end - start) / 60_000));
-    return Math.max(92, (durationMin / 60) * HOUR_HEIGHT - 10);
+  const getTurnoEndMin = (t: import("@/hooks/use-professionals-data").ProfTurno) => {
+    const startMin = minutesOfDayFromISO(t.starts_at);
+    if (t.ends_at) return minutesOfDayFromISO(t.ends_at);
+    return startMin + Math.max(30, Number(t.duration_min ?? 30));
   };
-  const TIMELINE_TOP_OFFSET = 36;
-  const timelineHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
+  const getBlockHeight = (t: import("@/hooks/use-professionals-data").ProfTurno) => {
+    const startMin = minutesOfDayFromISO(t.starts_at);
+    const endMin = getTurnoEndMin(t);
+    const durationMin = Math.max(15, endMin - startMin);
+    return Math.max(54, (durationMin / 60) * HOUR_HEIGHT - 6);
+  };
+  const timelineHeight = (dayBounds.endHour - dayBounds.startHour) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
     <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
@@ -1297,7 +1404,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
       {isLoading ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
-      ) : agendaTurnos.length === 0 ? (
+      ) : agendaTurnos.length === 0 && !breakRange ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
         <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018]">
@@ -1307,13 +1414,33 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               <div
                 key={hour}
                 className="absolute left-0 right-0 border-t border-white/[0.055]"
-                style={{ top: TIMELINE_TOP_OFFSET + (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
+                style={{ top: TIMELINE_TOP_OFFSET + (hour - dayBounds.startHour) * HOUR_HEIGHT }}
               >
                 <div className="absolute left-5 -top-2.5 text-sm text-muted-foreground tabular-nums">
                   {String(hour).padStart(2, "0")}:00
                 </div>
               </div>
             ))}
+
+            {breakRange && (
+              <div
+                className="pointer-events-none absolute left-[108px] right-3 z-[1] flex flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl px-4 text-center"
+                style={{
+                  top: TIMELINE_TOP_OFFSET + ((breakRange.startMin - dayBounds.startHour * 60) / 60) * HOUR_HEIGHT + 6,
+                  height: Math.max(54, ((breakRange.endMin - breakRange.startMin) / 60) * HOUR_HEIGHT - 6),
+                  border: "1px solid rgba(148,163,184,0.28)",
+                  background:
+                    "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
+                }}
+              >
+                <span className="text-[11px] font-bold uppercase tracking-wide leading-none text-slate-300/85">
+                  Descanso
+                </span>
+                <span className="text-[11px] tabular-nums leading-none text-slate-400/80">
+                  {minToHHMM(breakRange.startMin)} - {minToHHMM(breakRange.endMin)}
+                </span>
+              </div>
+            )}
 
             {agendaTurnos.map((t) => {
               void historialVersion;
@@ -1327,15 +1454,15 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 <div
                   key={t.id}
                   className={cn(
-                    "absolute left-[108px] right-3 rounded-2xl border-l-[3px] ring-1 px-4 py-3 transition-all overflow-hidden",
+                    "absolute left-[108px] right-3 z-[2] rounded-2xl border-l-[3px] ring-1 px-4 py-2.5 transition-all overflow-hidden",
                     style.border, style.bg, style.ring
                   )}
-                  style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, minHeight: getBlockHeight(t) }}
+                  style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
                 >
-                  <div className="grid grid-cols-[76px_1fr_auto] gap-4 h-full items-start">
+                  <div className="grid grid-cols-[118px_1fr_auto] gap-4 h-full items-start">
                     <div className="min-w-0">
                       <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
-                        {formatTime(t.starts_at)}
+                        {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.starts_at)}</div>
                     </div>
