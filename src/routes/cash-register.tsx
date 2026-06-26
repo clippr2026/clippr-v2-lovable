@@ -4,7 +4,7 @@ import {
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { cn } from "@/lib/utils";
@@ -466,10 +466,7 @@ function CashRegisterPage() {
         setPendingToCharge(null);
         setResumenPanel("ingresos");
         setTab("resumen");
-
-        window.setTimeout(() => {
-          data.refresh();
-        }, 0);
+        await data.refresh();
       })
       .catch((error) => console.warn(error));
 
@@ -631,9 +628,7 @@ function CashRegisterPage() {
               onCajaReopened={() => {
                 setCajaCerrada(false);
                 setShowClosedHistory(false);
-                window.setTimeout(() => {
-                  data.refresh();
-                }, 0);
+                data.refresh();
               }}
             />
           </div>
@@ -664,10 +659,8 @@ function CashRegisterPage() {
         <Tabs
           tab={tab}
           onChange={(t) => {
-            startTransition(() => {
-              if (t !== "nueva") setPendingToCharge(null);
-              setTab(t);
-            });
+            if (t !== "nueva") setPendingToCharge(null);
+            setTab(t);
           }}
           data={data}
           userEmail={session.user.email ?? null}
@@ -4088,41 +4081,31 @@ function CierresTab({
       setLoading(false);
       return;
     }
-
     setLoading(true);
-    supabase
-      .from("caja_cierres" as any)
-      .select(
-        "id,business_id,fecha,hora_apertura,hora_cierre,estado,eventos,opened_by,created_by,closed_by,usuario_nombre,user_email,reopened_at,reopened_by,reopen_reason,observacion,total_cobrado,total_gastos,utilidad,diferencia,detalle_metodos_pago,cobros_snapshot,gastos_snapshot,updated_at",
-      )
-      .eq("business_id", businessId)
-      .order("fecha", { ascending: false })
-      .order("updated_at", { ascending: false })
-      .limit(60)
-      .then(({ data, error }) => {
-        if (error) toast.error(error.message);
-        setCierres(data ?? []);
-        setLoading(false);
+    autoCloseExpiredCajaSession({ businessId, userEmail })
+      .catch((error) => console.warn(error))
+      .finally(() => {
+        supabase
+          .from("caja_cierres" as any)
+          .select("*")
+          .eq("business_id", businessId)
+          .order("fecha", { ascending: false })
+          .order("updated_at", { ascending: false })
+          .limit(90)
+          .then(({ data, error }) => {
+            if (error) toast.error(error.message);
+            setCierres(data ?? []);
+            setLoading(false);
+          });
       });
   }, [businessId]);
 
   useEffect(() => {
-    if (!businessId) return;
-
-    // Performance: no traer historial al abrir "Caja del día".
-    // Solo se consulta cuando la caja está cerrada o cuando el usuario entra a Historial.
-    if (cajaCerrada || subtab === "historial") {
-      loadCierres();
-    } else {
-      setLoading(false);
-    }
-
-    const handler = () => {
-      if (cajaCerrada || subtab === "historial") loadCierres();
-    };
+    loadCierres();
+    const handler = () => loadCierres();
     window.addEventListener("clippr:caja-cierre-guardado", handler);
     return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
-  }, [businessId, cajaCerrada, subtab, loadCierres]);
+  }, [loadCierres]);
 
   const cierreEventos = (cierre: any) =>
     cleanCajaEventosForDisplay(sortCajaEventos(cajaEventosArray(cierre?.eventos)));
@@ -4312,6 +4295,8 @@ function CierresTab({
       } as any).catch(() => {
         // El historial visual ya quedó guardado en caja_cierres.
       });
+
+      loadCierres();
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo reabrir la caja");
     } finally {
