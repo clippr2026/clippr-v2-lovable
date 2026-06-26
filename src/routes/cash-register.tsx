@@ -3609,6 +3609,25 @@ function cajaTimeLabel(date = new Date()) {
   );
 }
 
+function cajaHoraDisplay(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === "—") return "—";
+  const direct = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (direct) return `${direct[1].padStart(2, "0")}:${direct[2]}hs`;
+
+  const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)$/i);
+  if (ampm) {
+    let h = Number(ampm[1]);
+    const min = ampm[2];
+    const suffix = ampm[3].toLowerCase();
+    if (suffix.includes("p") && h < 12) h += 12;
+    if (suffix.includes("a") && h === 12) h = 0;
+    return `${String(h).padStart(2, "0")}:${min}hs`;
+  }
+
+  return raw.replace(/\s*a\.\s*m\.?/i, "hs").replace(/\s*p\.\s*m\.?/i, "hs");
+}
+
 function cajaEventTimeToMinutes(value?: string | null) {
   const raw = String(value ?? "").trim();
   const match = raw.match(/^(\d{1,2}):(\d{2})/);
@@ -3817,10 +3836,7 @@ function CierreCajaBtn({
     setSaving(true);
     try {
       const now = new Date();
-      const hora = now.toLocaleTimeString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const hora = cajaTimeLabel(now);
       const cierreEvento = {
         tipo: "cierre",
         modo: "manual",
@@ -4102,8 +4118,8 @@ function CierresTab({
   const actor = (value?: string | null) => displayResponsibleUser(value ?? userEmail ?? "Usuario");
   const openedBy = actor(aperturaEvent?.usuario ?? latestCierre?.opened_by ?? latestCierre?.created_by ?? userEmail);
   const closedBy = actor(cierreEvent?.usuario ?? latestCierre?.closed_by ?? latestCierre?.usuario_nombre ?? latestCierre?.user_email ?? userEmail);
-  const openedAt = aperturaEvent?.hora ?? latestCierre?.hora_apertura ?? "—";
-  const closedAt = cierreEvent?.hora ?? latestCierre?.hora_cierre ?? "—";
+  const openedAt = cajaHoraDisplay(aperturaEvent?.hora ?? latestCierre?.hora_apertura ?? "—");
+  const closedAt = cajaHoraDisplay(cierreEvent?.hora ?? latestCierre?.hora_cierre ?? "—");
   const todayKey = cajaDateKey();
   const cierresToday = cierres.filter((c: any) => c?.fecha === todayKey);
   const closedResponsablesToday = React.useMemo(() => {
@@ -4133,7 +4149,7 @@ function CierresTab({
   const lastCierreToday = lastCloseEntryToday?.cierre ?? cierresToday[0] ?? latestCierre;
   const lastCloseEventToday = lastCloseEntryToday?.event ?? getCajaLastEvent(lastCierreToday, "cierre");
   const lastClosedBy = actor(lastCloseEventToday?.usuario ?? lastCierreToday?.closed_by ?? lastCierreToday?.usuario_nombre ?? lastCierreToday?.user_email ?? userEmail);
-  const lastClosedToday = lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt;
+  const lastClosedToday = cajaHoraDisplay(lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt);
   const closedCountToday = cierreCandidates.length || cierresToday.length;
 
 
@@ -4200,8 +4216,8 @@ function CierresTab({
         toast.info("La caja ya está abierta");
         setSelected(null);
         setReopenTarget(null);
-        loadCierres();
         onCajaReopened();
+        loadCierres();
         return;
       }
 
@@ -4209,17 +4225,14 @@ function CierresTab({
         toast.info("La caja no está cerrada");
         setSelected(null);
         setReopenTarget(null);
-        loadCierres();
         onCajaReopened();
+        loadCierres();
         return;
       }
 
       const now = new Date();
       const user = userEmail ? displayResponsibleUser(userEmail) : "Usuario";
-      const hora = now.toLocaleTimeString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const hora = cajaTimeLabel(now);
       const motivo = reopenNote.trim() || null;
       const evento = {
         tipo: "reapertura",
@@ -4251,27 +4264,29 @@ function CierresTab({
         toast.info("La caja ya estaba abierta");
         setSelected(null);
         setReopenTarget(null);
-        loadCierres();
         onCajaReopened();
+        loadCierres();
         return;
-      }
-
-      try {
-        await reopenCashSession({
-          sessionId: cierre.id,
-          businessId,
-          reopenedBy: user,
-        });
-      } catch {
-        // El historial visual ya quedó guardado en caja_cierres.
       }
 
       toast.success("Caja reabierta");
       setSelected(null);
       setReopenTarget(null);
       setReopenNote("");
-      loadCierres();
+
+      // La pantalla se desbloquea inmediatamente; la sincronización secundaria no bloquea la UI.
       onCajaReopened();
+      window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
+
+      reopenCashSession({
+        sessionId: cierre.id,
+        businessId,
+        reopenedBy: user,
+      } as any).catch(() => {
+        // El historial visual ya quedó guardado en caja_cierres.
+      });
+
+      loadCierres();
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo reabrir la caja");
     } finally {
@@ -4301,8 +4316,8 @@ function CierresTab({
       cierre,
       responsableApertura: actor(apertura?.usuario ?? c.opened_by ?? c.created_by ?? userEmail),
       responsableCierre: actor(cierre?.usuario ?? c.closed_by ?? c.usuario_nombre ?? c.user_email ?? userEmail),
-      horaApertura: apertura?.hora ?? c.hora_apertura ?? "—",
-      horaCierre: cierre?.hora ?? c.hora_cierre ?? "—",
+      horaApertura: cajaHoraDisplay(apertura?.hora ?? c.hora_apertura ?? "—"),
+      horaCierre: cajaHoraDisplay(cierre?.hora ?? c.hora_cierre ?? "—"),
     };
   };
 
@@ -4376,7 +4391,7 @@ function CierresTab({
                       }}
                       className="rounded-2xl border border-white/[0.10] bg-white/[0.055] px-5 py-3 text-sm font-extrabold text-white shadow-[0_20px_70px_-45px_rgba(0,0,0,1)] transition hover:bg-white/[0.09] disabled:opacity-50"
                     >
-                      Reabrir caja
+                      {reopeningId === latestCierre.id ? "Reabriendo…" : "Reabrir caja"}
                     </button>
                   )}
                 </div>
@@ -4450,7 +4465,7 @@ function CierresTab({
               <div>
                 <div className="font-semibold text-sm text-white">Detalle del cierre</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {fechaDetalleLabel(selected.fecha)} · {selected.hora_cierre ?? "—"}
+                  {fechaDetalleLabel(selected.fecha)} · {cajaHoraDisplay(selected.hora_cierre ?? "—")}
                 </div>
               </div>
               <button
