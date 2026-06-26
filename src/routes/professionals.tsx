@@ -466,7 +466,8 @@ function ProfessionalsPage() {
             <button
               type="button"
               onClick={openSingleDayPicker}
-              className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-white/[0.035] px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.06] hover:ring-white/20"
+              className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-[#070814]/95 px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
+              style={{ colorScheme: "dark", accentColor: "#7c3aed" }}
             >
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="capitalize tabular-nums">{selectedDayLabel}</span>
@@ -481,7 +482,8 @@ function ProfessionalsPage() {
                   setToDate(day);
                 }}
                 aria-label="Elegir día"
-                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                className="pointer-events-none absolute h-0 w-0 opacity-0 [color-scheme:dark]"
+                style={{ colorScheme: "dark", accentColor: "#7c3aed" }}
                 tabIndex={-1}
               />
             </button>
