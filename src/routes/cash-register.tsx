@@ -611,17 +611,7 @@ function CashRegisterPage() {
           />
 
           <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.28),transparent_40%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.25),transparent_38%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.11),transparent_52%)] blur-[16px]" />
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-                Caja
-              </h1>
-              <p className="mt-2 text-sm md:text-base text-muted-foreground">
-                Cobros, gastos y liquidaciones
-              </p>
-            </div>
-          </div>
-          <div className="mt-8">
+          <div className="mt-4">
             <CierresTab
               businessId={data.businessId}
               cajaCerrada={cajaCerrada}
@@ -4127,11 +4117,24 @@ function CierresTab({
     return Array.from(new Set(names)).join(" / ") || closedBy;
   }, [cierresToday, closedBy]);
 
-  const lastCierreToday = cierresToday[0] ?? latestCierre;
-  const lastCloseEventToday = getCajaLastEvent(lastCierreToday, "cierre");
+  const cierreCandidates = (cierresToday.length ? cierresToday : latestCierre ? [latestCierre] : [])
+    .flatMap((c: any) =>
+      cierreEventos(c)
+        .filter((event: any) => event?.tipo === "cierre")
+        .map((event: any) => ({ cierre: c, event })),
+    )
+    .sort((a: any, b: any) => {
+      const ah = a.event?.fecha_hora ? new Date(a.event.fecha_hora).getTime() : cajaEventTimeToMinutes(a.event?.hora);
+      const bh = b.event?.fecha_hora ? new Date(b.event.fecha_hora).getTime() : cajaEventTimeToMinutes(b.event?.hora);
+      return bh - ah;
+    });
+
+  const lastCloseEntryToday = cierreCandidates[0] ?? null;
+  const lastCierreToday = lastCloseEntryToday?.cierre ?? cierresToday[0] ?? latestCierre;
+  const lastCloseEventToday = lastCloseEntryToday?.event ?? getCajaLastEvent(lastCierreToday, "cierre");
   const lastClosedBy = actor(lastCloseEventToday?.usuario ?? lastCierreToday?.closed_by ?? lastCierreToday?.usuario_nombre ?? lastCierreToday?.user_email ?? userEmail);
   const lastClosedToday = lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt;
-  const closedCountToday = cierresToday.length;
+  const closedCountToday = cierreCandidates.length || cierresToday.length;
 
 
   function fechaLabel(fecha?: string | null, long = false) {
