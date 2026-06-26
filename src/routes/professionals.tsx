@@ -310,6 +310,17 @@ function ProfessionalsPage() {
     }).replace(".", "");
   }, [fromDate]);
 
+  const singleDayInputRef = React.useRef<HTMLInputElement>(null);
+  const openSingleDayPicker = React.useCallback(() => {
+    const input = singleDayInputRef.current;
+    if (!input) return;
+    try {
+      input.showPicker?.();
+    } catch {
+      input.click();
+    }
+  }, []);
+
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando profesionales…</div>
@@ -452,10 +463,15 @@ function ProfessionalsPage() {
               Hoy
             </button>
 
-            <label className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-white/[0.035] px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.06] hover:ring-white/20">
+            <button
+              type="button"
+              onClick={openSingleDayPicker}
+              className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-white/[0.035] px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.06] hover:ring-white/20"
+            >
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="capitalize tabular-nums">{selectedDayLabel}</span>
               <input
+                ref={singleDayInputRef}
                 type="date"
                 value={fromDate}
                 onChange={(e) => {
@@ -465,10 +481,10 @@ function ProfessionalsPage() {
                   setToDate(day);
                 }}
                 aria-label="Elegir día"
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 [color-scheme:dark]"
-                onKeyDown={(e) => e.preventDefault()}
+                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                tabIndex={-1}
               />
-            </label>
+            </button>
           </div>
         ) : (
           <DateRangePicker
