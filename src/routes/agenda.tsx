@@ -1475,6 +1475,10 @@ const DayView = React.memo(function DayView({
   onCobrar: (a: Appointment) => void;
 }) {
   const [now, setNow] = React.useState(() => new Date());
+  const [hoverTime, setHoverTime] = React.useState<{
+    top: number;
+    label: string;
+  } | null>(null);
 
   React.useEffect(() => {
     const tick = () => setNow(new Date());
@@ -1766,6 +1770,33 @@ const DayView = React.memo(function DayView({
     );
   };
 
+  const updateHoverTimeFromColumn = React.useCallback(
+    (col: HTMLElement, clientY: number) => {
+      // Solo desktop/mouse. En touch no aporta y puede interferir.
+      if (window.matchMedia?.("(pointer: coarse)").matches) return;
+
+      const rect = col.getBoundingClientRect();
+      const y = Math.max(0, Math.min(gridBodyHeight, clientY - rect.top));
+      const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
+      const snap = Math.max(5, Math.min(15, slotMinutes));
+      const snappedMin = Math.max(
+        HOUR_START * 60,
+        Math.min(HOUR_END * 60, Math.round(rawMin / snap) * snap),
+      );
+      const top = (snappedMin / 60 - HOUR_START) * rowPx;
+      const label = minToHHMM(snappedMin);
+
+      setHoverTime((prev) =>
+        prev && prev.top === top && prev.label === label ? prev : { top, label },
+      );
+    },
+    [HOUR_START, HOUR_END, rowPx, slotMinutes, gridBodyHeight],
+  );
+
+  const clearHoverTime = React.useCallback(() => {
+    setHoverTime(null);
+  }, []);
+
   const renderedColumns = shouldVirtualizeColumns
     ? columnRender.slice(visibleColumnRange.start, visibleColumnRange.end)
     : columnRender;
@@ -1967,6 +1998,14 @@ const DayView = React.memo(function DayView({
                 <span>{minToHHMM(min)}</span>
               </div>
             ))}
+            {hoverTime && (
+              <div
+                className="pointer-events-none absolute right-1 z-50 -translate-y-1/2 rounded-full border border-violet-300/24 bg-[#111323]/95 px-2 py-0.5 text-[11px] font-bold tabular-nums text-violet-100 shadow-[0_0_24px_rgba(139,92,246,0.22)]"
+                style={{ top: hoverTime.top }}
+              >
+                {hoverTime.label}
+              </div>
+            )}
           </div>
 
           {shouldVirtualizeColumns && <div aria-hidden="true" style={{ height: gridBodyHeight }} />}
@@ -1999,10 +2038,13 @@ const DayView = React.memo(function DayView({
               <div
                 key={e.id}
                 className="relative border-l border-white/[0.04]"
+                onMouseMove={(ev) => updateHoverTimeFromColumn(ev.currentTarget as HTMLElement, ev.clientY)}
+                onMouseLeave={clearHoverTime}
                 onDragOver={(ev) => {
                   ev.preventDefault();
                   ev.dataTransfer.dropEffect = "move";
                   previewFromColumn(ev.currentTarget as HTMLElement, ev.clientY, e.id);
+                  updateHoverTimeFromColumn(ev.currentTarget as HTMLElement, ev.clientY);
                 }}
                 onDrop={(ev) => handleDrop(ev, e.id)}
               >
@@ -2078,6 +2120,14 @@ const DayView = React.memo(function DayView({
                   >
                     <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]" />
                   </div>
+                )}
+
+                {hoverTime && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 z-[19] border-t border-violet-300/28"
+                    style={{ top: hoverTime.top }}
+                  />
                 )}
 
                 {/* Drag preview ghost — target time range before dropping */}
