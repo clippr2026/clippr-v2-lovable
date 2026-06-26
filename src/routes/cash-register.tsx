@@ -4306,16 +4306,7 @@ function CierresTab({
   return (
     <div className="-mt-3 space-y-4 animate-fade-up">
       <section className="overflow-hidden rounded-[32px] border border-white/[0.085] bg-[radial-gradient(circle_at_14%_0%,rgba(96,165,250,0.08),transparent_32%),radial-gradient(circle_at_90%_6%,rgba(139,92,246,0.10),transparent_36%),linear-gradient(135deg,rgba(5,8,15,0.98),rgba(8,10,20,0.97),rgba(2,4,12,0.99))] p-5 shadow-[0_38px_120px_-62px_rgba(0,0,0,1),0_0_70px_-52px_rgba(139,92,246,0.62)]">
-        <div className="flex flex-col gap-4 border-b border-white/[0.065] pb-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.20em] text-white/35">
-              Cierre de caja
-            </p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">
-              Operación y auditoría
-            </h2>
-          </div>
-
+        <div className="flex justify-end border-b border-white/[0.065] pb-5">
           <button
             type="button"
             onClick={() => setSubtab(subtab === "historial" ? "dia" : "historial")}
@@ -4362,13 +4353,29 @@ function CierresTab({
               <div className="rounded-[28px] border border-red-500/18 bg-[linear-gradient(90deg,rgba(90,18,28,0.22)_0%,rgba(35,12,18,0.15)_55%,rgba(15,15,20,0.10)_100%)] p-5 shadow-[0_0_45px_rgba(239,68,68,0.10)]">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="inline-flex rounded-full border border-red-500/28 bg-red-500/12 px-3 py-1 text-xs font-bold text-red-300">
+                    <div className="text-3xl font-extrabold tracking-tight text-red-300">
                       Caja cerrada
                     </div>
-                    <h3 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight text-white">
-                      La caja de hoy ya fue cerrada. Podés reabrirla hasta las 00:00.
-                    </h3>
+                    <p className="mt-3 text-sm font-semibold text-white/70">
+                      Hora de cierre: <span className="text-white">{lastClosedToday}</span>
+                    </p>
+                    <p className="mt-2 text-sm text-white/50">
+                      Podés reabrirla hasta las 00:00.
+                    </p>
                   </div>
+                  {latestCierre && (
+                    <button
+                      type="button"
+                      disabled={reopeningId === latestCierre.id}
+                      onClick={() => {
+                        setReopenTarget(latestCierre);
+                        setReopenNote("");
+                      }}
+                      className="rounded-2xl border border-white/[0.10] bg-white/[0.055] px-5 py-3 text-sm font-extrabold text-white shadow-[0_20px_70px_-45px_rgba(0,0,0,1)] transition hover:bg-white/[0.09] disabled:opacity-50"
+                    >
+                      Reabrir caja
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -4384,14 +4391,13 @@ function CierresTab({
         ) : (
           <div className="pt-5">
             <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
-              <div className="grid grid-cols-[120px_minmax(160px,1fr)_minmax(160px,1fr)_110px_110px_120px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+              <div className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_132px] items-center gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
                 <div>Fecha</div>
                 <div>Responsable apertura</div>
                 <div>Responsable cierre</div>
                 <div>Apertura</div>
                 <div>Cierre</div>
-                <div>Estado</div>
-                <div className="text-right">Detalle</div>
+                <div className="text-right leading-none">Detalle</div>
               </div>
               <div className="max-h-[52vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 {cierres.map((c) => {
@@ -4399,7 +4405,7 @@ function CierresTab({
                   return (
                     <div
                       key={c.id}
-                      className="grid grid-cols-[120px_minmax(160px,1fr)_minmax(160px,1fr)_110px_110px_120px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
+                      className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_132px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
                     >
                       <div className="text-white/80">
                         <div className="font-semibold">{fechaDetalleLabel(c.fecha)}</div>
@@ -4408,7 +4414,7 @@ function CierresTab({
                       <div className="truncate text-white/70">{s.responsableCierre}</div>
                       <div className="text-muted-foreground">{s.horaApertura}</div>
                       <div className="text-muted-foreground">{s.horaCierre}</div>
-<div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2">
                         {hasNotes(c) && (
                           <span
                             title="Tiene observaciones"
