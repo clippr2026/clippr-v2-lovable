@@ -4020,7 +4020,7 @@ function CierresTab({
   const closedBy = actor(cierreEvent?.usuario ?? latestCierre?.closed_by ?? latestCierre?.usuario_nombre ?? latestCierre?.user_email ?? userEmail);
   const openedAt = aperturaEvent?.hora ?? latestCierre?.hora_apertura ?? "—";
   const closedAt = cierreEvent?.hora ?? latestCierre?.hora_cierre ?? "—";
-  const todayKey = formatDateKey(new Date());
+  const todayKey = new Date().toLocaleDateString("en-CA");
   const cierresToday = cierres.filter((c: any) => c?.fecha === todayKey);
   const closedResponsablesToday = React.useMemo(() => {
     const names = cierresToday
