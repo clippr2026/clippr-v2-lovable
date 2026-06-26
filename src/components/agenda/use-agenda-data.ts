@@ -105,10 +105,14 @@ function getAppointmentEnd(appt: Appointment) {
   return new Date(start.getTime() + Number(appt.duration_min ?? 30) * 60000);
 }
 
-// Rango visible de la Agenda para un día. Fuente PRINCIPAL: horarios
-// individuales de los profesionales activos (`_employeeSchedules`). Fallback:
-// horario del local para los que no tengan horario propio. La vista se expande
-// SOLO con turnos reales (no cancelados ni bloqueos), nunca con descansos.
+// Rango visible de la Agenda para un día.
+// Regla segura para la vista:
+// 1) Si Configuración → Horarios tiene un rango semanal para el negocio, la
+//    agenda usa EXACTAMENTE ese rango. Ej.: 11:00–20:00 ⇒ no muestra 09/10.
+// 2) Si no hay horario semanal del negocio para ese día, recién ahí usa horarios
+//    individuales/especiales de profesionales.
+// 3) Si tampoco hay rango pero existen turnos reales, muestra el rango de esos
+//    turnos para que la agenda nunca quede en blanco.
 export function getVisibleRange(
   businessSchedule: ScheduleMap | null,
   employeeSchedules: Record<string, ScheduleMap>,
@@ -118,24 +122,31 @@ export function getVisibleRange(
   date: Date,
   appointments: Appointment[] = [],
 ): { start: string; end: string } | null {
+  const isValidRange = (day: DaySchedule | null | undefined) => {
+    if (!day || day.enabled === false) return false;
+    const start = Math.round(parseScheduleTime(day.start) * 60);
+    const end = Math.round(parseScheduleTime(day.end) * 60);
+    return Number.isFinite(start) && Number.isFinite(end) && end > start;
+  };
+
+  const dayKey = DAY_KEYS[date.getDay()];
+
+  // IMPORTANTE: usar el horario semanal del negocio como fuente principal de
+  // la grilla. No lo expandimos con descansos, bloqueos ni horarios viejos.
+  // Esto evita el bug donde la agenda se achicaba a 09:00–14:00 o quedaba vacía.
+  const weeklyBusinessDay = businessSchedule?.[dayKey] ?? null;
+  if (isValidRange(weeklyBusinessDay)) {
+    return {
+      start: weeklyBusinessDay!.start,
+      end: weeklyBusinessDay!.end,
+    };
+  }
+
   let coreOpen: number | null = null;
   let coreClose: number | null = null;
 
-  // Regla visual principal: si Configuración → Horarios tiene un rango del
-  // negocio para el día, la agenda usa EXACTAMENTE ese rango.
-  // Ej.: negocio 11:00–20:00 ⇒ la grilla arranca 11:00 y termina 20:00.
-  // No se expande con el horario semanal ni con horarios individuales, porque
-  // eso vuelve a mostrar horas vacías (09:00/10:00) que el usuario quiere sacar.
-  const bizDay = resolveDaySchedule(businessSchedule, {}, businessSpecial, {}, null, date);
-  const hasBusinessRange = !!(bizDay && bizDay.enabled);
-  if (hasBusinessRange) {
-    coreOpen = Math.round(parseScheduleTime(bizDay.start) * 60);
-    coreClose = Math.round(parseScheduleTime(bizDay.end) * 60);
-  }
-
-  // Fallback solamente si el negocio no tiene rango activo configurado:
-  // usar horarios individuales de profesionales activos.
-  if (!hasBusinessRange) for (const emp of employees) {
+  // Fallback: horarios efectivos de profesionales activos.
+  for (const emp of employees) {
     if (emp.is_active === false) continue;
     const day = resolveDaySchedule(
       businessSchedule,
@@ -145,18 +156,19 @@ export function getVisibleRange(
       emp.id,
       date,
     );
-    if (!day || !day.enabled) continue;
-    const open = Math.round(parseScheduleTime(day.start) * 60);
-    const close = Math.round(parseScheduleTime(day.end) * 60);
+    if (!isValidRange(day)) continue;
+    const open = Math.round(parseScheduleTime(day!.start) * 60);
+    const close = Math.round(parseScheduleTime(day!.end) * 60);
     coreOpen = coreOpen === null ? open : Math.min(coreOpen, open);
     coreClose = coreClose === null ? close : Math.max(coreClose, close);
   }
 
-  // Expansión: SOLO turnos reales (excluye cancelados y bloqueos).
+  // Último fallback: turnos reales del día. Así, aunque el horario esté mal
+  // cargado o cerrado por error, la agenda no desaparece.
   let apptStart: number | null = null;
   let apptEnd: number | null = null;
   for (const appt of appointments) {
-    if (appt.status === "cancelled" || appt.status === "blocked") continue;
+    if (appt.status === "cancelled") continue;
     if (!isSameLocalDay(new Date(appt.starts_at), date)) continue;
     const start = new Date(appt.starts_at);
     const end = getAppointmentEnd(appt);
@@ -166,18 +178,9 @@ export function getVisibleRange(
     apptEnd = apptEnd === null ? eMin : Math.max(apptEnd, eMin);
   }
 
-  // Si existe rango del negocio, NO expandirlo con turnos fuera de hora:
-  // el objetivo es que la grilla respete Configuración → Horarios.
-  if (hasBusinessRange && coreOpen !== null && coreClose !== null) {
-    return {
-      start: minutesToScheduleTime(coreOpen),
-      end: minutesToScheduleTime(coreClose),
-    };
-  }
-
   const starts = [coreOpen, apptStart].filter((v): v is number => v !== null);
   const ends = [coreClose, apptEnd].filter((v): v is number => v !== null);
-  if (!starts.length || !ends.length) return null; // cerrado / sin actividad
+  if (!starts.length || !ends.length) return null;
 
   return {
     start: minutesToScheduleTime(Math.min(...starts)),
