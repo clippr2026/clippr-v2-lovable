@@ -3828,7 +3828,7 @@ function CierreCajaBtn({
           <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold">{panel === "pendientes" ? "Historial completo de pendientes" : "Historial completo de ingresos"}</h3>
+                <h3 className="text-lg font-semibold">Cerrar caja</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {new Date().toLocaleDateString("es-AR", {
                     weekday: "long",
