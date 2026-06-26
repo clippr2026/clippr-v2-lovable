@@ -4572,30 +4572,6 @@ function CierresTab({
                 </div>
               )}
 
-              {(getCierreObservacion(selected) || getReaperturaObservacion(selected)) && (
-                <div className="mt-4 rounded-2xl border border-violet-300/14 bg-violet-400/[0.045] p-4">
-                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-violet-200/75">
-                    Observaciones
-                  </div>
-                  {getCierreObservacion(selected) && (
-                    <div className="mt-3 rounded-xl bg-black/25 p-3">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/40">
-                        Cierre
-                      </div>
-                      <p className="mt-1 text-white/82">{getCierreObservacion(selected)}</p>
-                    </div>
-                  )}
-                  {getReaperturaObservacion(selected) && (
-                    <div className="mt-3 rounded-xl bg-black/25 p-3">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/40">
-                        Reapertura
-                      </div>
-                      <p className="mt-1 text-white/82">{getReaperturaObservacion(selected)}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div className="rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
                   <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
