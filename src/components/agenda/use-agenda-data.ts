@@ -121,28 +121,21 @@ export function getVisibleRange(
   let coreOpen: number | null = null;
   let coreClose: number | null = null;
 
-  // El rango visible debe contemplar el horario del NEGOCIO para la fecha
-  // (especial del negocio → semanal del negocio), aunque ningún profesional
-  // trabaje en esos extremos. Así, si el local abre 08:00, la grilla arranca
-  // 08:00 y los profesionales que entran más tarde se ven bloqueados antes.
+  // Regla visual principal: si Configuración → Horarios tiene un rango del
+  // negocio para el día, la agenda usa EXACTAMENTE ese rango.
+  // Ej.: negocio 11:00–20:00 ⇒ la grilla arranca 11:00 y termina 20:00.
+  // No se expande con el horario semanal ni con horarios individuales, porque
+  // eso vuelve a mostrar horas vacías (09:00/10:00) que el usuario quiere sacar.
   const bizDay = resolveDaySchedule(businessSchedule, {}, businessSpecial, {}, null, date);
-  if (bizDay && bizDay.enabled) {
+  const hasBusinessRange = !!(bizDay && bizDay.enabled);
+  if (hasBusinessRange) {
     coreOpen = Math.round(parseScheduleTime(bizDay.start) * 60);
     coreClose = Math.round(parseScheduleTime(bizDay.end) * 60);
-
-    // Además, el rango visible NUNCA se recorta por debajo del horario SEMANAL
-    // configurado del negocio. Si un día tiene un especial más corto (p. ej.
-    // 09:00–20:00) pero el semanal es 08:00–22:00, igual se muestra 08:00–22:00;
-    // las horas no disponibles del especial se ven bloqueadas por columna. Esto
-    // evita que "hoy" aparezca recortado respecto del resto de los días.
-    const bizWeekly = resolveDaySchedule(businessSchedule, {}, {}, {}, null, date);
-    if (bizWeekly && bizWeekly.enabled) {
-      coreOpen = Math.min(coreOpen, Math.round(parseScheduleTime(bizWeekly.start) * 60));
-      coreClose = Math.max(coreClose, Math.round(parseScheduleTime(bizWeekly.end) * 60));
-    }
   }
 
-  for (const emp of employees) {
+  // Fallback solamente si el negocio no tiene rango activo configurado:
+  // usar horarios individuales de profesionales activos.
+  if (!hasBusinessRange) for (const emp of employees) {
     if (emp.is_active === false) continue;
     const day = resolveDaySchedule(
       businessSchedule,
@@ -171,6 +164,15 @@ export function getVisibleRange(
     const eMin = end.getHours() * 60 + end.getMinutes();
     apptStart = apptStart === null ? sMin : Math.min(apptStart, sMin);
     apptEnd = apptEnd === null ? eMin : Math.max(apptEnd, eMin);
+  }
+
+  // Si existe rango del negocio, NO expandirlo con turnos fuera de hora:
+  // el objetivo es que la grilla respete Configuración → Horarios.
+  if (hasBusinessRange && coreOpen !== null && coreClose !== null) {
+    return {
+      start: minutesToScheduleTime(coreOpen),
+      end: minutesToScheduleTime(coreClose),
+    };
   }
 
   const starts = [coreOpen, apptStart].filter((v): v is number => v !== null);
