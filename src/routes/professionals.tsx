@@ -246,6 +246,11 @@ function ProfessionalsPage() {
     );
   }, [profile?.role, profileEmployeeId, professionals, ownProfessional]);
 
+  useEffect(() => {
+    if (tab !== "turnos") return;
+    if (toDate !== fromDate) setToDate(fromDate);
+  }, [tab, fromDate, toDate]);
+
   const canOperateSelectedPanel = !!empId && (
     isProfessionalAccess ? ownProfessional?.id === empId : true
   );
@@ -421,20 +426,48 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <DateRangePicker
-          from={fromDate}
-          to={toDate}
-          onChange={({ from, to }) => {
-            setRange("custom");
-            setFromDate(from);
-            setToDate(to);
-          }}
-        />
+      <div className="flex justify-end -mt-2">
+        {tab === "turnos" ? (
+          <div className="flex items-center gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
+            <button
+              type="button"
+              onClick={() => {
+                const today = getPresetRange("hoy").from;
+                setRange("hoy");
+                setFromDate(today);
+                setToDate(today);
+              }}
+              className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
+            >
+              Hoy
+            </button>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => {
+                const day = e.target.value;
+                setRange("custom");
+                setFromDate(day);
+                setToDate(day);
+              }}
+              className="h-8 rounded-full border-0 bg-transparent px-3 text-xs font-semibold text-foreground outline-none [color-scheme:dark]"
+            />
+          </div>
+        ) : (
+          <DateRangePicker
+            from={fromDate}
+            to={toDate}
+            onChange={({ from, to }) => {
+              setRange("custom");
+              setFromDate(from);
+              setToDate(to);
+            }}
+          />
+        )}
       </div>
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} fromDate={fromDate} toDate={toDate} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
+      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} fromDate={fromDate} toDate={fromDate} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -1296,7 +1329,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     },
   ];
 
-  const HOUR_HEIGHT = 118;
+  const HOUR_HEIGHT = 92;
   const TIMELINE_TOP_OFFSET = 36;
   const agendaTurnos = React.useMemo(
     () => [...activeTurnos].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()),
@@ -1350,17 +1383,17 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     const startMin = minutesOfDayFromISO(t.starts_at);
     const endMin = getTurnoEndMin(t);
     const durationMin = Math.max(15, endMin - startMin);
-    return Math.max(54, (durationMin / 60) * HOUR_HEIGHT - 6);
+    return Math.max(44, (durationMin / 60) * HOUR_HEIGHT - 6);
   };
   const timelineHeight = (dayBounds.endHour - dayBounds.startHour) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
-    <div className="space-y-5 animate-fade-up max-w-5xl mx-auto">
+    <div className="space-y-3 animate-fade-up max-w-4xl mx-auto">
 
       {/* El rango se elige arriba con el calendario tipo Dashboard */}
 
       {/* Status pills — compact left aligned */}
-      <div className="flex items-center gap-2 flex-wrap mb-0 justify-start">
+      <div className="flex items-center gap-1.5 flex-wrap -mt-3 mb-0 justify-start">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1368,7 +1401,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-semibold transition-all ring-1",
+              "inline-flex items-center gap-1.5 rounded-xl px-2 py-0.5 text-[11px] font-semibold transition-all ring-1",
               card.bg,
               card.ring,
               card.color,
@@ -1382,15 +1415,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       </div>
 
       {/* Agenda visual */}
-      <div className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase mt-1">Turnos del rango</div>
-
       {isLoading ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground animate-pulse">Cargando turnos…</div>
       ) : agendaTurnos.length === 0 && !breakRange ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018]">
-          <div className="absolute left-[88px] top-0 bottom-0 w-px bg-white/[0.07]" />
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018] -mt-1">
+          <div className="absolute left-[84px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div className="relative" style={{ height: timelineHeight }}>
             {timelineHours.map((hour) => (
               <div
@@ -1406,10 +1437,10 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
             {breakRange && (
               <div
-                className="pointer-events-none absolute left-[108px] right-3 z-[1] flex flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl px-4 text-center"
+                className="pointer-events-none absolute left-[104px] right-3 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-3 text-center"
                 style={{
                   top: TIMELINE_TOP_OFFSET + ((breakRange.startMin - dayBounds.startHour * 60) / 60) * HOUR_HEIGHT + 6,
-                  height: Math.max(54, ((breakRange.endMin - breakRange.startMin) / 60) * HOUR_HEIGHT - 6),
+                  height: Math.max(44, ((breakRange.endMin - breakRange.startMin) / 60) * HOUR_HEIGHT - 6),
                   border: "1px solid rgba(148,163,184,0.28)",
                   background:
                     "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
@@ -1436,14 +1467,14 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 <div
                   key={t.id}
                   className={cn(
-                    "absolute left-[108px] right-3 z-[2] rounded-2xl border-l-[3px] ring-1 px-4 py-2.5 transition-all overflow-hidden",
+                    "absolute left-[104px] right-3 z-[2] rounded-xl border-l-[3px] ring-1 px-3 py-1.5 transition-all overflow-hidden",
                     style.border, style.bg, style.ring
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
                 >
-                  <div className="grid grid-cols-[118px_1fr_auto] gap-4 h-full items-start">
+                  <div className="grid grid-cols-[106px_1fr_auto] gap-3 h-full items-start">
                     <div className="min-w-0">
-                      <div className={cn("text-sm font-semibold tabular-nums", style.labelColor)}>
+                      <div className={cn("text-xs font-semibold tabular-nums", style.labelColor)}>
                         {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.starts_at)}</div>
@@ -1451,7 +1482,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                        <span className="font-semibold text-xs text-foreground">{t.client_name ?? "Sin cliente"}</span>
                         <span className={cn(
                           "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1",
                           style.bg, style.ring, style.labelColor
@@ -1459,7 +1490,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                           {style.label}
                         </span>
                       </div>
-                      <div className="text-sm text-muted-foreground mt-0.5 truncate">{t.service_name ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 truncate">{t.service_name ?? "—"}</div>
                       {noteText && (
                         <button
                           type="button"
