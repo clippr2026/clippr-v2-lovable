@@ -4176,30 +4176,14 @@ function CierresTab({
           ) : (
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="inline-flex rounded-full border border-rose-400/25 bg-rose-400/10 px-3 py-1 text-xs font-bold text-rose-300">
-                  Caja cerrada
-                </div>
-                <h3 className="mt-4 text-2xl font-bold text-white">La caja está bloqueada</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <h3 className="text-2xl font-bold text-white">La caja está bloqueada</h3>
+                <p className="mt-3 text-sm text-muted-foreground">
                   Cerró: <span className="font-semibold text-white">{closedBy}</span>
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Hora de cierre: <span className="font-semibold text-white">{closedAt}</span>
                 </p>
-                <p className="mt-4 rounded-2xl border border-amber-300/18 bg-amber-300/[0.06] px-4 py-3 text-sm text-amber-100/85">
-                  No se pueden registrar nuevas ventas hasta reabrir la caja.
-                </p>
               </div>
-              {latestCierre && (
-                <button
-                  type="button"
-                  disabled={reopeningId === latestCierre.id}
-                  onClick={() => reabrirCaja(latestCierre)}
-                  className="rounded-2xl border border-emerald-300/35 bg-emerald-400/16 px-5 py-3 text-sm font-extrabold text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.16)] transition hover:bg-emerald-400/24 disabled:opacity-50"
-                >
-                  {reopeningId === latestCierre.id ? "Reabriendo…" : "Reabrir caja"}
-                </button>
-              )}
             </div>
           )}
         </div>
