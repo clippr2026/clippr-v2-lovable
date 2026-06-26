@@ -1770,33 +1770,6 @@ const DayView = React.memo(function DayView({
     );
   };
 
-  const updateHoverTimeFromColumn = React.useCallback(
-    (col: HTMLElement, clientY: number) => {
-      // Solo desktop/mouse. En touch no aporta y puede interferir.
-      if (window.matchMedia?.("(pointer: coarse)").matches) return;
-
-      const rect = col.getBoundingClientRect();
-      const y = Math.max(0, Math.min(gridBodyHeight, clientY - rect.top));
-      const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
-      const snap = Math.max(5, Math.min(15, slotMinutes));
-      const snappedMin = Math.max(
-        HOUR_START * 60,
-        Math.min(HOUR_END * 60, Math.round(rawMin / snap) * snap),
-      );
-      const top = (snappedMin / 60 - HOUR_START) * rowPx;
-      const label = minToHHMM(snappedMin);
-
-      setHoverTime((prev) =>
-        prev && prev.top === top && prev.label === label ? prev : { top, label },
-      );
-    },
-    [HOUR_START, HOUR_END, rowPx, slotMinutes, gridBodyHeight],
-  );
-
-  const clearHoverTime = React.useCallback(() => {
-    setHoverTime(null);
-  }, []);
-
   const renderedColumns = shouldVirtualizeColumns
     ? columnRender.slice(visibleColumnRange.start, visibleColumnRange.end)
     : columnRender;
@@ -1813,6 +1786,35 @@ const DayView = React.memo(function DayView({
     ? 58 + employees.length * AGENDA_EMPLOYEE_COL_PX
     : undefined;
   const gridBodyHeight = Math.max(0, HOUR_END - HOUR_START) * rowPx;
+
+  const updateHoverTimeFromColumn = React.useCallback(
+    (col: HTMLElement, clientY: number) => {
+      if (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches) return;
+
+      const rect = col.getBoundingClientRect();
+      const y = Math.max(0, Math.min(gridBodyHeight, clientY - rect.top));
+      const rawMin = HOUR_START * 60 + (rowPx > 0 ? (y / rowPx) * 60 : 0);
+
+      // Como AgendaPro: el indicador acompaña la fila/slot visible.
+      const snap = Math.max(5, Math.min(15, slotMinutes));
+      const snappedMin = Math.max(
+        HOUR_START * 60,
+        Math.min(HOUR_END * 60, Math.round(rawMin / snap) * snap),
+      );
+
+      const top = (snappedMin / 60 - HOUR_START) * rowPx;
+      const label = minToHHMM(snappedMin);
+
+      setHoverTime((prev) =>
+        prev && prev.top === top && prev.label === label ? prev : { top, label },
+      );
+    },
+    [HOUR_START, HOUR_END, rowPx, slotMinutes, gridBodyHeight],
+  );
+
+  const clearHoverTime = React.useCallback(() => {
+    setHoverTime(null);
+  }, []);
 
   // Franjas bloqueadas (fuera de hora) dentro del rango visible, para una
   // ventana laboral [openMin, closeMin]. Hoy todas las columnas usan el horario
@@ -2000,7 +2002,7 @@ const DayView = React.memo(function DayView({
             ))}
             {hoverTime && (
               <div
-                className="pointer-events-none absolute right-1 z-50 -translate-y-1/2 rounded-full border border-violet-300/24 bg-[#111323]/95 px-2 py-0.5 text-[11px] font-bold tabular-nums text-violet-100 shadow-[0_0_24px_rgba(139,92,246,0.22)]"
+                className="pointer-events-none absolute right-1 z-50 -translate-y-1/2 rounded-full border border-violet-300/25 bg-[#111323]/95 px-2 py-0.5 text-[11px] font-bold tabular-nums text-violet-100 shadow-[0_0_24px_rgba(139,92,246,0.24)]"
                 style={{ top: hoverTime.top }}
               >
                 {hoverTime.label}
@@ -2038,7 +2040,9 @@ const DayView = React.memo(function DayView({
               <div
                 key={e.id}
                 className="relative border-l border-white/[0.04]"
-                onMouseMove={(ev) => updateHoverTimeFromColumn(ev.currentTarget as HTMLElement, ev.clientY)}
+                onMouseMove={(ev) =>
+                  updateHoverTimeFromColumn(ev.currentTarget as HTMLElement, ev.clientY)
+                }
                 onMouseLeave={clearHoverTime}
                 onDragOver={(ev) => {
                   ev.preventDefault();
@@ -2125,7 +2129,7 @@ const DayView = React.memo(function DayView({
                 {hoverTime && (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 z-[19] border-t border-violet-300/28"
+                    className="pointer-events-none absolute inset-x-0 z-[19] border-t border-violet-300/25"
                     style={{ top: hoverTime.top }}
                   />
                 )}
