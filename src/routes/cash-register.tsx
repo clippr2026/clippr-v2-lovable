@@ -621,76 +621,26 @@ function CashRegisterPage() {
               </p>
             </div>
           </div>
-          <div className="mt-8 space-y-3">
-            {/* Estado banner */}
-            {!showClosedHistory && (
-            <div className="rounded-2xl border border-red-500/18 bg-[linear-gradient(90deg,rgba(90,18,28,0.24)_0%,rgba(35,12,18,0.16)_55%,rgba(8,10,16,0.92)_100%)] shadow-[0_0_45px_rgba(239,68,68,0.10)] backdrop-blur-xl px-6 py-6 flex items-center gap-5">
-              <div className="h-14 w-14 rounded-2xl bg-red-500/12 border border-red-500/28 grid place-items-center shrink-0">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-red-300"
-                >
-                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h2 className="text-base font-semibold text-foreground">
-                  Caja cerrada
-                </h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  La caja de hoy ya fue cerrada. Podés reabrirla hasta las
-                  00:00.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setShowClosedHistory(true)}
-                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.045] border border-white/10 hover:bg-white/[0.09] transition-all text-foreground"
-                >
-                  Historial
-                </button>
-                <button
-                  onClick={handleReabrirCajaDesdeBanner}
-                  disabled={reopeningCaja}
-                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-white/[0.07] border border-white/10 hover:bg-white/[0.12] transition-all text-foreground disabled:opacity-50"
-                >
-                  {reopeningCaja ? "Reabriendo…" : "Reabrir caja"}
-                </button>
-              </div>
-            </div>
-            )}
-            {showClosedHistory && (
-              <div className="mt-5">
-                <CierresTab
-                  businessId={data.businessId}
-                  cajaCerrada={cajaCerrada}
-                  paymentsToday={data.paymentsToday}
-                  expensesToday={data.expensesToday}
-                  userEmail={session.user.email ?? null}
-                  onCajaCerrada={() => {
-                    setCajaCerrada(true);
-                    setShowClosedHistory(false);
-                    setPendingToCharge(null);
-                    setResumenPanel("ingresos");
-                    setTab("resumen");
-                  }}
-                  onCajaReopened={() => {
-                    setCajaCerrada(false);
-                    setShowClosedHistory(false);
-                    data.refresh();
-                  }}
-                />
-              </div>
-            )}
+          <div className="mt-8">
+            <CierresTab
+              businessId={data.businessId}
+              cajaCerrada={cajaCerrada}
+              paymentsToday={data.paymentsToday}
+              expensesToday={data.expensesToday}
+              userEmail={session.user.email ?? null}
+              onCajaCerrada={() => {
+                setCajaCerrada(true);
+                setShowClosedHistory(false);
+                setPendingToCharge(null);
+                setResumenPanel("ingresos");
+                setTab("resumen");
+              }}
+              onCajaReopened={() => {
+                setCajaCerrada(false);
+                setShowClosedHistory(false);
+                data.refresh();
+              }}
+            />
           </div>
         </div>
       </AppShell>
