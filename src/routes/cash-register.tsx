@@ -450,6 +450,31 @@ function CashRegisterPage() {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
   }, [authLoading, session, navigate]);
 
+  useEffect(() => {
+    if (!session?.user || !data.businessId) return;
+
+    let cancelled = false;
+
+    autoCloseExpiredCajaSession({
+      businessId: data.businessId,
+      userEmail: session.user.email ?? session.user.id,
+    })
+      .then(async (result) => {
+        if (cancelled || !result.closed) return;
+        setCajaCerrada(true);
+        setShowClosedHistory(false);
+        setPendingToCharge(null);
+        setResumenPanel("ingresos");
+        setTab("resumen");
+        await data.refresh();
+      })
+      .catch((error) => console.warn(error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data.businessId, session?.user?.id]);
+
   function handleCobrarPendiente(
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) {
@@ -2199,8 +2224,7 @@ function InventarioTab({
             <div className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Artículo</div>
               <div>Stock</div>
-              <div>Estado</div>
-              <div className="text-right">Ajustar</div>
+<div className="text-right">Ajustar</div>
             </div>
             {filteredStock.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">
@@ -3631,6 +3655,122 @@ function isCajaReabiertaRow(cierre: any) {
   return String(cierre?.estado ?? "").toLowerCase() === "reabierta";
 }
 
+function cajaDateKey(date = new Date()) {
+  return date.toLocaleDateString("sv-SE");
+}
+
+function cajaTimeLabel(date = new Date()) {
+  return (
+    date.toLocaleTimeString("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }) + "hs"
+  );
+}
+
+function cajaEventTimeToMinutes(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return 0;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function sortCajaEventos(events: CajaEvento[]) {
+  return [...events].sort((a, b) => {
+    const at = String(a.fecha_hora ?? "");
+    const bt = String(b.fecha_hora ?? "");
+    if (at && bt) return at.localeCompare(bt);
+    return cajaEventTimeToMinutes(a.hora) - cajaEventTimeToMinutes(b.hora);
+  });
+}
+
+function getCajaLastEvent(cierre: any, tipo?: string) {
+  const events = sortCajaEventos(cajaEventosArray(cierre?.eventos));
+  const filtered = tipo ? events.filter((event) => event.tipo === tipo) : events;
+  return filtered[filtered.length - 1] ?? null;
+}
+
+function getCajaFirstEvent(cierre: any, tipo?: string) {
+  const events = sortCajaEventos(cajaEventosArray(cierre?.eventos));
+  return (tipo ? events.find((event) => event.tipo === tipo) : events[0]) ?? null;
+}
+
+function cierreNeedsAutomaticClose(cierre: any, today = cajaDateKey()) {
+  if (!cierre?.id) return false;
+  if (!isCajaReabiertaRow(cierre)) return false;
+  const fecha = String(cierre?.fecha ?? "").slice(0, 10);
+  return Boolean(fecha && fecha < today);
+}
+
+async function autoCloseExpiredCajaSession({
+  businessId,
+  userEmail,
+}: {
+  businessId: string | null;
+  userEmail?: string | null;
+}) {
+  if (!businessId) return { closed: false };
+
+  const today = cajaDateKey();
+  const { data: lastCierre, error } = await supabase
+    .from("caja_cierres" as any)
+    .select("*")
+    .eq("business_id", businessId)
+    .order("fecha", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!cierreNeedsAutomaticClose(lastCierre, today)) return { closed: false };
+
+  const autoDate = new Date(`${today}T00:00:00`);
+  const evento: CajaEvento = {
+    tipo: "cierre",
+    modo: "automatico",
+    fecha_hora: autoDate.toISOString(),
+    hora: "00:00hs",
+    usuario: "Automático",
+    observacion: "Cierre automático de fin de día.",
+  };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("caja_cierres" as any)
+    .update({
+      estado: "cerrada",
+      tipo_cierre: "automatico",
+      hora_cierre: "00:00hs",
+      closed_by: "Automático",
+      usuario_nombre: "Automático",
+      observacion: (lastCierre as any).observacion ?? "Cierre automático de fin de día.",
+      eventos: appendCajaEvento((lastCierre as any).eventos, evento),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", (lastCierre as any).id)
+    .eq("business_id", businessId)
+    .eq("estado", "reabierta")
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+  if (!updated?.id) return { closed: false };
+
+  try {
+    await closeCashSession({
+      sessionId: (lastCierre as any).id,
+      businessId,
+      closedBy: userEmail ?? "Automático",
+      note: "Cierre automático de fin de día.",
+    } as any);
+  } catch {
+    // El registro visual ya quedó cerrado en caja_cierres.
+  }
+
+  window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
+  return { closed: true };
+}
+
 function paymentMethodLabel(method: string) {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
 }
@@ -3830,7 +3970,7 @@ function CierreCajaBtn({
         className="group inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold transition-all duration-200 bg-white/[0.035] text-foreground border border-white/14 hover:-translate-y-0.5 hover:bg-white/[0.065] hover:border-white/20 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.9)]"
       >
         <Wallet className="size-4 text-white/80 transition-transform group-hover:scale-110" />
-        Cierre de caja
+        Cerrar caja
       </button>
 
       {open && (
@@ -3986,17 +4126,21 @@ function CierresTab({
       return;
     }
     setLoading(true);
-    supabase
-      .from("caja_cierres" as any)
-      .select("*")
-      .eq("business_id", businessId)
-      .order("fecha", { ascending: false })
-      .order("hora_cierre", { ascending: false })
-      .limit(90)
-      .then(({ data, error }) => {
-        if (error) toast.error(error.message);
-        setCierres(data ?? []);
-        setLoading(false);
+    autoCloseExpiredCajaSession({ businessId, userEmail })
+      .catch((error) => console.warn(error))
+      .finally(() => {
+        supabase
+          .from("caja_cierres" as any)
+          .select("*")
+          .eq("business_id", businessId)
+          .order("fecha", { ascending: false })
+          .order("updated_at", { ascending: false })
+          .limit(90)
+          .then(({ data, error }) => {
+            if (error) toast.error(error.message);
+            setCierres(data ?? []);
+            setLoading(false);
+          });
       });
   }, [businessId]);
 
@@ -4008,7 +4152,7 @@ function CierresTab({
   }, [loadCierres]);
 
   const cierreEventos = (cierre: any) =>
-    cleanCajaEventosForDisplay(cajaEventosArray(cierre?.eventos));
+    cleanCajaEventosForDisplay(sortCajaEventos(cajaEventosArray(cierre?.eventos)));
 
   const latestCierre = cierres[0] ?? null;
   const latestEventos = latestCierre ? cierreEventos(latestCierre) : [];
@@ -4020,7 +4164,7 @@ function CierresTab({
   const closedBy = actor(cierreEvent?.usuario ?? latestCierre?.closed_by ?? latestCierre?.usuario_nombre ?? latestCierre?.user_email ?? userEmail);
   const openedAt = aperturaEvent?.hora ?? latestCierre?.hora_apertura ?? "—";
   const closedAt = cierreEvent?.hora ?? latestCierre?.hora_cierre ?? "—";
-  const todayKey = new Date().toLocaleDateString("en-CA");
+  const todayKey = cajaDateKey();
   const cierresToday = cierres.filter((c: any) => c?.fecha === todayKey);
   const closedResponsablesToday = React.useMemo(() => {
     const names = cierresToday
@@ -4033,14 +4177,10 @@ function CierresTab({
     return Array.from(new Set(names)).join(" / ") || closedBy;
   }, [cierresToday, closedBy]);
 
-  const lastClosedToday = React.useMemo(() => {
-    const latest = cierresToday[0] ?? latestCierre;
-    if (!latest) return closedAt;
-    const eventos = cierreEventos(latest);
-    const cierre = [...eventos].reverse().find((e: any) => e?.tipo === "cierre");
-    return cierre?.hora ?? latest.hora_cierre ?? closedAt;
-  }, [cierresToday, latestCierre, closedAt]);
-
+  const lastCierreToday = cierresToday[0] ?? latestCierre;
+  const lastCloseEventToday = getCajaLastEvent(lastCierreToday, "cierre");
+  const lastClosedBy = actor(lastCloseEventToday?.usuario ?? lastCierreToday?.closed_by ?? lastCierreToday?.usuario_nombre ?? lastCierreToday?.user_email ?? userEmail);
+  const lastClosedToday = lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt;
   const closedCountToday = cierresToday.length;
 
 
@@ -4267,9 +4407,9 @@ function CierresTab({
                       Caja cerrada
                     </div>
                     <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-amber-100/45">
-                      Responsables del cierre
+                      Responsable último cierre
                     </p>
-                    <h3 className="mt-1 text-xl font-bold text-white">{closedResponsablesToday}</h3>
+                    <h3 className="mt-1 text-xl font-bold text-white">{closedResponsablesToday || lastClosedBy}</h3>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <div className="rounded-2xl border border-white/[0.07] bg-black/22 px-4 py-3">
                         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Último cierre</p>
@@ -4313,7 +4453,7 @@ function CierresTab({
         ) : (
           <div className="pt-5">
             <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
-              <div className="grid grid-cols-[110px_minmax(160px,1fr)_minmax(160px,1fr)_110px_110px_105px_110px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+              <div className="grid grid-cols-[120px_minmax(160px,1fr)_minmax(160px,1fr)_110px_110px_120px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
                 <div>Fecha</div>
                 <div>Responsable apertura</div>
                 <div>Responsable cierre</div>
@@ -4328,7 +4468,7 @@ function CierresTab({
                   return (
                     <div
                       key={c.id}
-                      className="grid grid-cols-[110px_minmax(160px,1fr)_minmax(160px,1fr)_110px_110px_105px_110px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
+                      className="grid grid-cols-[120px_minmax(160px,1fr)_minmax(160px,1fr)_110px_110px_120px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
                     >
                       <div className="text-white/80">
                         <div className="font-semibold">{fechaLabel(c.fecha)}</div>
@@ -4342,8 +4482,7 @@ function CierresTab({
                       <div className="truncate text-white/70">{s.responsableCierre}</div>
                       <div className="text-muted-foreground">{s.horaApertura}</div>
                       <div className="text-muted-foreground">{s.horaCierre}</div>
-                      <div>{renderEstado(c)}</div>
-                      <div className="text-right">
+<div className="text-right">
                         <button
                           type="button"
                           onClick={() => setSelected(c)}
@@ -4506,18 +4645,42 @@ function CierresTab({
               </div>
 
               <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-                <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                  Auditoría
+                <div className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                  Línea de tiempo
                 </div>
-                <div className="space-y-2">
-                  {cierreEventos(selected).map((e: any, index: number) => (
-                    <div key={`${e?.tipo}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-xs">
-                      <span className="font-semibold capitalize text-white">{e?.tipo ?? "evento"}</span>
-                      <span className="text-muted-foreground">
-                        {e?.hora ?? "—"} · {actor(e?.usuario)}
-                      </span>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {cierreEventos(selected).map((e: any, index: number) => {
+                    const tipo = String(e?.tipo ?? "evento");
+                    const isAuto = tipo === "cierre" && String(e?.modo ?? "").toLowerCase() === "automatico";
+                    const label =
+                      isAuto ? "Cierre automático" :
+                      tipo === "apertura" ? "Caja abierta" :
+                      tipo === "reapertura" ? "Reapertura" :
+                      tipo === "cierre" ? "Caja cerrada" :
+                      tipo;
+                    const note = e?.observacion ?? e?.motivo ?? e?.nota ?? null;
+
+                    return (
+                      <div key={`${e?.tipo}-${index}`} className="relative rounded-2xl border border-white/[0.065] bg-black/24 px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-extrabold text-white">{label}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Responsable: <span className="font-semibold text-white/80">{actor(e?.usuario)}</span>
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs font-bold text-white/65">
+                            {e?.hora ?? "—"}
+                          </span>
+                        </div>
+                        {note && (
+                          <div className="mt-3 rounded-xl border border-white/[0.055] bg-white/[0.035] px-3 py-2 text-xs text-white/72">
+                            {note}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
