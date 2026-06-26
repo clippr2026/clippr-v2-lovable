@@ -4403,7 +4403,7 @@ function CierresTab({
               <div className="rounded-[28px] border border-amber-300/18 bg-[linear-gradient(135deg,rgba(245,158,11,0.09),rgba(0,0,0,0.22))] p-5">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="inline-flex rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-200">
+                    <div className="inline-flex rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-bold text-red-300">
                       Caja cerrada
                     </div>
                     <p className="mt-4 text-sm text-muted-foreground">
