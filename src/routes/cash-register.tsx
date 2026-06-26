@@ -2864,8 +2864,8 @@ function ProfesionalesTab({
   };
 
   return (
-    <div className="animate-fade-up space-y-3">
-      <section className="overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
+    <div className="-mt-5 h-[calc(100vh-270px)] min-h-[470px] overflow-hidden pb-6 animate-fade-up">
+      <section className="flex h-full flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="grid size-11 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
@@ -3057,7 +3057,7 @@ function ProfesionalesTab({
             <Loader2 className="size-4 animate-spin" /> Cargando…
           </div>
         ) : showingAllEmployees ? (
-          <div className="overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Profesional</div>
               <div>Ventas</div>
@@ -3071,11 +3071,11 @@ function ProfesionalesTab({
                 No hay profesionales para liquidar.
               </div>
             ) : (
-              <div className="divide-y divide-white/[0.055]">
+              <div className="min-h-0 flex-1 divide-y divide-white/[0.055] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 {visibleRows.map((row) => (
                   <div
                     key={row.id}
-                    className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-4 text-sm transition-all duration-200 hover:bg-white/[0.026]"
+                    className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-3 text-sm transition-all duration-200 hover:bg-white/[0.026]"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-bold text-white">
@@ -3144,7 +3144,7 @@ function ProfesionalesTab({
             )}
           </div>
         ) : selectedRow ? (
-          <div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
               <ActionButton id="produccion">Producción</ActionButton>
               <ActionButton id="historial">Historial</ActionButton>
@@ -3154,7 +3154,7 @@ function ProfesionalesTab({
             </div>
 
             {selectedDetail === "produccion" && (
-              <div className="px-5 py-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
                   <div className="grid grid-cols-[90px_minmax(120px,1fr)_minmax(180px,1.3fr)_120px_130px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha</div>
@@ -3224,7 +3224,7 @@ function ProfesionalesTab({
             )}
 
             {selectedDetail === "historial" && (
-              <div className="px-5 py-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
                   <div className="grid grid-cols-[90px_80px_120px_140px_minmax(140px,1fr)_minmax(180px,1fr)] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha</div>
@@ -3283,7 +3283,7 @@ function ProfesionalesTab({
             )}
 
             {selectedDetail === "pagar" && (
-              <div className="px-5 py-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 <div className="mx-auto max-w-2xl rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.035] p-4 shadow-[0_0_35px_rgba(34,197,94,0.08)]">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
@@ -4406,24 +4406,12 @@ function CierresTab({
                     <div className="inline-flex rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-200">
                       Caja cerrada
                     </div>
-                    <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-amber-100/45">
-                      Responsable último cierre
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      Cerró: <span className="font-semibold text-white">{lastClosedBy}</span>
                     </p>
-                    <h3 className="mt-1 text-xl font-bold text-white">{closedResponsablesToday || lastClosedBy}</h3>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-white/[0.07] bg-black/22 px-4 py-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Último cierre</p>
-                        <p className="mt-1 text-sm font-bold text-white">{lastClosedToday}</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/[0.07] bg-black/22 px-4 py-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Cierres de hoy</p>
-                        <p className="mt-1 text-sm font-bold text-white">
-                          {closedCountToday === 1
-                            ? "1 cierre realizado hoy"
-                            : `${closedCountToday} cierres realizados hoy`}
-                        </p>
-                      </div>
-                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Hora de cierre: <span className="font-semibold text-white">{lastClosedToday}</span>
+                    </p>
                   </div>
                   {latestCierre && (
                     <button
