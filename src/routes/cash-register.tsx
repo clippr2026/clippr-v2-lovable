@@ -4134,22 +4134,32 @@ function CierresTab({
   }, [cierresToday, closedBy]);
 
   const cierreCandidates = (cierresToday.length ? cierresToday : latestCierre ? [latestCierre] : [])
-    .flatMap((c: any) =>
-      cierreEventos(c)
+    .flatMap((c: any) => {
+      const events = cierreEventos(c)
         .filter((event: any) => event?.tipo === "cierre")
-        .map((event: any) => ({ cierre: c, event })),
-    )
-    .sort((a: any, b: any) => {
-      const ah = a.event?.fecha_hora ? new Date(a.event.fecha_hora).getTime() : cajaEventTimeToMinutes(a.event?.hora);
-      const bh = b.event?.fecha_hora ? new Date(b.event.fecha_hora).getTime() : cajaEventTimeToMinutes(b.event?.hora);
-      return bh - ah;
-    });
+        .map((event: any) => ({ cierre: c, event, hora: event?.hora ?? c?.hora_cierre }));
+
+      if (c?.hora_cierre && !events.some((row: any) => cajaEventTimeToMinutes(row.hora) === cajaEventTimeToMinutes(c.hora_cierre))) {
+        events.push({
+          cierre: c,
+          event: {
+            tipo: "cierre",
+            hora: c.hora_cierre,
+            usuario: c.closed_by ?? c.usuario_nombre ?? c.user_email ?? userEmail,
+          },
+          hora: c.hora_cierre,
+        });
+      }
+
+      return events;
+    })
+    .sort((a: any, b: any) => cajaEventTimeToMinutes(b.hora) - cajaEventTimeToMinutes(a.hora));
 
   const lastCloseEntryToday = cierreCandidates[0] ?? null;
   const lastCierreToday = lastCloseEntryToday?.cierre ?? cierresToday[0] ?? latestCierre;
   const lastCloseEventToday = lastCloseEntryToday?.event ?? getCajaLastEvent(lastCierreToday, "cierre");
   const lastClosedBy = actor(lastCloseEventToday?.usuario ?? lastCierreToday?.closed_by ?? lastCierreToday?.usuario_nombre ?? lastCierreToday?.user_email ?? userEmail);
-  const lastClosedToday = cajaHoraDisplay(lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt);
+  const lastClosedToday = cajaHoraDisplay(lastCloseEntryToday?.hora ?? lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt);
   const closedCountToday = cierreCandidates.length || cierresToday.length;
 
 
