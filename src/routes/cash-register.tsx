@@ -4020,6 +4020,29 @@ function CierresTab({
   const closedBy = actor(cierreEvent?.usuario ?? latestCierre?.closed_by ?? latestCierre?.usuario_nombre ?? latestCierre?.user_email ?? userEmail);
   const openedAt = aperturaEvent?.hora ?? latestCierre?.hora_apertura ?? "—";
   const closedAt = cierreEvent?.hora ?? latestCierre?.hora_cierre ?? "—";
+  const todayKey = formatDateKey(new Date());
+  const cierresToday = cierres.filter((c: any) => c?.fecha === todayKey);
+  const closedResponsablesToday = React.useMemo(() => {
+    const names = cierresToday
+      .map((c: any) => {
+        const eventos = cierreEventos(c);
+        const cierre = [...eventos].reverse().find((e: any) => e?.tipo === "cierre");
+        return actor(cierre?.usuario ?? c.closed_by ?? c.usuario_nombre ?? c.user_email ?? userEmail);
+      })
+      .filter(Boolean);
+    return Array.from(new Set(names)).join(" / ") || closedBy;
+  }, [cierresToday, closedBy]);
+
+  const lastClosedToday = React.useMemo(() => {
+    const latest = cierresToday[0] ?? latestCierre;
+    if (!latest) return closedAt;
+    const eventos = cierreEventos(latest);
+    const cierre = [...eventos].reverse().find((e: any) => e?.tipo === "cierre");
+    return cierre?.hora ?? latest.hora_cierre ?? closedAt;
+  }, [cierresToday, latestCierre, closedAt]);
+
+  const closedCountToday = cierresToday.length;
+
 
   function fechaLabel(fecha?: string | null, long = false) {
     if (!fecha) return "—";
@@ -4194,29 +4217,18 @@ function CierresTab({
             </h2>
           </div>
 
-          <div className="inline-flex w-fit rounded-3xl border border-white/[0.085] bg-black/35 p-1.5">
-            {[
-              ["dia", "Caja del día"],
-              ["historial", "Historial"],
-            ].map(([id, label]) => {
-              const active = subtab === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setSubtab(id as "dia" | "historial")}
-                  className={cn(
-                    "rounded-2xl px-4 py-2 text-sm font-bold transition",
-                    active
-                      ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/25"
-                      : "text-white/55 hover:bg-white/[0.045] hover:text-white",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          <button
+            type="button"
+            onClick={() => setSubtab(subtab === "historial" ? "dia" : "historial")}
+            className={cn(
+              "rounded-2xl border border-white/[0.085] bg-black/35 px-4 py-2 text-sm font-bold transition",
+              subtab === "historial"
+                ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/25"
+                : "text-white/70 hover:bg-white/[0.06] hover:text-white",
+            )}
+          >
+            Historial
+          </button>
         </div>
 
         {subtab === "dia" ? (
@@ -4228,8 +4240,7 @@ function CierresTab({
                     <div className="inline-flex rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
                       Caja abierta
                     </div>
-                    <h3 className="mt-4 text-xl font-bold text-white">Lista para operar</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
+                                        <p className="mt-2 text-sm text-muted-foreground">
                       Responsable: <span className="font-semibold text-white">{openedBy}</span>
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -4249,19 +4260,30 @@ function CierresTab({
                 </div>
               </div>
             ) : (
-              <div className="rounded-[28px] border border-rose-300/14 bg-[linear-gradient(135deg,rgba(244,63,94,0.08),rgba(0,0,0,0.20))] p-5">
+              <div className="rounded-[28px] border border-amber-300/18 bg-[linear-gradient(135deg,rgba(245,158,11,0.09),rgba(0,0,0,0.22))] p-5">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="inline-flex rounded-full border border-rose-400/25 bg-rose-400/10 px-3 py-1 text-xs font-bold text-rose-300">
+                    <div className="inline-flex rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-200">
                       Caja cerrada
                     </div>
-                    <h3 className="mt-4 text-xl font-bold text-white">La caja está bloqueada</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Cerró: <span className="font-semibold text-white">{closedBy}</span>
+                    <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-amber-100/45">
+                      Responsables del cierre
                     </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Hora de cierre: <span className="font-semibold text-white">{closedAt}</span>
-                    </p>
+                    <h3 className="mt-1 text-xl font-bold text-white">{closedResponsablesToday}</h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/[0.07] bg-black/22 px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Último cierre</p>
+                        <p className="mt-1 text-sm font-bold text-white">{lastClosedToday}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/[0.07] bg-black/22 px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Cierres de hoy</p>
+                        <p className="mt-1 text-sm font-bold text-white">
+                          {closedCountToday === 1
+                            ? "1 cierre realizado hoy"
+                            : `${closedCountToday} cierres realizados hoy`}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   {latestCierre && (
                     <button
