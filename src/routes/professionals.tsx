@@ -36,6 +36,46 @@ function toISODate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function toLocalISODate(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function parseLocalISODate(value: string) {
+  const [y, m, d] = value.split("-").map(Number);
+  const fallback = new Date();
+  const date = new Date(y || fallback.getFullYear(), (m || fallback.getMonth() + 1) - 1, d || fallback.getDate());
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function monthLabelEs(date: Date) {
+  const label = date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function sameLocalDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function buildMonthDays(month: Date) {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const firstDayMonday = (first.getDay() + 6) % 7;
+  const start = new Date(first);
+  start.setDate(first.getDate() - firstDayMonday);
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}
+
 function getPresetRange(range: Exclude<RangeKey, "custom">) {
   const now = new Date();
   const today = toISODate(now);
@@ -300,26 +340,35 @@ function ProfessionalsPage() {
   const activeColor = useMemo(() => COLORS[(visibleProfessionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [visibleProfessionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
 
+  const selectedDateObj = useMemo(() => parseLocalISODate(fromDate), [fromDate]);
   const selectedDayLabel = useMemo(() => {
-    const [y, m, d] = fromDate.split("-").map(Number);
-    if (!y || !m || !d) return "Elegir día";
-    return new Date(y, m - 1, d).toLocaleDateString("es-AR", {
+    return selectedDateObj.toLocaleDateString("es-AR", {
       weekday: "short",
       day: "2-digit",
       month: "2-digit",
     }).replace(".", "");
-  }, [fromDate]);
+  }, [selectedDateObj]);
 
-  const singleDayInputRef = React.useRef<HTMLInputElement>(null);
-  const openSingleDayPicker = React.useCallback(() => {
-    const input = singleDayInputRef.current;
-    if (!input) return;
-    try {
-      input.showPicker?.();
-    } catch {
-      input.click();
+  const [dayPickerOpen, setDayPickerOpen] = React.useState(false);
+  const [visibleMonth, setVisibleMonth] = React.useState(
+    () => new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), 1)
+  );
+
+  React.useEffect(() => {
+    if (tab === "turnos") {
+      setVisibleMonth(new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), 1));
     }
+  }, [tab, selectedDateObj]);
+
+  const selectSingleDay = React.useCallback((date: Date) => {
+    const day = toLocalISODate(date);
+    setRange("custom");
+    setFromDate(day);
+    setToDate(day);
+    setDayPickerOpen(false);
   }, []);
+
+  const calendarDays = useMemo(() => buildMonthDays(visibleMonth), [visibleMonth]);
 
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
@@ -457,36 +506,97 @@ function ProfessionalsPage() {
                 setRange("hoy");
                 setFromDate(today);
                 setToDate(today);
+                setDayPickerOpen(false);
               }}
               className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
             >
               Hoy
             </button>
 
-            <button
-              type="button"
-              onClick={openSingleDayPicker}
-              className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-[#070814]/95 px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
-              style={{ colorScheme: "dark", accentColor: "#7c3aed" }}
-            >
-              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="capitalize tabular-nums">{selectedDayLabel}</span>
-              <input
-                ref={singleDayInputRef}
-                type="date"
-                value={fromDate}
-                onChange={(e) => {
-                  const day = e.target.value;
-                  setRange("custom");
-                  setFromDate(day);
-                  setToDate(day);
-                }}
-                aria-label="Elegir día"
-                className="pointer-events-none absolute h-0 w-0 opacity-0 [color-scheme:dark]"
-                style={{ colorScheme: "dark", accentColor: "#7c3aed" }}
-                tabIndex={-1}
-              />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDayPickerOpen((v) => !v)}
+                className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-[#070814]/95 px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
+              >
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="capitalize tabular-nums">{selectedDayLabel}</span>
+              </button>
+
+              {dayPickerOpen && (
+                <div className="absolute right-0 top-11 z-50 w-[336px] overflow-hidden rounded-3xl border border-white/10 bg-[#050612] text-white shadow-[0_24px_80px_rgba(0,0,0,0.62),0_0_0_1px_rgba(124,58,237,0.08)]">
+                  <div className="flex flex-wrap gap-2 border-b border-white/10 p-4">
+                    {[
+                      ["Hoy", getPresetRange("hoy").from],
+                      ["Ayer", toLocalISODate(new Date(Date.now() - 24 * 60 * 60 * 1000))],
+                    ].map(([label, value]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => selectSingleDay(parseLocalISODate(value))}
+                        className="rounded-full bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-white/60 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="p-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
+                        className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                        aria-label="Mes anterior"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <div className="text-base font-bold tracking-tight text-white">
+                        {monthLabelEs(visibleMonth)}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
+                        className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                        aria-label="Mes siguiente"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-y-2 text-center">
+                      {["LU", "MA", "MI", "JU", "VI", "SÁ", "DO"].map((d) => (
+                        <div key={d} className="pb-2 text-[11px] font-semibold tracking-[0.18em] text-white/28">
+                          {d}
+                        </div>
+                      ))}
+
+                      {calendarDays.map((day) => {
+                        const selected = sameLocalDay(day, selectedDateObj);
+                        const inMonth = day.getMonth() === visibleMonth.getMonth();
+                        return (
+                          <button
+                            key={toLocalISODate(day)}
+                            type="button"
+                            onClick={() => selectSingleDay(day)}
+                            className={cn(
+                              "mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold tabular-nums transition",
+                              selected
+                                ? "bg-gradient-to-br from-[#62A8FF] to-[#8B5CF6] text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]"
+                                : inMonth
+                                  ? "text-white/78 hover:bg-white/[0.07] hover:text-white"
+                                  : "text-white/20 hover:bg-white/[0.04]",
+                            )}
+                          >
+                            {day.getDate()}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <DateRangePicker
