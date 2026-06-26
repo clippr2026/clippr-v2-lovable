@@ -4198,6 +4198,15 @@ function CierresTab({
     });
   }
 
+  function fechaDetalleLabel(fecha?: string | null) {
+    if (!fecha) return "—";
+    const date = new Date(`${fecha}T12:00:00`);
+    const weekday = date.toLocaleDateString("es-AR", { weekday: "long" });
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${day}/${month}`;
+  }
+
   function getCierreObservacion(cierre: any): string | null {
     const eventos = cierreEventos(cierre);
     const lastCierre = [...eventos]
@@ -4443,18 +4452,21 @@ function CierresTab({
                       className="grid grid-cols-[120px_minmax(160px,1fr)_minmax(160px,1fr)_110px_110px_120px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
                     >
                       <div className="text-white/80">
-                        <div className="font-semibold">{fechaLabel(c.fecha)}</div>
-                        {hasNotes(c) && (
-                          <div className="mt-1 text-[11px] font-semibold text-violet-200">
-                            📝 Tiene observaciones
-                          </div>
-                        )}
+                        <div className="font-semibold">{fechaDetalleLabel(c.fecha)}</div>
                       </div>
                       <div className="truncate text-white/70">{s.responsableApertura}</div>
                       <div className="truncate text-white/70">{s.responsableCierre}</div>
                       <div className="text-muted-foreground">{s.horaApertura}</div>
                       <div className="text-muted-foreground">{s.horaCierre}</div>
-<div className="text-right">
+<div className="flex items-center justify-end gap-2">
+                        {hasNotes(c) && (
+                          <span
+                            title="Tiene observaciones"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-xs text-violet-200"
+                          >
+                            📝
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => setSelected(c)}
@@ -4479,7 +4491,7 @@ function CierresTab({
               <div>
                 <div className="font-semibold text-sm text-white">Detalle del cierre</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {fechaLabel(selected.fecha, true)} · {selected.hora_cierre ?? "—"}
+                  {fechaDetalleLabel(selected.fecha)} · {selected.hora_cierre ?? "—"}
                 </div>
               </div>
               <button
