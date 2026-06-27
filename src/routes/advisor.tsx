@@ -4045,18 +4045,18 @@ function LabScenario({
 function LabImpact({ facturacion, utilidad, extra }: { facturacion: number; utilidad: number; extra?: { label: string; value: string } }) {
   return (
     <div className={cn("grid gap-2", extra ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-      <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] p-3">
+      <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] px-3.5 py-4">
         <div className="text-[11px] font-bold uppercase tracking-wider text-sky-200/70">Facturación extra / mes</div>
-        <div className="mt-0.5 text-xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
+        <div className="mt-1 text-2xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
       </div>
-      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] p-3">
+      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] px-3.5 py-4">
         <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">Utilidad extra / mes</div>
-        <div className="mt-0.5 text-xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
+        <div className="mt-1 text-2xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
       </div>
       {extra ? (
-        <div className="rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] p-3">
+        <div className="rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] px-3.5 py-4">
           <div className="text-[11px] font-bold uppercase tracking-wider text-violet-200/70">{extra.label}</div>
-          <div className="mt-0.5 text-xl font-extrabold text-violet-200">{extra.value}</div>
+          <div className="mt-1 text-2xl font-extrabold text-violet-200">{extra.value}</div>
         </div>
       ) : null}
     </div>
@@ -4070,7 +4070,7 @@ function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: stri
       <div className={cn("flex items-center gap-2 text-sm font-bold", meta.titleCls)}>
         <span>{meta.emoji}</span> Recomendación IA · {meta.label}
       </div>
-      <p className="mt-1.5 text-sm leading-relaxed text-white/80">{text}</p>
+      <p className="mt-3 text-sm leading-relaxed text-white/80">{text}</p>
     </div>
   );
 }
@@ -4084,7 +4084,7 @@ function LabChips({ options, value, onChange }: { options: { key: string; label:
           type="button"
           onClick={() => onChange(o.key)}
           className={cn(
-            "rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all",
+            "rounded-xl border px-3.5 py-1.5 text-sm font-semibold transition-all",
             value === o.key
               ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100 shadow-[0_0_24px_-8px_rgba(34,211,238,0.6)]"
               : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white hover:border-white/20",
@@ -4134,9 +4134,9 @@ function LabPrecios({ data }: { data: LabData }) {
         <LabChips options={services.map((s) => ({ key: s.id, label: s.nombre }))} value={svc?.id ?? ""} onChange={setSvcId} />
       </div>
       <div>
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex items-end justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Aumento a probar</span>
-          <span className="text-sm font-bold text-cyan-200">+{fmtAR(aumento)}</span>
+          <span className="text-2xl font-extrabold leading-none text-cyan-200 sm:text-3xl">+{fmtAR(aumento)}</span>
         </div>
         <input
           type="range"
@@ -4421,17 +4421,23 @@ function LaboratorioDecisiones(props: SimuladorProps) {
 
   return (
     <div className="space-y-5">
-      {/* Encabezado del laboratorio */}
-      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#070b18]/80 p-6 shadow-[0_30px_90px_-50px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
-        <div className="pointer-events-none absolute -top-24 left-1/4 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-violet-500/15 blur-3xl" />
+      {/* Encabezado del laboratorio · franja compacta */}
+      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#070b18]/80 px-4 py-3.5 shadow-[0_20px_70px_-50px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
+        <div className="pointer-events-none absolute -top-16 left-1/4 h-40 w-40 rounded-full bg-cyan-500/15 blur-3xl" />
         <div className="relative flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/10 text-2xl ring-1 ring-white/15">🧪</span>
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Laboratorio de decisiones</span>
-            <h2 className="text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">Probá la decisión antes de tomarla</h2>
-            <p className="mt-0.5 text-sm text-white/55">Elegí un escenario y mirá al instante cuánto ganás, cuánto riesgo tiene y si te conviene.</p>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-xl ring-1 ring-white/15">🧪</span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">Simulá una decisión de negocio</h2>
+            <p className="truncate text-xs text-white/55">Clippr IA calcula el impacto antes de que tomes la decisión.</p>
           </div>
+          <button
+            type="button"
+            title={`Los simuladores usan tus datos reales (servicios, clientes, agenda y horarios). Las proyecciones son estimaciones con supuestos conservadores: utilidad ~${Math.round(LAB_MARGIN * 100)}% sobre facturación y ~${Math.round(LAB_PRODUCT_MARGIN * 100)}% en productos.`}
+            aria-label="Cómo se calculan los simuladores"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/5 text-[11px] font-bold text-white/50 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white/80"
+          >
+            i
+          </button>
         </div>
       </div>
 
@@ -4445,8 +4451,8 @@ function LaboratorioDecisiones(props: SimuladorProps) {
             className={cn(
               "group flex items-center gap-3 rounded-2xl border p-3 text-left transition-all",
               sim === s.key
-                ? "border-cyan-300/40 bg-cyan-400/[0.1] shadow-[0_0_30px_-10px_rgba(34,211,238,0.6)]"
-                : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]",
+                ? "border-cyan-300/40 bg-cyan-400/[0.1] opacity-100 shadow-[0_0_30px_-10px_rgba(34,211,238,0.6)]"
+                : "border-white/10 bg-white/[0.03] opacity-55 hover:border-white/20 hover:bg-white/[0.05] hover:opacity-100",
             )}
           >
             <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xl ring-1", sim === s.key ? "bg-white/15 ring-white/20" : "bg-white/[0.06] ring-white/10")}>{s.icon}</span>
@@ -4478,10 +4484,6 @@ function LaboratorioDecisiones(props: SimuladorProps) {
           {sim === "fidelizacion" && <LabFidelizacion data={data} />}
         </div>
       </div>
-
-      <p className="px-2 text-center text-xs text-white/35">
-        Los simuladores usan tus datos reales (servicios, clientes, agenda y horarios). Las proyecciones son estimaciones con supuestos conservadores: utilidad ~{Math.round(LAB_MARGIN * 100)}% sobre facturación y ~{Math.round(LAB_PRODUCT_MARGIN * 100)}% en productos.
-      </p>
     </div>
   );
 }
