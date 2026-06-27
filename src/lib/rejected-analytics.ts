@@ -19,6 +19,28 @@ function hourOf(time: string): number {
   return Number(time.slice(0, 2)) || 0;
 }
 
+// Hora a partir de la cual consideramos un rechazo "tardío" (señal de ampliar horarios).
+const LATE_CUTOFF = 19;
+
+/** Ventana contigua de `width` horas con mayor concentración de rechazos. */
+function densestWindow(hourMap: Map<number, number>, width = 3): { start: number; end: number } | null {
+  if (hourMap.size === 0) return null;
+  const hours = [...hourMap.keys()];
+  const minH = Math.min(...hours);
+  const maxH = Math.max(...hours);
+  let best = { start: minH, sum: -1 };
+  for (let s = minH; s <= maxH; s++) {
+    let sum = 0;
+    for (let k = s; k < s + width; k++) sum += hourMap.get(k) ?? 0;
+    if (sum > best.sum) best = { start: s, sum };
+  }
+  return { start: best.start, end: best.start + width };
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 // ── Tipos de salida ─────────────────────────────────────────────────────────
 export type CountSet = { today: number; week: number; month: number };
 export type LabeledCount = { key: string; label: string; count: number };
@@ -46,6 +68,15 @@ export type RejectedAnalytics = {
   monthly: MonthlyPoint[]; // evolución últimos 6 meses
   avgOccupancyMonth: number | null;
   professionals: ProfessionalDemand[];
+  // Señales combinadas (para el motor de recomendaciones)
+  reasonsMonth: Record<string, number>; // conteo por motivo (últimos 30 días)
+  lateShare: number; // 0..1 — proporción de rechazos después de LATE_CUTOFF
+  lateCutoffLabel: string; // "19:00"
+  peakRangeLabel: string | null; // franja contigua pico "17:00 y 20:00"
+  peakDayLabels: string[]; // 1-2 días de semana con más demanda
+  prevMonthCount: number; // rechazos en el período 30-59 días atrás
+  trend: "up" | "down" | "flat";
+  trendPct: number | null; // variación % vs período anterior
 };
 
 // ── Índice de demanda por profesional (heurístico, documentado) ─────────────
@@ -87,9 +118,14 @@ export function summarizeRejected(
   const todayStart = startOfDay(now);
   const weekStart = daysAgo(now, 6); // hoy + 6 días atrás
   const monthStart = daysAgo(now, 29); // ventana móvil de 30 días
+  const prevStart = daysAgo(now, 59); // período anterior (30-59 días atrás)
 
   const counts: CountSet = { today: 0, week: 0, month: 0 };
   const lostRevenue: CountSet = { today: 0, week: 0, month: 0 };
+
+  let lateCount = 0;
+  let prevMonthCount = 0;
+  const reasonsMonth: Record<string, number> = {};
 
   const hourMap = new Map<number, number>();
   const dayMap = new Map<string, { label: string; count: number }>();
@@ -121,11 +157,16 @@ export function summarizeRejected(
       counts.today += 1;
       lostRevenue.today += price;
     }
+    if (d.getTime() >= prevStart.getTime() && d.getTime() < monthStart.getTime()) {
+      prevMonthCount += 1;
+    }
 
     // Histogramas (sobre los últimos 30 días para que sean accionables)
     if (d.getTime() >= monthStart.getTime()) {
       const h = hourOf(r.rejected_time);
       hourMap.set(h, (hourMap.get(h) ?? 0) + 1);
+      if (h >= LATE_CUTOFF) lateCount += 1;
+      reasonsMonth[r.reason] = (reasonsMonth[r.reason] ?? 0) + 1;
 
       const wd = String(r.weekday);
       const wdLabel = WEEKDAYS[r.weekday] ?? "—";
@@ -177,6 +218,20 @@ export function summarizeRejected(
 
   const avgOccupancyMonth = occN > 0 ? Math.round(occSum / occN) : null;
 
+  // Señales combinadas
+  const lateShare = counts.month > 0 ? lateCount / counts.month : 0;
+  const win = densestWindow(hourMap, 3);
+  const peakRangeLabel = win ? `${pad2(win.start)}:00 y ${pad2(win.end)}:00` : null;
+  const peakDayLabels = topN(dayMap, 2).map((d) => d.label);
+  let trend: "up" | "down" | "flat" = "flat";
+  let trendPct: number | null = null;
+  if (prevMonthCount > 0) {
+    trendPct = Math.round(((counts.month - prevMonthCount) / prevMonthCount) * 100);
+    trend = trendPct > 10 ? "up" : trendPct < -10 ? "down" : "flat";
+  } else if (counts.month > 0) {
+    trend = "up";
+  }
+
   // Demanda por profesional + índice
   const profEntries = [...profMap.entries()].map(([key, v]) => ({ key, ...v }));
   const maxReq = profEntries.reduce((m, p) => Math.max(m, p.count), 0);
@@ -210,6 +265,14 @@ export function summarizeRejected(
     monthly,
     avgOccupancyMonth,
     professionals,
+    reasonsMonth,
+    lateShare,
+    lateCutoffLabel: `${pad2(LATE_CUTOFF)}:00`,
+    peakRangeLabel,
+    peakDayLabels,
+    prevMonthCount,
+    trend,
+    trendPct,
   };
 }
 
@@ -256,4 +319,111 @@ export function staffingVerdict(
       monthRejected === 1 ? "cliente" : "clientes"
     }. Todavía no hay evidencia suficiente para incorporar un profesional: tenés capacidad para crecer con el equipo actual.`,
   };
+}
+
+// ── Motor de recomendaciones (análisis combinado, con justificación) ────────
+export type DemandRecKind = "incorporar" | "ampliar_horarios" | "ajustar_precio" | "esperar";
+export type DemandRecommendation = {
+  kind: DemandRecKind;
+  priority: "alta" | "media" | "baja";
+  nivel: "recomendado" | "evaluar" | "no_recomendado";
+  title: string;
+  reasoning: string; // explica SIEMPRE el porqué, con números reales
+  confidence: "alta" | "media" | "preliminar";
+};
+
+/**
+ * Genera recomendaciones cruzando TODAS las señales disponibles
+ * (ocupación, volumen de rechazos, horarios, días, motivos, profesional
+ * solicitado, profesionales trabajando, servicios y tendencia), en lugar de
+ * un único umbral fijo. La confianza escala con el volumen de datos, así las
+ * recomendaciones se vuelven más precisas a medida que se acumula historial.
+ */
+export function buildDemandRecommendations(
+  a: RejectedAnalytics,
+  ctx: { occupancyPct: number | null; workingProfessionals: number | null } = { occupancyPct: null, workingProfessionals: null },
+): DemandRecommendation[] {
+  const month = a.counts.month;
+  const occ = Math.round(ctx.occupancyPct ?? a.avgOccupancyMonth ?? 0);
+  const occTxt = `${occ}%`;
+  const period = "en los últimos 30 días";
+
+  const confidence: DemandRecommendation["confidence"] = month >= 25 ? "alta" : month >= 8 ? "media" : "preliminar";
+
+  const trendNote =
+    a.trend === "up" && a.trendPct != null && a.prevMonthCount > 0
+      ? ` Además, los rechazos crecieron ${a.trendPct}% respecto del período anterior.`
+      : a.trend === "down" && a.trendPct != null
+        ? ` La tendencia viene bajando (${a.trendPct}% vs el período anterior).`
+        : "";
+
+  const fuera = a.reasonsMonth["fuera_horario"] ?? 0;
+  const lateOrFuera = Math.max(a.lateShare, month > 0 ? fuera / month : 0);
+  const broad = lateOrFuera < 0.6; // los rechazos NO son solo por horario tardío
+
+  const recs: DemandRecommendation[] = [];
+
+  // 1) Profesional con demanda dominante → ajustar precio / redistribuir
+  const top = a.professionals[0];
+  const totalProfReq = a.professionals.reduce((s, p) => s + p.requests, 0);
+  if (top && top.requests >= 5 && totalProfReq > 0 && top.requests / totalProfReq >= 0.45 && top.score >= 75) {
+    recs.push({
+      kind: "ajustar_precio",
+      priority: "media",
+      nivel: "evaluar",
+      title: `${top.name}: demanda muy por encima del equipo`,
+      reasoning: `${top.name} recibió ${top.requests} solicitudes que no pudieron concretarse ${period} y su índice de demanda (${top.score}/100) supera ampliamente al del resto del equipo. Clippr recomienda evaluar un aumento gradual del 5% al 10% en el precio de sus servicios, o derivar parte de su demanda hacia otros profesionales.`,
+      confidence,
+    });
+  }
+
+  // 2) Ampliar horarios → cuando los rechazos se concentran tarde / fuera de horario
+  if (month >= 5 && lateOrFuera >= 0.5) {
+    const dias = a.peakDayLabels.length ? ` los ${a.peakDayLabels.join(", ").toLowerCase()}` : "";
+    recs.push({
+      kind: "ampliar_horarios",
+      priority: month >= 15 ? "alta" : "media",
+      nivel: "evaluar",
+      title: "Conviene ampliar horarios antes de contratar",
+      reasoning: `El ${Math.round(lateOrFuera * 100)}% de los clientes rechazados llegó después de las ${a.lateCutoffLabel}${a.peakDayLabels.length ? `, sobre todo${dias}` : ""}. Antes de contratar un nuevo profesional, podría ser más conveniente extender el horario de atención una hora${dias}.${trendNote}`,
+      confidence,
+    });
+  }
+
+  // 3) Incorporar profesional → demanda alta, AMPLIA (no solo horario) y ocupación alta
+  if (occ >= 85 && month >= 25 && broad) {
+    recs.push({
+      kind: "incorporar",
+      priority: "alta",
+      nivel: "recomendado",
+      title: "Conviene incorporar un profesional",
+      reasoning: `Durante ${period} rechazaste ${month} clientes por falta de disponibilidad. La ocupación promedio fue del ${occTxt}${a.peakRangeLabel ? ` y la mayoría de los rechazos ocurrió entre las ${a.peakRangeLabel}` : ""}. Clippr recomienda incorporar un nuevo profesional o sumar un refuerzo en los horarios de mayor demanda.${trendNote}`,
+      confidence,
+    });
+  } else if (occ >= 80 && month >= 12 && broad) {
+    recs.push({
+      kind: "incorporar",
+      priority: "media",
+      nivel: "evaluar",
+      title: "Evaluá un refuerzo parcial",
+      reasoning: `Ocupación del ${occTxt} y ${month} rechazos ${period}${a.peakRangeLabel ? `, concentrados entre las ${a.peakRangeLabel}` : ""}. Hay presión sobre la agenda, pero todavía no es concluyente: evaluá un refuerzo parcial en la franja pico antes de una contratación full-time.${trendNote}`,
+      confidence,
+    });
+  }
+
+  // 4) No contratar todavía → señal baja y sin contratación fuerte recomendada
+  const hasStrongHire = recs.some((r) => r.kind === "incorporar" && r.priority === "alta");
+  if (!hasStrongHire && (recs.length === 0 || (month < 8 && occ < 80))) {
+    recs.push({
+      kind: "esperar",
+      priority: "baja",
+      nivel: "no_recomendado",
+      title: "Todavía no conviene incorporar",
+      reasoning: `La ocupación promedio es del ${occTxt} y ${month === 0 ? "no se registraron" : `solo se registraron ${month}`} clientes rechazados ${period}. El equipo todavía tiene capacidad para seguir creciendo sin incorporar un nuevo profesional.${trendNote}`,
+      confidence,
+    });
+  }
+
+  const order = { alta: 0, media: 1, baja: 2 };
+  return recs.sort((x, y) => order[x.priority] - order[y.priority]);
 }
