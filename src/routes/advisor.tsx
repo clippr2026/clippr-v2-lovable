@@ -28,6 +28,12 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowRight,
+  Activity,
+  CalendarDays,
+  Scissors,
+  Gem,
+  Package,
+  Crown,
 } from "lucide-react";
 
 export const Route = createFileRoute("/advisor")({
@@ -154,36 +160,45 @@ const DEMO = {
 // Solo se usan en esta pestaña. No tocan el resto de la app.
 const ANALISIS_BENCHMARK = 78; // mejor que el X% de barberías/peluquerías similares
 
-const RADAR_LOCAL: { tone: "ok" | "warn" | "alert" | "bad"; label: string }[] = [
-  { tone: "ok", label: "Utilidad creciendo (+30% vs mes anterior)" },
-  { tone: "ok", label: "Nuevos clientes creciendo (+16%)" },
-  { tone: "warn", label: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} con baja ocupación` },
-  { tone: "alert", label: `${DEMO.inactiveClients} clientes para recuperar` },
-  { tone: "bad", label: "Venta de productos baja (6%)" },
+const RADAR_LOCAL: {
+  tone: "ok" | "warn" | "alert" | "bad";
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { tone: "ok", icon: TrendingUp, label: "Utilidad creciendo (+30% vs mes anterior)" },
+  { tone: "ok", icon: Users, label: "Nuevos clientes creciendo (+16%)" },
+  { tone: "warn", icon: CalendarDays, label: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} con baja ocupación` },
+  { tone: "alert", icon: Users, label: `${DEMO.inactiveClients} clientes para recuperar` },
+  { tone: "bad", icon: Package, label: "Venta de productos baja (6%)" },
 ];
 
-const RADIOGRAFIA_LOCAL: { icon: string; label: string; value: string; tone?: "good" | "warn" | "bad" }[] = [
-  { icon: "🔁", label: "Clientes para recuperar", value: String(DEMO.inactiveClients), tone: "warn" },
-  { icon: "🪑", label: "Turnos vacíos este mes", value: String(DEMO.freeSlotsMonth), tone: "warn" },
-  { icon: "🏆", label: "Profesional con mayor ocupación", value: "Alan", tone: "good" },
-  { icon: "📉", label: "Profesional con menor ocupación", value: "Juan", tone: "warn" },
-  { icon: "✂️", label: "Servicio más vendido", value: "Corte clásico" },
-  { icon: "💎", label: "Servicio más rentable", value: "Color", tone: "good" },
-  { icon: "🧴", label: "Venta de productos", value: "6%", tone: "bad" },
-  { icon: "👑", label: "Clientes VIP", value: "18", tone: "good" },
+const RADIOGRAFIA_LOCAL: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  tone?: "good" | "warn" | "bad";
+}[] = [
+  { icon: Users, label: "Clientes para recuperar", value: String(DEMO.inactiveClients), tone: "warn" },
+  { icon: CalendarDays, label: "Turnos vacíos este mes", value: String(DEMO.freeSlotsMonth), tone: "warn" },
+  { icon: TrendingUp, label: "Profesional con mayor ocupación", value: "Alan", tone: "good" },
+  { icon: TrendingDown, label: "Profesional con menor ocupación", value: "Juan", tone: "warn" },
+  { icon: Scissors, label: "Servicio más vendido", value: "Corte clásico" },
+  { icon: Gem, label: "Servicio más rentable", value: "Color", tone: "good" },
+  { icon: Package, label: "Venta de productos", value: "6%", tone: "bad" },
+  { icon: Crown, label: "Clientes VIP", value: "18", tone: "good" },
 ];
 
 const MONTH_INSIGHTS: Record<string, { badge: string; mejora: string; problema: string }> = {
-  "Junio 2026": { badge: "🚀 Mejor mes del trimestre", mejora: "Más clientes nuevos", problema: `${DEMO.inactiveClients} clientes inactivos` },
-  "Mayo 2026": { badge: "📈 Recuperación", mejora: "Mayor ticket promedio", problema: "Baja ocupación" },
-  "Abril 2026": { badge: "⚠️ Ocupación baja", mejora: "Más reservas online", problema: "Poca fidelización" },
+  "Junio 2026": { badge: "Mejor mes del trimestre", mejora: "Más clientes nuevos", problema: `${DEMO.inactiveClients} clientes inactivos` },
+  "Mayo 2026": { badge: "Recuperación", mejora: "Mayor ticket promedio", problema: "Baja ocupación" },
+  "Abril 2026": { badge: "Ocupación baja", mejora: "Más reservas online", problema: "Poca fidelización" },
 };
 
-const RADAR_STYLES: Record<"ok" | "warn" | "alert" | "bad", { dot: string; ring: string }> = {
-  ok: { dot: "🟢", ring: "border-emerald-400/20 bg-emerald-400/[0.05]" },
-  warn: { dot: "🟡", ring: "border-amber-400/20 bg-amber-400/[0.05]" },
-  alert: { dot: "🟠", ring: "border-orange-400/20 bg-orange-400/[0.05]" },
-  bad: { dot: "🔴", ring: "border-rose-400/20 bg-rose-400/[0.05]" },
+const RADAR_STYLES: Record<"ok" | "warn" | "alert" | "bad", { icon: string; ring: string; text: string; bg: string }> = {
+  ok: { icon: "text-emerald-300", ring: "border-emerald-400/20 bg-emerald-400/[0.05]", text: "text-emerald-200", bg: "bg-emerald-400/10" },
+  warn: { icon: "text-amber-300", ring: "border-amber-400/20 bg-amber-400/[0.05]", text: "text-amber-200", bg: "bg-amber-400/10" },
+  alert: { icon: "text-orange-300", ring: "border-orange-400/20 bg-orange-400/[0.05]", text: "text-orange-200", bg: "bg-orange-400/10" },
+  bad: { icon: "text-rose-300", ring: "border-rose-400/20 bg-rose-400/[0.05]", text: "text-rose-200", bg: "bg-rose-400/10" },
 };
 
 function AdvisorRoute() {
@@ -352,12 +367,10 @@ function AdvisorContent({
     if (!isAnalyzing) return;
 
     const steps = [
-      "Analizando rentabilidad",
-      "Analizando fidelización",
-      "Analizando ocupación de agenda",
-      "Analizando dependencia del dueño",
-      "Detectando oportunidades",
-      "Generando plan de acción",
+      "Ventas",
+      "Clientes",
+      "Agenda",
+      "Generando recomendaciones",
     ];
 
     let index = 0;
@@ -414,7 +427,6 @@ function AdvisorContent({
   });
 
   const healthTone = getHealthTone(DEMO.health);
-  const healthEmoji = DEMO.health >= 80 ? "🟢" : DEMO.health >= 60 ? "🟡" : DEMO.health >= 40 ? "🟠" : "🔴";
   const healthHeadline = DEMO.health >= 80 ? "Excelente" : DEMO.health >= 65 ? "Muy bien" : DEMO.health >= 50 ? "Aceptable" : "Necesita atención";
   const animatedHealth = Math.round(DEMO.health * animationProgress);
   const animatedProfit = Math.round(DEMO.profit * animationProgress);
@@ -473,7 +485,7 @@ function AdvisorContent({
           <div className="relative rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
             {/* Separador de sección */}
-            <div className="relative flex items-center gap-4 mb-4">
+            <div className="relative flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
                 Salud del negocio
@@ -484,7 +496,7 @@ function AdvisorContent({
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="font-display text-2xl font-bold tracking-tight">Estado actual</h2>
+                  <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">Estado actual</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Rentabilidad, clientes y ocupación del período.
                   </p>
@@ -551,7 +563,7 @@ function AdvisorContent({
                   <div className="text-center">
                     <div className="text-sm text-muted-foreground">Puntaje de salud</div>
                     <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>
-                      {healthEmoji} {healthHeadline}
+                      {healthHeadline}
                     </div>
                     <p className="mt-1.5 text-xs font-semibold text-emerald-300/90">
                       Mejor que el {ANALISIS_BENCHMARK}% de las barberías y peluquerías similares.
@@ -583,17 +595,20 @@ function AdvisorContent({
                 {/* Right: impact panel */}
                 <div className="rounded-2xl border border-emerald-300/[0.13] bg-white/[0.035] p-5 h-full shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
                   <div className="mb-4 flex items-center gap-2 text-base font-semibold">
-                    <span>💈</span> Radar del local
+                    <Activity className="h-4 w-4 text-emerald-300" /> Radar del local
                   </div>
                   <div className="space-y-2">
                     {RADAR_LOCAL.map((item) => {
-                      const s = RADAR_STYLES[item.tone];
+                      const style = RADAR_STYLES[item.tone];
+                      const Icon = item.icon;
                       return (
                         <div
                           key={item.label}
-                          className={cn("flex items-center gap-3 rounded-xl border px-3 py-2.5", s.ring)}
+                          className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", style.ring)}
                         >
-                          <span className="text-base leading-none">{s.dot}</span>
+                          <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg", style.bg)}>
+                            <Icon className={cn("h-4 w-4", style.icon)} />
+                          </span>
                           <span className="text-sm text-white/85">{item.label}</span>
                         </div>
                       );
@@ -609,36 +624,36 @@ function AdvisorContent({
           {/* /Salud */}
 
           {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-          <div className="relative rounded-[2rem] border border-sky-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_30px_125px_-42px_rgba(14,165,233,1)] sm:p-4">
+          <div className="relative rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
                 Evolución del negocio
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
-            <GlassCard className="p-5 sm:p-6 space-y-4 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
-              <h2 className="font-display text-2xl font-bold tracking-tight">
+            <GlassCard className="p-4 sm:p-5 space-y-3 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
+              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
                 Resultados del período
               </h2>
 
               {/* Bloque superior: +18% */}
-              <div className="relative flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-5 py-3.5">
+              <div className="relative flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-4 py-3">
                 {/* Icono izquierda */}
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25">
-                  <TrendingUp className="h-6 w-6 text-sky-300" />
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25">
+                  <TrendingUp className="h-5 w-5 text-sky-300" />
                 </div>
                 {/* Textos */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     Crecimiento mensual
                   </div>
                   <div className="flex items-baseline gap-3 mt-1 flex-wrap">
-                    <span className="font-display text-5xl font-bold text-sky-300 leading-none">
+                    <span className="font-display text-4xl font-bold text-sky-300 leading-none">
                       +18%
                     </span>
-                    <span className="text-base text-muted-foreground">vs mes anterior</span>
+                    <span className="text-sm text-muted-foreground">vs mes anterior</span>
                   </div>
                 </div>
                 {/* Info btn arriba derecha */}
@@ -653,7 +668,7 @@ function AdvisorContent({
               </div>
 
               {/* Etiqueta IMPULSADOS POR */}
-              <div className="flex flex-col items-center gap-1 text-center">
+              <div className="flex flex-col items-center gap-0.5 text-center">
                 <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
                   Impulsados por
                 </div>
@@ -661,61 +676,61 @@ function AdvisorContent({
               </div>
 
               {/* 3 tarjetas: Clientes / Ticket / Ocupación */}
-              <div className="grid md:grid-cols-3 gap-3">
+              <div className="grid md:grid-cols-3 gap-2.5">
                 {/* Clientes nuevos */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20">
-                    <Users className="h-5 w-5 text-violet-400" />
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-3 flex flex-col gap-2">
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20">
+                    <Users className="h-4 w-4 text-violet-400" />
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Clientes nuevos</div>
-                    <div className="font-display text-4xl font-bold text-violet-300 mt-1 leading-none">
+                    <div className="font-display text-3xl font-bold text-violet-300 mt-1 leading-none">
                       {Math.round(45 * animationProgress)}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-violet-400/10 px-3 py-2">
+                  <div className="rounded-xl bg-violet-400/10 px-3 py-1.5">
                     <div className="text-sm font-bold text-violet-300">+16%</div>
                     <div className="text-xs text-muted-foreground">vs mes anterior</div>
                   </div>
                 </div>
 
                 {/* Ticket promedio */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20">
-                    <DollarSign className="h-5 w-5 text-sky-400" />
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-3 flex flex-col gap-2">
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20">
+                    <DollarSign className="h-4 w-4 text-sky-400" />
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Ticket promedio</div>
-                    <div className="font-display text-3xl font-bold text-sky-300 mt-1 leading-none">
+                    <div className="font-display text-2xl font-bold text-sky-300 mt-1 leading-none">
                       {fmtAR(Math.round(DEMO.ticket * animationProgress))}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-sky-400/10 px-3 py-2">
+                  <div className="rounded-xl bg-sky-400/10 px-3 py-1.5">
                     <div className="text-sm font-bold text-sky-300">+10%</div>
                     <div className="text-xs text-muted-foreground">vs mes anterior</div>
                   </div>
-                  <div className="rounded-xl border border-sky-300/15 bg-sky-300/[0.04] px-3 py-2 text-xs">
+                  <div className="rounded-xl border border-sky-300/15 bg-sky-300/[0.04] px-3 py-1.5 text-[11px]">
                     <div className="text-white/70">Objetivo: <span className="font-semibold text-sky-200">{fmtAR(Math.round(DEMO.ticket * 1.2))}</span></div>
                     <div className="mt-0.5 text-white/45">Potencial: +{fmtAR(Math.round(DEMO.ticket * 0.2))} por cliente sumando barba y productos al corte.</div>
                   </div>
                 </div>
 
                 {/* Ocupación */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4 flex flex-col gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20">
-                    <ClipboardList className="h-5 w-5 text-orange-400" />
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-3 flex flex-col gap-2">
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20">
+                    <ClipboardList className="h-4 w-4 text-orange-400" />
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Ocupación</div>
-                    <div className="font-display text-4xl font-bold text-orange-300 mt-1 leading-none">
+                    <div className="font-display text-3xl font-bold text-orange-300 mt-1 leading-none">
                       {Math.round(DEMO.occupancy * animationProgress)}%
                     </div>
                   </div>
-                  <div className="rounded-xl bg-orange-400/10 px-3 py-2">
+                  <div className="rounded-xl bg-orange-400/10 px-3 py-1.5">
                     <div className="text-sm font-bold text-orange-300">+8%</div>
                     <div className="text-xs text-muted-foreground">vs mes anterior</div>
                   </div>
-                  <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-3 py-2 text-xs">
+                  <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-3 py-1.5 text-[11px]">
                     <div className="text-white/70">Meta: <span className="font-semibold text-orange-200">75%</span> · {DEMO.freeSlotsMonth} turnos vacíos</div>
                     <div className="mt-0.5 text-white/45">Potencial: +{fmtAR(Math.round(DEMO.freeSlotsMonth * 0.21 * DEMO.ticket))} por mes si los llenás.</div>
                   </div>
@@ -723,7 +738,7 @@ function AdvisorContent({
               </div>
 
               {/* Etiqueta GENERARON MÁS */}
-              <div className="flex flex-col items-center gap-1 text-center">
+              <div className="flex flex-col items-center gap-0.5 text-center">
                 <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
                   Generaron más
                 </div>
@@ -731,12 +746,12 @@ function AdvisorContent({
               </div>
 
               {/* Bloque Utilidad gigante */}
-              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-6 py-5 flex items-center justify-between gap-5">
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-5 py-3.5 flex items-center justify-between gap-4">
                 {/* Left */}
                 <div className="z-10">
                   <div className="flex items-center gap-3">
-                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25">
-                      <DollarSign className="h-6 w-6 text-emerald-400" />
+                    <div className="grid h-9 w-9 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25">
+                      <DollarSign className="h-5 w-5 text-emerald-400" />
                     </div>
                     <div className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">
                       Utilidad
@@ -745,7 +760,7 @@ function AdvisorContent({
                       +30%
                     </span>
                   </div>
-                  <div className="font-display text-4xl sm:text-5xl font-bold text-emerald-300 mt-3 leading-none">
+                  <div className="font-display text-3xl sm:text-4xl font-bold text-emerald-300 mt-2 leading-none">
                     {fmtAR(animatedProfit)}
                   </div>
                 </div>
@@ -780,42 +795,58 @@ function AdvisorContent({
           {/* ── RADIOGRAFÍA DEL LOCAL ─────────────────────────────── */}
           <div className="relative rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] blur-3xl" />
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-                💈 Radiografía del local
+                Radiografía del local
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
             </div>
             <GlassCard className="p-5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
-              <h2 className="font-display text-2xl font-bold tracking-tight">Tu negocio de un vistazo</h2>
+              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">Tu negocio de un vistazo</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Los números que un dueño de barbería o peluquería mira todos los días.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {RADIOGRAFIA_LOCAL.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:border-white/20"
-                  >
-                    <div className="text-2xl leading-none">{item.icon}</div>
+                {RADIOGRAFIA_LOCAL.map((item) => {
+                  const Icon = item.icon;
+                  return (
                     <div
-                      className={cn(
-                        "mt-2 text-2xl font-bold leading-none",
-                        item.tone === "good"
-                          ? "text-emerald-300"
-                          : item.tone === "warn"
-                            ? "text-amber-300"
-                            : item.tone === "bad"
-                              ? "text-rose-300"
-                              : "text-white",
-                      )}
+                      key={item.label}
+                      className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.045]"
                     >
-                      {item.value}
+                      <div
+                        className={cn(
+                          "grid h-10 w-10 place-items-center rounded-xl ring-1",
+                          item.tone === "good"
+                            ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300"
+                            : item.tone === "warn"
+                              ? "bg-amber-400/10 ring-amber-400/20 text-amber-300"
+                              : item.tone === "bad"
+                                ? "bg-rose-400/10 ring-rose-400/20 text-rose-300"
+                                : "bg-white/[0.05] ring-white/10 text-white/75",
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div
+                        className={cn(
+                          "mt-3 text-2xl font-bold leading-none",
+                          item.tone === "good"
+                            ? "text-emerald-300"
+                            : item.tone === "warn"
+                              ? "text-amber-300"
+                              : item.tone === "bad"
+                                ? "text-rose-300"
+                                : "text-white",
+                        )}
+                      >
+                        {item.value}
+                      </div>
+                      <div className="mt-1.5 text-xs leading-snug text-muted-foreground">{item.label}</div>
                     </div>
-                    <div className="mt-1.5 text-xs leading-snug text-muted-foreground">{item.label}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </GlassCard>
           </div>
@@ -824,7 +855,7 @@ function AdvisorContent({
           {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
           <div className="relative rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.06] blur-3xl" />
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
                 Historial de análisis
@@ -835,7 +866,7 @@ function AdvisorContent({
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
                 <div>
-                  <h2 className="font-display text-2xl font-bold tracking-tight">
+                  <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
                     Informes mensuales
                   </h2>
                   <p className="mt-2 text-sm text-muted-foreground">
@@ -848,36 +879,30 @@ function AdvisorContent({
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
-                {reports.map((report) => (
-                  <ReportCard
-                    key={report.month}
-                    report={report}
-                    isPrimary={report.month === "Junio 2026"}
-                  />
-                ))}
-                {!reports.some((r) => r.month === "Mayo 2026") && (
-                  <ReportCard
-                    report={{
-                      month: "Mayo 2026",
-                      health: 76,
-                      growth: 12,
-                      profit: 1420000,
-                      revenue: 3100000,
-                    }}
-                  />
-                )}
-                {!reports.some((r) => r.month === "Abril 2026") && (
-                  <ReportCard
-                    report={{
-                      month: "Abril 2026",
-                      health: 71,
-                      growth: 8,
-                      profit: 1180000,
-                      revenue: 2780000,
-                    }}
-                  />
-                )}
+                {[
+                  ...reports,
+                  ...(reports.some((r) => r.month === "Mayo 2026")
+                    ? []
+                    : [{ month: "Mayo 2026", health: 76, growth: 12, profit: 1420000, revenue: 3100000 }]),
+                  ...(reports.some((r) => r.month === "Abril 2026")
+                    ? []
+                    : [{ month: "Abril 2026", health: 71, growth: 8, profit: 1180000, revenue: 2780000 }]),
+                ]
+                  .slice(0, 3)
+                  .map((report) => (
+                    <ReportCard
+                      key={report.month}
+                      report={report}
+                      isPrimary={report.month === "Junio 2026"}
+                    />
+                  ))}
               </div>
+              <button
+                type="button"
+                className="mt-4 text-sm font-semibold text-violet-200/85 transition hover:text-white"
+              >
+                Ver historial completo →
+              </button>
             </GlassCard>
           </div>
           {/* /Historial */}
@@ -973,37 +998,36 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
 
 function AnalysisLoader({ step }: { step: number }) {
   const steps = [
-    { label: "Analizando ventas", icon: "💰" },
-    { label: "Analizando clientes", icon: "👥" },
-    { label: "Analizando agenda", icon: "📅" },
-    { label: "Calculando oportunidades", icon: "📈" },
-    { label: "Generando recomendaciones", icon: "✨" },
+    { label: "Ventas", icon: DollarSign },
+    { label: "Clientes", icon: Users },
+    { label: "Agenda", icon: CalendarDays },
+    { label: "Generando recomendaciones", icon: Brain },
   ];
 
   const safeStep = Math.min(Math.max(0, step), steps.length);
   const pct = Math.round((safeStep / steps.length) * 100);
 
   return (
-    <div className="relative flex min-h-[72vh] flex-col items-center justify-center overflow-hidden px-4 py-10">
+    <div className="relative flex min-h-[68vh] flex-col items-center justify-center overflow-hidden px-4 py-6">
       <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-violet-500/16 blur-3xl" />
       <div className="pointer-events-none absolute -right-32 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
       <div className="pointer-events-none absolute left-1/2 top-24 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
 
-      <div className="relative z-10 w-full max-w-3xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-6 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-8">
+      <div className="relative z-10 w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-6">
         {/* Header */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="relative mb-5">
+        <div className="flex flex-col items-center text-center mb-5">
+          <div className="relative mb-4">
             <div className="absolute inset-0 scale-[1.65] rounded-full bg-gradient-to-br from-primary/25 to-accent/20 blur-3xl" />
-            <div className="relative grid h-24 w-24 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)]">
-              <Brain className="h-12 w-12 text-primary" />
+            <div className="relative grid h-20 w-20 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)]">
+              <Brain className="h-10 w-10 text-primary" />
             </div>
             <svg
               className="absolute inset-0 animate-spin"
               style={{ animationDuration: "3s" }}
               viewBox="0 0 96 96"
               fill="none"
-              width="96"
-              height="96"
+              width="80"
+              height="80"
             >
               <circle
                 cx="48"
@@ -1030,17 +1054,15 @@ function AnalysisLoader({ step }: { step: number }) {
               </defs>
             </svg>
           </div>
-          <h2 className="font-display text-3xl font-bold tracking-tight">Analizando tu negocio</h2>
+          <h2 className="font-display text-2xl font-bold tracking-tight">Analizando tu negocio</h2>
           <p className="mt-2 text-sm text-muted-foreground max-w-md">
-            Clippr IA está leyendo ventas, clientes, agenda y rentabilidad antes de mostrar el
-            diagnóstico.
+            Preparando tu diagnóstico...
           </p>
         </div>
 
         {/* Progress bar premium */}
-        <div className="mb-7">
-          <div className="flex justify-between text-xs text-muted-foreground mb-2">
-            <span>Progreso del análisis</span>
+        <div className="mb-5">
+          <div className="flex justify-center text-xs text-muted-foreground mb-2">
             <span className="font-semibold text-foreground">{pct}%</span>
           </div>
           <div className="h-2.5 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10">
@@ -1052,16 +1074,17 @@ function AnalysisLoader({ step }: { step: number }) {
         </div>
 
         {/* Steps */}
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {steps.map((item, index) => {
             const done = index < safeStep;
             const current = index === safeStep;
             const pending = index > safeStep;
+            const Icon = item.icon;
             return (
               <div
                 key={item.label}
                 className={cn(
-                  "flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-500",
+                  "flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-500",
                   done &&
                     "border-emerald-400/25 bg-emerald-400/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
                   current &&
@@ -1074,7 +1097,16 @@ function AnalysisLoader({ step }: { step: number }) {
                   {current && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
                   {pending && <div className="h-4 w-4 rounded-full border-2 border-white/15" />}
                 </div>
-                <span className="text-lg shrink-0">{item.icon}</span>
+                <span
+                  className={cn(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-xl ring-1",
+                    done && "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300",
+                    current && "bg-primary/10 ring-primary/20 text-primary",
+                    pending && "bg-white/[0.04] ring-white/10 text-muted-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
                 <span
                   className={cn(
                     "text-sm font-medium flex-1",
@@ -1083,13 +1115,8 @@ function AnalysisLoader({ step }: { step: number }) {
                     pending && "text-muted-foreground",
                   )}
                 >
-                  {item.label}...
+                  {item.label}{current ? "..." : ""}
                 </span>
-                {done && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/75 shrink-0">
-                    Completado
-                  </span>
-                )}
               </div>
             );
           })}
@@ -1416,7 +1443,7 @@ function HistorialMesAnterior() {
           </p>
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-right shrink-0">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
             Crecimiento
           </div>
           <div className="mt-1 font-display text-3xl font-semibold text-primary">
@@ -2193,7 +2220,7 @@ function ReportCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border p-5 flex flex-col gap-4 transition-all",
+        "relative overflow-hidden rounded-2xl border p-4 flex flex-col gap-3 transition-all",
         isPrimary
           ? "border-emerald-300/25 bg-emerald-300/[0.055] shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_22px_70px_-46px_rgba(45,212,191,0.75)] hover:border-emerald-300/35"
           : "border-white/10 bg-white/[0.026] opacity-85 hover:opacity-100 hover:border-white/20",
@@ -2214,7 +2241,7 @@ function ReportCard({
               {report.month}
             </p>
           </div>
-          <p className="mt-1.5 text-[11px] font-bold leading-snug text-white/85">
+          <p className="mt-1 text-[11px] font-bold leading-snug text-white/80">
             {insight ? insight.badge : "Informe guardado"}
           </p>
         </div>
@@ -2231,7 +2258,7 @@ function ReportCard({
         </span>
       </div>
 
-      <div className="space-y-2 text-xs">
+      <div className="space-y-1.5 text-xs">
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Utilidad</span>
           <span className={cn("font-semibold text-emerald-300", isPrimary && "text-sm")}>
@@ -3609,7 +3636,7 @@ function GrowthRecCard({ rec, hero = false }: { rec: GrowthRec; hero?: boolean }
       <div className={cn("pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl", t.glow)} />
       <div className="relative">
         <div className="flex items-start gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               {hero ? (
@@ -4275,7 +4302,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
         <div className="pointer-events-none absolute -top-24 left-1/4 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-violet-500/15 blur-3xl" />
         <div className="relative flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/10 text-2xl ring-1 ring-white/15">🧪</span>
+          <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/10 text-2xl ring-1 ring-white/15">🧪</span>
           <div>
             <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Laboratorio de decisiones</span>
             <h2 className="text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">Probá la decisión antes de tomarla</h2>
@@ -4312,7 +4339,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
         <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent blur-3xl" />
         <div className="relative">
           <div className="mb-4 flex items-center gap-3 border-b border-white/8 pb-4">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{current.icon}</span>
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{current.icon}</span>
             <div>
               <h3 className="text-lg font-bold text-white">{current.label}</h3>
               <p className="text-xs text-white/45">{current.sub}</p>
