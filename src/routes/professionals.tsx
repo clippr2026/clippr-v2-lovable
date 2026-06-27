@@ -223,6 +223,14 @@ function shortName(email: string | null | undefined): string {
   return local.split(/[._-]/)[0].charAt(0).toUpperCase() + local.split(/[._-]/)[0].slice(1);
 }
 
+// Usuario que cobró/pagó: email completo antes del "@" (ej. alangmelgar).
+// Solo cae en "Recepción" si no hay email de sesión.
+function emailUsername(email: string | null | undefined): string {
+  const raw = String(email ?? "").trim();
+  if (!raw) return "Recepción";
+  return raw.includes("@") ? raw.split("@")[0] || "Recepción" : raw;
+}
+
 
 const COLORS = [
   { color: "from-cyan-400 to-cyan-600", ring: "ring-cyan-400/60" },
@@ -828,6 +836,12 @@ function CobroModal({
   userEmail: string | null; onClose: () => void; onDone: () => void;
 }) {
   // ── Items ──────────────────────────────────────────────────────────────────
+  // Nombre del profesional del turno (para el historial "Envió a caja"). No debe
+  // salir del email de la cuenta logueada, sino del barbero asociado.
+  const { data: profsList = [] } = useProfessionals(businessId);
+  const professionalName =
+    profsList.find((p) => p.id === empId)?.full_name?.trim() || null;
+
   const initPrice = Number(turno.service_price ?? 0);
   const [items, setItems] = useState<LineItem[]>([
     { id: "main", name: turno.service_name ?? "Servicio", amount: initPrice },
@@ -908,8 +922,6 @@ function CobroModal({
     try {
       const now = new Date();
       const hhmm = now.toTimeString().slice(0, 5);
-      const actor = shortName(userEmail);
-      // Use first split method; if amount empty, use total
       const primaryMethod: PayMethod = splits[0]?.method ?? "cash";
 
       if (mode === "auto") {
@@ -922,7 +934,7 @@ function CobroModal({
           notes: note || null,
         });
         await supabase.from("appointments").update({ status: "charged", notes: note || null }).eq("id", turno.id);
-        appendHistorialCobro(turno.id, { time: hhmm, user: actor, role: "profesional", action: "Cobró" });
+        appendHistorialCobro(turno.id, { time: hhmm, user: emailUsername(userEmail), role: "profesional", action: "Cobró" });
         toast.success("✓ Cobro registrado");
       } else {
         const marker = "[PENDIENTE_CAJA]";
@@ -936,7 +948,7 @@ function CobroModal({
           service_name: items.map(i => i.name).join(" + "),
           service_price: total, starts_at: turno.starts_at, notes: nextNotes,
         });
-        appendHistorialCobro(turno.id, { time: hhmm, user: actor, role: "profesional", action: "Envió a caja" });
+        appendHistorialCobro(turno.id, { time: hhmm, user: professionalName ?? emailUsername(userEmail), role: "profesional", action: "Envió a caja" });
         toast.success("✓ Enviado a Caja");
       }
       onDone(); onClose();
@@ -2129,12 +2141,16 @@ function PagosView({ businessId, empId, userEmail, from, to }: { businessId: str
           payments.map((p, i) => {
             const dt = p.created_at ? new Date(p.created_at) : new Date(p.date + "T12:00:00");
             const fecha = dt.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" }).replace(".", "");
-            const hora = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+            const hora = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+            const rawPayer = String(p.created_by ?? "").trim();
+            const payer = rawPayer
+              ? (rawPayer.includes("@") ? rawPayer.split("@")[0] || "Caja" : rawPayer)
+              : "Caja";
             return (
               <div key={p.id} className={cn("flex items-center gap-4 px-5 py-3.5", i < payments.length - 1 && "border-b border-white/5")}>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium capitalize">{fecha}</div>
-                  <div className="text-xs text-muted-foreground">{hora} · {p.created_by ?? "Caja"} pagó · {p.method ?? "Sin método"}{p.note ? " · " + p.note : ""}</div>
+                  <div className="text-xs text-muted-foreground">{hora} hs · {payer} pagó · {p.method ?? "Sin método"}{p.note ? " · " + p.note : ""}</div>
                 </div>
                 <div className="text-base font-bold text-emerald-300 tabular-nums">${Number(p.amount).toLocaleString("es-AR")}</div>
               </div>
