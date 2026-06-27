@@ -395,7 +395,66 @@ function ClientsPage() {
     <AppShell>
       <div className="app-premium-shell">
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-        <div className="h-[calc(100dvh-92px)] overflow-hidden animate-fade-up flex flex-col gap-4">
+        <div className="h-[calc(100dvh-92px)] overflow-hidden animate-fade-up flex flex-col gap-3">
+          {/* KPI cards — siempre arriba, fuera de cualquier scroll */}
+          <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <StatCard
+              label="VIP"
+              value={String(summary?.counts.vip ?? 0)}
+              caption={null}
+              icon={<Crown className="h-6 w-6 text-amber-200" />}
+              glow="bg-amber-500/25"
+              featured
+              info={CLIENT_METRIC_INFO.vip.title}
+              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.vip)}
+              link="Ver todos"
+              onLinkClick={() => showGroup("Clientes VIP", "vip")}
+            />
+            <StatCard
+              label="Nuevos"
+              value={String(summary?.counts.nuevo ?? 0)}
+              caption={null}
+              icon={<Sparkles className="h-6 w-6 text-violet-300" />}
+              glow="bg-violet-500/25"
+              info={CLIENT_METRIC_INFO.nuevos.title}
+              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.nuevos)}
+              link="Ver todos"
+              onLinkClick={() => showGroup("Clientes nuevos", "nuevo")}
+            />
+            <StatCard
+              label="Activos"
+              value={String(summary?.counts.activo ?? 0)}
+              caption={null}
+              icon={<CheckCircle2 className="h-6 w-6 text-emerald-300" />}
+              glow="bg-emerald-500/20"
+              info={CLIENT_METRIC_INFO.activos.title}
+              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.activos)}
+              link="Ver todos"
+              onLinkClick={() => showGroup("Clientes activos", "activo")}
+            />
+            <StatCard
+              label="Inactivos"
+              value={String(summary?.counts.inactivo ?? 0)}
+              caption={null}
+              icon={<PauseCircle className="h-6 w-6 text-amber-300" />}
+              glow="bg-amber-500/15"
+              info={CLIENT_METRIC_INFO.inactivos.title}
+              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.inactivos)}
+              link="Ver todos"
+              onLinkClick={() => showGroup("Clientes inactivos", "inactivo")}
+            />
+            <StatCard
+              label="Perdidos"
+              value={String(summary?.counts.perdido ?? 0)}
+              caption={null}
+              icon={<AlertTriangle className="h-6 w-6 text-rose-300" />}
+              glow="bg-rose-500/20"
+              info={CLIENT_METRIC_INFO.perdidos.title}
+              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.perdidos)}
+              link="Reconquistar"
+              onLinkClick={() => showGroup("Clientes perdidos", "perdido")}
+            />
+          </div>
           <div className="flex shrink-0 justify-end">
             <button
               onClick={() => setNewClientOpen(true)}
@@ -586,9 +645,9 @@ function ClientsPage() {
                             <Sparkles className="h-5 w-5 text-violet-300" />
                           </span>
                           <div>
-                            <div className="text-sm font-semibold text-white">Perfil del cliente</div>
-                            <div className="mt-1 text-sm text-white/70">
-                              Cliente VIP con alta frecuencia de visitas.
+                            <div className="text-sm font-semibold text-white">Cliente VIP</div>
+                            <div className="mt-0.5 text-xs text-white/60">
+                              Alta frecuencia de visitas.
                             </div>
                           </div>
                         </div>
