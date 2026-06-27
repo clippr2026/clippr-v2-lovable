@@ -223,7 +223,7 @@ function AdvisorRoute() {
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
 <div className="flex items-center justify-between gap-4 flex-wrap">
-        <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
+        
         {analysisStarted && !isAnalyzing && (
           <div className="relative flex w-full items-center justify-end sm:w-auto">
             <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
