@@ -1386,7 +1386,9 @@ function AgendaPage() {
 type ApptLayout = { lane: number; laneCount: number };
 
 // Drag & drop tuning + helpers (shared by the grid and cards).
-const DRAG_SNAP_MIN = 15; // drop snaps to 15-minute increments
+// NOTE: drag snapping is NOT a fixed value anymore. It follows the live
+// `slotMinutes` selector (20/30/40/45/50/60) via `snapToSlot` inside the grid
+// component, anchored to HOUR_START so drops land exactly on the visible cuts.
 const fmtHM = (d: Date) =>
   d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
 // Tracks the appointment currently being dragged so onDragOver (which cannot
@@ -1733,9 +1735,22 @@ const DayView = React.memo(function DayView({
     }
   };
 
+  // Snap a raw minute-of-day to the interval chosen in the slot selector.
+  // Anchored to HOUR_START (the same anchor the grid lines use) so the result
+  // always lands on a visible cut — this matters for 40/45/50, which don't
+  // divide 60. For 20/30/60 it's identical to a midnight-anchored snap.
+  const snapToSlot = React.useCallback(
+    (rawMin: number) => {
+      const base = HOUR_START * 60;
+      return base + Math.round((rawMin - base) / slotMinutes) * slotMinutes;
+    },
+    [HOUR_START, slotMinutes],
+  );
+
   // Drop is handled at the COLUMN level (not per hour-cell) so it works whether
   // you release over an empty slot or on top of another card. The minute is
-  // derived from the cursor's Y within the column, snapped to DRAG_SNAP_MIN.
+  // derived from the cursor's Y within the column, snapped to the active
+  // `slotMinutes` selector via snapToSlot.
   const handleDrop = async (e: React.DragEvent, empId: string) => {
     e.preventDefault();
     setDragPreview(null);
@@ -1759,7 +1774,7 @@ const DayView = React.memo(function DayView({
       const maxStart = closeMin - dur;
       const snappedMin = Math.max(
         openMin,
-        Math.min(maxStart, Math.round(rawMin / DRAG_SNAP_MIN) * DRAG_SNAP_MIN),
+        Math.min(maxStart, snapToSlot(rawMin)),
       );
 
       await persistMovedBreak({
@@ -1797,7 +1812,7 @@ const DayView = React.memo(function DayView({
     const maxStart = HOUR_END * 60 - dur;
     const snappedMin = Math.max(
       HOUR_START * 60,
-      Math.min(maxStart, Math.round(rawMin / DRAG_SNAP_MIN) * DRAG_SNAP_MIN),
+      Math.min(maxStart, snapToSlot(rawMin)),
     );
 
     const newStart = new Date(date);
@@ -1924,7 +1939,7 @@ const DayView = React.memo(function DayView({
 
     const snappedMin = Math.max(
       minStart,
-      Math.min(maxStart, Math.round(rawMin / DRAG_SNAP_MIN) * DRAG_SNAP_MIN),
+      Math.min(maxStart, snapToSlot(rawMin)),
     );
     const top = (snappedMin / 60 - HOUR_START) * rowPx;
     const height = Math.max((durMin / 60) * rowPx, 18);
