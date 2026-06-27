@@ -59,27 +59,91 @@ type HistorialEvento = {
   action: string;
 };
 
-function appendHistorialCobro(appointmentId: string, evento: HistorialEvento) {
+function setHistorialCobroLS(appointmentId: string, events: HistorialEvento[]) {
   if (typeof window === "undefined") return;
   try {
     const all = JSON.parse(
       window.localStorage.getItem(HISTORIAL_KEY) || "{}",
     ) as Record<string, HistorialEvento[]>;
+    all[appointmentId] = events;
+    window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(all));
+    window.dispatchEvent(new CustomEvent("clippr:cobros-historial-updated"));
+  } catch {
+    // ignore
+  }
+}
+
+// Agrega un evento al historial del turno. La fuente de verdad es
+// appointments.cobro_events (JSONB en Supabase); localStorage es solo un cache
+// para refrescar la UI al instante. Mergea contra lo que ya hay en la DB para
+// no pisar eventos escritos desde otro dispositivo o desde el Panel de
+// Profesionales (p.ej. "Envió a caja").
+async function appendHistorialCobro(appointmentId: string, evento: HistorialEvento) {
+  if (typeof window === "undefined" || !appointmentId) return;
+
+  const sameEvent = (a: HistorialEvento, b: HistorialEvento) =>
+    a.time === b.time && a.user === b.user && a.action === b.action;
+
+  // 1. Cache local inmediato (la UI no espera a la red).
+  try {
+    const all = JSON.parse(
+      window.localStorage.getItem(HISTORIAL_KEY) || "{}",
+    ) as Record<string, HistorialEvento[]>;
     const prev = all[appointmentId] ?? [];
-    if (
-      !prev.some(
-        (e) =>
-          e.time === evento.time &&
-          e.user === evento.user &&
-          e.action === evento.action,
-      )
-    ) {
-      all[appointmentId] = [...prev, evento];
-      window.localStorage.setItem(HISTORIAL_KEY, JSON.stringify(all));
-      window.dispatchEvent(new CustomEvent("clippr:cobros-historial-updated"));
+    if (!prev.some((e) => sameEvent(e, evento))) {
+      setHistorialCobroLS(appointmentId, [...prev, evento]);
     }
   } catch {
     // ignore
+  }
+
+  // 2. Persistir en Supabase, mergeando contra el estado actual de la DB.
+  try {
+    const { data } = await supabase
+      .from("appointments")
+      .select("cobro_events")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    const dbEvents = (((data?.cobro_events ?? []) as HistorialEvento[]) || []).filter(Boolean);
+    if (!dbEvents.some((e) => sameEvent(e, evento))) {
+      const merged = uniqueHistorialEvents([...dbEvents, evento]);
+      await supabase
+        .from("appointments")
+        .update({ cobro_events: merged } as Record<string, unknown>)
+        .eq("id", appointmentId);
+      setHistorialCobroLS(appointmentId, merged);
+    }
+  } catch {
+    // La columna puede no existir aún; el cache local conserva el evento.
+  }
+}
+
+// Sincroniza appointments.cobro_events (Supabase) → localStorage para los turnos
+// visibles. Así el historial ("Envió a caja" / "Cobró") sobrevive recargas y
+// cambios de dispositivo en lugar de depender de un cache local efímero.
+async function syncHistorialFromDB(
+  appointmentIds: Array<string | null | undefined>,
+): Promise<boolean> {
+  const ids = Array.from(
+    new Set(appointmentIds.map((x) => String(x ?? "").trim()).filter(Boolean)),
+  );
+  if (!ids.length) return false;
+  try {
+    const { data } = await supabase
+      .from("appointments")
+      .select("id, cobro_events")
+      .in("id", ids);
+    let changed = false;
+    for (const row of data ?? []) {
+      const events = ((row.cobro_events as HistorialEvento[] | null) ?? []).filter(Boolean);
+      if (events.length) {
+        setHistorialCobroLS(row.id as string, uniqueHistorialEvents(events));
+        changed = true;
+      }
+    }
+    return changed;
+  } catch {
+    return false;
   }
 }
 
@@ -261,6 +325,14 @@ function displayResponsibleUser(value?: string | null) {
   if (raw.includes("@")) return raw.split("@")[0] || "Caja";
 
   return raw;
+}
+
+// Usuario que cobró/pagó: muestra el email antes del "@". Solo cae en
+// "Recepción" si realmente no hay email del usuario de sesión.
+function chargedByUsername(email?: string | null) {
+  const raw = String(email ?? "").trim();
+  if (!raw) return "Recepción";
+  return raw.includes("@") ? raw.split("@")[0] || "Recepción" : raw;
 }
 
 function getManualPendingNote(notes?: string | null, serviceName?: string | null) {
@@ -703,6 +775,7 @@ function CashRegisterPage() {
             <NuevaVentaTab
               data={data}
               pendingCharge={activePendingCharge}
+              userEmail={session.user.email ?? null}
               onPendingDone={() => {
                 setPendingToCharge(null);
                 setTab("resumen");
@@ -957,6 +1030,33 @@ function ResumenTab({
   const todayForHistory = new Date().toISOString().slice(0, 10);
   const [gastosHistoryFrom, setGastosHistoryFrom] = React.useState(todayForHistory);
   const [gastosHistoryTo, setGastosHistoryTo] = React.useState(todayForHistory);
+
+  // Historial de cobros: lo leemos desde appointments.cobro_events (Supabase)
+  // para los turnos visibles, así "Envió a caja" / "Cobró" persiste tras
+  // recargar o entrar desde otro dispositivo. `histVersion` fuerza el re-render
+  // cuando el cache local se actualiza con lo que vino de la base.
+  const [, setHistVersion] = React.useState(0);
+  React.useEffect(() => {
+    const ids = (data.paymentsToday ?? [])
+      .map((p) => (p as { appointment_id?: string | null }).appointment_id)
+      .filter(Boolean) as string[];
+    const pendingIds = (data.pendingCharges ?? []).map((p) => p.id).filter(Boolean);
+    const allIds = [...ids, ...pendingIds];
+    if (!allIds.length) return;
+    let active = true;
+    syncHistorialFromDB(allIds).then((changed) => {
+      if (active && changed) setHistVersion((v) => v + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [data.paymentsToday, data.pendingCharges]);
+
+  React.useEffect(() => {
+    const bump = () => setHistVersion((v) => v + 1);
+    window.addEventListener("clippr:cobros-historial-updated", bump);
+    return () => window.removeEventListener("clippr:cobros-historial-updated", bump);
+  }, []);
 
   React.useEffect(() => {
     setActivePanel(initialPanel);
@@ -2602,7 +2702,7 @@ function ProfesionalesTab({
         amount: payment.amount,
         method: payment.method,
         note: payment.note,
-        user: payment.created_by ?? "Caja",
+        user: displayResponsibleUser(payment.created_by),
       }));
   }, [payouts, selectedRow]);
 
@@ -5638,11 +5738,13 @@ function NuevaVentaTab({
   pendingCharge = null,
   onPendingDone,
   onSaleDone,
+  userEmail,
 }: {
   data: ReturnType<typeof useCajaData>;
   pendingCharge?: PendingCharge | null;
   onPendingDone?: () => void;
   onSaleDone?: () => void;
+  userEmail: string | null;
 }) {
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 4 : 1);
   const [cart, setCart] = React.useState<Record<string, number>>({});
@@ -6056,12 +6158,13 @@ function NuevaVentaTab({
           notes: professionalNote || null,
         });
 
-        // 3. Registrar en el historial del profesional que Caja/Recepción cobró el pendiente manual
+        // 3. Registrar en el historial del turno que el usuario de caja cobró el
+        //    pendiente. Persiste en appointments.cobro_events (Supabase).
         const now = new Date();
         const hhmm = now.toTimeString().slice(0, 5);
         appendHistorialCobro(pendingCharge.id, {
           time: hhmm,
-          user: "Recepción",
+          user: chargedByUsername(userEmail),
           action: "Cobró",
         });
 

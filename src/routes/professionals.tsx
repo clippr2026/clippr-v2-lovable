@@ -976,7 +976,7 @@ function CobroModal({
             <div>
               <div className="font-display font-semibold text-lg leading-tight">{turno.client_name ?? "Sin cliente"}</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {new Date(turno.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                {new Date(turno.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
               </div>
             </div>
             <div className="font-display text-2xl font-light tabular-nums">{fmtMoney(total)}</div>
@@ -2182,7 +2182,7 @@ function formatSaleDate(value: string) {
   const day = date.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
   const formattedDay = day.charAt(0).toUpperCase() + day.slice(1);
   const datePart = date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-  const timePart = date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  const timePart = date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
   return `${formattedDay} ${datePart} ${timePart}`;
 }
 
