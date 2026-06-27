@@ -13,7 +13,7 @@ import {
   X,
   DollarSign,
   Pencil,
-  CheckCircle2,
+  CheckCircle,
   MessageCircle,
   UserRound,
   XCircle,
