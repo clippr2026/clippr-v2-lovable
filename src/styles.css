@@ -285,16 +285,7 @@
       0 0 80px rgb(79 125 255 / 0.08),
       0 18px 44px -30px oklch(0 0 0 / 0.9);
   }
-  /* Ingresos (azul) — hover: borde + glow azul suave */
-  .stat-glow-primary:hover {
-    border-color: rgb(79 125 255 / 0.5);
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.09),
-      0 0 32px rgb(79 125 255 / 0.28),
-      0 0 72px rgb(79 125 255 / 0.16),
-      0 18px 44px -28px oklch(0 0 0 / 0.9);
-  }
-  /* Ingresos (azul) — activo: borde + glow azul más fuerte */
+  /* Ingresos (azul) — hover sin efecto; el color cambia solo al hacer click */
   .stat-glow-primary.stat-active {
     border-color: rgb(79 125 255 / 0.85);
     box-shadow:
@@ -312,16 +303,7 @@
       0 0 80px rgb(244 63 94 / 0.08),
       0 18px 44px -30px oklch(0 0 0 / 0.9);
   }
-  /* Gastos (rojo) — hover: borde + glow rojo. Nunca azul. */
-  .stat-glow-danger:hover {
-    border-color: rgb(244 63 94 / 0.55);
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.09),
-      0 0 32px rgb(244 63 94 / 0.28),
-      0 0 72px rgb(244 63 94 / 0.16),
-      0 18px 44px -28px oklch(0 0 0 / 0.9);
-  }
-  /* Gastos (rojo) — activo: borde + glow rojo intenso. Nunca azul. */
+  /* Gastos (rojo) — hover sin efecto; el color cambia solo al hacer click. Nunca azul. */
   .stat-glow-danger.stat-active {
     border-color: rgb(244 63 94 / 0.9);
     box-shadow:
@@ -339,16 +321,7 @@
       0 0 80px rgb(16 185 129 / 0.10),
       0 18px 44px -30px oklch(0 0 0 / 0.9);
   }
-  /* Utilidad (verde) — hover: borde + glow verde. Nunca azul. */
-  .stat-glow-success:hover {
-    border-color: rgb(16 185 129 / 0.55);
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.09),
-      0 0 32px rgb(16 185 129 / 0.3),
-      0 0 72px rgb(16 185 129 / 0.18),
-      0 18px 44px -28px oklch(0 0 0 / 0.9);
-  }
-  /* Utilidad (verde) — activo: borde + glow verde intenso. Nunca azul. */
+  /* Utilidad (verde) — hover sin efecto; el color cambia solo al hacer click. Nunca azul. */
   .stat-glow-success.stat-active {
     border-color: rgb(16 185 129 / 0.9);
     box-shadow:
