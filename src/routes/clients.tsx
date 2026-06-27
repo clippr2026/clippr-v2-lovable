@@ -2,22 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
-import { Topbar } from "@/components/topbar";
 import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Crown,
-  Mail,
   MoreHorizontal,
   PauseCircle,
-  MessageCircle,
   Plus,
   Search,
   Sparkles,
   Star,
   Trash2,
   UserRound,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -395,88 +393,23 @@ function ClientsPage() {
 
   return (
     <AppShell>
-      <Topbar
-        title="Clientes"
-        subtitle="Clientes y fidelización"
-        action={
-          <button
-            onClick={() => setNewClientOpen(true)}
-            className="h-10 px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo cliente
-          </button>
-        }
-      />
-
       <div className="app-premium-shell">
-      
-      <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-<div className="space-y-6 animate-fade-up">
-        <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-          <StatCard
-            featured
-            label="VIP"
-            value={String(counts.vip)}
-            caption=""
-            link="Ver todos"
-            onLinkClick={() => showGroup("VIP", "vip")}
-            icon={<Crown className="h-7 w-7 text-violet-300" />}
-            glow="bg-violet-500/25"
-            info={CLIENT_METRIC_INFO.vip.description}
-            onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.vip)}
-          />
-          <StatCard
-            label="Nuevos"
-            value={String(counts.nuevos)}
-            caption=""
-            link="Ver todos"
-            onLinkClick={() => showGroup("Nuevos", "nuevo")}
-            icon={<Sparkles className="h-7 w-7 text-violet-300" />}
-            glow="bg-violet-400/20"
-            info={CLIENT_METRIC_INFO.nuevos.description}
-            onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.nuevos)}
-          />
-          <StatCard
-            label="Activos"
-            value={String(counts.activos)}
-            caption=""
-            link="Ver todos"
-            onLinkClick={() => showGroup("Activos", "activo")}
-            icon={<CheckCircle2 className="h-7 w-7 text-emerald-300" />}
-            glow="bg-emerald-400/20"
-            info={CLIENT_METRIC_INFO.activos.description}
-            onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.activos)}
-          />
-          <StatCard
-            label="Inactivos"
-            value={String(counts.inactivos)}
-            caption=""
-            link="Ver todos"
-            onLinkClick={() => showGroup("Inactivos", "inactivo")}
-            icon={<PauseCircle className="h-7 w-7 text-amber-300" />}
-            glow="bg-amber-400/15"
-            info={CLIENT_METRIC_INFO.inactivos.description}
-            onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.inactivos)}
-          />
-          <StatCard
-            label="Perdidos"
-            value={String(counts.perdidos)}
-            caption=""
-            link="Reconquistar"
-            onLinkClick={() => showGroup("Perdidos", "perdido")}
-            icon={<AlertTriangle className="h-7 w-7 text-rose-300" />}
-            glow="bg-rose-400/20"
-            info={CLIENT_METRIC_INFO.perdidos.description}
-            onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.perdidos)}
-          />
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
-          <div className="glass rounded-2xl p-3 sm:p-4 flex flex-col gap-3 sm:gap-4 lg:max-h-[calc(100dvh-190px)]">
+        <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
+        <div className="h-[calc(100dvh-92px)] overflow-hidden animate-fade-up flex flex-col gap-4">
+          <div className="flex shrink-0 justify-end">
+            <button
+              onClick={() => setNewClientOpen(true)}
+              className="h-10 px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition"
+              style={{
+                background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo cliente
+            </button>
+          </div>
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div className="glass rounded-2xl p-3 sm:p-4 flex min-h-0 h-full flex-col gap-3 sm:gap-4 overflow-hidden">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -563,7 +496,7 @@ function ClientsPage() {
 
           <div
             className={cn(
-              "glass rounded-2xl p-0 min-h-[60vh] overflow-hidden",
+              "glass rounded-2xl p-0 h-full min-h-0 overflow-hidden",
               current?.status === "perdido" && "ring-1 ring-rose-400/30",
               current?.status === "vip" && "ring-1 ring-amber-300/30",
             )}
@@ -572,13 +505,13 @@ function ClientsPage() {
               <div className="flex flex-col h-full">
                 <div
                   className={cn(
-                    "relative p-6 border-b border-white/5 overflow-hidden",
+                    "relative px-6 py-5 border-b border-white/5 overflow-hidden",
                     current.status === "perdido" && "bg-rose-500/5",
                     current.status === "vip" && "bg-amber-400/5",
                   )}
                 >
-                  <div className="relative flex items-start gap-5">
-                    <div className="h-20 w-20 rounded-2xl grid place-items-center text-2xl font-display font-semibold bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100">
+                  <div className="relative flex items-center gap-5">
+                    <div className="h-20 w-20 rounded-2xl grid place-items-center text-2xl font-display font-semibold bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100 shrink-0">
                       {current.name[0]?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0 space-y-2">
@@ -593,28 +526,13 @@ function ClientsPage() {
                             )}
                             {current.name}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                            {current.phone ? (
-                              <a
-                                href={whatsappHref(current.phone)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-300 ring-1 ring-emerald-400/25 hover:bg-emerald-500/20 transition"
-                              >
-                                <MessageCircle className="h-3.5 w-3.5 text-emerald-300" /> WhatsApp{" "}
-                                {current.phone}
-                              </a>
-                            ) : (
-                              <span>sin teléfono</span>
-                            )}
-                            {current.email && (
-                              <>
-                                <span>·</span>
-                                <span className="inline-flex items-center gap-1">
-                                  <Mail className="h-3 w-3" /> {current.email}
-                                </span>
-                              </>
-                            )}
+                          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            {current.vipTag ? vipTagBadge(current.vipTag) : statusBadge(current.status)}
+                            <Rating value={current.rating} />
+                          </div>
+                          <div className="mt-3 inline-flex items-center gap-2 text-sm text-white/70">
+                            <CalendarDays className="h-4 w-4 text-white/45" />
+                            <span>Cliente desde <span className="font-semibold text-white capitalize">{currentSince}</span></span>
                           </div>
                         </div>
                         <div className="relative">
@@ -637,39 +555,11 @@ function ClientsPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        {current.vipTag ? vipTagBadge(current.vipTag) : statusBadge(current.status)}
-                        <Rating value={current.rating} />
-                      </div>
-                      <div className="grid gap-2 pt-2 text-[11px] text-muted-foreground sm:grid-cols-3">
-                        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2">
-                          <span className="block text-white/45">Cliente desde</span>
-                          <span className="font-semibold text-white/80 capitalize">
-                            {currentSince}
-                          </span>
-                        </div>
-                        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2">
-                          <span className="block text-white/45">Estado</span>
-                          <span className="font-semibold text-white/80">
-                            {current.status.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2">
-                          <span className="block text-white/45">Próximo turno</span>
-                          <span className="font-semibold text-white/80 capitalize">
-                            {nextAppointmentLabel}
-                          </span>
-                          {current.nextAppointment?.service && (
-                            <span className="mt-0.5 block truncate text-[10px] text-white/45">
-                              {current.nextAppointment.service}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+
                     </div>
                   </div>
                 </div>
-                <div className="px-6 pt-4">
+                <div className="px-6 pt-3 shrink-0">
                   <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
                     {(["resumen", "historial"] as const).map((t) => (
                       <button
@@ -687,20 +577,25 @@ function ClientsPage() {
                     ))}
                   </div>
                 </div>
-                <div className="p-4 sm:p-6 flex-1 space-y-4 sm:space-y-5">
+                <div className="p-4 sm:p-5 flex-1 min-h-0 space-y-3 overflow-hidden">
                   {tab === "resumen" && (
                     <>
                       <div className="rounded-2xl bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent ring-1 ring-violet-400/25 p-4 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]">
-                        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-violet-200/90">
-                          <Sparkles className="h-3.5 w-3.5" /> Perfil del cliente
-                        </div>
-                        <div className="mt-2 text-sm leading-relaxed text-white/78">
-                          {profileText}
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/12 ring-1 ring-violet-300/20">
+                            <Sparkles className="h-5 w-5 text-violet-300" />
+                          </span>
+                          <div>
+                            <div className="text-sm font-semibold text-white">Perfil del cliente</div>
+                            <div className="mt-1 text-sm text-white/70">
+                              Cliente VIP con alta frecuencia de visitas.
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="rounded-xl bg-gradient-to-br from-sky-400/15 to-violet-500/8 ring-1 ring-violet-400/30 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-violet-200/90">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-violet-200/90">
                             Lifetime value
                           </div>
                           <div className="text-2xl font-display mt-1 tabular-nums">
@@ -708,7 +603,7 @@ function ClientsPage() {
                           </div>
                         </div>
                         <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                             Visitas
                           </div>
                           <div className="text-2xl font-display mt-1 tabular-nums">
@@ -716,7 +611,7 @@ function ClientsPage() {
                           </div>
                         </div>
                         <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                             Ticket prom.
                           </div>
                           <div className="text-2xl font-display mt-1 tabular-nums">
@@ -724,7 +619,7 @@ function ClientsPage() {
                           </div>
                         </div>
                         <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                             Última visita
                           </div>
                           <div className="text-sm font-semibold mt-2">
@@ -732,14 +627,12 @@ function ClientsPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
-                        <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
+                        <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                             Servicios favoritos
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            Según historial de cobros
-                          </div>
+
                         </div>
                         {favoriteServices.length === 0 ? (
                           <div className="text-sm text-muted-foreground">
@@ -763,7 +656,7 @@ function ClientsPage() {
                           </div>
                         )}
                       </div>
-                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
+                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                           <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                             Notas
@@ -783,9 +676,9 @@ function ClientsPage() {
                           value={noteDraft}
                           onChange={(e) => setNoteDraft(e.target.value)}
                           placeholder="Agregá notas internas del cliente..."
-                          className="w-full min-h-[110px] rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-sm focus:outline-none focus:ring-violet-400/40"
+                          className="w-full min-h-[72px] rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-sm focus:outline-none focus:ring-violet-400/40"
                         />
-                        <div className="flex justify-end mt-3">
+                        <div className="flex justify-end mt-2">
                           <button
                             onClick={saveNotes}
                             disabled={updateNotes.isPending}
