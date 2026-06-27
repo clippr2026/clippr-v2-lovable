@@ -2408,10 +2408,14 @@ function ProfesionalesTab({
     method: "transferencia",
     note: "",
   });
-  const [commissionPaymentsVersion, setCommissionPaymentsVersion] =
-    React.useState(0);
+  // Liquidaciones a profesionales: persistidas en la tabla `professional_payouts`
+  // de Supabase (misma fuente que el Panel de Profesionales). Antes vivían solo
+  // en localStorage, por lo que se perdían al recargar y nunca aparecían en el
+  // historial de pagos del profesional. Ahora se insertan y se vuelven a leer
+  // siempre desde la base de datos.
+  const [payouts, setPayouts] = React.useState<any[]>([]);
+  const [payoutsVersion, setPayoutsVersion] = React.useState(0);
 
-  const COMMISSION_PAYMENTS_KEY = "clippr_commission_payments_v1";
   const money = React.useCallback(
     (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`,
     [],
@@ -2476,29 +2480,39 @@ function ProfesionalesTab({
     };
   }, [businessId, startDate, endDate, data.paymentsToday]);
 
-  function readCommissionPayments() {
-    if (typeof window === "undefined") return [] as any[];
-    try {
-      const parsed = JSON.parse(
-        window.localStorage.getItem(COMMISSION_PAYMENTS_KEY) || "[]",
-      );
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [] as any[];
+  // Carga las liquidaciones del rango seleccionado desde `professional_payouts`.
+  // `payoutsVersion` se incrementa tras registrar un pago para forzar la relectura.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadPayouts() {
+      if (!businessId || !startDate || !endDate) {
+        if (!cancelled) setPayouts([]);
+        return;
+      }
+      try {
+        const { data: rows, error } = await supabase
+          .from("professional_payouts")
+          .select("id,employee_id,amount,date,method,note,created_by,created_at")
+          .eq("business_id", businessId)
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        if (!cancelled) setPayouts(rows ?? []);
+      } catch (e) {
+        // Sin fallback a localStorage: la única fuente de verdad es la base de datos.
+        if (!cancelled) setPayouts([]);
+        console.warn(
+          "[caja] no se pudieron cargar las liquidaciones:",
+          (e as Error).message,
+        );
+      }
     }
-  }
-
-  function saveCommissionPayment(payment: any) {
-    if (typeof window === "undefined") return;
-    const next = [payment, ...readCommissionPayments()].slice(0, 200);
-    window.localStorage.setItem(COMMISSION_PAYMENTS_KEY, JSON.stringify(next));
-    setCommissionPaymentsVersion((value) => value + 1);
-  }
-
-  const commissionPayments = React.useMemo(
-    () => readCommissionPayments(),
-    [commissionPaymentsVersion],
-  );
+    loadPayouts();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, startDate, endDate, payoutsVersion]);
 
   const rows = React.useMemo(() => {
     return (data.employees ?? []).map((employee: any) => {
@@ -2518,9 +2532,10 @@ function ProfesionalesTab({
       );
       const commission =
         commissionPct > 0 ? Math.round(revenue * (commissionPct / 100)) : 0;
-      const paid = commissionPayments
+      const paid = payouts
         .filter(
-          (payment: any) => String(payment.employeeId) === String(employee.id),
+          (payment: any) =>
+            String(payment.employee_id) === String(employee.id),
         )
         .reduce(
           (sum: number, payment: any) => sum + Number(payment.amount ?? 0),
@@ -2541,7 +2556,7 @@ function ProfesionalesTab({
         payments: employeePayments,
       };
     });
-  }, [data.employees, rangePayments, commissionPayments]);
+  }, [data.employees, rangePayments, payouts]);
 
   const showingAllEmployees = selectedEmployeeId === "all";
 
@@ -2577,10 +2592,19 @@ function ProfesionalesTab({
 
   const selectedPaymentHistory = React.useMemo(() => {
     if (!selectedRow) return [] as any[];
-    return commissionPayments.filter(
-      (payment: any) => String(payment.employeeId) === selectedRow.id,
-    );
-  }, [commissionPayments, selectedRow]);
+    return payouts
+      .filter(
+        (payment: any) => String(payment.employee_id) === selectedRow.id,
+      )
+      .map((payment: any) => ({
+        id: payment.id,
+        created_at: payment.created_at ?? `${payment.date}T00:00:00`,
+        amount: payment.amount,
+        method: payment.method,
+        note: payment.note,
+        user: payment.created_by ?? "Caja",
+      }));
+  }, [payouts, selectedRow]);
 
   async function payCommission(row: (typeof rows)[number] | null) {
     if (!row || row.pending <= 0 || payingEmployeeId) return;
@@ -2597,20 +2621,22 @@ function ProfesionalesTab({
 
     setPayingEmployeeId(row.id);
     try {
-      saveCommissionPayment({
-        id: `${Date.now()}-${row.id}`,
-        employeeId: row.id,
-        employeeName: row.name,
+      const { error } = await supabase.from("professional_payouts").insert({
+        business_id: businessId,
+        employee_id: row.id,
         amount,
+        date: new Date().toLocaleDateString("sv-SE"), // YYYY-MM-DD en hora local
         method: paymentForm.method || "transferencia",
         note: paymentForm.note.trim() || null,
-        user: userEmail ?? "Caja",
-        created_at: new Date().toISOString(),
-        range: { startDate, endDate },
+        created_by: userEmail ?? "Caja",
       });
+      if (error) throw error;
       toast.success(`Pago registrado para ${row.name}: ${money(amount)}`);
       setPaymentForm({ amount: "", method: "transferencia", note: "" });
+      setPayoutsVersion((value) => value + 1); // vuelve a leer desde la DB
       setSelectedDetail("historial");
+    } catch (e) {
+      toast.error(`No se pudo registrar el pago: ${(e as Error).message}`);
     } finally {
       setPayingEmployeeId(null);
     }
