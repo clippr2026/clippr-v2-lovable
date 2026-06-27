@@ -922,28 +922,18 @@ function useResultAnimation(enabled = false) {
 }
 
 function StartAnalysis({ onStart }: { onStart: () => void }) {
-  const indicators = [
-    { emoji: "❤️", label: "Salud del negocio" },
-    { emoji: "👥", label: "Fidelización" },
-    { emoji: "📈", label: "Evolución del negocio" },
-    { emoji: "💰", label: "Rentabilidad" },
-    { emoji: "📅", label: "Ocupación" },
-  ];
-
   return (
-    <div className="relative flex min-h-[70vh] flex-col items-center justify-center overflow-hidden px-4 py-10">
-      {/* Background glows estilo Dashboard */}
-      <div className="pointer-events-none absolute -left-32 top-8 h-72 w-72 rounded-full bg-violet-500/18 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
-      <div className="pointer-events-none absolute left-1/2 top-28 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+    <div className="relative -mt-2 flex h-[calc(100svh-128px)] min-h-[560px] flex-col items-center justify-center overflow-hidden px-4 py-4">
+      <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/18 blur-3xl" />
+      <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
+      <div className="pointer-events-none absolute left-1/2 top-20 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
 
       <div className="relative z-10 flex w-full max-w-4xl flex-col items-center">
-        {/* Cerebro premium */}
-        <div className="relative mb-5">
-          <div className="absolute inset-0 scale-[1.85] rounded-full bg-gradient-to-br from-primary/25 via-violet-500/15 to-sky-500/20 blur-3xl" />
-          <div className="absolute inset-0 scale-[1.35] rounded-[2rem] border border-white/10 bg-white/[0.025] backdrop-blur-xl" />
-          <div className="relative grid h-36 w-36 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.13] via-white/[0.055] to-white/[0.025] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.85)]">
-            <Brain className="h-20 w-20 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.55)]" />
+        <div className="relative mb-7">
+          <div className="absolute inset-0 scale-[1.75] rounded-full bg-gradient-to-br from-primary/28 via-violet-500/18 to-sky-500/18 blur-3xl" />
+          <div className="absolute inset-0 scale-[1.24] rounded-[2rem] border border-white/10 bg-white/[0.018] backdrop-blur-xl" />
+          <div className="relative grid h-32 w-32 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.12] via-white/[0.045] to-white/[0.02] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.9)] sm:h-36 sm:w-36">
+            <Brain className="h-16 w-16 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.6)] sm:h-20 sm:w-20" />
           </div>
           <div
             className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping"
@@ -951,63 +941,31 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
           />
         </div>
 
-        {/* Tarjeta flotante */}
-        <div className="mb-5 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/12 ring-1 ring-primary/25">
-            <span className="text-base">❤️</span>
-          </div>
-          <div className="text-left">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              Salud del negocio
-            </div>
-            <div className="text-sm font-semibold text-foreground">
-              Diagnóstico inteligente listo
-            </div>
-          </div>
+        <div className="mb-7 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+          <span className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.75)]" />
+          <span className="text-base font-semibold text-foreground">Asesor IA listo</span>
         </div>
 
-        {/* Título */}
-        <div className="text-center max-w-3xl mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary mb-3">
-            Asesor Clippr
-          </p>
-          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight mb-4">
-            Descubrí qué está frenando el crecimiento de tu negocio
+        <div className="max-w-3xl text-center">
+          <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl">
+            Descubrí cómo hacer
+            <br className="hidden sm:block" /> crecer tu negocio
           </h1>
-          <p className="text-base text-muted-foreground leading-relaxed">
-            Obtené un diagnóstico completo en segundos y recibí acciones concretas para aumentar tus
-            ingresos.
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
+            Analizamos tu barbería y te mostramos oportunidades concretas para crecer.
           </p>
         </div>
 
-        {/* Indicadores */}
-        <div className="flex flex-wrap justify-center gap-2 mb-8 max-w-3xl">
-          {indicators.map((ind) => (
-            <div
-              key={ind.label}
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
-            >
-              <span>{ind.emoji}</span>
-              <span>{ind.label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* CTA premium */}
         <button
           type="button"
           onClick={onStart}
-          className="group relative inline-flex h-16 w-full max-w-sm sm:w-auto sm:max-w-none sm:min-w-[280px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-8 sm:px-10 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.8)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/0.95)]"
+          className="group relative mt-10 inline-flex h-16 w-full max-w-[360px] items-center justify-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-8 text-lg font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.9)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/1)] sm:min-w-[380px]"
         >
           <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-          <Brain className="relative h-5 w-5" />
+          <Brain className="relative h-6 w-6" />
           <span className="relative">Analizar mi negocio</span>
+          <ArrowRight className="relative h-6 w-6 transition-transform duration-300 group-hover:translate-x-1" />
         </button>
-
-        <p className="mt-4 text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
-          Analizamos ventas, clientes, agenda y rentabilidad para detectar oportunidades de
-          crecimiento.
-        </p>
       </div>
     </div>
   );
