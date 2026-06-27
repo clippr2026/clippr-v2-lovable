@@ -190,9 +190,9 @@ export function DateRangePicker({ from, to, onChange, className }: {
         onClick={() => { setOpen(o => !o); setStep("from"); }}
         className="flex w-full justify-center sm:inline-flex sm:w-auto sm:justify-start items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition"
         style={{
-          background: "oklch(0.15 0.04 275)",
-          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
-          color: "rgba(255,255,255,0.85)",
+          background: "transparent",
+          boxShadow: "none",
+          color: "rgba(255,255,255,0.92)",
         }}
       >
         <CalendarDays className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />
