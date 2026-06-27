@@ -13,12 +13,11 @@ import {
   X,
   DollarSign,
   Pencil,
-  CheckCircle,
+  CheckCircle2,
   MessageCircle,
   UserRound,
   XCircle,
-  Clock3,
-} from "lucide-react";
+  Clock3, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -39,7 +38,7 @@ import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
-import { RejectedClientsButton } from "@/components/agenda/rejected-clients";
+import { RejectedClientsButton, RejectedClientCaptureModal } from "@/components/agenda/rejected-clients";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -256,6 +255,7 @@ function AgendaPage() {
     appointment?: Appointment | null;
   } | null>(null);
   const [newMenu, setNewMenu] = React.useState(false);
+  const [rejectOpen, setRejectOpen] = React.useState(false);
   // Descansos habilitados temporalmente (solo en esta sesión, sin tocar la
   // config permanente). Clave: `${employeeId}|${YYYY-MM-DD}`.
   const [enabledBreaks, setEnabledBreaks] = React.useState<Set<string>>(() => new Set());
@@ -1062,13 +1062,7 @@ function AgendaPage() {
 
           <div className="h-5 w-px bg-white/10 shrink-0" />
 
-          <RejectedClientsButton
-            businessId={data.businessId}
-            services={data.services}
-            employees={data.employees}
-            appointments={data.appointments}
-            openHoursToday={getScheduleForDate(data.schedule, new Date())}
-          />
+          <RejectedClientsButton businessId={data.businessId} />
 
           <div className="h-5 w-px bg-white/10 shrink-0" />
 
@@ -1112,6 +1106,15 @@ function AgendaPage() {
                     onClick={() => openSpecialFromSlot(null, cursor)}
                   >
                     <Pencil className="h-4 w-4 text-violet-300" /> Horario especial
+                  </button>
+                  <button
+                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                    onClick={() => {
+                      setNewMenu(false);
+                      setRejectOpen(true);
+                    }}
+                  >
+                    <UserX className="h-4 w-4 text-rose-300" /> Cliente rechazado
                   </button>
                 </div>
               </>
@@ -1196,6 +1199,17 @@ function AgendaPage() {
               </AgendaDrawer>
             );
           })()}
+
+        {/* Modal de captura rápida (desde el menú +) */}
+        <RejectedClientCaptureModal
+          open={rejectOpen}
+          onClose={() => setRejectOpen(false)}
+          businessId={data.businessId}
+          services={data.services}
+          employees={data.employees}
+          appointments={data.appointments}
+          openHoursToday={getScheduleForDate(data.schedule, new Date())}
+        />
 
         {/* Always day view */}
         <DayView

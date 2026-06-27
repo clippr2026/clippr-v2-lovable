@@ -8,8 +8,7 @@ import { fmtAR } from "@/components/dashboard/use-dashboard-data";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
-import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
-import { buildDemandRecommendations, TIER_EMOJI } from "@/lib/rejected-analytics";
+import { DemandaNoAtendidaSection } from "@/components/advisor/demand-section";
 import {
   AlertTriangle,
   Bell,
@@ -955,6 +954,9 @@ function AdvisorContent({
             </GlassCard>
           </div>
           {/* /Historial */}
+
+          {/* ── Demanda no atendida (clientes rechazados) ── */}
+          <DemandaNoAtendidaSection businessId={businessId} />
 
           {infoModal ? <InfoModal content={infoModal} onClose={() => setInfoModal(null)} /> : null}
         </>
@@ -4164,9 +4166,8 @@ function LabPrecios({ data }: { data: LabData }) {
   );
 }
 
-function LabProfesional({ data, ocupacion, businessId }: { data: LabData; ocupacion: number; businessId: string | null }) {
+function LabProfesional({ data, ocupacion }: { data: LabData; ocupacion: number }) {
   const [inversion, setInversion] = React.useState(200000);
-  const { analytics } = useRejectedAnalytics(businessId);
   if (data.loading) return <LabSkeleton />;
 
   const serviciosExtra = Math.round(data.monthlyVisits * 0.6); // un profesional nuevo llega a ~60% del promedio
@@ -4174,33 +4175,19 @@ function LabProfesional({ data, ocupacion, businessId }: { data: LabData; ocupac
   const utilidadAdic = Math.round(facturacionAdic * (LAB_MARGIN - 0.05)); // descontá su comisión
   const dias = utilidadAdic > 0 ? Math.max(1, Math.round(inversion / (utilidadAdic / 30))) : 0;
 
-  // Recomendaciones con ANÁLISIS COMBINADO (ocupación + rechazos + horarios +
-  // días + motivos + profesional + tendencia), siempre justificadas.
-  const monthRejected = analytics.counts.month;
-  const recs = buildDemandRecommendations(analytics, { occupancyPct: ocupacion, workingProfessionals: null });
+  const nivel: keyof typeof nivelMeta = ocupacion >= 75 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
+  const verdict =
+    ocupacion >= 75
+      ? `Tu ocupación está alta (${ocupacion}%): ya estás rechazando demanda. Incorporar un profesional podría generar hasta ${fmtAR(facturacionAdic)} adicionales por mes y recuperar la inversión en ~${dias} días.`
+      : ocupacion >= 60
+        ? `Ocupación media (${ocupacion}%). Conviene primero llenar la agenda actual; si seguís creciendo, sumá un profesional en 1-2 meses.`
+        : `Con ${ocupacion}% de ocupación todavía tenés sillones libres. Sumar gente ahora divide tu demanda. Primero llená la agenda actual.`;
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/60">
         Ocupación actual: <span className="font-bold text-white">{ocupacion}%</span> · Servicios/mes: <span className="font-bold text-white">{data.monthlyVisits}</span>
       </div>
-
-      {/* Demanda no atendida — datos reales de clientes rechazados */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.05] px-3 py-3">
-          <div className="text-xl font-extrabold tabular-nums text-rose-300">{monthRejected}</div>
-          <div className="mt-0.5 text-[11px] leading-tight text-white/45">Rechazados (mes)</div>
-        </div>
-        <div className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] px-3 py-3">
-          <div className="text-xl font-extrabold tabular-nums text-amber-300">{fmtAR(analytics.lostRevenue.month)}</div>
-          <div className="mt-0.5 text-[11px] leading-tight text-white/45">Facturación perdida</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
-          <div className="text-lg font-extrabold tabular-nums text-white">{analytics.peakHourLabel ?? "—"}</div>
-          <div className="mt-0.5 text-[11px] leading-tight text-white/45">Franja pico</div>
-        </div>
-      </div>
-
       <LabScenario
         currentLabel="Servicios / mes hoy"
         currentValue={String(data.monthlyVisits)}
@@ -4219,56 +4206,10 @@ function LabProfesional({ data, ocupacion, businessId }: { data: LabData; ocupac
         utilidad={utilidadAdic}
         extra={{ label: "Recuperás la inversión en", value: `${dias} días` }}
       />
-
-      {/* Recomendaciones de Clippr IA — análisis combinado, siempre justificado */}
-      <div className="space-y-2">
-        {recs.map((r, i) => {
-          const meta = nivelMeta[r.nivel];
-          const prio =
-            r.priority === "alta"
-              ? { label: "Prioridad alta", cls: "bg-rose-500/15 text-rose-200" }
-              : r.priority === "media"
-                ? { label: "Prioridad media", cls: "bg-amber-400/15 text-amber-100" }
-                : { label: "Prioridad baja", cls: "bg-emerald-400/15 text-emerald-100" };
-          return (
-            <div key={i} className={cn("rounded-2xl border p-4", meta.cls)}>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={cn("text-sm font-bold", meta.titleCls)}>
-                  {meta.emoji} {r.title}
-                </span>
-                <span className="ml-auto flex items-center gap-1.5">
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", prio.cls)}>{prio.label}</span>
-                  {r.confidence === "preliminar" && (
-                    <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold text-white/50">
-                      Evidencia preliminar
-                    </span>
-                  )}
-                </span>
-              </div>
-              <p className="mt-2 text-sm leading-relaxed text-white/80">{r.reasoning}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Demanda por profesional + índice */}
-      {analytics.professionals.length > 0 && (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-white/40">Demanda por profesional</div>
-          <div className="space-y-3.5">
-            {analytics.professionals.slice(0, 3).map((p) => (
-              <div key={p.name}>
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{TIER_EMOJI[p.tier]}</span>
-                  <span className="text-sm font-semibold text-white">{p.name}</span>
-                  <span className="ml-auto text-xs font-bold tabular-nums text-white/60">{p.score}/100</span>
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-white/60">{p.recommendation}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <LabVerdict nivel={nivel} text={verdict} />
+      <p className="text-center text-[11px] text-white/35">
+        Para el análisis completo de demanda no atendida y la recomendación de Clippr IA, mirá la sección <span className="text-white/55">Demanda no atendida</span> en Análisis.
+      </p>
     </div>
   );
 }
@@ -4542,7 +4483,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
             </div>
           </div>
           {sim === "precios" && <LabPrecios data={data} />}
-          {sim === "profesional" && <LabProfesional data={data} ocupacion={props.ocupacion} businessId={props.businessId} />}
+          {sim === "profesional" && <LabProfesional data={data} ocupacion={props.ocupacion} />}
           {sim === "horario" && <LabHorario data={data} />}
           {sim === "domingos" && <LabDomingos data={data} />}
           {sim === "recuperar" && <LabRecuperar data={data} />}

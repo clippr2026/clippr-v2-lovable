@@ -7,7 +7,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { supabase } from "@/integrations/supabase/client";
 import { DateRangePicker } from "@/components/date-range-picker";
-import { RejectedDemandSection } from "@/components/dashboard/rejected-demand-section";
 import {
   useDashboardData,
   fmtAR,
@@ -191,8 +190,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
         <ServicesDonut data={data} />
       </section>
-
-      <RejectedDemandSection businessId={businessId} />
 
     </div>
   );
