@@ -276,7 +276,11 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           event: "*",
           schema: "public",
           table: "appointments",
-          filter: `business_id=eq.${businessId}`,
+          // Sin filtro server-side a propósito: el filtro `business_id=eq...`
+          // exige REPLICA IDENTITY FULL en la tabla. Si la tabla no lo tiene,
+          // Supabase descarta los eventos y la agenda nunca se entera del turno
+          // nuevo. RLS y loadAppointments (que ya filtra por business_id) acotan
+          // los datos igual, así que recargar ante cualquier cambio es seguro.
         },
         () => {
           loadAppointments();
