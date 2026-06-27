@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
-import { staffingVerdict, TIER_EMOJI } from "@/lib/rejected-analytics";
+import { buildDemandRecommendations, TIER_EMOJI } from "@/lib/rejected-analytics";
 import {
   AlertTriangle,
   Bell,
@@ -4174,9 +4174,10 @@ function LabProfesional({ data, ocupacion, businessId }: { data: LabData; ocupac
   const utilidadAdic = Math.round(facturacionAdic * (LAB_MARGIN - 0.05)); // descontá su comisión
   const dias = utilidadAdic > 0 ? Math.max(1, Math.round(inversion / (utilidadAdic / 30))) : 0;
 
-  // Veredicto con DEMANDA REAL no atendida (no solo ocupación).
+  // Recomendaciones con ANÁLISIS COMBINADO (ocupación + rechazos + horarios +
+  // días + motivos + profesional + tendencia), siempre justificadas.
   const monthRejected = analytics.counts.month;
-  const verdict = staffingVerdict(ocupacion, monthRejected, analytics.peakHourLabel);
+  const recs = buildDemandRecommendations(analytics, { occupancyPct: ocupacion, workingProfessionals: null });
 
   return (
     <div className="space-y-4">
@@ -4218,7 +4219,37 @@ function LabProfesional({ data, ocupacion, businessId }: { data: LabData; ocupac
         utilidad={utilidadAdic}
         extra={{ label: "Recuperás la inversión en", value: `${dias} días` }}
       />
-      <LabVerdict nivel={verdict.nivel} text={verdict.text} />
+
+      {/* Recomendaciones de Clippr IA — análisis combinado, siempre justificado */}
+      <div className="space-y-2">
+        {recs.map((r, i) => {
+          const meta = nivelMeta[r.nivel];
+          const prio =
+            r.priority === "alta"
+              ? { label: "Prioridad alta", cls: "bg-rose-500/15 text-rose-200" }
+              : r.priority === "media"
+                ? { label: "Prioridad media", cls: "bg-amber-400/15 text-amber-100" }
+                : { label: "Prioridad baja", cls: "bg-emerald-400/15 text-emerald-100" };
+          return (
+            <div key={i} className={cn("rounded-2xl border p-4", meta.cls)}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={cn("text-sm font-bold", meta.titleCls)}>
+                  {meta.emoji} {r.title}
+                </span>
+                <span className="ml-auto flex items-center gap-1.5">
+                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", prio.cls)}>{prio.label}</span>
+                  {r.confidence === "preliminar" && (
+                    <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold text-white/50">
+                      Evidencia preliminar
+                    </span>
+                  )}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-white/80">{r.reasoning}</p>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Demanda por profesional + índice */}
       {analytics.professionals.length > 0 && (
