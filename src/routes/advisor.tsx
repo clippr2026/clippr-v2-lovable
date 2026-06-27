@@ -3603,36 +3603,45 @@ function buildGrowthRecommendations(
 function GrowthContactsBlock({ contacts }: { contacts: GrowthContact[] }) {
   const [open, setOpen] = React.useState(false);
   if (contacts.length === 0) return null;
-  const shown = open ? contacts : contacts.slice(0, 3);
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/45">A quién contactar</div>
-      <div className="space-y-1.5">
-        {shown.map((c, i) => (
-          <div key={i} className="flex items-center justify-between gap-2 text-sm">
-            <span className="min-w-0 truncate font-medium text-white/90">{c.name}</span>
-            <span className="shrink-0 text-xs text-white/45">{c.detail}</span>
-            {c.phone ? (
-              <a
-                href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="shrink-0 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"
-              >
-                WhatsApp
-              </a>
-            ) : null}
-          </div>
-        ))}
-      </div>
-      {contacts.length > 3 ? (
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="mt-2 text-xs font-semibold text-cyan-300 hover:text-cyan-200"
-        >
-          {open ? "Ver menos" : `Ver los ${contacts.length}`}
-        </button>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <span className="text-[11px] font-bold uppercase tracking-wider text-white/45">
+          Clientes afectados
+        </span>
+        <span className="flex items-center gap-2 text-xs font-semibold text-cyan-300">
+          <span className="grid h-6 min-w-[24px] place-items-center rounded-full bg-white/8 px-1.5 text-sm font-bold text-white/85 ring-1 ring-white/10">
+            {contacts.length}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            {open ? "Ver menos" : "Ver todos"}
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+          </span>
+        </span>
+      </button>
+      {open ? (
+        <div className="mt-3 space-y-1.5">
+          {contacts.map((c, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 truncate font-medium text-white/90">{c.name}</span>
+              <span className="shrink-0 text-xs text-white/45">{c.detail}</span>
+              {c.phone ? (
+                <a
+                  href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"
+                >
+                  WhatsApp
+                </a>
+              ) : null}
+            </div>
+          ))}
+        </div>
       ) : null}
     </div>
   );
@@ -3640,10 +3649,21 @@ function GrowthContactsBlock({ contacts }: { contacts: GrowthContact[] }) {
 
 function GrowthMessageBlock({ message }: { message: string }) {
   const [copied, setCopied] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Mensaje listo para enviar</div>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 text-left"
+        >
+          <span className="text-sm">💬</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white/45">
+            Mensaje listo
+          </span>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-white/40 transition-transform", open && "rotate-180")} />
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -3658,7 +3678,9 @@ function GrowthMessageBlock({ message }: { message: string }) {
           {copied ? "¡Copiado!" : "Copiar"}
         </button>
       </div>
-      <p className="text-sm leading-relaxed text-white/80">{message}</p>
+      {open ? (
+        <p className="mt-2 text-sm leading-relaxed text-white/80">{message}</p>
+      ) : null}
     </div>
   );
 }
@@ -3670,8 +3692,26 @@ const GROWTH_TONES: Record<GrowthRec["tone"], { ring: string; glow: string; chip
   client: { ring: "ring-cyan-300/25", glow: "from-cyan-500/20 via-blue-500/10 to-transparent", chip: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/30" },
 };
 
-function GrowthRecCard({ rec, hero = false }: { rec: GrowthRec; hero?: boolean }) {
+type PriorityLevel = "alta" | "media" | "baja";
+const PRIORITY_META: Record<PriorityLevel, { label: string; emoji: string; chip: string }> = {
+  alta: { label: "Alta", emoji: "🔥", chip: "bg-rose-500/15 text-rose-200 ring-rose-400/35" },
+  media: { label: "Media", emoji: "🟡", chip: "bg-amber-400/15 text-amber-100 ring-amber-300/30" },
+  baja: { label: "Baja", emoji: "🟢", chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30" },
+};
+
+function GrowthRecCard({
+  rec,
+  hero = false,
+  priority = "media",
+}: {
+  rec: GrowthRec;
+  hero?: boolean;
+  priority?: PriorityLevel;
+}) {
   const t = GROWTH_TONES[rec.tone];
+  const pm = PRIORITY_META[priority];
+  const [open, setOpen] = React.useState(false);
+
   return (
     <div
       className={cn(
@@ -3682,69 +3722,97 @@ function GrowthRecCard({ rec, hero = false }: { rec: GrowthRec; hero?: boolean }
     >
       <div className={cn("pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl", t.glow)} />
       <div className="relative">
-        <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {hero ? (
-                <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/70 ring-1 ring-white/15">
-                  Prioridad de hoy
-                </span>
-              ) : null}
-              <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", t.chip)}>
-                {rec.category}
-              </span>
-            </div>
-            <h3 className={cn("mt-1.5 font-bold tracking-[-0.01em] text-white", hero ? "text-2xl" : "text-lg")}>{rec.title}</h3>
-          </div>
+        {/* Prioridad (triage en un segundo) + categoría */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", pm.chip)}>
+            <span className="text-xs leading-none">{pm.emoji}</span> Prioridad {pm.label}
+          </span>
+          <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", t.chip)}>
+            {rec.category}
+          </span>
         </div>
 
-        <p className="mt-3 text-sm leading-relaxed text-white/70">{rec.problem}</p>
+        {/* Nivel 1 · Título */}
+        <div className="mt-3 flex items-start gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
+          <h3 className={cn("font-extrabold leading-[1.05] tracking-[-0.02em] text-white", hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>
+            {rec.title}
+          </h3>
+        </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Nivel 5 · Explicación de una línea */}
+        <p className="mt-2.5 text-[13px] leading-relaxed text-white/55">{rec.problem}</p>
+
+        {/* Nivel 2 · Plata, con iconos grandes */}
+        <div className="mt-4 grid grid-cols-2 gap-3">
           {rec.moneyLost > 0 ? (
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-rose-200/70">Estás perdiendo</div>
-              <div className="mt-0.5 text-xl font-extrabold text-rose-200">{fmtAR(rec.moneyLost)}</div>
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-200/70">
+                <span className="text-base leading-none">💸</span> Estás perdiendo
+              </div>
+              <div className="mt-1 text-2xl font-black tracking-tight text-rose-200 sm:text-3xl">{fmtAR(rec.moneyLost)}</div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Oportunidad</div>
-              <div className="mt-0.5 text-sm font-semibold text-white/70">Ingreso extra sin sumar costos</div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/45">
+                <span className="text-base leading-none">✨</span> Oportunidad
+              </div>
+              <div className="mt-1 text-sm font-semibold text-white/70">Ingreso extra sin sumar costos</div>
             </div>
           )}
-          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.08] p-3">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">Podés recuperar</div>
-            <div className="mt-0.5 text-xl font-extrabold text-emerald-200">{fmtAR(rec.moneyRecoverable)}</div>
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.08] p-3.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
+              <span className="text-base leading-none">📈</span> Podés recuperar
+            </div>
+            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-200 sm:text-3xl">{fmtAR(rec.moneyRecoverable)}</div>
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-3">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Qué hacer hoy</div>
-          <p className="mt-1 text-sm font-semibold text-white/90">{rec.action}</p>
-          <ol className="mt-2 space-y-1.5">
-            {rec.steps.map((s, i) => (
-              <li key={i} className="flex gap-2 text-sm text-white/70">
-                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">{i + 1}</span>
-                <span>{s}</span>
-              </li>
-            ))}
-          </ol>
+        {/* Resumen de acciones + Ver plan */}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-white/65">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            {rec.steps.length} {rec.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15"
+          >
+            {open ? "Ocultar plan" : "Ver plan"}
+            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+          </button>
         </div>
 
-        <div className="mt-3 grid gap-3">
-          <GrowthContactsBlock contacts={rec.contacts} />
-          <GrowthMessageBlock message={rec.message} />
-        </div>
+        {/* Detalle expandible (lo que el 95% no necesita ver de entrada) */}
+        {open ? (
+          <div className="mt-4 space-y-3 border-t border-white/[0.08] pt-4">
+            {/* Nivel 3 · Acción + Nivel 4 · pasos */}
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-3.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Qué hacer hoy</div>
+              <p className="mt-1 text-lg font-semibold leading-snug text-white/90">{rec.action}</p>
+              <ol className="mt-2.5 space-y-2">
+                {rec.steps.map((s, i) => (
+                  <li key={i} className="flex gap-2.5 text-sm text-white/70">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">{i + 1}</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
 
-        <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Cómo medir si funcionó</div>
-            <p className="mt-0.5 text-sm text-white/75">{rec.measure}</p>
+            <GrowthContactsBlock contacts={rec.contacts} />
+            <GrowthMessageBlock message={rec.message} />
+
+            {/* Cómo medir · al final, sin protagonismo */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Cómo medir si funcionó</div>
+              <p className="mt-0.5 text-[13px] text-white/60">{rec.measure}</p>
+            </div>
+
+            <p className="text-[11px] text-white/35">{rec.basis}</p>
           </div>
-        </div>
-
-        <p className="mt-2 text-[11px] text-white/35">{rec.basis}</p>
+        ) : null}
       </div>
     </div>
   );
@@ -3789,6 +3857,15 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
   }
 
   const [hero, ...rest] = recs;
+  // Prioridad visual (Alta/Media/Baja) según el impacto en plata de cada
+  // recomendación, relativo a la de mayor impacto. Permite triage en un segundo.
+  const maxImpact = Math.max(1, ...recs.map((r) => r.moneyLost + r.moneyRecoverable));
+  const levelFor = (r: GrowthRec): PriorityLevel => {
+    const v = r.moneyLost + r.moneyRecoverable;
+    if (v >= maxImpact * 0.6) return "alta";
+    if (v >= maxImpact * 0.3) return "media";
+    return "baja";
+  };
 
   return (
     <div className="mt-6 space-y-5">
@@ -3816,13 +3893,13 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
       </div>
 
       {/* Prioridad del día */}
-      <GrowthRecCard rec={hero} hero />
+      <GrowthRecCard rec={hero} hero priority={levelFor(hero)} />
 
       {/* Resto */}
       {rest.length > 0 ? (
         <div className="grid gap-5 lg:grid-cols-2">
           {rest.map((r) => (
-            <GrowthRecCard key={r.id} rec={r} />
+            <GrowthRecCard key={r.id} rec={r} priority={levelFor(r)} />
           ))}
         </div>
       ) : null}
