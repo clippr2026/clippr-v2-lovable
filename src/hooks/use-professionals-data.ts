@@ -146,7 +146,9 @@ export function useProfPayments(
   from?: string,
   to?: string,
 ) {
-  return useQuery({
+  const qc = useQueryClient();
+
+  const query = useQuery({
     queryKey: ["prof-payments", businessId, empId, from ?? null, to ?? null],
     queryFn: async (): Promise<ProfPayment[]> => {
       let query = supabase
@@ -165,6 +167,28 @@ export function useProfPayments(
     enabled: !!businessId && !!empId,
     staleTime: 30_000,
   });
+
+  // Realtime: cuando se registra/edita una liquidación (p.ej. desde Caja →
+  // Liquidaciones), refrescar el historial de pagos y los stats al instante,
+  // sin recargar la página ni cambiar de pestaña. Sin filtro server-side para
+  // no depender de REPLICA IDENTITY FULL; RLS acota las filas igual.
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-payouts-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "professional_payouts" },
+        () => {
+          qc.invalidateQueries({ queryKey: ["prof-payments", businessId, empId] });
+          qc.invalidateQueries({ queryKey: ["prof-stats", businessId, empId] });
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [businessId, empId, qc]);
+
+  return query;
 }
 
 // ── Sales history in date range ───────────────────────────────────────────
