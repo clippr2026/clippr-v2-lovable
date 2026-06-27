@@ -1,7 +1,6 @@
 import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { Topbar } from "@/components/topbar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
@@ -222,8 +221,7 @@ function AdvisorRoute() {
       <div className="app-premium-shell">
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-<div className="flex items-center justify-between gap-4 flex-wrap">
-        <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
+<div className="flex items-center justify-end gap-4 flex-wrap">
         {analysisStarted && !isAnalyzing && (
           <div className="relative flex w-full items-center justify-end sm:w-auto">
             <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
@@ -923,48 +921,44 @@ function useResultAnimation(enabled = false) {
 
 function StartAnalysis({ onStart }: { onStart: () => void }) {
   return (
-    <div className="relative -mt-2 flex h-[calc(100svh-128px)] min-h-[560px] flex-col items-center justify-center overflow-hidden px-4 py-4">
-      <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/18 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
-      <div className="pointer-events-none absolute left-1/2 top-20 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+    <div className="relative flex min-h-[calc(100vh-120px)] flex-col items-center justify-center overflow-hidden px-4">
+      {/* Glows premium */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/12 blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 top-1/3 h-64 w-64 rounded-full bg-violet-500/14 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 top-1/3 h-64 w-64 rounded-full bg-sky-500/12 blur-3xl" />
 
-      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center">
-        <div className="relative mb-7">
-          <div className="absolute inset-0 scale-[1.75] rounded-full bg-gradient-to-br from-primary/28 via-violet-500/18 to-sky-500/18 blur-3xl" />
-          <div className="absolute inset-0 scale-[1.24] rounded-[2rem] border border-white/10 bg-white/[0.018] backdrop-blur-xl" />
-          <div className="relative grid h-32 w-32 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.12] via-white/[0.045] to-white/[0.02] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.9)] sm:h-36 sm:w-36">
-            <Brain className="h-16 w-16 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.6)] sm:h-20 sm:w-20" />
+      <div className="relative z-10 -mt-6 flex w-full max-w-md flex-col items-center text-center">
+        {/* Icono cerebro */}
+        <div className="relative mb-6">
+          <div className="absolute inset-0 scale-[1.7] rounded-full bg-gradient-to-br from-primary/25 via-violet-500/15 to-sky-500/20 blur-3xl" />
+          <div className="relative grid h-24 w-24 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.13] via-white/[0.055] to-white/[0.025] shadow-[0_0_80px_-22px_oklch(0.65_0.28_290/0.85)]">
+            <Brain className="h-12 w-12 text-primary drop-shadow-[0_0_20px_oklch(0.65_0.28_290/0.55)]" />
           </div>
           <div
-            className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping"
+            className="absolute inset-0 rounded-[1.75rem] ring-1 ring-primary/20 animate-ping"
             style={{ animationDuration: "3s" }}
           />
         </div>
 
-        <div className="mb-7 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl">
-          <span className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.75)]" />
-          <span className="text-base font-semibold text-foreground">Asesor IA listo</span>
-        </div>
+        <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+          Asesor IA listo
+        </h1>
+        <p className="text-lg font-medium text-foreground/90 mb-2">
+          Descubrí cómo hacer crecer tu negocio
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-8 max-w-sm">
+          Analizamos tu barbería y te mostramos oportunidades concretas para crecer.
+        </p>
 
-        <div className="max-w-3xl text-center">
-          <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl">
-            Descubrí cómo hacer
-            <br className="hidden sm:block" /> crecer tu negocio
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Analizamos tu barbería y te mostramos oportunidades concretas para crecer.
-          </p>
-        </div>
-
+        {/* CTA */}
         <button
           type="button"
           onClick={onStart}
-          className="group relative mt-10 inline-flex h-16 w-full max-w-[360px] items-center justify-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-8 text-lg font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.9)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/1)] sm:min-w-[380px]"
+          className="group relative inline-flex h-14 w-full max-w-xs items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-8 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.8)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/0.95)]"
         >
           <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-          <Brain className="relative h-6 w-6" />
+          <Brain className="relative h-5 w-5" />
           <span className="relative">Analizar mi negocio</span>
-          <ArrowRight className="relative h-6 w-6 transition-transform duration-300 group-hover:translate-x-1" />
         </button>
       </div>
     </div>
@@ -972,57 +966,52 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
 }
 
 function AnalysisLoader({ step }: { step: number }) {
+  // 4 pasos visuales. Los 3 primeros muestran un check verde; el último, un spinner.
   const steps = [
-    { label: "Analizando ventas", icon: "💰" },
-    { label: "Analizando clientes", icon: "👥" },
-    { label: "Analizando agenda", icon: "📅" },
-    { label: "Calculando oportunidades", icon: "📈" },
-    { label: "Generando recomendaciones", icon: "✨" },
+    { label: "Ventas", icon: "💰" },
+    { label: "Clientes", icon: "👥" },
+    { label: "Agenda", icon: "📅" },
+    { label: "Generando recomendaciones", icon: "🧠" },
   ];
 
-  const safeStep = Math.min(Math.max(0, step), steps.length);
-  const pct = Math.round((safeStep / steps.length) * 100);
+  // El driver del análisis avanza `step` de 0 a 6 (sin cambios en su lógica).
+  // Lo mapeamos a los 4 pasos visuales: los tres primeros se completan a medida
+  // que avanza, y el último queda en spinner hasta el final.
+  const dataDone = [step >= 1, step >= 2, step >= 3].filter(Boolean).length; // 0..3
+  const allDone = step >= 6;
+  const pct = allDone ? 100 : [0, 35, 60, 80][dataDone];
 
   return (
-    <div className="relative flex min-h-[72vh] flex-col items-center justify-center overflow-hidden px-4 py-10">
-      <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-violet-500/16 blur-3xl" />
-      <div className="pointer-events-none absolute -right-32 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
-      <div className="pointer-events-none absolute left-1/2 top-24 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+    <div className="relative flex min-h-[calc(100vh-120px)] flex-col items-center justify-center overflow-hidden px-4">
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-3xl" />
 
-      <div className="relative z-10 w-full max-w-3xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-6 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-8">
-        {/* Header */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="relative mb-5">
-            <div className="absolute inset-0 scale-[1.65] rounded-full bg-gradient-to-br from-primary/25 to-accent/20 blur-3xl" />
-            <div className="relative grid h-24 w-24 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)]">
-              <Brain className="h-12 w-12 text-primary" />
+      <div className="relative z-10 -mt-4 w-full max-w-lg rounded-[1.75rem] border border-white/10 bg-white/[0.035] p-6 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+        {/* Header compacto */}
+        <div className="mb-5 flex flex-col items-center text-center">
+          <div className="relative mb-3">
+            <div className="absolute inset-0 scale-[1.6] rounded-full bg-gradient-to-br from-primary/25 to-accent/20 blur-3xl" />
+            <div className="relative grid h-16 w-16 place-items-center rounded-[1.4rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_60px_-20px_oklch(0.65_0.28_290/0.8)]">
+              <Brain className="h-8 w-8 text-primary" />
             </div>
             <svg
               className="absolute inset-0 animate-spin"
               style={{ animationDuration: "3s" }}
-              viewBox="0 0 96 96"
+              viewBox="0 0 64 64"
+              width="64"
+              height="64"
               fill="none"
-              width="96"
-              height="96"
             >
               <circle
-                cx="48"
-                cy="48"
-                r="46"
+                cx="32"
+                cy="32"
+                r="30"
                 stroke="url(#spinGradPremium)"
                 strokeWidth="2"
-                strokeDasharray="72 220"
+                strokeDasharray="48 150"
                 strokeLinecap="round"
               />
               <defs>
-                <linearGradient
-                  id="spinGradPremium"
-                  x1="0"
-                  y1="0"
-                  x2="96"
-                  y2="96"
-                  gradientUnits="userSpaceOnUse"
-                >
+                <linearGradient id="spinGradPremium" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stopColor="oklch(0.65 0.28 290)" />
                   <stop offset="55%" stopColor="oklch(0.72 0.2 245)" />
                   <stop offset="100%" stopColor="transparent" />
@@ -1030,66 +1019,61 @@ function AnalysisLoader({ step }: { step: number }) {
               </defs>
             </svg>
           </div>
-          <h2 className="font-display text-3xl font-bold tracking-tight">Analizando tu negocio</h2>
-          <p className="mt-2 text-sm text-muted-foreground max-w-md">
-            Clippr IA está leyendo ventas, clientes, agenda y rentabilidad antes de mostrar el
-            diagnóstico.
+          <h2 className="font-display text-2xl font-bold tracking-tight">
+            {allDone ? "Análisis completado" : "Analizando tu negocio"}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {allDone ? "Abriendo tu diagnóstico…" : "Preparando tu diagnóstico..."}
           </p>
         </div>
 
-        {/* Progress bar premium */}
-        <div className="mb-7">
-          <div className="flex justify-between text-xs text-muted-foreground mb-2">
-            <span>Progreso del análisis</span>
-            <span className="font-semibold text-foreground">{pct}%</span>
-          </div>
-          <div className="h-2.5 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10">
+        {/* Barra única (solo el porcentaje) */}
+        <div className="mb-5">
+          <div className="mb-1.5 text-right text-xs font-semibold text-foreground">{pct}%</div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-primary via-violet-500 to-accent shadow-[0_0_24px_oklch(0.65_0.28_290/0.65)] transition-all duration-700"
+              className="h-full rounded-full bg-gradient-to-r from-primary via-violet-500 to-accent shadow-[0_0_20px_oklch(0.65_0.28_290/0.65)] transition-all duration-700"
               style={{ width: `${pct}%` }}
             />
           </div>
         </div>
 
-        {/* Steps */}
-        <div className="space-y-3">
+        {/* 4 pasos · fade + slide ~500ms al activarse */}
+        <div className="space-y-2.5">
           {steps.map((item, index) => {
-            const done = index < safeStep;
-            const current = index === safeStep;
-            const pending = index > safeStep;
+            const isLast = index === steps.length - 1;
+            const done = isLast ? allDone : index < dataDone;
+            const spinning = isLast && !allDone;
             return (
               <div
                 key={item.label}
                 className={cn(
-                  "flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-500",
+                  "flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-500",
                   done &&
-                    "border-emerald-400/25 bg-emerald-400/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
-                  current &&
-                    "border-primary/35 bg-primary/[0.075] ring-1 ring-primary/20 shadow-[0_0_32px_-20px_oklch(0.65_0.28_290/0.9)]",
-                  pending && "border-white/8 bg-white/[0.02] opacity-50",
+                    "translate-y-0 border-emerald-400/25 bg-emerald-400/[0.06] opacity-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
+                  spinning &&
+                    "translate-y-0 border-primary/35 bg-primary/[0.07] opacity-100 ring-1 ring-primary/20 shadow-[0_0_28px_-18px_oklch(0.65_0.28_290/0.9)]",
+                  !done && !spinning && "translate-y-1 border-white/8 bg-white/[0.02] opacity-40",
                 )}
               >
-                <div className="shrink-0 w-7 h-7 flex items-center justify-center">
-                  {done && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
-                  {current && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-                  {pending && <div className="h-4 w-4 rounded-full border-2 border-white/15" />}
-                </div>
-                <span className="text-lg shrink-0">{item.icon}</span>
+                <span className="shrink-0 text-lg">{item.icon}</span>
                 <span
                   className={cn(
-                    "text-sm font-medium flex-1",
+                    "flex-1 text-sm font-medium",
                     done && "text-emerald-300",
-                    current && "text-white",
-                    pending && "text-muted-foreground",
+                    spinning && "text-white",
+                    !done && !spinning && "text-muted-foreground",
                   )}
                 >
-                  {item.label}...
+                  {item.label}
                 </span>
-                {done && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/75 shrink-0">
-                    Completado
-                  </span>
-                )}
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                  {done && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
+                  {spinning && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                  {!done && !spinning && (
+                    <div className="h-3.5 w-3.5 rounded-full border-2 border-white/15" />
+                  )}
+                </div>
               </div>
             );
           })}
