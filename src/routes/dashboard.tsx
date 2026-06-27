@@ -258,20 +258,16 @@ function Stat({
     <div
       onClick={onClick}
       className={cn(
-        "glass glass-hover rounded-2xl p-5 relative overflow-hidden transition-all",
+        "glass rounded-2xl p-5 relative overflow-hidden transition-all",
+        // El borde/glow de hover y del estado activo dependen del tono (ver
+        // styles.css: .stat-glow-{tone}:hover y .stat-glow-{tone}.stat-active).
+        // El azul ya NO se aplica nunca a Gastos (danger) ni Utilidad (success).
         tone === "primary" && "stat-glow-primary",
         tone === "danger" && "stat-glow-danger",
         tone === "success" && "stat-glow-success",
+        tone === "neutral" && "glass-hover",
         onClick && "cursor-pointer",
-        active &&
-          tone === "primary" &&
-          "ring-2 ring-primary/70 border border-primary/60 shadow-[0_0_30px_-8px_oklch(0.66_0.22_265)]",
-        active &&
-          tone === "danger" &&
-          "ring-2 ring-rose-500/70 border border-rose-500/60 shadow-[0_0_30px_-8px_rgb(251_113_133/.45)]",
-        active &&
-          tone === "success" &&
-          "ring-2 ring-emerald-500/70 border border-emerald-500/60 shadow-[0_0_30px_-8px_rgb(52_211_153/.45)]"
+        active && "stat-active",
       )}
     >
       <div className="flex items-start justify-between">
