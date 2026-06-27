@@ -39,6 +39,7 @@ import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
+import { RejectedClientControl, OrderOfArrivalCard } from "@/components/agenda/rejected-clients";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -1061,6 +1062,16 @@ function AgendaPage() {
 
           <div className="h-5 w-px bg-white/10 shrink-0" />
 
+          <RejectedClientControl
+            businessId={data.businessId}
+            services={data.services}
+            employees={data.employees}
+            appointments={data.appointments}
+            openHours={getScheduleForDate(data.schedule, new Date())}
+          />
+
+          <div className="h-5 w-px bg-white/10 shrink-0" />
+
           {/* Nuevo — square button with menu (Agregar turno / Bloquear horario) */}
           <div className="relative shrink-0">
             <Button
@@ -1185,6 +1196,14 @@ function AgendaPage() {
               </AgendaDrawer>
             );
           })()}
+
+        {/* Orden de llegada — atendidos vs rechazados del día */}
+        <OrderOfArrivalCard
+          businessId={data.businessId}
+          appointments={data.appointments}
+          date={cursor}
+          className="mb-2"
+        />
 
         {/* Always day view */}
         <DayView
