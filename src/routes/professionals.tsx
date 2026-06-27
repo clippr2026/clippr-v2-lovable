@@ -32,10 +32,6 @@ export const Route = createFileRoute("/professionals")({
 type TabKey = "turnos" | "stats" | "historial-servicios" | "historial-pagos";
 type RangeKey = "hoy" | "semana" | "mes" | "custom";
 
-function toISODate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
 function toLocalISODate(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -78,7 +74,7 @@ function buildMonthDays(month: Date) {
 
 function getPresetRange(range: Exclude<RangeKey, "custom">) {
   const now = new Date();
-  const today = toISODate(now);
+  const today = toLocalISODate(now);
 
   if (range === "hoy") return { from: today, to: today };
 
@@ -87,12 +83,12 @@ function getPresetRange(range: Exclude<RangeKey, "custom">) {
     monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    return { from: toISODate(monday), to: toISODate(sunday) };
+    return { from: toLocalISODate(monday), to: toLocalISODate(sunday) };
   }
 
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { from: toISODate(firstDay), to: toISODate(lastDay) };
+  return { from: toLocalISODate(firstDay), to: toLocalISODate(lastDay) };
 }
 
 
