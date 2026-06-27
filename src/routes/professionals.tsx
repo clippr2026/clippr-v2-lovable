@@ -1533,8 +1533,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
       {/* El rango se elige arriba con el calendario tipo Dashboard */}
 
-      {/* Status pills — compact left aligned */}
-      <div className="flex items-center gap-1.5 flex-wrap -mt-4 mb-1 justify-start">
+      {/* Status cards — ocupan todo el ancho de la agenda */}
+      <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 -mt-4 mb-1">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1542,15 +1542,15 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-xl px-2 py-0.5 text-[11px] font-semibold transition-all ring-1",
+              "flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-semibold transition-all ring-1",
               card.bg,
               card.ring,
               card.color,
               card.onClick ? "hover:brightness-110 cursor-pointer" : "cursor-default"
             )}
           >
-            <span className="font-bold tabular-nums text-xs">{card.count}</span>
-            <span className="opacity-90">{card.label}</span>
+            <span className="font-bold tabular-nums text-sm leading-none">{card.count}</span>
+            <span className="opacity-90 leading-none">{card.label}</span>
           </button>
         ))}
       </div>
