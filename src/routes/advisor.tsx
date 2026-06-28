@@ -5345,39 +5345,7 @@ function LabChips({
   );
 }
 
-// ── Score IA + grilla de señales (compartidos) ─────────────────────────────
-
-function scoreTone(score: number) {
-  if (score >= 75) return { text: "text-emerald-200", ring: "ring-emerald-300/30", bar: "bg-emerald-400" };
-  if (score >= 55) return { text: "text-cyan-200", ring: "ring-cyan-300/30", bar: "bg-cyan-400" };
-  if (score >= 35) return { text: "text-amber-200", ring: "ring-amber-300/30", bar: "bg-amber-400" };
-  return { text: "text-rose-200", ring: "ring-rose-300/30", bar: "bg-rose-400" };
-}
-
-function LabScore({ score }: { score: number }) {
-  const t = scoreTone(score);
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 ring-1",
-        t.ring,
-      )}
-    >
-      <div className="flex items-baseline gap-1">
-        <span className={cn("text-2xl font-extrabold leading-none tabular-nums", t.text)}>{score}</span>
-        <span className="text-[11px] font-bold text-white/35">/100</span>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/40">
-          Score IA
-        </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
-          <div className={cn("h-full rounded-full", t.bar)} style={{ width: `${score}%` }} />
-        </div>
-      </div>
-    </div>
-  );
-}
+// ── Señales del simulador (compartidas) ─────────────────────────────
 
 type LabSignal = { label: string; value: React.ReactNode; tone?: "neutral" | "alert" | "good" };
 
@@ -5444,7 +5412,6 @@ function LabPrecios({ data }: { data: LabData }) {
   const perdiblesShare = mensual > 0 ? (perdibles / mensual) * 100 : 0;
   const facturacion = Math.max(0, diferenciaMensual);
   const utilidad = Math.round(facturacion * LAB_MARGIN);
-  const score = clampScore01(92 - Math.max(0, pct - 8) * 2.0 - perdiblesShare * 0.8);
   const riesgoLabel = pct > 30 ? "Alto" : pct > 20 ? "Medio" : "Bajo";
   const riesgoCls = pct > 30 ? "text-rose-200" : pct > 20 ? "text-amber-200" : "text-emerald-200";
   const nivel: keyof typeof nivelMeta =
@@ -5518,10 +5485,7 @@ function LabPrecios({ data }: { data: LabData }) {
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
-        <LabVerdict nivel={nivel} text={verdict} />
-        <LabScore score={score} />
-      </div>
+      <LabVerdict nivel={nivel} text={verdict} />
 
       <LabImpact facturacion={facturacion} utilidad={utilidad} />
 
@@ -5560,7 +5524,6 @@ function LabProfesional({
   const occScore = occ;
   const rejScore = Math.min(100, rechazados * 3);
   const satScore = saturados >= 1 ? 100 : 40;
-  const score = clampScore01(occScore * 0.45 + rejScore * 0.4 + satScore * 0.15);
 
   let nivel: keyof typeof nivelMeta;
   let titulo: string;
@@ -5599,15 +5562,12 @@ function LabProfesional({
         ]}
       />
 
-      <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
-        <div className={cn("rounded-[18px] border px-3.5 py-3", nivelMeta[nivel].cls)}>
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
-            Veredicto del Gerente IA
-          </p>
-          <p className={cn("mt-0.5 text-base font-extrabold", nivelMeta[nivel].titleCls)}>{titulo}</p>
-          <p className="mt-1.5 text-xs leading-relaxed text-white/80">{verdict}</p>
-        </div>
-        <LabScore score={score} />
+      <div className={cn("rounded-[18px] border px-3.5 py-3", nivelMeta[nivel].cls)}>
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
+          Veredicto del Gerente IA
+        </p>
+        <p className={cn("mt-0.5 text-base font-extrabold", nivelMeta[nivel].titleCls)}>{titulo}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-white/80">{verdict}</p>
       </div>
 
       {recuperables > 0 && (
@@ -5638,7 +5598,6 @@ function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
   const best = Math.max(benefitAntes, benefitTarde);
   const facturacion = extraClients * data.avgTicket;
   const utilidad = Math.round(facturacion * LAB_MARGIN);
-  const score = clampScore01(20 + extraClients * 6);
 
   let nivel: keyof typeof nivelMeta;
   let titulo: string;
@@ -5699,15 +5658,12 @@ function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
         ))}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
-        <div className={cn("rounded-[18px] border px-3.5 py-3", nivelMeta[nivel].cls)}>
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
-            Veredicto del Gerente IA
-          </p>
-          <p className={cn("mt-0.5 text-base font-extrabold", nivelMeta[nivel].titleCls)}>{titulo}</p>
-          <p className="mt-1.5 text-xs leading-relaxed text-white/80">{verdict}</p>
-        </div>
-        <LabScore score={score} />
+      <div className={cn("rounded-[18px] border px-3.5 py-3", nivelMeta[nivel].cls)}>
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
+          Veredicto del Gerente IA
+        </p>
+        <p className={cn("mt-0.5 text-base font-extrabold", nivelMeta[nivel].titleCls)}>{titulo}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-white/80">{verdict}</p>
       </div>
 
       <LabImpact
@@ -5736,7 +5692,6 @@ function LabRecuperar({ data }: { data: LabData }) {
   const ticketProm = pool > 0 ? Math.round(totalValue / pool) : data.avgTicket;
   const facturacion = recuperados * ticketProm;
   const utilidad = Math.round(facturacion * LAB_MARGIN);
-  const score = clampScore01(98 - pct * 1.0);
   const nivel: keyof typeof nivelMeta = pct <= 25 ? "recomendado" : pct <= 45 ? "progresivo" : "evaluar";
 
   return (
@@ -5776,13 +5731,10 @@ function LabRecuperar({ data }: { data: LabData }) {
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
-        <LabVerdict
-          nivel={nivel}
-          text={`Recuperar el ${pct}% son ${recuperados} cliente${recuperados === 1 ? "" : "s"} (${fmtAR(facturacion)} estimados). Es realista con una campaña de WhatsApp con beneficio por tiempo limitado. Arrancá por los que más gastaban.`}
-        />
-        <LabScore score={score} />
-      </div>
+      <LabVerdict
+        nivel={nivel}
+        text={`Recuperar el ${pct}% son ${recuperados} cliente${recuperados === 1 ? "" : "s"} (${fmtAR(facturacion)} estimados). Es realista con una campaña de WhatsApp con beneficio por tiempo limitado. Arrancá por los que más gastaban.`}
+      />
 
       <LabImpact
         facturacion={facturacion}
@@ -5824,7 +5776,6 @@ function LabProductos({ data }: { data: LabData }) {
   const facturacion = extraClients * price;
   const utilidad = Math.round(facturacion * LAB_PRODUCT_MARGIN);
   const salto = effectiveTarget - actual;
-  const score = clampScore01(92 - salto * 2.2);
   const nivel: keyof typeof nivelMeta = salto <= 5 ? "recomendado" : salto <= 12 ? "progresivo" : "evaluar";
 
   const segmentos = [
@@ -5876,13 +5827,10 @@ function LabProductos({ data }: { data: LabData }) {
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
-        <LabVerdict
-          nivel={nivel}
-          text={`Pasar del ${actual}% al ${effectiveTarget}% son ${extraClients} ventas extra de producto por mes (${fmtAR(facturacion)}). Se logra ofreciendo el producto en el sillón al terminar el corte: "esto es lo que te puse, ¿te lo llevás?". Empezá por ${oportunidad.label.toLowerCase()}.`}
-        />
-        <LabScore score={score} />
-      </div>
+      <LabVerdict
+        nivel={nivel}
+        text={`Pasar del ${actual}% al ${effectiveTarget}% son ${extraClients} ventas extra de producto por mes (${fmtAR(facturacion)}). Se logra ofreciendo el producto en el sillón al terminar el corte: "esto es lo que te puse, ¿te lo llevás?". Empezá por ${oportunidad.label.toLowerCase()}.`}
+      />
 
       <LabImpact
         facturacion={facturacion}
@@ -5934,7 +5882,6 @@ function LabFidelizacion({ data }: { data: LabData }) {
     const facturacion = paidExtra * data.avgTicket;
     const costoPromo = freeCuts * Math.round(data.avgTicket * 0.4);
     const ganancia = Math.max(0, Math.round(facturacion * LAB_MARGIN) - costoPromo);
-    const score = clampScore01(72);
 
     return (
       <div className="space-y-3">
@@ -5958,13 +5905,10 @@ function LabFidelizacion({ data }: { data: LabData }) {
             { label: "Ganancia final", value: fmtDemandARS(ganancia), tone: "good" },
           ]}
         />
-        <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
-          <LabVerdict
-            nivel={ganancia > 0 ? "recomendado" : "evaluar"}
-            text={`Llevar a tus clientes a 3 visitas por mes suma ~${extraVisits} visitas, de las cuales ${freeCuts} son la 3ª gratis. Aún regalando esos cortes, la ganancia final estimada es ${fmtAR(ganancia)}. Comunicá la promo por WhatsApp.`}
-          />
-          <LabScore score={score} />
-        </div>
+        <LabVerdict
+          nivel={ganancia > 0 ? "recomendado" : "evaluar"}
+          text={`Llevar a tus clientes a 3 visitas por mes suma ~${extraVisits} visitas, de las cuales ${freeCuts} son la 3ª gratis. Aún regalando esos cortes, la ganancia final estimada es ${fmtAR(ganancia)}. Comunicá la promo por WhatsApp.`}
+        />
       </div>
     );
   }
@@ -5975,7 +5919,6 @@ function LabFidelizacion({ data }: { data: LabData }) {
   const facturacion = adheridos * half;
   const costoDescuentos = adheridos * half;
   const ganancia = Math.round(facturacion * LAB_MARGIN);
-  const score = clampScore01(85 - pct * 0.5);
   const nivel: keyof typeof nivelMeta = pct <= 35 ? "recomendado" : pct <= 55 ? "progresivo" : "evaluar";
 
   return (
@@ -6020,13 +5963,10 @@ function LabFidelizacion({ data }: { data: LabData }) {
         ]}
       />
 
-      <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
-        <LabVerdict
-          nivel={nivel}
-          text={`Si el ${pct}% de tus clientes (${adheridos}) usa el 2º corte con 50% OFF, sumás ${fmtAR(facturacion)} en visitas que hoy no ocurren. Aún con el descuento, deja ${fmtAR(ganancia)} de ganancia y acorta tu frecuencia de ~${freq} días.`}
-        />
-        <LabScore score={score} />
-      </div>
+      <LabVerdict
+        nivel={nivel}
+        text={`Si el ${pct}% de tus clientes (${adheridos}) usa el 2º corte con 50% OFF, sumás ${fmtAR(facturacion)} en visitas que hoy no ocurren. Aún con el descuento, deja ${fmtAR(ganancia)} de ganancia y acorta tu frecuencia de ~${freq} días.`}
+      />
     </div>
   );
 }
