@@ -955,9 +955,6 @@ function AdvisorContent({
           </div>
           {/* /Historial */}
 
-          {/* ── Demanda no atendida (clientes rechazados) ── */}
-          <DemandaNoAtendidaSection businessId={businessId} />
-
           {infoModal ? <InfoModal content={infoModal} onClose={() => setInfoModal(null)} /> : null}
         </>
       )}
@@ -3852,10 +3849,15 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
 
   if (recs.length === 0) {
     return (
-      <div className="mt-6 rounded-[28px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-3xl ring-1 ring-emerald-400/30">✅</div>
-        <p className="mt-4 text-lg font-bold text-white">No detectamos fugas de plata hoy</p>
-        <p className="mt-1 text-sm text-white/60">Tu agenda, clientes y servicios están bien aprovechados. Volvé mañana: el gerente IA revisa todo cada día.</p>
+      <div className="mt-6 space-y-5">
+        <div className="rounded-[28px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-3xl ring-1 ring-emerald-400/30">✅</div>
+          <p className="mt-4 text-lg font-bold text-white">No detectamos fugas de plata hoy</p>
+          <p className="mt-1 text-sm text-white/60">Tu agenda, clientes y servicios están bien aprovechados. Volvé mañana: el gerente IA revisa todo cada día.</p>
+        </div>
+
+        {/* Gerente IA: demanda no atendida */}
+        <DemandaNoAtendidaSection businessId={businessId} />
       </div>
     );
   }
@@ -3895,6 +3897,9 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
           </div>
         </div>
       </div>
+
+      {/* Gerente IA: demanda no atendida */}
+      <DemandaNoAtendidaSection businessId={businessId} />
 
       {/* Prioridad del día */}
       <GrowthRecCard rec={hero} hero priority={levelFor(hero)} />
