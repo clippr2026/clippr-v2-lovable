@@ -4995,13 +4995,13 @@ function LabImpact({
     <div className={cn("grid gap-2", extra ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
       <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] px-3.5 py-4">
         <div className="text-[11px] font-bold uppercase tracking-wider text-sky-200/70">
-          Facturación extra / mes
+          Facturación adicional
         </div>
         <div className="mt-1 text-2xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
       </div>
       <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] px-3.5 py-4">
         <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
-          Utilidad extra / mes
+          Ganancia estimada
         </div>
         <div className="mt-1 text-2xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
       </div>
@@ -5019,12 +5019,31 @@ function LabImpact({
 
 function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: string }) {
   const meta = nivelMeta[nivel];
+  const title = nivel === "alto_riesgo" ? "Revisar antes de aplicar" : nivel === "evaluar" ? "Conviene probar con cuidado" : "Recomendado por IA";
   return (
-    <div className={cn("rounded-2xl border p-4", meta.cls)}>
-      <div className={cn("flex items-center gap-2 text-sm font-bold", meta.titleCls)}>
-        <span>{meta.emoji}</span> Recomendación IA · {meta.label}
+    <div className={cn("rounded-[22px] border p-5", meta.cls)}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/10 text-base ring-1 ring-white/15">
+            {meta.emoji}
+          </span>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
+              Veredicto del Gerente IA
+            </p>
+            <p className={cn("text-base font-extrabold", meta.titleCls)}>{title}</p>
+          </div>
+        </div>
+        <span className={cn("rounded-full px-3 py-1 text-[11px] font-bold", meta.titleCls, "bg-white/8")}>{meta.label}</span>
       </div>
-      <p className="mt-3 text-sm leading-relaxed text-white/80">{text}</p>
+      <p className="mt-4 text-sm leading-relaxed text-white/82">{text}</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {["Historial de ventas", "Ticket promedio", "Riesgo de demanda"].map((item) => (
+          <div key={item} className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-white/65">
+            ✓ {item}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -5079,7 +5098,6 @@ function LabPrecios({ data }: { data: LabData }) {
   const precioNuevo = precioActual + aumento;
   const diferenciaMensual = mensual * aumento;
   const pct = precioActual > 0 ? (aumento / precioActual) * 100 : 0;
-  // Clientes que podés perder manteniendo la misma facturación del servicio.
   const perdibles =
     precioNuevo > 0 ? Math.max(0, mensual - Math.ceil((mensual * precioActual) / precioNuevo)) : 0;
   const avgPrice =
@@ -5087,15 +5105,50 @@ function LabPrecios({ data }: { data: LabData }) {
       ? Math.round(services.reduce((s, x) => s + x.precio, 0) / services.length)
       : 0;
 
+  const facturacion = Math.max(0, diferenciaMensual);
+  const utilidad = Math.round(facturacion * 0.9);
+  const riesgoLabel = pct > 30 ? "Alto" : pct > 20 ? "Medio" : "Bajo";
+  const riesgoCls = pct > 30 ? "text-rose-200" : pct > 20 ? "text-amber-200" : "text-emerald-200";
   const nivel: keyof typeof nivelMeta =
     pct > 30 ? "alto_riesgo" : pct <= 12 ? "recomendado" : pct <= 20 ? "progresivo" : "evaluar";
   const verdict =
     pct > 30
-      ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% de golpe: demasiado. Hacelo en dos etapas para no asustar clientes.`
-      : `Podés aumentar ${fmtAR(aumento)} y seguir siendo competitivo. Aunque pierdas hasta ${perdibles} clientes por mes en este servicio, tu facturación se mantiene o crece.`;
+      ? `Subir ${fmtAR(aumento)} representa un ${pct.toFixed(0)}% de golpe. Es mejor probar un aumento menor o hacerlo en dos etapas para cuidar la demanda.`
+      : `Este aumento puede sumar ${fmtAR(facturacion)} por mes y mantiene el riesgo ${riesgoLabel.toLowerCase()}. Aunque pierdas hasta ${perdibles} clientes por mes en este servicio, tu facturación se mantiene o crece.`;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <div className="relative overflow-hidden rounded-[24px] border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.10] via-white/[0.035] to-emerald-400/[0.06] p-5 shadow-[0_22px_70px_-48px_rgba(34,211,238,0.95)]">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-cyan-400/18 blur-3xl" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/80">
+              <Sparkles className="h-3.5 w-3.5" /> Resultado estimado
+            </div>
+            <h3 className="max-w-2xl text-2xl font-extrabold tracking-[-0.03em] text-white sm:text-3xl">
+              Si aumentás {fmtAR(aumento)}, podrías generar {fmtAR(facturacion)} más por mes.
+            </h3>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/62">
+              Simulación sobre <span className="font-semibold text-white">{svc?.nombre}</span>, con {mensual} ventas mensuales estimadas y un riesgo de pérdida de clientes <span className={cn("font-bold", riesgoCls)}>{riesgoLabel.toLowerCase()}</span>.
+            </p>
+          </div>
+          <div className="grid min-w-[260px] grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-sky-300/18 bg-sky-400/[0.08] p-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-100/55">Facturación</p>
+              <p className="mt-1 text-xl font-extrabold text-sky-100">+{fmtAR(facturacion)}</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] p-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-100/55">Ganancia</p>
+              <p className="mt-1 text-xl font-extrabold text-emerald-100">+{fmtAR(utilidad)}</p>
+            </div>
+            <div className="rounded-2xl border border-white/12 bg-white/[0.055] p-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Riesgo</p>
+              <p className={cn("mt-1 text-xl font-extrabold", riesgoCls)}>{riesgoLabel}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div>
         <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">
           Elegí el servicio
@@ -5106,12 +5159,16 @@ function LabPrecios({ data }: { data: LabData }) {
           onChange={setSvcId}
         />
       </div>
-      <div>
-        <div className="mb-2 flex items-end justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
-            Aumento a probar
-          </span>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200 sm:text-3xl">
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="mb-3 flex items-end justify-between gap-4">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+              Aumento seleccionado
+            </span>
+            <p className="mt-1 text-xs text-white/45">Probá distintos valores antes de cambiar el precio real.</p>
+          </div>
+          <span className="text-3xl font-extrabold leading-none text-cyan-200 sm:text-4xl">
             +{fmtAR(aumento)}
           </span>
         </div>
@@ -5124,26 +5181,43 @@ function LabPrecios({ data }: { data: LabData }) {
           onChange={(e) => setAumento(Number(e.target.value))}
           className="w-full accent-cyan-400"
         />
+        <div className="mt-2 flex justify-between text-[10px] font-semibold text-white/35">
+          <span>$0</span>
+          <span>+{fmtAR(Math.max(5000, Math.round(precioActual)))}</span>
+        </div>
       </div>
+
       <LabScenario
         currentLabel="Precio actual"
         currentValue={fmtAR(precioActual)}
         projectedLabel="Precio sugerido"
         projectedValue={fmtAR(precioNuevo)}
       />
+
       <LabImpact
-        facturacion={Math.max(0, diferenciaMensual)}
-        utilidad={Math.round(Math.max(0, diferenciaMensual) * 0.9)}
+        facturacion={facturacion}
+        utilidad={utilidad}
         extra={{
-          label: "Vs. tu precio promedio",
+          label: "Comparación",
           value: `${precioNuevo >= avgPrice ? "+" : ""}${fmtAR(precioNuevo - avgPrice)}`,
         }}
       />
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/55">
-        Este servicio se vende ~<span className="font-semibold text-white/80">{mensual}</span> veces
-        por mes. Podés perder hasta <span className="font-semibold text-rose-200">{perdibles}</span>{" "}
-        clientes/mes sin bajar la facturación.
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.028] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-white/38">Datos usados</p>
+          <p className="mt-2 text-sm text-white/75">{mensual} ventas estimadas por mes.</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.028] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-white/38">Margen de seguridad</p>
+          <p className="mt-2 text-sm text-white/75">Podés perder hasta <span className="font-bold text-rose-200">{perdibles}</span> clientes/mes.</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.028] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-white/38">Confianza</p>
+          <p className="mt-2 text-sm text-white/75">{mensual >= 8 ? "Alta" : mensual >= 3 ? "Media" : "Preliminar"}</p>
+        </div>
       </div>
+
       <LabVerdict nivel={nivel} text={verdict} />
     </div>
   );
@@ -5528,10 +5602,11 @@ function LaboratorioDecisiones(props: SimuladorProps) {
           <button
             type="button"
             title={`Los simuladores usan tus datos reales (servicios, clientes, agenda y horarios). Las proyecciones son estimaciones con supuestos conservadores: utilidad ~${Math.round(LAB_MARGIN * 100)}% sobre facturación y ~${Math.round(LAB_PRODUCT_MARGIN * 100)}% en productos.`}
-            aria-label="Cómo se calculan los simuladores"
-            className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/5 text-[11px] font-bold text-white/50 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white/80"
+            aria-label="Cómo funcionan los simuladores"
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/[0.08] px-3 text-xs font-bold text-cyan-100 shadow-[0_0_24px_-12px_rgba(34,211,238,0.7)] transition hover:border-cyan-200/35 hover:bg-cyan-400/[0.13] hover:text-white"
           >
-            i
+            <CircleHelp className="h-4 w-4" />
+            <span className="hidden sm:inline">Cómo funciona</span>
           </button>
         </div>
       </div>
@@ -5558,9 +5633,19 @@ function LaboratorioDecisiones(props: SimuladorProps) {
             >
               {React.createElement(s.icon, { className: "h-5 w-5" })}
             </span>
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-bold text-white">{s.label}</span>
               <span className="block truncate text-xs text-white/45">{s.sub}</span>
+              <span
+                className={cn(
+                  "mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]",
+                  sim === s.key
+                    ? "bg-cyan-300/15 text-cyan-100"
+                    : "bg-white/[0.055] text-white/35 group-hover:text-white/55",
+                )}
+              >
+                Simulación rápida
+              </span>
             </span>
           </button>
         ))}
