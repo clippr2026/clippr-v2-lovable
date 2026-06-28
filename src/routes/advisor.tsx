@@ -3716,12 +3716,11 @@ function GrowthRecCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[26px] border border-white/10 bg-[#080b16]/80 p-5 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] ring-1 backdrop-blur-2xl sm:p-6",
-        t.ring,
-        hero && "ring-2",
+        "group relative overflow-hidden rounded-[30px] border border-white/[0.10] bg-[linear-gradient(145deg,rgba(8,11,25,0.94),rgba(14,17,34,0.78))] p-5 shadow-[0_24px_90px_-62px_rgba(99,102,241,0.85)] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.16] hover:bg-white/[0.045] sm:p-6",
+        hero && "lg:col-span-2",
       )}
     >
-      <div className={cn("pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl", t.glow)} />
+      <div className={cn("pointer-events-none absolute -top-28 right-0 h-52 w-52 rounded-full bg-gradient-to-br opacity-70 blur-3xl transition group-hover:opacity-90", t.glow)} />
       <div className="relative">
         {/* Prioridad (triage en un segundo) + categoría */}
         <div className="flex flex-wrap items-center gap-2">
@@ -3735,23 +3734,23 @@ function GrowthRecCard({
 
         {/* Nivel 1 · Título */}
         <div className="mt-3 flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
-          <h3 className={cn("font-extrabold leading-[1.05] tracking-[-0.02em] text-white", hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-xl ring-1 ring-white/10">{rec.icon}</span>
+          <h3 className={cn("font-extrabold leading-[1.05] tracking-[-0.02em] text-white", hero ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl")}>
             {rec.title}
           </h3>
         </div>
 
         {/* Nivel 5 · Explicación de una línea */}
-        <p className="mt-2.5 text-[13px] leading-relaxed text-white/55">{rec.problem}</p>
+        <p className="mt-2.5 text-[13px] leading-relaxed text-white/58">{rec.problem}</p>
 
         {/* Nivel 2 · Plata, con iconos grandes */}
         <div className="mt-4 grid grid-cols-2 gap-3">
           {rec.moneyLost > 0 ? (
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3.5">
+            <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.045] p-3.5">
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-200/70">
                 <span className="text-base leading-none">💸</span> Estás perdiendo
               </div>
-              <div className="mt-1 text-2xl font-black tracking-tight text-rose-200 sm:text-3xl">{fmtAR(rec.moneyLost)}</div>
+              <div className="mt-1 text-2xl font-black tracking-tight text-rose-100">{fmtAR(rec.moneyLost)}</div>
             </div>
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
@@ -3761,11 +3760,11 @@ function GrowthRecCard({
               <div className="mt-1 text-sm font-semibold text-white/70">Ingreso extra sin sumar costos</div>
             </div>
           )}
-          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.08] p-3.5">
+          <div className="rounded-2xl border border-emerald-300/18 bg-emerald-500/[0.06] p-3.5">
             <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
               <span className="text-base leading-none">📈</span> Podés recuperar
             </div>
-            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-200 sm:text-3xl">{fmtAR(rec.moneyRecoverable)}</div>
+            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-100">{fmtAR(rec.moneyRecoverable)}</div>
           </div>
         </div>
 
@@ -3876,7 +3875,7 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
   return (
     <div className="mt-6 space-y-5">
       {/* Encabezado: el número que importa */}
-      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#070b18]/80 p-6 shadow-[0_30px_90px_-50px_rgba(16,185,129,0.7)] backdrop-blur-2xl sm:p-7">
+      <div className="relative overflow-hidden rounded-[30px] border border-white/[0.12] bg-[linear-gradient(135deg,rgba(9,13,31,0.96),rgba(5,20,29,0.86))] p-6 shadow-[0_30px_100px_-60px_rgba(34,211,238,0.8)] backdrop-blur-2xl sm:p-7">
         <div className="pointer-events-none absolute -top-24 left-1/3 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -4523,7 +4522,7 @@ function DemandMiniRow({
   empty: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
       <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
         {icon}
         {title}
@@ -4614,27 +4613,30 @@ function DemandaNoAtendidaSection({
     narrative.push(`Los ${pluralDemandDay(topDay.label.toLowerCase())} concentran el ${topDayShare}% de la demanda no atendida.`);
 
   return (
-    <section className="space-y-4">
+    <section className="relative overflow-hidden rounded-[30px] border border-orange-300/15 bg-[linear-gradient(145deg,rgba(14,10,24,0.92),rgba(8,11,25,0.82))] p-5 shadow-[0_24px_90px_-62px_rgba(251,146,60,0.65)] backdrop-blur-2xl sm:p-6">
+      <div className="pointer-events-none absolute -top-28 right-0 h-56 w-56 rounded-full bg-orange-500/12 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-28 left-1/4 h-56 w-56 rounded-full bg-fuchsia-500/10 blur-3xl" />
+      <div className="relative space-y-4">
       <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-orange-500/12 text-orange-200 ring-1 ring-orange-400/25">
           <UserX className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">Demanda no atendida</h2>
+          <h2 className="font-display text-xl font-extrabold tracking-tight text-white sm:text-2xl">Demanda no atendida</h2>
           <p className="text-xs text-white/45">Clientes que no pudieron atenderse por falta de disponibilidad</p>
         </div>
       </div>
 
       <>
           {narrative.length > 0 && (
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
               <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
                 <Sparkles className="h-3.5 w-3.5" /> Lo que detectó Clippr IA
               </div>
               <ul className="space-y-1.5">
                 {narrative.map((t, i) => (
                   <li key={i} className="flex gap-2 text-sm leading-relaxed text-white/75">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-300/70" />
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-orange-300/70" />
                     {t}
                   </li>
                 ))}
@@ -4643,8 +4645,8 @@ function DemandaNoAtendidaSection({
           )}
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.05] p-4">
-              <div className="text-3xl font-extrabold tabular-nums text-rose-300">{a.counts.today}</div>
+            <div className="rounded-2xl border border-orange-300/18 bg-orange-500/[0.055] p-4">
+              <div className="text-3xl font-extrabold tabular-nums text-orange-300">{a.counts.today}</div>
               <div className="mt-0.5 text-[11px] text-white/45">Rechazados hoy</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -4655,7 +4657,7 @@ function DemandaNoAtendidaSection({
               <div className="text-3xl font-extrabold tabular-nums text-white">{a.counts.month}</div>
               <div className="mt-0.5 text-[11px] text-white/45">Este mes</div>
             </div>
-            <div className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] p-4">
+            <div className="rounded-2xl border border-amber-300/18 bg-amber-500/[0.055] p-4">
               <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums text-amber-300">
                 <TrendingDown className="h-4 w-4" />
                 {fmtDemandARS(a.lostRevenue.month)}
@@ -4698,7 +4700,7 @@ function DemandaNoAtendidaSection({
               items={a.topReasons.map((r) => ({ label: r.label, value: r.count }))}
               empty="Sin datos suficientes."
             />
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
               <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
                 <TrendingDown className="h-3.5 w-3.5" /> Evolución mensual
               </div>
@@ -4706,7 +4708,7 @@ function DemandaNoAtendidaSection({
                 {a.monthly.map((m) => (
                   <div key={m.ym} className="flex flex-1 flex-col items-center justify-end gap-1">
                     <div
-                      className="w-full rounded-t bg-rose-400/60"
+                      className="w-full rounded-t bg-orange-400/70"
                       style={{ height: `${Math.max(3, (m.count / maxMonthly) * 52)}px` }}
                       title={`${m.count} rechazos`}
                     />
@@ -4718,7 +4720,7 @@ function DemandaNoAtendidaSection({
           </div>
 
           {a.professionals.length > 0 && (
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-white/45">Índice de demanda por profesional</div>
               <div className="space-y-2">
                 {a.professionals.map((p) => (
@@ -4773,6 +4775,7 @@ function DemandaNoAtendidaSection({
             </div>
           )}
       </>
+      </div>
     </section>
   );
 }
