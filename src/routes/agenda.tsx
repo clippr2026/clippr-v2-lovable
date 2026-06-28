@@ -1081,7 +1081,7 @@ function AgendaPage() {
               <>
                 <div className="fixed inset-0 z-[60]" onClick={() => setNewMenu(false)} />
                 <div
-                  className="fixed z-[61] w-44 glass-strong rounded-xl p-1 animate-fade-up"
+                  className="fixed z-[61] w-56 glass-strong rounded-xl p-1 animate-fade-up"
                   style={{ top: newMenuPos.top, right: newMenuPos.right }}
                 >
                   <button
@@ -1091,7 +1091,7 @@ function AgendaPage() {
                       openNew(null, cursor);
                     }}
                   >
-                    <CalendarIcon className="h-4 w-4 text-primary" /> Agregar turno
+                    <CalendarIcon className="h-4 w-4 shrink-0 text-primary" /> <span className="whitespace-nowrap">Agregar turno</span>
                   </button>
                   <button
                     className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
@@ -1100,13 +1100,13 @@ function AgendaPage() {
                       openBlockDialog(null, cursor);
                     }}
                   >
-                    <XCircle className="h-4 w-4 text-amber-300" /> Bloquear horario
+                    <XCircle className="h-4 w-4 shrink-0 text-amber-300" /> <span className="whitespace-nowrap">Bloquear horario</span>
                   </button>
                   <button
                     className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
                     onClick={() => openSpecialFromSlot(null, cursor)}
                   >
-                    <Pencil className="h-4 w-4 text-violet-300" /> Horario especial
+                    <Pencil className="h-4 w-4 shrink-0 text-violet-300" /> <span className="whitespace-nowrap">Horario especial</span>
                   </button>
                   <button
                     className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
@@ -1116,7 +1116,7 @@ function AgendaPage() {
                       setRejectOpen(true);
                     }}
                   >
-                    <UserX className="h-4 w-4 text-orange-300" /> Cliente rechazado
+                    <UserX className="h-4 w-4 shrink-0 text-orange-300" /> <span className="whitespace-nowrap">Cliente rechazado</span>
                   </button>
                 </div>
               </>
@@ -1246,9 +1246,9 @@ function AgendaPage() {
               aria-label="Cerrar opciones de casillero"
             />
             <div
-              className="fixed z-50 w-56 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
+              className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
               style={{
-                left: Math.min(slotMenu.x, window.innerWidth - 240),
+                left: Math.min(slotMenu.x, window.innerWidth - 272),
                 top: Math.min(slotMenu.y, window.innerHeight - 150),
               }}
             >
@@ -1271,16 +1271,16 @@ function AgendaPage() {
                     onClick={() => openNew(slotMenu.employeeId, slotMenu.startsAt)}
                     className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
                   >
-                    <CalendarIcon className="h-4 w-4 text-primary" />
-                    Agregar turno
+                    <CalendarIcon className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="whitespace-nowrap">Agregar turno</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
                     className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
                   >
-                    <XCircle className="h-4 w-4 text-amber-300" />
-                    Bloquear horario
+                    <XCircle className="h-4 w-4 shrink-0 text-amber-300" />
+                    <span className="whitespace-nowrap">Bloquear horario</span>
                   </button>
                 </>
               )}
@@ -1289,8 +1289,8 @@ function AgendaPage() {
                 onClick={() => openSpecialFromSlot(slotMenu.employeeId, slotMenu.startsAt)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
               >
-                <Pencil className="h-4 w-4 text-violet-300" />
-                Horario especial
+                <Pencil className="h-4 w-4 shrink-0 text-violet-300" />
+                <span className="whitespace-nowrap">Horario especial</span>
               </button>
               <button
                 type="button"
@@ -1301,8 +1301,8 @@ function AgendaPage() {
                 }}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
               >
-                <UserX className="h-4 w-4 text-orange-300" />
-                Cliente rechazado
+                <UserX className="h-4 w-4 shrink-0 text-orange-300" />
+                <span className="whitespace-nowrap">Cliente rechazado</span>
               </button>
             </div>
           </>
