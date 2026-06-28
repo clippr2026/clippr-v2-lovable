@@ -1208,7 +1208,7 @@ function AgendaPage() {
           services={data.services}
           employees={data.employees}
           appointments={data.appointments}
-          openHoursToday={getScheduleForDate(data.schedule, cursor)}
+          openHoursToday={getScheduleForDate(data.schedule, new Date())}
         />
 
         {/* Always day view */}
