@@ -4239,32 +4239,32 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   {heroAction.detail}
                 </p>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-[1.35fr_0.75fr_1fr]">
-                  <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
-                      <DollarSign className="h-4 w-4 text-emerald-300" />
-                      Impacto estimado
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="flex min-h-[112px] min-w-0 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
+                    <div className="mb-2 flex items-center justify-center gap-2 text-xs leading-tight text-white/55">
+                      <DollarSign className="h-4 w-4 shrink-0 text-emerald-300" />
+                      <span className="break-words">Impacto estimado</span>
                     </div>
-                    <div className="whitespace-nowrap text-[clamp(1rem,1.35vw,1.22rem)] font-bold leading-none tracking-[-0.04em] text-emerald-300">
+                    <div className="whitespace-nowrap text-[clamp(0.96rem,1.25vw,1.12rem)] font-bold leading-none tracking-[-0.04em] text-emerald-300">
                       {heroAction.impactAmount}
                     </div>
-                    <div className="mt-1 text-xs text-white/55">en 30 días</div>
+                    <div className="mt-1 text-xs leading-tight text-white/55">en 30 días</div>
                   </div>
 
-                  <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
-                      <Users className="h-4 w-4 text-blue-300" />
-                      {heroAction.metricLabel}
+                  <div className="flex min-h-[112px] min-w-0 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
+                    <div className="mb-2 flex items-center justify-center gap-2 text-xs leading-tight text-white/55">
+                      <Users className="h-4 w-4 shrink-0 text-blue-300" />
+                      <span className="break-words">{heroAction.metricLabel}</span>
                     </div>
-                    <div className="text-2xl font-bold text-white">{heroAction.metricValue}</div>
+                    <div className="text-2xl font-bold leading-none text-white">{heroAction.metricValue}</div>
                   </div>
 
-                  <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
-                      <Target className="h-4 w-4 text-violet-300" />
-                      Objetivo
+                  <div className="flex min-h-[112px] min-w-0 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
+                    <div className="mb-2 flex items-center justify-center gap-2 text-xs leading-tight text-white/55">
+                      <Target className="h-4 w-4 shrink-0 text-violet-300" />
+                      <span>Objetivo</span>
                     </div>
-                    <div className="text-base font-bold leading-snug text-white">
+                    <div className="text-[15px] font-bold leading-snug text-white break-words [overflow-wrap:anywhere]">
                       {heroAction.objective}
                     </div>
                   </div>
@@ -4392,7 +4392,7 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
 
                     <span
                       className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-semibold",
+                        "max-w-[145px] rounded-full border px-3 py-1 text-center text-[11px] font-semibold leading-tight",
                         getPriorityToneClasses(action.priorityTone),
                       )}
                     >
@@ -4400,22 +4400,22 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                     </span>
                   </div>
 
-                  <h3 className="mt-4 text-lg font-bold text-white">{action.title}</h3>
-                  <p className="mt-2 min-h-[56px] text-sm leading-relaxed text-white/65">
+                  <h3 className="mt-4 min-h-[48px] text-lg font-bold leading-snug text-white break-words [overflow-wrap:anywhere]">{action.title}</h3>
+                  <p className="mt-2 min-h-[64px] text-sm leading-relaxed text-white/65 break-words [overflow-wrap:anywhere]">
                     {action.detail}
                   </p>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
-                    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.025] p-3">
-                      <div className="text-[11px] text-white/45">Impacto estimado</div>
-                      <div className="mt-1 whitespace-nowrap text-[13px] font-bold leading-none tracking-[-0.03em] text-emerald-300">
+                    <div className="flex min-h-[74px] min-w-0 flex-col justify-center rounded-xl border border-white/8 bg-white/[0.025] p-3 text-center">
+                      <div className="text-[11px] leading-tight text-white/45">Impacto estimado</div>
+                      <div className="mt-1 whitespace-nowrap text-[12px] font-bold leading-none tracking-[-0.03em] text-emerald-300">
                         {action.impactAmount}
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-white/8 bg-white/[0.025] p-3">
-                      <div className="text-[11px] text-white/45">{action.metricLabel}</div>
-                      <div className="mt-1 text-base font-bold text-white">
+                    <div className="flex min-h-[74px] min-w-0 flex-col justify-center rounded-xl border border-white/8 bg-white/[0.025] p-3 text-center">
+                      <div className="text-[11px] leading-tight text-white/45 break-words">{action.metricLabel}</div>
+                      <div className="mt-1 text-base font-bold leading-none text-white">
                         {action.metricValue}
                       </div>
                     </div>
