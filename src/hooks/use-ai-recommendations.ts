@@ -102,6 +102,12 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
   const [states, setStates] = React.useState<AiRecommendationState[]>([]);
   const [statesReady, setStatesReady] = React.useState(false);
 
+  // Integridad del último fetch. Si alguna query falló (red, RLS, timeout) los
+  // datos se setean a [] y el motor devolvería menos recomendaciones de las
+  // reales. Sin este guard, una recomendación "ausente por error" se marcaría
+  // como resuelta y se archivaría: un falso "Objetivo logrado" irreversible.
+  const fetchOkRef = React.useRef(true);
+
   // ── 1. Obtener datos del negocio (agenda, servicios, equipo) ───────────────
   React.useEffect(() => {
     if (!businessId) {
@@ -129,11 +135,15 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
           supabase.from("employees").select("id,full_name").eq("business_id", businessId),
         ]);
         if (cancelled) return;
+        fetchOkRef.current = !(apptRes.error || svcRes.error || empRes.error);
         setAppts(apptRes.error ? [] : ((apptRes.data ?? []) as EngineAppt[]));
         setServices(svcRes.error ? [] : ((svcRes.data ?? []) as EngineService[]));
         setEmployees(empRes.error ? [] : ((empRes.data ?? []) as EngineEmployee[]));
       } catch (e) {
-        if (!cancelled) setDataError((e as Error).message);
+        if (!cancelled) {
+          fetchOkRef.current = false;
+          setDataError((e as Error).message);
+        }
       } finally {
         if (!cancelled) setLoadingExtra(false);
       }
@@ -237,7 +247,9 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
         });
 
         // (b) Antes activas y hoy ausentes → resueltas (con mensaje dinámico).
-        const rowsToResolve = existing
+        // Sólo si el fetch fue íntegro: si una query falló, la ausencia puede ser
+        // por el error y no porque el problema se haya resuelto de verdad.
+        const rowsToResolve = (fetchOkRef.current ? existing : [])
           .filter((row) => row.status === "active" && !currentKeys.has(row.recommendation_key))
           .map((row) => {
             const resolvedAt = row.resolved_at ?? nowIso;
