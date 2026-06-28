@@ -107,7 +107,7 @@ type StoredAdvisorStatus = {
 function getStoredAdvisorStatuses(): Record<string, StoredAdvisorStatus> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = localStorage.getItem("clippr_advisor_action_statuses_demo");
+    const raw = localStorage.getItem("clippr_advisor_action_statuses_demo_v2");
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -116,7 +116,7 @@ function getStoredAdvisorStatuses(): Record<string, StoredAdvisorStatus> {
 
 function saveStoredAdvisorStatuses(statuses: Record<string, StoredAdvisorStatus>) {
   if (typeof window === "undefined") return;
-  localStorage.setItem("clippr_advisor_action_statuses_demo", JSON.stringify(statuses));
+  localStorage.setItem("clippr_advisor_action_statuses_demo_v2", JSON.stringify(statuses));
 }
 
 function sortAdvisorActions(actions: AdvisorAction[]) {
@@ -3975,6 +3975,7 @@ const GROWTH_VISIBLE_LIMIT = 3;
 
 function GrowthManagerTab({ businessId: _businessId }: { businessId: string | null | undefined }) {
   const [actionStatuses, setActionStatuses] = React.useState(() => getStoredAdvisorStatuses());
+  const [detailAction, setDetailAction] = React.useState<AdvisorAction | null>(null);
 
   const actions = React.useMemo(() => {
     const generated = getDemoActions(true);
@@ -4033,12 +4034,12 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
   function handlePrimaryAction(action: AdvisorAction) {
     if (action.status === "pending") {
       updateActionStatus(action, "running");
-      return;
     }
-    if (action.status === "running") {
-      updateActionStatus(action, "completed");
-      return;
-    }
+  }
+
+  function markActionCompleted(action: AdvisorAction) {
+    updateActionStatus(action, "completed");
+    setDetailAction(null);
   }
 
   return (
@@ -4078,19 +4079,19 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   {heroAction.detail}
                 </p>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <div className="mt-5 grid gap-3 xl:grid-cols-3">
+                  <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                     <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
                       <DollarSign className="h-4 w-4 text-emerald-300" />
                       Impacto estimado
                     </div>
-                    <div className="text-2xl font-bold text-emerald-300">
+                    <div className="break-words text-[clamp(1.05rem,2vw,1.5rem)] font-bold leading-tight text-emerald-300">
                       {heroAction.impactAmount}
                     </div>
                     <div className="mt-1 text-xs text-white/55">en 30 días</div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                     <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
                       <Users className="h-4 w-4 text-blue-300" />
                       {heroAction.metricLabel}
@@ -4098,7 +4099,7 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                     <div className="text-2xl font-bold text-white">{heroAction.metricValue}</div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                     <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
                       <Target className="h-4 w-4 text-violet-300" />
                       Objetivo
@@ -4144,40 +4145,42 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
               <div className="mt-5 flex flex-wrap justify-end gap-3">
                 <button
                   type="button"
+                  onClick={() => setDetailAction(heroAction)}
                   className="rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white/80 transition hover:bg-white/[0.06] hover:text-white"
                 >
                   Ver detalle
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => handlePrimaryAction(heroAction)}
-                  className={cn(
-                    "inline-flex items-center gap-3 rounded-2xl px-6 py-3 text-sm font-bold transition",
-                    heroAction.status === "completed"
-                      ? "border border-emerald-300/30 bg-emerald-400/12 text-emerald-200 shadow-[0_0_30px_rgba(16,185,129,0.18)]"
-                      : heroAction.status === "running"
+                {heroAction.status === "completed" ? (
+                  <span className="inline-flex items-center gap-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-6 py-3 text-sm font-bold text-emerald-200">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Objetivo logrado
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handlePrimaryAction(heroAction)}
+                    disabled={heroAction.status === "running"}
+                    className={cn(
+                      "inline-flex items-center gap-3 rounded-2xl px-6 py-3 text-sm font-bold transition disabled:cursor-default",
+                      heroAction.status === "running"
                         ? "border border-violet-300/30 bg-violet-400/12 text-violet-100"
                         : "bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white shadow-[0_20px_55px_-24px_rgba(168,85,247,0.9)] hover:-translate-y-0.5",
-                  )}
-                >
-                  {heroAction.status === "completed" ? (
-                    <>
-                      <CheckCircle2 className="h-5 w-5" />
-                      Objetivo logrado
-                    </>
-                  ) : heroAction.status === "running" ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Trabajando sobre esto
-                    </>
-                  ) : (
-                    <>
-                      Empezar estrategia
-                      <ArrowRight className="h-5 w-5" />
-                    </>
-                  )}
-                </button>
+                    )}
+                  >
+                    {heroAction.status === "running" ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Estrategia en curso
+                      </>
+                    ) : (
+                      <>
+                        Empezar estrategia
+                        <ArrowRight className="h-5 w-5" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -4220,9 +4223,9 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   </p>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-white/8 bg-white/[0.025] p-3">
+                    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.025] p-3">
                       <div className="text-[11px] text-white/45">Impacto estimado</div>
-                      <div className="mt-1 text-base font-bold text-emerald-300">
+                      <div className="mt-1 break-words text-sm font-bold leading-tight text-emerald-300">
                         {action.impactAmount}
                       </div>
                     </div>
@@ -4235,28 +4238,41 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handlePrimaryAction(action)}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/25 bg-violet-400/[0.045] px-4 py-3 text-sm font-bold text-violet-100 transition hover:bg-violet-400/10"
-                  >
+                  <div className="mt-4 grid gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDetailAction(action)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-bold text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      Ver detalle
+                    </button>
+
                     {action.status === "completed" ? (
-                      <>
-                        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                      <span className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-200">
+                        <CheckCircle2 className="h-4 w-4" />
                         Objetivo logrado
-                      </>
-                    ) : action.status === "running" ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Trabajando sobre esto
-                      </>
+                      </span>
                     ) : (
-                      <>
-                        Empezar estrategia
-                        <ArrowRight className="h-4 w-4" />
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => handlePrimaryAction(action)}
+                        disabled={action.status === "running"}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/25 bg-violet-400/[0.045] px-4 py-3 text-sm font-bold text-violet-100 transition hover:bg-violet-400/10 disabled:cursor-default disabled:hover:bg-violet-400/[0.045]"
+                      >
+                        {action.status === "running" ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Estrategia en curso
+                          </>
+                        ) : (
+                          <>
+                            Empezar estrategia
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </article>
               );
             })}
@@ -4332,6 +4348,15 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
         </div>
       </section>
 
+
+      {detailAction ? (
+        <AdvisorActionDetailModal
+          action={detailAction}
+          onClose={() => setDetailAction(null)}
+          onStart={() => handlePrimaryAction(detailAction)}
+          onComplete={() => markActionCompleted(detailAction)}
+        />
+      ) : null}
       <div className="rounded-[24px] border border-violet-300/25 bg-violet-400/[0.055] p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -4353,6 +4378,145 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
           >
             Entendido
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function AdvisorActionDetailModal({
+  action,
+  onClose,
+  onStart,
+  onComplete,
+}: {
+  action: AdvisorAction;
+  onClose: () => void;
+  onStart: () => void;
+  onComplete: () => void;
+}) {
+  const Icon = action.icon;
+  const canStart = action.status === "pending";
+  const canComplete = action.status === "running";
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
+      <div className="relative max-h-[90svh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-violet-300/20 bg-[#080715]/95 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_35px_120px_-45px_rgba(139,92,246,0.9)] sm:p-6">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-500/18 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 bottom-0 h-52 w-52 rounded-full bg-cyan-500/10 blur-3xl" />
+
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="flex min-w-0 gap-4">
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-violet-300/25 bg-violet-400/12">
+              <Icon className="h-7 w-7 text-violet-200" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold uppercase tracking-[0.22em] text-violet-300">
+                Detalle de estrategia
+              </div>
+              <h2 className="mt-2 break-words font-display text-2xl font-bold tracking-tight text-white">
+                {action.title}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/65">{action.detail}</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white/60 transition hover:bg-white/[0.09] hover:text-white"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <div className="text-xs text-white/45">Impacto esperado</div>
+            <div className="mt-1 break-words text-xl font-bold leading-tight text-emerald-300">
+              {action.impactAmount}
+            </div>
+          </div>
+          <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <div className="text-xs text-white/45">Métrica usada</div>
+            <div className="mt-1 break-words text-xl font-bold leading-tight text-white">
+              {action.metricValue}
+            </div>
+            <div className="mt-1 text-xs text-white/45">{action.metricLabel}</div>
+          </div>
+          <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <div className="text-xs text-white/45">Estado</div>
+            <div className="mt-1 flex items-center gap-2 text-sm font-bold text-violet-100">
+              {action.status === "completed" ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" /> Objetivo logrado
+                </>
+              ) : action.status === "running" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Estrategia en curso
+                </>
+              ) : (
+                <>
+                  <Clock className="h-4 w-4 text-violet-300" /> Pendiente
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <h3 className="text-sm font-bold text-white">Por qué se recomienda</h3>
+            <div className="mt-3 space-y-3 text-sm leading-relaxed text-white/70">
+              <p>{action.problem}</p>
+              <p>{action.impactExplanation}</p>
+              <p>{action.opportunity}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <h3 className="text-sm font-bold text-white">Acciones sugeridas</h3>
+            <div className="mt-3 space-y-2">
+              {action.howToAct.map((step) => (
+                <div key={step} className="flex gap-3 text-sm leading-relaxed text-white/70">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mt-5 rounded-2xl border border-violet-300/15 bg-violet-400/[0.055] p-4">
+          <div className="flex items-center gap-2 text-sm font-bold text-violet-200">
+            <MessageCircle className="h-4 w-4" /> Mensaje sugerido
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-white/70">{action.suggestedMessage}</p>
+        </div>
+
+        <div className="relative mt-6 flex flex-wrap justify-end gap-3">
+          {canStart ? (
+            <button
+              type="button"
+              onClick={onStart}
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5"
+            >
+              Empezar estrategia
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : null}
+
+          {canComplete ? (
+            <button
+              type="button"
+              onClick={onComplete}
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-5 py-3 text-sm font-bold text-emerald-200 transition hover:bg-emerald-400/15"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Marcar objetivo logrado
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
