@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { UserX, X, TrendingDown } from "lucide-react";
+import { UserX, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   REJECT_REASONS,
@@ -55,11 +55,6 @@ function hhmm(time: string): string {
 }
 function fmtARS(n: number): string {
   return `$${Math.round(n).toLocaleString("es-AR")}`;
-}
-function fmtDMY(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -247,29 +242,10 @@ export function RejectedClientsButton({
   const dayISO = localDateISO(date);
   const { data: dayRejected = [] } = useRejectedByDay(businessId, dayISO);
 
-  const priceByService = React.useMemo(() => {
-    const map = new Map<string, number>();
-    services.forEach((s) => {
-      const price = Number(s.price ?? 0);
-      if (s.id) map.set(s.id, price);
-      if (s.name) map.set(s.name.toLowerCase().trim(), price);
-    });
-    return map;
-  }, [services]);
-
-  const lostRevenue = React.useMemo(() => {
-    return dayRejected.reduce((total, r) => {
-      const byId = r.service_id ? priceByService.get(r.service_id) : undefined;
-      const byName = r.service_name ? priceByService.get(r.service_name.toLowerCase().trim()) : undefined;
-      return total + Number(byId ?? byName ?? 0);
-    }, 0);
-  }, [dayRejected, priceByService]);
-
-  const dayLabel = date.toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  const lostToday = React.useMemo(() => {
+    const priceById = new Map(services.map((s) => [s.id, Number(s.price ?? 0)]));
+    return dayRejected.reduce((sum, r) => sum + (r.service_id ? priceById.get(r.service_id) ?? 0 : 0), 0);
+  }, [dayRejected, services]);
 
   return (
     <>
@@ -277,65 +253,63 @@ export function RejectedClientsButton({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-200/90 ring-1 ring-rose-400/25 transition hover:bg-rose-500/15 shrink-0",
+          "inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0",
           className,
         )}
+        style={{
+          background: "oklch(0.65 0.2 25 / 0.12)",
+          boxShadow: "0 0 0 1px oklch(0.65 0.2 25 / 0.3)",
+          color: "oklch(0.65 0.2 25)",
+        }}
         title="Clientes rechazados del día"
       >
-        <UserX className="h-3.5 w-3.5" />
-        <span className="whitespace-nowrap">Rechazados</span>
-        {dayRejected.length > 0 && (
-          <span className="ml-0.5 rounded-full bg-rose-500/25 px-1.5 text-[10px] font-bold tabular-nums text-rose-100">{dayRejected.length}</span>
-        )}
+        <span className="font-semibold tabular-nums text-sm">{dayRejected.length}</span>
+        <span className="opacity-80">Rechazados</span>
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm" onClick={() => setOpen(false)} />
           <div className="fixed inset-0 z-[81] grid place-items-center p-4" onClick={() => setOpen(false)}>
-            <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between gap-2 border-b border-white/8 px-5 py-3.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
-                    <UserX className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <div className="text-sm font-bold text-white">Clientes rechazados</div>
-                    <div className="text-[11px] capitalize text-white/45">{dayLabel}</div>
-                  </div>
+                <div>
+                  <div className="text-sm font-bold text-white">Clientes rechazados</div>
+                  <div className="text-[11px] text-white/45">Día seleccionado en la Agenda</div>
                 </div>
-                <button type="button" onClick={() => setOpen(false)} className="rounded-full p-1.5 text-white/50 transition hover:bg-white/5 hover:text-white" aria-label="Cerrar">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="rounded-full p-1.5 text-white/50 transition hover:bg-white/5 hover:text-white"
+                  aria-label="Cerrar"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              <div className="space-y-4 overflow-y-auto px-5 py-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                    <div className="text-3xl font-extrabold tabular-nums text-rose-300">{dayRejected.length}</div>
-                    <div className="mt-1 text-xs leading-tight text-white/45">Clientes rechazados del día</div>
-                  </div>
-                  <div className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] px-4 py-4">
-                    <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums text-amber-300">
-                      <TrendingDown className="h-4 w-4" />
-                      {fmtARS(lostRevenue)}
+              <div className="space-y-5 overflow-y-auto px-5 py-4">
+                <div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Resumen del día</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                      <div className="text-2xl font-extrabold tabular-nums text-rose-300">{dayRejected.length}</div>
+                      <div className="mt-0.5 text-[11px] leading-tight text-white/45">Clientes rechazados</div>
                     </div>
-                    <div className="mt-1 text-xs leading-tight text-white/45">Facturación potencial perdida</div>
+                    <div className="rounded-xl border border-amber-300/15 bg-amber-500/[0.05] px-3 py-3">
+                      <div className="text-2xl font-extrabold tabular-nums text-amber-300">{fmtARS(lostToday)}</div>
+                      <div className="mt-0.5 text-[11px] leading-tight text-white/45">Dinero estimado perdido</div>
+                    </div>
                   </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                  <div className="mb-1.5 text-xs font-bold uppercase tracking-wider text-white/45">¿Para qué sirve?</div>
-                  <p className="text-sm leading-relaxed text-white/60">
-                    Registrá los clientes que no pudieron atenderse. Clippr usa esta información junto con la ocupación de la agenda para detectar demanda no atendida. El Asesor IA analizará estos datos para ayudarte a decidir cuándo conviene incorporar un profesional, ampliar horarios o ajustar precios.
-                  </p>
                 </div>
 
                 <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Registros del día</div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Detalle del día</div>
                   {dayRejected.length === 0 ? (
                     <div className="rounded-xl border border-white/8 bg-white/[0.02] px-3 py-6 text-center text-xs text-white/40">
-                      Sin clientes rechazados este día.
+                      No hay clientes rechazados para este día.
                     </div>
                   ) : (
                     <div className="max-h-[280px] space-y-1.5 overflow-y-auto pr-1">
@@ -356,6 +330,11 @@ export function RejectedClientsButton({
                       })}
                     </div>
                   )}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs leading-relaxed text-white/55">
+                  <div className="mb-1 font-semibold text-white/75">¿Para qué sirve?</div>
+                  Registrá los clientes que no pudieron atenderse. Clippr usa esta información junto con la ocupación de la agenda para detectar demanda no atendida. El Asesor IA analizará estos datos para ayudarte a decidir cuándo conviene incorporar un profesional, ampliar horarios o ajustar precios.
                 </div>
               </div>
             </div>
