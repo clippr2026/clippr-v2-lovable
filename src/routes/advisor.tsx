@@ -4079,13 +4079,13 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   {heroAction.detail}
                 </p>
 
-                <div className="mt-5 grid gap-3 xl:grid-cols-3">
+                <div className="mt-5 grid gap-3 sm:grid-cols-[1.35fr_0.75fr_1fr]">
                   <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                     <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
                       <DollarSign className="h-4 w-4 text-emerald-300" />
                       Impacto estimado
                     </div>
-                    <div className="break-words text-[clamp(1.05rem,2vw,1.5rem)] font-bold leading-tight text-emerald-300">
+                    <div className="whitespace-nowrap text-[clamp(1rem,1.35vw,1.22rem)] font-bold leading-none tracking-[-0.04em] text-emerald-300">
                       {heroAction.impactAmount}
                     </div>
                     <div className="mt-1 text-xs text-white/55">en 30 días</div>
@@ -4140,7 +4140,17 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                 </div>
               </div>
 
-              <div className="mt-5 h-28 rounded-2xl border border-violet-300/10 bg-[radial-gradient(circle_at_80%_20%,rgba(168,85,247,0.35),transparent_32%),linear-gradient(135deg,rgba(139,92,246,0.12),rgba(15,23,42,0.25))]" />
+              <div className="mt-5 rounded-2xl border border-violet-300/10 bg-[radial-gradient(circle_at_80%_20%,rgba(168,85,247,0.25),transparent_32%),linear-gradient(135deg,rgba(139,92,246,0.10),rgba(15,23,42,0.24))] p-4">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-violet-200/85">
+                  <Brain className="h-4 w-4" />
+                  Siguiente paso
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/65">
+                  {heroAction.status === "running"
+                    ? "La estrategia ya está iniciada. Entrá en Ver detalle para seguir las acciones sugeridas y marcarla como lograda cuando se cumpla."
+                    : "Empezá la estrategia para activar el seguimiento. No se marcará como lograda hasta que la confirmes desde el detalle."}
+                </p>
+              </div>
 
               <div className="mt-5 flex flex-wrap justify-end gap-3">
                 <button
@@ -4164,14 +4174,14 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                     className={cn(
                       "inline-flex items-center gap-3 rounded-2xl px-6 py-3 text-sm font-bold transition disabled:cursor-default",
                       heroAction.status === "running"
-                        ? "border border-violet-300/30 bg-violet-400/12 text-violet-100"
+                        ? "border border-sky-300/30 bg-sky-400/10 text-sky-100"
                         : "bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white shadow-[0_20px_55px_-24px_rgba(168,85,247,0.9)] hover:-translate-y-0.5",
                     )}
                   >
                     {heroAction.status === "running" ? (
                       <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Estrategia en curso
+                        <Clock className="h-5 w-5" />
+                        Estrategia iniciada
                       </>
                     ) : (
                       <>
@@ -4225,7 +4235,7 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.025] p-3">
                       <div className="text-[11px] text-white/45">Impacto estimado</div>
-                      <div className="mt-1 break-words text-sm font-bold leading-tight text-emerald-300">
+                      <div className="mt-1 whitespace-nowrap text-[13px] font-bold leading-none tracking-[-0.03em] text-emerald-300">
                         {action.impactAmount}
                       </div>
                     </div>
@@ -4261,8 +4271,8 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                       >
                         {action.status === "running" ? (
                           <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Estrategia en curso
+                            <Clock className="h-4 w-4" />
+                            Estrategia iniciada
                           </>
                         ) : (
                           <>
@@ -4434,7 +4444,7 @@ function AdvisorActionDetailModal({
         <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
           <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
             <div className="text-xs text-white/45">Impacto esperado</div>
-            <div className="mt-1 break-words text-xl font-bold leading-tight text-emerald-300">
+            <div className="mt-1 whitespace-nowrap text-lg font-bold leading-none tracking-[-0.03em] text-emerald-300">
               {action.impactAmount}
             </div>
           </div>
@@ -4454,7 +4464,7 @@ function AdvisorActionDetailModal({
                 </>
               ) : action.status === "running" ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Estrategia en curso
+                  <Clock className="h-4 w-4 text-sky-300" /> Estrategia iniciada
                 </>
               ) : (
                 <>
