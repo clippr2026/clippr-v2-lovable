@@ -10,6 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
 import { TIER_EMOJI, buildDemandRecommendations } from "@/lib/rejected-analytics";
+import { useAiRecommendations, type RecommendationAchievement } from "@/hooks/use-ai-recommendations";
+import type {
+  Recommendation,
+  RecommendationContact,
+  RecommendationTone,
+  RecommendationPriority,
+} from "@/lib/ai-recommendation-engine";
 import {
   AlertTriangle,
   Bell,
@@ -3197,659 +3204,7 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
 //  NO modifica base de datos ni ninguna otra parte de la app.
 // ══════════════════════════════════════════════════════════════════════════
 
-type GrowthAppt = {
-  id: string;
-  client_id: string | null;
-  client_name: string | null;
-  service_name: string | null;
-  service_price: number | null;
-  starts_at: string;
-  status: string;
-  employee_id: string | null;
-};
-
-type GrowthService = { id: string; name: string; price: number | null };
-type GrowthEmployee = { id: string; full_name: string };
-
-type GrowthContact = { name: string; phone?: string | null; detail?: string };
-
-type GrowthCategory = "recuperacion" | "agenda" | "equipo" | "ticket" | "rentabilidad";
-
-type GrowthRec = {
-  id: string;
-  category: GrowthCategory;
-  icon: string;
-  tone: "money" | "warning" | "growth" | "client";
-  title: string;
-  problem: string;
-  moneyLost: number;
-  moneyRecoverable: number;
-  action: string;
-  steps: string[];
-  who: string;
-  contacts: GrowthContact[];
-  message: string;
-  measure: string;
-  basis: string;
-  priority: number;
-};
-
-type AiRecommendationStatus = "active" | "resolved" | "archived";
-
-type AiRecommendationState = {
-  recommendation_key: string;
-  status: AiRecommendationStatus;
-  first_seen_at: string | null;
-  last_seen_at: string | null;
-  resolved_at: string | null;
-  hidden_at: string | null;
-  metadata: Record<string, unknown> | null;
-};
-
-const AI_RECOMMENDATION_RESOLVED_VISIBLE_DAYS = 3;
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function getRecommendationMetadata(rec: GrowthRec) {
-  return {
-    title: rec.title,
-    category: rec.category,
-    tone: rec.tone,
-    icon: rec.icon,
-    moneyLost: rec.moneyLost,
-    moneyRecoverable: rec.moneyRecoverable,
-    priority: rec.priority,
-  };
-}
-
-function useAiRecommendationStates(
-  businessId: string | null | undefined,
-  currentRecommendations: GrowthRec[],
-) {
-  const [states, setStates] = React.useState<AiRecommendationState[]>([]);
-  const [ready, setReady] = React.useState(false);
-
-  const signature = React.useMemo(
-    () =>
-      currentRecommendations
-        .map((r) => `${r.id}:${r.priority}:${r.moneyLost}:${r.moneyRecoverable}`)
-        .sort()
-        .join("|"),
-    [currentRecommendations],
-  );
-
-  React.useEffect(() => {
-    if (!businessId) {
-      setStates([]);
-      setReady(true);
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      setReady(false);
-      const now = new Date();
-      const nowIso = now.toISOString();
-      const currentKeys = new Set(currentRecommendations.map((r) => r.id));
-
-      try {
-        const { data, error } = await supabase
-          .from("ai_recommendation_states")
-          .select("recommendation_key,status,first_seen_at,last_seen_at,resolved_at,hidden_at,metadata")
-          .eq("business_id", businessId);
-
-        if (error) throw error;
-
-        const existing = ((data ?? []) as AiRecommendationState[]).map((row) => ({
-          ...row,
-          metadata: (row.metadata ?? {}) as Record<string, unknown>,
-        }));
-        const existingByKey = new Map(existing.map((row) => [row.recommendation_key, row]));
-
-        const activeRows = currentRecommendations.map((rec) => ({
-          business_id: businessId,
-          recommendation_key: rec.id,
-          status: "active",
-          last_seen_at: nowIso,
-          resolved_at: null,
-          hidden_at: null,
-          metadata: getRecommendationMetadata(rec),
-        }));
-
-        const rowsToResolve = existing
-          .filter((row) => row.status === "active" && !currentKeys.has(row.recommendation_key))
-          .map((row) => ({
-            business_id: businessId,
-            recommendation_key: row.recommendation_key,
-            status: "resolved",
-            last_seen_at: nowIso,
-            resolved_at: row.resolved_at ?? nowIso,
-            hidden_at: row.hidden_at ?? addDays(now, AI_RECOMMENDATION_RESOLVED_VISIBLE_DAYS).toISOString(),
-            metadata: row.metadata ?? {},
-          }));
-
-        const rowsToArchive = existing
-          .filter(
-            (row) =>
-              row.status === "resolved" &&
-              row.hidden_at &&
-              new Date(row.hidden_at).getTime() <= now.getTime(),
-          )
-          .map((row) => ({
-            business_id: businessId,
-            recommendation_key: row.recommendation_key,
-            status: "archived",
-            last_seen_at: nowIso,
-            resolved_at: row.resolved_at,
-            hidden_at: row.hidden_at,
-            metadata: row.metadata ?? {},
-          }));
-
-        const upserts = [...activeRows, ...rowsToResolve, ...rowsToArchive];
-        if (upserts.length > 0) {
-          await supabase
-            .from("ai_recommendation_states")
-            .upsert(upserts, { onConflict: "business_id,recommendation_key" });
-        }
-
-        if (cancelled) return;
-
-        const nextByKey = new Map(existingByKey);
-        for (const row of activeRows) {
-          nextByKey.set(row.recommendation_key, {
-            ...(existingByKey.get(row.recommendation_key) ?? {}),
-            recommendation_key: row.recommendation_key,
-            status: "active",
-            first_seen_at: existingByKey.get(row.recommendation_key)?.first_seen_at ?? nowIso,
-            last_seen_at: nowIso,
-            resolved_at: null,
-            hidden_at: null,
-            metadata: row.metadata,
-          } as AiRecommendationState);
-        }
-        for (const row of rowsToResolve) {
-          nextByKey.set(row.recommendation_key, {
-            ...(existingByKey.get(row.recommendation_key) ?? {}),
-            recommendation_key: row.recommendation_key,
-            status: "resolved",
-            first_seen_at: existingByKey.get(row.recommendation_key)?.first_seen_at ?? nowIso,
-            last_seen_at: nowIso,
-            resolved_at: row.resolved_at,
-            hidden_at: row.hidden_at,
-            metadata: row.metadata,
-          } as AiRecommendationState);
-        }
-        for (const row of rowsToArchive) {
-          nextByKey.set(row.recommendation_key, {
-            ...(existingByKey.get(row.recommendation_key) ?? {}),
-            recommendation_key: row.recommendation_key,
-            status: "archived",
-            first_seen_at: existingByKey.get(row.recommendation_key)?.first_seen_at ?? nowIso,
-            last_seen_at: nowIso,
-            resolved_at: row.resolved_at,
-            hidden_at: row.hidden_at,
-            metadata: row.metadata,
-          } as AiRecommendationState);
-        }
-
-        setStates(Array.from(nextByKey.values()));
-        setReady(true);
-      } catch (error) {
-        // Degradación segura: si la tabla SQL todavía no existe, el Gerente IA
-        // sigue funcionando con recomendaciones activas, pero sin historial de logros.
-        if (!cancelled) {
-          setStates(
-            currentRecommendations.map((rec) => ({
-              recommendation_key: rec.id,
-              status: "active",
-              first_seen_at: nowIso,
-              last_seen_at: nowIso,
-              resolved_at: null,
-              hidden_at: null,
-              metadata: getRecommendationMetadata(rec),
-            })),
-          );
-          setReady(true);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [businessId, signature]);
-
-  const stateByKey = React.useMemo(
-    () => new Map(states.map((state) => [state.recommendation_key, state])),
-    [states],
-  );
-
-  const visibleResolvedStates = React.useMemo(() => {
-    const now = Date.now();
-    return states.filter(
-      (state) =>
-        state.status === "resolved" &&
-        (!state.hidden_at || new Date(state.hidden_at).getTime() > now),
-    );
-  }, [states]);
-
-  return { ready, stateByKey, visibleResolvedStates };
-}
-
-function getDaysSince(dateIso: string | null) {
-  if (!dateIso) return 0;
-  const diff = Date.now() - new Date(dateIso).getTime();
-  return Math.max(0, Math.floor(diff / 86_400_000));
-}
-
-function ResolvedRecommendationCard({ state }: { state: AiRecommendationState }) {
-  const meta = (state.metadata ?? {}) as Record<string, unknown>;
-  const title = typeof meta.title === "string" ? meta.title : "Recomendación resuelta";
-  const recoverable = Number(meta.moneyRecoverable ?? 0);
-  const days = getDaysSince(state.resolved_at);
-
-  return (
-    <div className="relative overflow-hidden rounded-[26px] border border-emerald-300/20 bg-emerald-500/[0.055] p-5 ring-1 ring-emerald-300/20 backdrop-blur-2xl sm:p-6">
-      <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
-      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/30">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Objetivo logrado
-          </span>
-          <h3 className="mt-3 text-xl font-extrabold leading-tight text-white">{title}</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-white/65">
-            Los datos muestran que esta oportunidad ya mejoró. La dejamos visible 3 días como logro y después pasa al historial del Gerente IA.
-          </p>
-        </div>
-        <div className="shrink-0 text-left sm:text-right">
-          {recoverable > 0 ? (
-            <>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">Impacto recuperado</div>
-              <div className="mt-1 text-2xl font-black text-emerald-200">{fmtAR(recoverable)}</div>
-            </>
-          ) : null}
-          <div className="mt-2 text-xs font-semibold text-emerald-200/75">
-            {days === 0 ? "Logrado hoy" : `Logrado hace ${days} ${days === 1 ? "día" : "días"}`}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const DONE_STATUSES = ["completed", "charged"];
-const DOW_LABELS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-
-function useGrowthData(businessId: string | null | undefined) {
-  const clientsQuery = useClientsData(businessId ?? null);
-  const [appts, setAppts] = React.useState<GrowthAppt[]>([]);
-  const [services, setServices] = React.useState<GrowthService[]>([]);
-  const [employees, setEmployees] = React.useState<GrowthEmployee[]>([]);
-  const [loadingExtra, setLoadingExtra] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (!businessId) {
-      setLoadingExtra(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setLoadingExtra(true);
-      setError(null);
-      const since = new Date();
-      since.setDate(since.getDate() - 90);
-      try {
-        const [apptRes, svcRes, empRes] = await Promise.all([
-          supabase
-            .from("appointments")
-            .select("id,client_id,client_name,service_name,service_price,starts_at,status,employee_id")
-            .eq("business_id", businessId)
-            .gte("starts_at", since.toISOString())
-            .order("starts_at", { ascending: false }),
-          supabase.from("services").select("id,name,price").eq("business_id", businessId),
-          supabase.from("employees").select("id,full_name").eq("business_id", businessId),
-        ]);
-        if (cancelled) return;
-        setAppts((apptRes.error ? [] : ((apptRes.data ?? []) as GrowthAppt[])));
-        setServices((svcRes.error ? [] : ((svcRes.data ?? []) as GrowthService[])));
-        setEmployees((empRes.error ? [] : ((empRes.data ?? []) as GrowthEmployee[])));
-      } catch (e) {
-        if (!cancelled) setError((e as Error).message);
-      } finally {
-        if (!cancelled) setLoadingExtra(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [businessId]);
-
-  return {
-    clients: clientsQuery.data ?? [],
-    appts,
-    services,
-    employees,
-    loading: clientsQuery.isLoading || loadingExtra,
-    error: error || (clientsQuery.error as Error | null)?.message || null,
-  };
-}
-
-function buildGrowthRecommendations(
-  clients: Client[],
-  appts: GrowthAppt[],
-  services: GrowthService[],
-  employees: GrowthEmployee[],
-): { recs: GrowthRec[]; avgTicket: number; totalOpportunity: number } {
-  const recs: GrowthRec[] = [];
-
-  // Ticket promedio real (gasto total / visitas reales).
-  const totalVisits = clients.reduce((s, c) => s + c.visits, 0);
-  const totalSpent = clients.reduce((s, c) => s + c.spent, 0);
-  const svcPrices = services.map((s) => Number(s.price ?? 0)).filter((p) => p > 0);
-  const apptPrices = appts.map((a) => Number(a.service_price ?? 0)).filter((p) => p > 0);
-  const avgSvcPrice =
-    svcPrices.length > 0
-      ? Math.round(svcPrices.reduce((a, b) => a + b, 0) / svcPrices.length)
-      : apptPrices.length > 0
-        ? Math.round(apptPrices.reduce((a, b) => a + b, 0) / apptPrices.length)
-        : 0;
-  const avgTicket = totalVisits > 0 ? Math.round(totalSpent / totalVisits) : avgSvcPrice;
-
-  const done = appts.filter((a) => DONE_STATUSES.includes(a.status));
-  const empName = (id: string | null) => employees.find((e) => e.id === id)?.full_name ?? "Sin asignar";
-
-  // ── 1. VIP en riesgo (alto valor que se está enfriando) ────────────────────
-  const vipRisk = clients
-    .filter((c) => (c.visits >= 8 || c.spent >= 100000) && (c.lastVisitDays ?? 0) >= 30)
-    .sort((a, b) => b.spent - a.spent);
-  if (vipRisk.length > 0) {
-    const perClient = vipRisk.map((c) => (c.visits > 0 ? Math.round(c.spent / c.visits) : avgTicket));
-    const lost = perClient.reduce((a, b) => a + b, 0);
-    const recoverable = Math.round(lost * 0.6);
-    recs.push({
-      id: "vip-riesgo",
-      category: "recuperacion",
-      icon: "👑",
-      tone: "money",
-      title: "Clientes VIP enfriándose",
-      problem: `${vipRisk.length} de tus mejores clientes (los que más gastan y más vienen) no pasan hace más de 30 días.`,
-      moneyLost: lost,
-      moneyRecoverable: recoverable,
-      action: "Contactá uno por uno a tus VIP con un mensaje personal (no masivo) y ofrecéles prioridad de turno esta semana.",
-      steps: [
-        "Abrí la lista de VIP de abajo y mandales un WhatsApp personalizado con su nombre.",
-        "Ofrecé un turno reservado a su horario habitual sin que tengan que pedirlo.",
-        "Sumá un detalle premium gratis (lavado, perfilado de barba o asesoramiento) para que sientan el trato VIP.",
-      ],
-      who: `${vipRisk.length} clientes VIP sin visita reciente`,
-      contacts: vipRisk.slice(0, 8).map((c) => ({
-        name: c.name,
-        phone: c.phone,
-        detail: `${c.visits} visitas · ${fmtAR(c.spent)} · ${c.lastVisit ?? "hace tiempo"}`,
-      })),
-      message:
-        "Hola {nombre} 👋 Soy de la barbería. Te tengo reservado tu horario de siempre para esta semana así no te quedás sin lugar. ¿Te viene bien el {día}? Cualquier cosa lo movemos. ✂️",
-      measure: "Cuántos de estos VIP reservaron en los próximos 7 días. Meta: recuperar al menos la mitad.",
-      basis: `Ticket real por VIP: ${fmtAR(Math.round(lost / vipRisk.length))}. Recuperable estimado con un retorno del 60%.`,
-      priority: recoverable + 100000,
-    });
-  }
-
-  // ── 2. Clientes inactivos (+45 días) ───────────────────────────────────────
-  const inactivos = clients
-    .filter((c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180)
-    .filter((c) => !vipRisk.some((v) => v.id === c.id))
-    .sort((a, b) => b.spent - a.spent);
-  if (inactivos.length > 0) {
-    const lost = inactivos.length * avgTicket;
-    const recoverable = Math.round(lost * 0.35);
-    recs.push({
-      id: "inactivos-45",
-      category: "recuperacion",
-      icon: "🔁",
-      tone: "client",
-      title: "Clientes que dejaron de venir",
-      problem: `${inactivos.length} clientes que ya te conocían no vuelven hace más de 45 días. Cada semana que pasa es más difícil recuperarlos.`,
-      moneyLost: lost,
-      moneyRecoverable: recoverable,
-      action: `Lanzá una campaña de reactivación a estos ${inactivos.length} clientes con un motivo concreto para volver esta semana.`,
-      steps: [
-        "Mandá el mensaje de abajo por WhatsApp a la lista de clientes inactivos.",
-        "Dales un motivo con fecha límite: un beneficio que vence el domingo.",
-        "Si en 3 días no responden, mandá un segundo mensaje corto recordando el beneficio.",
-      ],
-      who: `${inactivos.length} clientes inactivos (45+ días)`,
-      contacts: inactivos.slice(0, 8).map((c) => ({
-        name: c.name,
-        phone: c.phone,
-        detail: `${c.visits} visitas · última ${c.lastVisit ?? "hace tiempo"}`,
-      })),
-      message:
-        "Hola {nombre} 👋 ¡Hace rato que no te vemos! Esta semana te guardamos un lugar y un 15% off en tu próximo corte. Válido hasta el domingo. ¿Te reservo? ✂️",
-      measure: "Cuántos volvieron en 14 días. Si vuelve 1 de cada 3, la campaña ya es rentable.",
-      basis: `Ticket promedio real: ${fmtAR(avgTicket)}. Recuperable estimado con retorno conservador del 35%.`,
-      priority: recoverable + 50000,
-    });
-  }
-
-  // ── 3. Día muerto (el día que menos factura) ───────────────────────────────
-  if (done.length >= 10) {
-    const weeks = 90 / 7;
-    const byDow = Array.from({ length: 7 }, () => ({ revenue: 0, count: 0 }));
-    done.forEach((a) => {
-      const d = new Date(a.starts_at).getDay();
-      byDow[d].revenue += Number(a.service_price ?? avgTicket);
-      byDow[d].count += 1;
-    });
-    // Solo días laborables con actividad (excluye domingo si está vacío).
-    const active = byDow
-      .map((v, dow) => ({ dow, perWeek: v.revenue / weeks, count: v.count }))
-      .filter((v) => v.count > 0);
-    if (active.length >= 2) {
-      const best = active.reduce((m, v) => (v.perWeek > m.perWeek ? v : m));
-      const worst = active.reduce((m, v) => (v.perWeek < m.perWeek ? v : m));
-      const gapMonthly = Math.round((best.perWeek - worst.perWeek) * 4);
-      if (gapMonthly > avgTicket) {
-        recs.push({
-          id: "dia-muerto",
-          category: "agenda",
-          icon: "📉",
-          tone: "warning",
-          title: `El ${DOW_LABELS[worst.dow]} es tu agujero de plata`,
-          problem: `Los ${DOW_LABELS[worst.dow]} facturás muy por debajo de tu mejor día (${DOW_LABELS[best.dow]}). Es agenda vacía que ya estás pagando igual (alquiler, sillón, tu tiempo).`,
-          moneyLost: gapMonthly,
-          moneyRecoverable: Math.round(gapMonthly * 0.5),
-          action: `Convertí el ${DOW_LABELS[worst.dow]} en tu día de ofertas: promo fija + difusión el día anterior.`,
-          steps: [
-            `Creá una promo exclusiva del ${DOW_LABELS[worst.dow]} (ej: corte + barba a precio especial, o 2x1 con un amigo).`,
-            `Publicá los turnos libres del ${DOW_LABELS[worst.dow]} en Instagram y estados de WhatsApp el ${DOW_LABELS[(worst.dow + 6) % 7]}.`,
-            "Ofrecé ese día a clientes que siempre piden horarios saturados como alternativa cómoda.",
-          ],
-          who: "Clientes activos + seguidores de Instagram/WhatsApp",
-          contacts: [],
-          message:
-            `🔥 Promo de los ${DOW_LABELS[worst.dow]}: corte + barba a precio especial, solo con turno previo. Quedan pocos lugares, escribime y te reservo. ✂️`,
-          measure: `Facturación del ${DOW_LABELS[worst.dow]} en las próximas 3 semanas vs hoy.`,
-          basis: `Diferencia real ${DOW_LABELS[best.dow]} vs ${DOW_LABELS[worst.dow]}, proyectada a un mes.`,
-          priority: gapMonthly,
-        });
-      }
-    }
-  }
-
-  // ── 4. Profesional con baja ocupación ──────────────────────────────────────
-  if (employees.length >= 2 && done.length >= 12) {
-    const byEmp = new Map<string, number>();
-    done.forEach((a) => {
-      if (!a.employee_id) return;
-      byEmp.set(a.employee_id, (byEmp.get(a.employee_id) ?? 0) + 1);
-    });
-    if (byEmp.size >= 2) {
-      const counts = [...byEmp.entries()].map(([id, count]) => ({ id, count }));
-      const avg = counts.reduce((s, c) => s + c.count, 0) / counts.length;
-      const low = counts.reduce((m, c) => (c.count < m.count ? c : m));
-      if (low.count < avg * 0.6) {
-        const gap = Math.round((avg - low.count) * avgSvcPrice);
-        recs.push({
-          id: "prof-baja-ocupacion",
-          category: "equipo",
-          icon: "🪑",
-          tone: "warning",
-          title: `${empName(low.id)} tiene el sillón frío`,
-          problem: `${empName(low.id)} atendió bastante menos que el promedio del equipo en los últimos 90 días. Sillón parado = plata parada.`,
-          moneyLost: gap,
-          moneyRecoverable: Math.round(gap * 0.7),
-          action: `Dirigí demanda hacia ${empName(low.id)}: asignale los nuevos turnos y mostralo en tu perfil público.`,
-          steps: [
-            `Cuando entren reservas sin profesional elegido, asignáselas a ${empName(low.id)}.`,
-            `Pediles a tus clientes nuevos que prueben con ${empName(low.id)} destacando su especialidad.`,
-            `Dale a ${empName(low.id)} un horario propio en la promo del día flojo para que arranque su agenda.`,
-          ],
-          who: `${empName(low.id)} (profesional con menor ocupación)`,
-          contacts: [],
-          message:
-            `¿Probaste cortarte con ${empName(low.id)}? Esta semana tiene los mejores horarios disponibles. Escribime y te reservo. ✂️`,
-          measure: `Turnos completados por ${empName(low.id)} el próximo mes vs los últimos 30 días.`,
-          basis: `Promedio del equipo: ${Math.round(avg)} turnos. ${empName(low.id)}: ${low.count}. Valorizado al precio medio de servicio.`,
-          priority: gap,
-        });
-      }
-    }
-  }
-
-  // ── 5. Oportunidad corte + barba (combo clásico de barbería) ───────────────
-  const corteSinBarba = clients.filter(
-    (c) =>
-      c.history.some((h) => /corte|pelo|cabello/i.test(h.service)) &&
-      !c.history.some((h) => /barba/i.test(h.service)) &&
-      (c.lastVisitDays ?? 999) <= 90,
-  );
-  if (corteSinBarba.length >= 3) {
-    const barbaSvc = services.find((s) => /barba/i.test(s.name));
-    const barbaPrice = Number(barbaSvc?.price ?? 0) || Math.round(avgTicket * 0.5);
-    const recoverable = Math.round(corteSinBarba.length * barbaPrice * 0.3);
-    recs.push({
-      id: "corte-mas-barba",
-      category: "ticket",
-      icon: "🧔",
-      tone: "growth",
-      title: "Corte sí, barba no: ticket sin explotar",
-      problem: `${corteSinBarba.length} clientes activos se cortan con vos pero nunca sumaron la barba. Es la venta más fácil que estás dejando pasar.`,
-      moneyLost: 0,
-      moneyRecoverable: recoverable,
-      action: "Convertí el corte+barba en oferta por defecto: ofrecelo en el sillón, no esperes que lo pidan.",
-      steps: [
-        `Entrená al equipo para ofrecer la barba a todo cliente de corte: "¿Te emprolijo la barba también?".`,
-        `Mostrá un precio combo atractivo (corte + barba) más barato que comprarlos por separado.`,
-        "Mandá el mensaje de abajo a los clientes que nunca probaron el servicio de barba.",
-      ],
-      who: `${corteSinBarba.length} clientes de corte que nunca hicieron barba`,
-      contacts: corteSinBarba.slice(0, 8).map((c) => ({
-        name: c.name,
-        phone: c.phone,
-        detail: `${c.visits} cortes · ${c.lastVisit ?? ""}`,
-      })),
-      message:
-        `Hola {nombre} 👋 Esta semana estamos con combo corte + barba a precio especial. Te queda 🔥. ¿Lo sumamos a tu próximo turno? ✂️`,
-      measure: "Cuántos de estos clientes sumaron barba en su próxima visita.",
-      basis: `Precio de barba usado: ${fmtAR(barbaPrice)}. Recuperable con adopción del 30%.`,
-      priority: recoverable + 20000,
-    });
-  }
-
-  // ── 6. Cancelaciones recurrentes ───────────────────────────────────────────
-  const cancels = appts.filter((a) => a.status === "cancelled" && a.client_name);
-  if (cancels.length >= 3) {
-    const byClient = new Map<string, number>();
-    cancels.forEach((a) => {
-      const k = (a.client_name ?? "").trim();
-      if (k) byClient.set(k, (byClient.get(k) ?? 0) + 1);
-    });
-    const repeat = [...byClient.entries()].filter(([, n]) => n >= 2);
-    const lost = cancels.length * avgTicket;
-    if (lost > avgTicket) {
-      recs.push({
-        id: "cancelaciones",
-        category: "agenda",
-        icon: "🚫",
-        tone: "warning",
-        title: "Las cancelaciones te están vaciando turnos",
-        problem: `Tuviste ${cancels.length} cancelaciones en los últimos 90 días${repeat.length > 0 ? ` y ${repeat.length} clientes cancelan de forma repetida` : ""}. Cada hueco que no se rellena es plata perdida.`,
-        moneyLost: lost,
-        moneyRecoverable: Math.round(lost * 0.5),
-        action: "Implementá recordatorio + lista de espera para tapar los huecos al instante.",
-        steps: [
-          "Mandá un recordatorio por WhatsApp 24 hs antes de cada turno para bajar el ausentismo.",
-          "Armá una lista de espera de clientes que quieren entrar antes; ofrecéles el hueco apenas alguien cancela.",
-          repeat.length > 0
-            ? "A los que cancelan repetido, pedí una seña simbólica para reservar."
-            : "Pedí confirmación el día anterior para liberar el lugar a tiempo.",
-        ],
-        who: repeat.length > 0 ? `${repeat.length} clientes con cancelaciones repetidas` : "Clientes con turno próximo",
-        contacts: repeat.slice(0, 8).map(([name, n]) => ({ name, detail: `${n} cancelaciones` })),
-        message:
-          "Hola {nombre} 👋 Te recuerdo tu turno de mañana ✂️ Si no podés venir, avisame así libero el lugar para otra persona. ¡Gracias!",
-        measure: "Cantidad de cancelaciones y ausencias el próximo mes vs hoy.",
-        basis: `Cada turno perdido vale ${fmtAR(avgTicket)}. Recuperable estimado tapando la mitad de los huecos.`,
-        priority: Math.round(lost * 0.5),
-      });
-    }
-  }
-
-  // ── 7. Servicio premium poco vendido ───────────────────────────────────────
-  if (services.length >= 3 && done.length >= 10) {
-    const usage = new Map<string, number>();
-    done.forEach((a) => {
-      const n = (a.service_name ?? "").toLowerCase();
-      usage.set(n, (usage.get(n) ?? 0) + 1);
-    });
-    const pricedSorted = [...services]
-      .filter((s) => Number(s.price ?? 0) > avgSvcPrice * 1.2)
-      .sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0));
-    const premium = pricedSorted.find((s) => (usage.get(s.name.toLowerCase()) ?? 0) <= Math.max(1, done.length * 0.05));
-    if (premium) {
-      const target = Math.max(4, Math.round(done.length * 0.08));
-      const recoverable = Math.round(target * Number(premium.price ?? 0));
-      recs.push({
-        id: "premium-poco-vendido",
-        category: "rentabilidad",
-        icon: "💎",
-        tone: "growth",
-        title: `"${premium.name}" casi no se vende`,
-        problem: `${premium.name} es uno de tus servicios más caros (${fmtAR(Number(premium.price ?? 0))}) pero casi nadie lo pide. Tenés margen alto sin aprovechar.`,
-        moneyLost: 0,
-        moneyRecoverable: recoverable,
-        action: `Hacé visible y deseable el ${premium.name}: mostralo, explicá el beneficio y ofrecelo activamente.`,
-        steps: [
-          `Mostrá el ${premium.name} en tu perfil público y en el local con una foto de antes/después.`,
-          `Entrená al equipo para recomendarlo al cliente indicado en el momento justo.`,
-          `Probá una promo de lanzamiento por tiempo limitado para que lo prueben.`,
-        ],
-        who: "Clientes que buscan calidad / experiencia premium",
-        contacts: [],
-        message:
-          `Sumamos ${premium.name} ✨ Ideal si querés un resultado de otro nivel. Esta semana con cupo limitado. ¿Te lo reservo? ✂️`,
-        measure: `Cuántos ${premium.name} vendiste el próximo mes (hoy: casi cero).`,
-        basis: `Precio del servicio: ${fmtAR(Number(premium.price ?? 0))}. Meta conservadora: ${target} ventas/mes.`,
-        priority: recoverable + 10000,
-      });
-    }
-  }
-
-  recs.sort((a, b) => b.priority - a.priority);
-  const totalOpportunity = recs.reduce((s, r) => s + r.moneyRecoverable, 0);
-  return { recs, avgTicket, totalOpportunity };
-}
-
-// ─────────────────────────── UI premium ───────────────────────────
-
-function GrowthContactsBlock({ contacts }: { contacts: GrowthContact[] }) {
+function GrowthContactsBlock({ contacts }: { contacts: RecommendationContact[] }) {
   const [open, setOpen] = React.useState(false);
   if (contacts.length === 0) return null;
   return (
@@ -3934,31 +3289,108 @@ function GrowthMessageBlock({ message }: { message: string }) {
   );
 }
 
-const GROWTH_TONES: Record<GrowthRec["tone"], { ring: string; glow: string; chip: string }> = {
+const GROWTH_TONES: Record<RecommendationTone, { ring: string; glow: string; chip: string }> = {
   money: { ring: "ring-amber-300/25", glow: "from-amber-500/20 via-orange-500/10 to-transparent", chip: "bg-amber-400/15 text-amber-200 ring-amber-300/30" },
   warning: { ring: "ring-rose-300/25", glow: "from-rose-500/20 via-red-500/10 to-transparent", chip: "bg-rose-400/15 text-rose-200 ring-rose-300/30" },
   growth: { ring: "ring-emerald-300/25", glow: "from-emerald-500/20 via-teal-500/10 to-transparent", chip: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" },
   client: { ring: "ring-cyan-300/25", glow: "from-cyan-500/20 via-blue-500/10 to-transparent", chip: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/30" },
 };
 
-type PriorityLevel = "alta" | "media" | "baja";
-const PRIORITY_META: Record<PriorityLevel, { label: string; emoji: string; chip: string }> = {
+const PRIORITY_META: Record<RecommendationPriority, { label: string; emoji: string; chip: string }> = {
   alta: { label: "Alta", emoji: "🔥", chip: "bg-rose-500/15 text-rose-200 ring-rose-400/35" },
   media: { label: "Media", emoji: "🟡", chip: "bg-amber-400/15 text-amber-100 ring-amber-300/30" },
   baja: { label: "Baja", emoji: "🟢", chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30" },
 };
 
-function GrowthRecCard({
-  rec,
-  hero = false,
-  priority = "media",
-}: {
-  rec: GrowthRec;
-  hero?: boolean;
-  priority?: PriorityLevel;
-}) {
-  const t = GROWTH_TONES[rec.tone];
-  const pm = PRIORITY_META[priority];
+function getDaysSince(dateIso: string | null) {
+  if (!dateIso) return 0;
+  const diff = Date.now() - new Date(dateIso).getTime();
+  return Math.max(0, Math.floor(diff / 86_400_000));
+}
+
+function ResolvedRecommendationCard({ achievement }: { achievement: RecommendationAchievement }) {
+  const days = achievement.daysSince;
+  return (
+    <div className="relative overflow-hidden rounded-[26px] border border-emerald-300/20 bg-emerald-500/[0.055] p-5 ring-1 ring-emerald-300/20 backdrop-blur-2xl sm:p-6">
+      <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/30">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Objetivo logrado
+          </span>
+          <h3 className="mt-3 text-xl font-extrabold leading-tight text-white">{achievement.title}</h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-white/70">{achievement.message}</p>
+          <p className="mt-1 text-xs text-white/45">
+            La dejamos visible 3 días como logro y después pasa al historial del Gerente IA.
+          </p>
+        </div>
+        <div className="shrink-0 text-left sm:text-right">
+          {achievement.moneyRecoverable > 0 ? (
+            <>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">Impacto recuperado</div>
+              <div className="mt-1 text-2xl font-black text-emerald-200">{fmtAR(achievement.moneyRecoverable)}</div>
+            </>
+          ) : null}
+          <div className="mt-2 text-xs font-semibold text-emerald-200/75">
+            {days === 0 ? "Logrado hoy" : `Logrado hace ${days} ${days === 1 ? "día" : "días"}`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AchievementsHistory({ achievements }: { achievements: RecommendationAchievement[] }) {
+  const [open, setOpen] = React.useState(false);
+  if (achievements.length === 0) return null;
+  const visible = open ? achievements : achievements.slice(0, 4);
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-500/12 text-emerald-200 ring-1 ring-emerald-400/25">
+          <Sparkles className="h-4 w-4" />
+        </span>
+        <div>
+          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">Historial de logros IA</h2>
+          <p className="text-xs text-white/45">La evolución de tu negocio gracias al Gerente IA</p>
+        </div>
+      </div>
+      <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+        <ul className="space-y-2.5">
+          {visible.map((a) => (
+            <li key={a.key} className="flex items-start gap-3">
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white/90">{a.title}</p>
+                <p className="text-[13px] leading-relaxed text-white/55">{a.message}</p>
+              </div>
+              {a.moneyRecoverable > 0 ? (
+                <span className="ml-auto shrink-0 text-xs font-bold text-emerald-200/80">{fmtAR(a.moneyRecoverable)}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        {achievements.length > 4 ? (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-200/80 hover:text-emerald-200"
+          >
+            {open ? "Ver menos" : `Ver los ${achievements.length} logros`}
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: boolean }) {
+  const s = rec.strategy;
+  const t = GROWTH_TONES[s.tone];
+  const pm = PRIORITY_META[rec.priority];
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -3971,35 +3403,38 @@ function GrowthRecCard({
     >
       <div className={cn("pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl", t.glow)} />
       <div className="relative">
-        {/* Prioridad (triage en un segundo) + categoría */}
+        {/* Prioridad (derivada del score) + categoría + score */}
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", pm.chip)}>
             <span className="text-xs leading-none">{pm.emoji}</span> Prioridad {pm.label}
           </span>
           <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", t.chip)}>
-            {rec.category}
+            {s.category}
+          </span>
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/45 ring-1 ring-white/10">
+            <Activity className="h-3 w-3" /> Score {rec.score}
           </span>
         </div>
 
-        {/* Nivel 1 · Título */}
+        {/* Título dinámico */}
         <div className="mt-3 flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{s.icon}</span>
           <h3 className={cn("font-extrabold leading-[1.05] tracking-[-0.02em] text-white", hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>
             {rec.title}
           </h3>
         </div>
 
-        {/* Nivel 5 · Explicación de una línea */}
-        <p className="mt-2.5 text-[13px] leading-relaxed text-white/55">{rec.problem}</p>
+        {/* Explicación de una línea (dinámica) */}
+        <p className="mt-2.5 text-[13px] leading-relaxed text-white/55">{rec.description}</p>
 
-        {/* Nivel 2 · Plata, con iconos grandes */}
+        {/* Plata */}
         <div className="mt-4 grid grid-cols-2 gap-3">
-          {rec.moneyLost > 0 ? (
+          {s.moneyLost > 0 ? (
             <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3.5">
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-200/70">
                 <span className="text-base leading-none">💸</span> Estás perdiendo
               </div>
-              <div className="mt-1 text-2xl font-black tracking-tight text-rose-200 sm:text-3xl">{fmtAR(rec.moneyLost)}</div>
+              <div className="mt-1 text-2xl font-black tracking-tight text-rose-200 sm:text-3xl">{fmtAR(s.moneyLost)}</div>
             </div>
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
@@ -4013,7 +3448,7 @@ function GrowthRecCard({
             <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
               <span className="text-base leading-none">📈</span> Podés recuperar
             </div>
-            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-200 sm:text-3xl">{fmtAR(rec.moneyRecoverable)}</div>
+            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-200 sm:text-3xl">{fmtAR(s.moneyRecoverable)}</div>
           </div>
         </div>
 
@@ -4021,7 +3456,7 @@ function GrowthRecCard({
         <div className="mt-4 flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 text-sm font-semibold text-white/65">
             <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-            {rec.steps.length} {rec.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}
+            {s.steps.length} {s.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}
           </span>
           <button
             type="button"
@@ -4033,33 +3468,31 @@ function GrowthRecCard({
           </button>
         </div>
 
-        {/* Detalle expandible (lo que el 95% no necesita ver de entrada) */}
+        {/* Detalle expandible */}
         {open ? (
           <div className="mt-4 space-y-3 border-t border-white/[0.08] pt-4">
-            {/* Nivel 3 · Acción + Nivel 4 · pasos */}
             <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-3.5">
               <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Qué hacer hoy</div>
-              <p className="mt-1 text-lg font-semibold leading-snug text-white/90">{rec.action}</p>
+              <p className="mt-1 text-lg font-semibold leading-snug text-white/90">{s.action}</p>
               <ol className="mt-2.5 space-y-2">
-                {rec.steps.map((s, i) => (
+                {s.steps.map((step, i) => (
                   <li key={i} className="flex gap-2.5 text-sm text-white/70">
                     <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">{i + 1}</span>
-                    <span>{s}</span>
+                    <span>{step}</span>
                   </li>
                 ))}
               </ol>
             </div>
 
-            <GrowthContactsBlock contacts={rec.contacts} />
-            <GrowthMessageBlock message={rec.message} />
+            <GrowthContactsBlock contacts={s.contacts} />
+            <GrowthMessageBlock message={s.message} />
 
-            {/* Cómo medir · al final, sin protagonismo */}
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
               <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Cómo medir si funcionó</div>
-              <p className="mt-0.5 text-[13px] text-white/60">{rec.measure}</p>
+              <p className="mt-0.5 text-[13px] text-white/60">{s.measure}</p>
             </div>
 
-            <p className="text-[11px] text-white/35">{rec.basis}</p>
+            <p className="text-[11px] text-white/35">{s.basis}</p>
           </div>
         ) : null}
       </div>
@@ -4067,18 +3500,22 @@ function GrowthRecCard({
   );
 }
 
+// Cantidad de recomendaciones que se muestran de entrada (req. 5). El resto
+// queda detrás de "Ver todas las recomendaciones".
+const GROWTH_VISIBLE_LIMIT = 4;
+
 function GrowthManagerTab({ businessId }: { businessId: string | null | undefined }) {
-  const { clients, appts, services, employees, loading, error } = useGrowthData(businessId);
-  const { recs, avgTicket } = React.useMemo(
-    () => buildGrowthRecommendations(clients, appts, services, employees),
-    [clients, appts, services, employees],
-  );
-  const { stateByKey, visibleResolvedStates } = useAiRecommendationStates(businessId, recs);
-  const activeRecs = React.useMemo(
-    () => recs.filter((rec) => (stateByKey.get(rec.id)?.status ?? "active") === "active"),
-    [recs, stateByKey],
-  );
-  const totalOpportunity = activeRecs.reduce((s, r) => s + r.moneyRecoverable, 0);
+  const {
+    loading,
+    error,
+    recommendations,
+    resolved,
+    achievements,
+    avgTicket,
+    totalOpportunity,
+  } = useAiRecommendations(businessId);
+
+  const [showAll, setShowAll] = React.useState(false);
 
   if (loading) {
     return (
@@ -4101,11 +3538,12 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
     );
   }
 
-  if (activeRecs.length === 0) {
+  // Sin recomendaciones activas: mostramos logros recientes, historial y demanda.
+  if (recommendations.length === 0) {
     return (
       <div className="mt-6 space-y-5">
-        {visibleResolvedStates.map((state) => (
-          <ResolvedRecommendationCard key={state.recommendation_key} state={state} />
+        {resolved.map((a) => (
+          <ResolvedRecommendationCard key={a.key} achievement={a} />
         ))}
 
         <div className="rounded-[28px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center">
@@ -4114,22 +3552,15 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
           <p className="mt-1 text-sm text-white/60">Tu agenda, clientes y servicios están bien aprovechados. El Gerente IA solo retira una recomendación cuando los datos muestran que se resolvió.</p>
         </div>
 
-        {/* Gerente IA: demanda no atendida */}
-        <DemandaNoAtendidaSection businessId={businessId} />
+        <DemandaNoAtendidaSection businessId={businessId ?? null} />
+        <AchievementsHistory achievements={achievements} />
       </div>
     );
   }
 
-  const [hero, ...rest] = activeRecs;
-  // Prioridad visual (Alta/Media/Baja) según el impacto en plata de cada
-  // recomendación, relativo a la de mayor impacto. Permite triage en un segundo.
-  const maxImpact = Math.max(1, ...activeRecs.map((r) => r.moneyLost + r.moneyRecoverable));
-  const levelFor = (r: GrowthRec): PriorityLevel => {
-    const v = r.moneyLost + r.moneyRecoverable;
-    if (v >= maxImpact * 0.6) return "alta";
-    if (v >= maxImpact * 0.3) return "media";
-    return "baja";
-  };
+  const visible = showAll ? recommendations : recommendations.slice(0, GROWTH_VISIBLE_LIMIT);
+  const [hero, ...rest] = visible;
+  const hiddenCount = recommendations.length - visible.length;
 
   return (
     <div className="mt-6 space-y-5">
@@ -4144,7 +3575,7 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
               <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Tu gerente de crecimiento IA</span>
             </div>
             <h2 className="mt-2 text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">
-              Si ejecutás las {activeRecs.length} acciones de hoy, podés sumar hasta
+              Si ejecutás las {recommendations.length} {recommendations.length === 1 ? "acción" : "acciones"} de hoy, podés sumar hasta
             </h2>
           </div>
           <div className="shrink-0 text-right">
@@ -4156,27 +3587,44 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
         </div>
       </div>
 
-      {visibleResolvedStates.map((state) => (
-        <ResolvedRecommendationCard key={state.recommendation_key} state={state} />
+      {resolved.map((a) => (
+        <ResolvedRecommendationCard key={a.key} achievement={a} />
       ))}
 
-      {/* Gerente IA: demanda no atendida */}
-      <DemandaNoAtendidaSection businessId={businessId} />
+      <DemandaNoAtendidaSection businessId={businessId ?? null} />
 
-      {/* Prioridad del día */}
-      <GrowthRecCard rec={hero} hero priority={levelFor(hero)} />
+      {/* Prioridad del día (mayor score) */}
+      <GrowthRecCard rec={hero} hero />
 
-      {/* Resto */}
+      {/* Resto de las visibles */}
       {rest.length > 0 ? (
         <div className="grid gap-5 lg:grid-cols-2">
           {rest.map((r) => (
-            <GrowthRecCard key={r.id} rec={r} priority={levelFor(r)} />
+            <GrowthRecCard key={r.key} rec={r} />
           ))}
         </div>
       ) : null}
 
+      {/* Ver todas / Ver menos (req. 5) */}
+      {recommendations.length > GROWTH_VISIBLE_LIMIT ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-5 py-2.5 text-sm font-bold text-white/85 ring-1 ring-white/10 transition hover:bg-white/[0.08]"
+          >
+            {showAll
+              ? "Ver menos"
+              : `Ver todas las recomendaciones (${hiddenCount} más)`}
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showAll && "rotate-180")} />
+          </button>
+        </div>
+      ) : null}
+
+      <AchievementsHistory achievements={achievements} />
+
       <p className="px-2 text-center text-xs text-white/35">
-        Recomendaciones calculadas con los datos reales de tu negocio (clientes, agenda y servicios de los últimos 90 días). Los montos son estimaciones con supuestos conservadores indicados en cada tarjeta.
+        Recomendaciones calculadas con los datos reales de tu negocio (clientes, agenda y servicios de los últimos 90 días). El orden surge de un score automático: impacto económico, urgencia, persistencia y facilidad de resolución.
       </p>
     </div>
   );
@@ -4207,6 +3655,9 @@ type LabData = {
 };
 
 const LAB_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+// Estados que cuentan como turno efectivamente realizado (espejo del motor).
+const DONE_STATUSES = ["completed", "charged"];
 
 function useLabData(businessId: string | null | undefined, fallbackTicket: number, fallbackClients: number): LabData {
   const clientsQuery = useClientsData(businessId ?? null);
