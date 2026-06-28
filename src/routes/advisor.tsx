@@ -97,97 +97,11 @@ type AdvisorAction = {
 };
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-const DEMO_AUTO_COMPLETE_MS = 18 * 1000;
-
-type AdvisorMonitor = {
-  label: string;
-  baseline: number;
-  current: number;
-  target: number;
-  progress: number;
-  progressLabel: string;
-  goalLabel: string;
-};
-
-function getAdvisorMonitor(action: AdvisorAction, now = Date.now()): AdvisorMonitor {
-  const elapsed = action.startedAt ? Math.max(0, now - action.startedAt) : 0;
-  const demoStep = action.status === "running" ? Math.min(elapsed / DEMO_AUTO_COMPLETE_MS, 1) : 0;
-  const completed = action.status === "completed" || action.status === "archived" || demoStep >= 1;
-
-  if (action.id === "recover-inactive-clients") {
-    const baseline = DEMO.inactiveClients;
-    const target = Math.max(0, Math.ceil(baseline * 0.25));
-    const current = completed ? target : Math.max(target + 1, Math.round(baseline - (baseline - target) * Math.max(0.36, demoStep * 0.86)));
-    const recovered = Math.max(0, baseline - current);
-    const needed = Math.max(1, baseline - target);
-    return {
-      label: "Clientes inactivos",
-      baseline,
-      current,
-      target,
-      progress: Math.min(100, Math.round((recovered / needed) * 100)),
-      progressLabel: `${recovered} de ${needed} clientes recuperados`,
-      goalLabel: `Objetivo: bajar de ${baseline} a ${target} clientes inactivos`,
-    };
-  }
-
-  if (action.id === "fill-empty-slots") {
-    const baseline = DEMO.emptySlotsTomorrow;
-    const target = 3;
-    const current = completed ? target : Math.max(target + 1, Math.round(baseline - (baseline - target) * Math.max(0.44, demoStep * 0.9)));
-    const filled = Math.max(0, baseline - current);
-    const needed = Math.max(1, baseline - target);
-    return {
-      label: "Turnos libres",
-      baseline,
-      current,
-      target,
-      progress: Math.min(100, Math.round((filled / needed) * 100)),
-      progressLabel: `${filled} de ${needed} horarios ocupados`,
-      goalLabel: `Objetivo: dejar ${target} o menos horarios libres`,
-    };
-  }
-
-  if (action.id === "increase-average-ticket") {
-    const baseline = DEMO.ticket;
-    const target = Math.round(baseline * 1.08);
-    const current = completed ? target : Math.round(baseline + (target - baseline) * Math.max(0.42, demoStep * 0.88));
-    return {
-      label: "Ticket promedio",
-      baseline,
-      current,
-      target,
-      progress: Math.min(100, Math.round(((current - baseline) / Math.max(1, target - baseline)) * 100)),
-      progressLabel: `${fmtAR(current)} de ${fmtAR(target)}`,
-      goalLabel: `Objetivo: superar ${fmtAR(target)} de ticket promedio`,
-    };
-  }
-
-  const baseline = Number(action.metricValue.replace(/[^0-9]/g, "")) || 10;
-  const target = Math.max(1, Math.ceil(baseline * 0.3));
-  const current = completed ? target : Math.max(target + 1, Math.round(baseline - (baseline - target) * Math.max(0.35, demoStep * 0.85)));
-  const improved = Math.max(0, baseline - current);
-  const needed = Math.max(1, baseline - target);
-  return {
-    label: action.metricLabel,
-    baseline,
-    current,
-    target,
-    progress: Math.min(100, Math.round((improved / needed) * 100)),
-    progressLabel: `${improved} de ${needed} avances detectados`,
-    goalLabel: `Objetivo: mejorar ${action.metricLabel.toLowerCase()}`,
-  };
-}
-
-function shouldAutoCompleteAction(action: AdvisorAction, now = Date.now()) {
-  return action.status === "running" && !!action.startedAt && now - action.startedAt >= DEMO_AUTO_COMPLETE_MS;
-}
 
 type StoredAdvisorStatus = {
   status: AdvisorAction["status"];
   startedAt?: number;
   completedAt?: number;
-  lastCheckedAt?: number;
 };
 
 function getStoredAdvisorStatuses(): Record<string, StoredAdvisorStatus> {
@@ -4059,75 +3973,201 @@ function RecentAchievements({
 // la pantalla: 1 prioridad ejecutiva + 3 recomendaciones compactas.
 const GROWTH_VISIBLE_LIMIT = 3;
 
+
+
+type AdvisorTrend = "improving" | "stable" | "worsening" | "completed";
+
+type AdvisorMonitoring = {
+  trend: AdvisorTrend;
+  label: string;
+  title: string;
+  description: string;
+  progress: number;
+  progressLabel: string;
+  objectiveLabel: string;
+  ctaLabel: string;
+  lastReview: string;
+};
+
+function getAdvisorMonitoring(action: AdvisorAction): AdvisorMonitoring {
+  if (action.status === "completed") {
+    return {
+      trend: "completed",
+      label: "Objetivo logrado",
+      title: "La IA detectó el objetivo cumplido",
+      description: "Los indicadores alcanzaron la meta y la estrategia quedará visible durante 3 días antes de archivarse.",
+      progress: 100,
+      progressLabel: "Meta alcanzada automáticamente",
+      objectiveLabel: "Se archivará en 3 días",
+      ctaLabel: "Ver detalle",
+      lastReview: "recién",
+    };
+  }
+
+  if (action.status !== "running") {
+    return {
+      trend: "stable",
+      label: "Pendiente",
+      title: "La IA todavía no está monitoreando",
+      description: "Empezá la estrategia para que Clippr compare la métrica inicial contra los próximos movimientos del negocio.",
+      progress: 0,
+      progressLabel: "Seguimiento inactivo",
+      objectiveLabel: "Esperando inicio de estrategia",
+      ctaLabel: "Empezar estrategia",
+      lastReview: "sin iniciar",
+    };
+  }
+
+  if (action.id === "recover-inactive-clients") {
+    return {
+      trend: "worsening",
+      label: "Empeorando",
+      title: "La IA detectó un cambio negativo",
+      description: "La cantidad de clientes inactivos aumentó de 27 a 35. La estrategia necesita ajustes antes de marcarla como lograda.",
+      progress: 0,
+      progressLabel: "+8 clientes inactivos desde el inicio",
+      objectiveLabel: "Objetivo: bajar de 27 a 7 clientes inactivos",
+      ctaLabel: "Revisar estrategia",
+      lastReview: "recién",
+    };
+  }
+
+  if (action.id === "fill-empty-slots") {
+    return {
+      trend: "improving",
+      label: "Mejorando",
+      title: "La IA detectó progreso positivo",
+      description: "La cantidad de horarios libres bajó y la agenda empezó a recuperar ocupación.",
+      progress: 64,
+      progressLabel: "9 de 14 horarios recuperados",
+      objectiveLabel: "Objetivo: dejar 3 o menos horarios libres",
+      ctaLabel: "Ver avance",
+      lastReview: "hace 5 min",
+    };
+  }
+
+  if (action.id === "increase-average-ticket") {
+    return {
+      trend: "stable",
+      label: "Sin cambios",
+      title: "La IA todavía no detectó mejora",
+      description: "El ticket promedio se mantiene cerca del punto inicial. La estrategia sigue activa y necesita más ventas para medir resultado.",
+      progress: 18,
+      progressLabel: "Ticket casi igual al inicio",
+      objectiveLabel: "Objetivo: superar el ticket promedio esperado",
+      ctaLabel: "Ver acciones",
+      lastReview: "hace 1 hora",
+    };
+  }
+
+  return {
+    trend: "improving",
+    label: "Mejorando",
+    title: "La IA detectó progreso",
+    description: "Los indicadores relacionados empezaron a moverse en la dirección correcta.",
+    progress: 48,
+    progressLabel: "Avance parcial detectado",
+    objectiveLabel: "Objetivo en seguimiento automático",
+    ctaLabel: "Ver avance",
+    lastReview: "hace 20 min",
+  };
+}
+
+function getAdvisorTrendStyle(trend: AdvisorTrend) {
+  switch (trend) {
+    case "completed":
+      return {
+        icon: CheckCircle2,
+        panel: "border-emerald-300/25 bg-emerald-400/10",
+        text: "text-emerald-200",
+        bar: "bg-emerald-300",
+        chip: "border-emerald-300/25 bg-emerald-400/10 text-emerald-200",
+      };
+    case "worsening":
+      return {
+        icon: TrendingDown,
+        panel: "border-orange-300/30 bg-orange-400/10",
+        text: "text-orange-200",
+        bar: "bg-orange-300",
+        chip: "border-orange-300/30 bg-orange-400/10 text-orange-200",
+      };
+    case "improving":
+      return {
+        icon: TrendingUp,
+        panel: "border-cyan-300/25 bg-cyan-400/10",
+        text: "text-cyan-100",
+        bar: "bg-cyan-300",
+        chip: "border-cyan-300/25 bg-cyan-400/10 text-cyan-100",
+      };
+    default:
+      return {
+        icon: Clock,
+        panel: "border-sky-300/25 bg-sky-400/10",
+        text: "text-sky-100",
+        bar: "bg-sky-300",
+        chip: "border-sky-300/25 bg-sky-400/10 text-sky-100",
+      };
+  }
+}
+
+function AdvisorMonitoringPanel({ action }: { action: AdvisorAction }) {
+  const monitoring = getAdvisorMonitoring(action);
+  const style = getAdvisorTrendStyle(monitoring.trend);
+  const Icon = style.icon;
+
+  return (
+    <div className={cn("rounded-2xl border p-4", style.panel)}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className={cn("inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]", style.text)}>
+          <Icon className="h-4 w-4" />
+          {monitoring.label}
+        </div>
+        <span className="text-xs font-semibold text-white/50">Última revisión: {monitoring.lastReview}</span>
+      </div>
+      <p className="mt-3 text-sm font-semibold text-white/85">{monitoring.title}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-white/65">{monitoring.description}</p>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/12">
+        <div className={cn("h-full rounded-full transition-all", style.bar)} style={{ width: `${monitoring.progress}%` }} />
+      </div>
+      <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-white/52">
+        <span>{monitoring.progressLabel}</span>
+        <span className={cn("font-bold", style.text)}>{monitoring.progress}%</span>
+      </div>
+      <div className="mt-2 text-xs text-white/55">{monitoring.objectiveLabel}</div>
+    </div>
+  );
+}
+
 function GrowthManagerTab({ businessId: _businessId }: { businessId: string | null | undefined }) {
   const [actionStatuses, setActionStatuses] = React.useState(() => getStoredAdvisorStatuses());
   const [detailAction, setDetailAction] = React.useState<AdvisorAction | null>(null);
-  const [now, setNow] = React.useState(() => Date.now());
-
-  React.useEffect(() => {
-    const interval = window.setInterval(() => setNow(Date.now()), 5000);
-    return () => window.clearInterval(interval);
-  }, []);
 
   const actions = React.useMemo(() => {
     const generated = getDemoActions(true);
     const withStoredStatus = generated.map((action) => {
       const saved = actionStatuses[action.id];
       if (!saved) return action;
-
-      const savedStartedAt = saved.startedAt;
-      const autoCompletedAt =
-        saved.status === "running" && savedStartedAt && now - savedStartedAt >= DEMO_AUTO_COMPLETE_MS
-          ? savedStartedAt + DEMO_AUTO_COMPLETE_MS
-          : undefined;
-      const effectiveStatus = autoCompletedAt ? "completed" : saved.status;
-      const effectiveCompletedAt = autoCompletedAt ?? saved.completedAt;
-
       if (
-        effectiveStatus === "completed" &&
-        effectiveCompletedAt &&
-        now - effectiveCompletedAt >= THREE_DAYS_MS
+        saved.status === "completed" &&
+        saved.completedAt &&
+        Date.now() - saved.completedAt >= THREE_DAYS_MS
       ) {
         return {
           ...action,
           status: "archived" as const,
-          startedAt: savedStartedAt,
-          completedAt: effectiveCompletedAt,
+          startedAt: saved.startedAt,
+          completedAt: saved.completedAt,
         };
       }
       return {
         ...action,
-        status: effectiveStatus,
-        startedAt: savedStartedAt,
-        completedAt: effectiveCompletedAt,
+        status: saved.status,
+        startedAt: saved.startedAt,
+        completedAt: saved.completedAt,
       };
     });
     return sortAdvisorActions(withStoredStatus);
-  }, [actionStatuses, now]);
-
-  React.useEffect(() => {
-    const completedFromMonitoring = actions.filter((action) => {
-      const saved = actionStatuses[action.id];
-      return action.status === "completed" && saved?.status === "running" && action.completedAt;
-    });
-
-    if (completedFromMonitoring.length === 0) return;
-
-    setActionStatuses((current) => {
-      const next = { ...current };
-      for (const action of completedFromMonitoring) {
-        next[action.id] = {
-          ...next[action.id],
-          status: "completed",
-          startedAt: action.startedAt,
-          completedAt: action.completedAt ?? Date.now(),
-          lastCheckedAt: now,
-        };
-      }
-      saveStoredAdvisorStatuses(next);
-      return next;
-    });
-  }, [actions, actionStatuses, now]);
+  }, [actionStatuses]);
 
   const activeActions = actions.filter((action) => action.status !== "archived");
   const archivedActions = actions.filter((action) => action.status === "archived");
@@ -4149,7 +4189,6 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
             status === "completed"
               ? Date.now()
               : (current[action.id]?.completedAt ?? action.completedAt),
-          lastCheckedAt: Date.now(),
         },
       };
       saveStoredAdvisorStatuses(next);
@@ -4162,7 +4201,6 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
       updateActionStatus(action, "running");
     }
   }
-
 
   return (
     <div className="mt-6 space-y-8">
@@ -4268,35 +4306,19 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   Siguiente paso
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-white/65">
-                  {heroAction.status === "completed"
-                    ? "Objetivo logrado automáticamente. La IA detectó que los indicadores alcanzaron la meta y lo mantendrá visible durante 3 días antes de archivarlo."
-                    : heroAction.status === "running"
-                      ? "La IA está monitoreando esta estrategia automáticamente. Cuando detecte que el objetivo fue alcanzado, la marcará como lograda sin que tengas que tocar nada."
-                      : "Empezá la estrategia para que la IA active el seguimiento automático sobre los indicadores relacionados."}
+                  {heroAction.status === "running"
+                    ? getAdvisorMonitoring(heroAction).description
+                    : heroAction.status === "completed"
+                      ? "La IA detectó automáticamente que el objetivo fue alcanzado. Quedará visible durante 3 días antes de archivarse."
+                      : "Empezá la estrategia para activar el seguimiento automático. Si el indicador mejora, empeora o queda igual, la IA lo va a mostrar claramente."}
                 </p>
               </div>
 
-              {heroAction.status !== "pending" ? (() => {
-                const monitor = getAdvisorMonitor(heroAction, now);
-                return (
-                  <div className="mt-4 rounded-2xl border border-sky-300/15 bg-sky-400/[0.055] p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-sky-200/90">
-                        <Brain className="h-4 w-4" /> IA monitoreando
-                      </div>
-                      <span className="text-xs font-semibold text-white/45">Última revisión: recién</span>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                      <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-300 transition-all duration-700" style={{ width: `${monitor.progress}%` }} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-white/55">
-                      <span>{monitor.progressLabel}</span>
-                      <span className="font-bold text-sky-200">{monitor.progress}%</span>
-                    </div>
-                    <p className="mt-2 text-xs leading-relaxed text-white/45">{monitor.goalLabel}</p>
-                  </div>
-                );
-              })() : null}
+              {heroAction.status !== "pending" ? (
+                <div className="mt-4">
+                  <AdvisorMonitoringPanel action={heroAction} />
+                </div>
+              ) : null}
 
               <div className="mt-5 flex flex-wrap justify-end gap-3">
                 <button
@@ -4315,8 +4337,8 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                 ) : (
                   <button
                     type="button"
-                    onClick={() => handlePrimaryAction(heroAction)}
-                    disabled={heroAction.status === "running"}
+                    onClick={() => heroAction.status === "running" ? setDetailAction(heroAction) : handlePrimaryAction(heroAction)}
+                    disabled={false}
                     className={cn(
                       "inline-flex items-center gap-3 rounded-2xl px-6 py-3 text-sm font-bold transition disabled:cursor-default",
                       heroAction.status === "running"
@@ -4326,8 +4348,13 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   >
                     {heroAction.status === "running" ? (
                       <>
-                        <Brain className="h-5 w-5" />
-                        IA monitoreando
+                        {(() => {
+                          const monitoring = getAdvisorMonitoring(heroAction);
+                          const style = getAdvisorTrendStyle(monitoring.trend);
+                          const Icon = style.icon;
+                          return <Icon className="h-5 w-5" />;
+                        })()}
+                        {getAdvisorMonitoring(heroAction).ctaLabel}
                       </>
                     ) : (
                       <>
@@ -4411,14 +4438,19 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handlePrimaryAction(action)}
-                        disabled={action.status === "running"}
+                        onClick={() => action.status === "running" ? setDetailAction(action) : handlePrimaryAction(action)}
+                        disabled={false}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/25 bg-violet-400/[0.045] px-4 py-3 text-sm font-bold text-violet-100 transition hover:bg-violet-400/10 disabled:cursor-default disabled:hover:bg-violet-400/[0.045]"
                       >
                         {action.status === "running" ? (
                           <>
-                            <Brain className="h-4 w-4" />
-                            IA monitoreando
+                            {(() => {
+                              const monitoring = getAdvisorMonitoring(action);
+                              const style = getAdvisorTrendStyle(monitoring.trend);
+                              const TrendIcon = style.icon;
+                              return <TrendIcon className="h-4 w-4" />;
+                            })()}
+                            {getAdvisorMonitoring(action).ctaLabel}
                           </>
                         ) : (
                           <>
@@ -4507,10 +4539,9 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
 
       {detailAction ? (
         <AdvisorActionDetailModal
-          action={actions.find((a) => a.id === detailAction.id) ?? detailAction}
+          action={detailAction}
           onClose={() => setDetailAction(null)}
           onStart={() => handlePrimaryAction(detailAction)}
-          now={now}
         />
       ) : null}
       <div className="rounded-[24px] border border-violet-300/25 bg-violet-400/[0.055] p-5">
@@ -4545,16 +4576,13 @@ function AdvisorActionDetailModal({
   action,
   onClose,
   onStart,
-  now,
 }: {
   action: AdvisorAction;
   onClose: () => void;
   onStart: () => void;
-  now: number;
 }) {
   const Icon = action.icon;
   const canStart = action.status === "pending";
-  const monitor = getAdvisorMonitor(action, now);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
@@ -4622,32 +4650,8 @@ function AdvisorActionDetailModal({
         </div>
 
         {action.status !== "pending" ? (
-          <div className="relative mt-5 rounded-2xl border border-sky-300/15 bg-sky-400/[0.055] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-bold text-sky-200">
-                  <Brain className="h-4 w-4" /> Monitoreo automático de la IA
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-white/50">
-                  Clippr revisa los indicadores relacionados. Cuando la condición se cumple, marca el objetivo como logrado automáticamente.
-                </p>
-              </div>
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/55">
-                Última revisión: recién
-              </span>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-300 transition-all duration-700" style={{ width: `${monitor.progress}%` }} />
-                </div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-white/55">
-                  <span>{monitor.progressLabel}</span>
-                  <span>{monitor.goalLabel}</span>
-                </div>
-              </div>
-              <div className="text-right text-2xl font-black text-sky-200">{monitor.progress}%</div>
-            </div>
+          <div className="relative mt-5">
+            <AdvisorMonitoringPanel action={action} />
           </div>
         ) : null}
 
@@ -4691,13 +4695,6 @@ function AdvisorActionDetailModal({
               Empezar estrategia
               <ArrowRight className="h-4 w-4" />
             </button>
-          ) : null}
-
-          {action.status === "running" ? (
-            <span className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/25 bg-sky-400/10 px-5 py-3 text-sm font-bold text-sky-100">
-              <Brain className="h-4 w-4" />
-              La IA lo marcará sola al cumplirse
-            </span>
           ) : null}
         </div>
       </div>
