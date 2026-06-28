@@ -97,17 +97,103 @@ type AdvisorAction = {
 };
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const DEMO_AUTO_COMPLETE_MS = 18 * 1000;
+
+type AdvisorMonitor = {
+  label: string;
+  baseline: number;
+  current: number;
+  target: number;
+  progress: number;
+  progressLabel: string;
+  goalLabel: string;
+};
+
+function getAdvisorMonitor(action: AdvisorAction, now = Date.now()): AdvisorMonitor {
+  const elapsed = action.startedAt ? Math.max(0, now - action.startedAt) : 0;
+  const demoStep = action.status === "running" ? Math.min(elapsed / DEMO_AUTO_COMPLETE_MS, 1) : 0;
+  const completed = action.status === "completed" || action.status === "archived" || demoStep >= 1;
+
+  if (action.id === "recover-inactive-clients") {
+    const baseline = DEMO.inactiveClients;
+    const target = Math.max(0, Math.ceil(baseline * 0.25));
+    const current = completed ? target : Math.max(target + 1, Math.round(baseline - (baseline - target) * Math.max(0.36, demoStep * 0.86)));
+    const recovered = Math.max(0, baseline - current);
+    const needed = Math.max(1, baseline - target);
+    return {
+      label: "Clientes inactivos",
+      baseline,
+      current,
+      target,
+      progress: Math.min(100, Math.round((recovered / needed) * 100)),
+      progressLabel: `${recovered} de ${needed} clientes recuperados`,
+      goalLabel: `Objetivo: bajar de ${baseline} a ${target} clientes inactivos`,
+    };
+  }
+
+  if (action.id === "fill-empty-slots") {
+    const baseline = DEMO.emptySlotsTomorrow;
+    const target = 3;
+    const current = completed ? target : Math.max(target + 1, Math.round(baseline - (baseline - target) * Math.max(0.44, demoStep * 0.9)));
+    const filled = Math.max(0, baseline - current);
+    const needed = Math.max(1, baseline - target);
+    return {
+      label: "Turnos libres",
+      baseline,
+      current,
+      target,
+      progress: Math.min(100, Math.round((filled / needed) * 100)),
+      progressLabel: `${filled} de ${needed} horarios ocupados`,
+      goalLabel: `Objetivo: dejar ${target} o menos horarios libres`,
+    };
+  }
+
+  if (action.id === "increase-average-ticket") {
+    const baseline = DEMO.ticket;
+    const target = Math.round(baseline * 1.08);
+    const current = completed ? target : Math.round(baseline + (target - baseline) * Math.max(0.42, demoStep * 0.88));
+    return {
+      label: "Ticket promedio",
+      baseline,
+      current,
+      target,
+      progress: Math.min(100, Math.round(((current - baseline) / Math.max(1, target - baseline)) * 100)),
+      progressLabel: `${fmtAR(current)} de ${fmtAR(target)}`,
+      goalLabel: `Objetivo: superar ${fmtAR(target)} de ticket promedio`,
+    };
+  }
+
+  const baseline = Number(action.metricValue.replace(/[^0-9]/g, "")) || 10;
+  const target = Math.max(1, Math.ceil(baseline * 0.3));
+  const current = completed ? target : Math.max(target + 1, Math.round(baseline - (baseline - target) * Math.max(0.35, demoStep * 0.85)));
+  const improved = Math.max(0, baseline - current);
+  const needed = Math.max(1, baseline - target);
+  return {
+    label: action.metricLabel,
+    baseline,
+    current,
+    target,
+    progress: Math.min(100, Math.round((improved / needed) * 100)),
+    progressLabel: `${improved} de ${needed} avances detectados`,
+    goalLabel: `Objetivo: mejorar ${action.metricLabel.toLowerCase()}`,
+  };
+}
+
+function shouldAutoCompleteAction(action: AdvisorAction, now = Date.now()) {
+  return action.status === "running" && !!action.startedAt && now - action.startedAt >= DEMO_AUTO_COMPLETE_MS;
+}
 
 type StoredAdvisorStatus = {
   status: AdvisorAction["status"];
   startedAt?: number;
   completedAt?: number;
+  lastCheckedAt?: number;
 };
 
 function getStoredAdvisorStatuses(): Record<string, StoredAdvisorStatus> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = localStorage.getItem("clippr_advisor_action_statuses_demo_v2");
+    const raw = localStorage.getItem("clippr_advisor_action_statuses_demo_v3");
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -116,7 +202,7 @@ function getStoredAdvisorStatuses(): Record<string, StoredAdvisorStatus> {
 
 function saveStoredAdvisorStatuses(statuses: Record<string, StoredAdvisorStatus>) {
   if (typeof window === "undefined") return;
-  localStorage.setItem("clippr_advisor_action_statuses_demo_v2", JSON.stringify(statuses));
+  localStorage.setItem("clippr_advisor_action_statuses_demo_v3", JSON.stringify(statuses));
 }
 
 function sortAdvisorActions(actions: AdvisorAction[]) {
@@ -3976,33 +4062,72 @@ const GROWTH_VISIBLE_LIMIT = 3;
 function GrowthManagerTab({ businessId: _businessId }: { businessId: string | null | undefined }) {
   const [actionStatuses, setActionStatuses] = React.useState(() => getStoredAdvisorStatuses());
   const [detailAction, setDetailAction] = React.useState<AdvisorAction | null>(null);
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 5000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const actions = React.useMemo(() => {
     const generated = getDemoActions(true);
     const withStoredStatus = generated.map((action) => {
       const saved = actionStatuses[action.id];
       if (!saved) return action;
+
+      const savedStartedAt = saved.startedAt;
+      const autoCompletedAt =
+        saved.status === "running" && savedStartedAt && now - savedStartedAt >= DEMO_AUTO_COMPLETE_MS
+          ? savedStartedAt + DEMO_AUTO_COMPLETE_MS
+          : undefined;
+      const effectiveStatus = autoCompletedAt ? "completed" : saved.status;
+      const effectiveCompletedAt = autoCompletedAt ?? saved.completedAt;
+
       if (
-        saved.status === "completed" &&
-        saved.completedAt &&
-        Date.now() - saved.completedAt >= THREE_DAYS_MS
+        effectiveStatus === "completed" &&
+        effectiveCompletedAt &&
+        now - effectiveCompletedAt >= THREE_DAYS_MS
       ) {
         return {
           ...action,
           status: "archived" as const,
-          startedAt: saved.startedAt,
-          completedAt: saved.completedAt,
+          startedAt: savedStartedAt,
+          completedAt: effectiveCompletedAt,
         };
       }
       return {
         ...action,
-        status: saved.status,
-        startedAt: saved.startedAt,
-        completedAt: saved.completedAt,
+        status: effectiveStatus,
+        startedAt: savedStartedAt,
+        completedAt: effectiveCompletedAt,
       };
     });
     return sortAdvisorActions(withStoredStatus);
-  }, [actionStatuses]);
+  }, [actionStatuses, now]);
+
+  React.useEffect(() => {
+    const completedFromMonitoring = actions.filter((action) => {
+      const saved = actionStatuses[action.id];
+      return action.status === "completed" && saved?.status === "running" && action.completedAt;
+    });
+
+    if (completedFromMonitoring.length === 0) return;
+
+    setActionStatuses((current) => {
+      const next = { ...current };
+      for (const action of completedFromMonitoring) {
+        next[action.id] = {
+          ...next[action.id],
+          status: "completed",
+          startedAt: action.startedAt,
+          completedAt: action.completedAt ?? Date.now(),
+          lastCheckedAt: now,
+        };
+      }
+      saveStoredAdvisorStatuses(next);
+      return next;
+    });
+  }, [actions, actionStatuses, now]);
 
   const activeActions = actions.filter((action) => action.status !== "archived");
   const archivedActions = actions.filter((action) => action.status === "archived");
@@ -4024,6 +4149,7 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
             status === "completed"
               ? Date.now()
               : (current[action.id]?.completedAt ?? action.completedAt),
+          lastCheckedAt: Date.now(),
         },
       };
       saveStoredAdvisorStatuses(next);
@@ -4037,10 +4163,6 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
     }
   }
 
-  function markActionCompleted(action: AdvisorAction) {
-    updateActionStatus(action, "completed");
-    setDetailAction(null);
-  }
 
   return (
     <div className="mt-6 space-y-8">
@@ -4146,11 +4268,35 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   Siguiente paso
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-white/65">
-                  {heroAction.status === "running"
-                    ? "La estrategia ya está iniciada. Entrá en Ver detalle para seguir las acciones sugeridas y marcarla como lograda cuando se cumpla."
-                    : "Empezá la estrategia para activar el seguimiento. No se marcará como lograda hasta que la confirmes desde el detalle."}
+                  {heroAction.status === "completed"
+                    ? "Objetivo logrado automáticamente. La IA detectó que los indicadores alcanzaron la meta y lo mantendrá visible durante 3 días antes de archivarlo."
+                    : heroAction.status === "running"
+                      ? "La IA está monitoreando esta estrategia automáticamente. Cuando detecte que el objetivo fue alcanzado, la marcará como lograda sin que tengas que tocar nada."
+                      : "Empezá la estrategia para que la IA active el seguimiento automático sobre los indicadores relacionados."}
                 </p>
               </div>
+
+              {heroAction.status !== "pending" ? (() => {
+                const monitor = getAdvisorMonitor(heroAction, now);
+                return (
+                  <div className="mt-4 rounded-2xl border border-sky-300/15 bg-sky-400/[0.055] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-sky-200/90">
+                        <Brain className="h-4 w-4" /> IA monitoreando
+                      </div>
+                      <span className="text-xs font-semibold text-white/45">Última revisión: recién</span>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-300 transition-all duration-700" style={{ width: `${monitor.progress}%` }} />
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-white/55">
+                      <span>{monitor.progressLabel}</span>
+                      <span className="font-bold text-sky-200">{monitor.progress}%</span>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-white/45">{monitor.goalLabel}</p>
+                  </div>
+                );
+              })() : null}
 
               <div className="mt-5 flex flex-wrap justify-end gap-3">
                 <button
@@ -4180,8 +4326,8 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   >
                     {heroAction.status === "running" ? (
                       <>
-                        <Clock className="h-5 w-5" />
-                        Estrategia iniciada
+                        <Brain className="h-5 w-5" />
+                        IA monitoreando
                       </>
                     ) : (
                       <>
@@ -4271,8 +4417,8 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                       >
                         {action.status === "running" ? (
                           <>
-                            <Clock className="h-4 w-4" />
-                            Estrategia iniciada
+                            <Brain className="h-4 w-4" />
+                            IA monitoreando
                           </>
                         ) : (
                           <>
@@ -4361,10 +4507,10 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
 
       {detailAction ? (
         <AdvisorActionDetailModal
-          action={detailAction}
+          action={actions.find((a) => a.id === detailAction.id) ?? detailAction}
           onClose={() => setDetailAction(null)}
           onStart={() => handlePrimaryAction(detailAction)}
-          onComplete={() => markActionCompleted(detailAction)}
+          now={now}
         />
       ) : null}
       <div className="rounded-[24px] border border-violet-300/25 bg-violet-400/[0.055] p-5">
@@ -4399,16 +4545,16 @@ function AdvisorActionDetailModal({
   action,
   onClose,
   onStart,
-  onComplete,
+  now,
 }: {
   action: AdvisorAction;
   onClose: () => void;
   onStart: () => void;
-  onComplete: () => void;
+  now: number;
 }) {
   const Icon = action.icon;
   const canStart = action.status === "pending";
-  const canComplete = action.status === "running";
+  const monitor = getAdvisorMonitor(action, now);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
@@ -4464,7 +4610,7 @@ function AdvisorActionDetailModal({
                 </>
               ) : action.status === "running" ? (
                 <>
-                  <Clock className="h-4 w-4 text-sky-300" /> Estrategia iniciada
+                  <Brain className="h-4 w-4 text-sky-300" /> IA monitoreando
                 </>
               ) : (
                 <>
@@ -4474,6 +4620,36 @@ function AdvisorActionDetailModal({
             </div>
           </div>
         </div>
+
+        {action.status !== "pending" ? (
+          <div className="relative mt-5 rounded-2xl border border-sky-300/15 bg-sky-400/[0.055] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-bold text-sky-200">
+                  <Brain className="h-4 w-4" /> Monitoreo automático de la IA
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-white/50">
+                  Clippr revisa los indicadores relacionados. Cuando la condición se cumple, marca el objetivo como logrado automáticamente.
+                </p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/55">
+                Última revisión: recién
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-300 transition-all duration-700" style={{ width: `${monitor.progress}%` }} />
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-white/55">
+                  <span>{monitor.progressLabel}</span>
+                  <span>{monitor.goalLabel}</span>
+                </div>
+              </div>
+              <div className="text-right text-2xl font-black text-sky-200">{monitor.progress}%</div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="relative mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -4517,15 +4693,11 @@ function AdvisorActionDetailModal({
             </button>
           ) : null}
 
-          {canComplete ? (
-            <button
-              type="button"
-              onClick={onComplete}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-5 py-3 text-sm font-bold text-emerald-200 transition hover:bg-emerald-400/15"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Marcar objetivo logrado
-            </button>
+          {action.status === "running" ? (
+            <span className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/25 bg-sky-400/10 px-5 py-3 text-sm font-bold text-sky-100">
+              <Brain className="h-4 w-4" />
+              La IA lo marcará sola al cumplirse
+            </span>
           ) : null}
         </div>
       </div>
