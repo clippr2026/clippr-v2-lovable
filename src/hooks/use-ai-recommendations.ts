@@ -5,7 +5,7 @@
 //    • Obtener los datos del negocio (clientes, agenda, servicios, equipo).
 //    • Ejecutar el motor (src/lib/ai-recommendation-engine.ts).
 //    • Ordenar las recomendaciones por score.
-//    • Administrar el ciclo de vida en Supabase (active / resolved / archived).
+//    • Administrar el ciclo de vida en Supabase (active / working / resolved / archived).
 //    • Resolver automáticamente lo que mejoró y explicarlo.
 //    • Archivar los logros y exponer el historial.
 //
@@ -57,8 +57,10 @@ export type UseAiRecommendationsResult = {
   ready: boolean;
   loading: boolean;
   error: string | null;
-  /** Recomendaciones activas, ordenadas por score de mayor a menor. */
+  /** Recomendaciones activas/en seguimiento, ordenadas por score de mayor a menor. */
   recommendations: Recommendation[];
+  /** Marca una recomendación como "Trabajando en eso". */
+  markWorking: (key: string) => Promise<void>;
   /** Resueltas dentro de la ventana de 3 días ("Objetivo logrado"). */
   resolved: RecommendationAchievement[];
   /** Historial de logros IA (ya archivadas). */
@@ -229,14 +231,17 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
         }));
         const existingByKey = new Map(existing.map((row) => [row.recommendation_key, row]));
 
-        // (a) Recomendaciones presentes hoy → activas.
+        // (a) Recomendaciones presentes hoy → activas o en seguimiento.
+        // Si el usuario marcó "Estoy trabajando en esto", se conserva ese estado
+        // mientras el problema siga existiendo. No se puede ocultar ni eliminar.
         const activeRows = currentRecs.map((rec) => {
           const prev = existingByKey.get(rec.key);
           const meta = { ...(prev?.metadata ?? {}), ...(metaByKey.get(rec.key) ?? {}) };
+          const nextStatus = prev?.status === "working" ? "working" : "active";
           return {
             business_id: businessId,
             recommendation_key: rec.key,
-            status: "active" as const,
+            status: nextStatus as "active" | "working",
             score: rec.score,
             first_seen_at: prev?.first_seen_at ?? nowIso,
             last_seen_at: nowIso,
@@ -250,7 +255,7 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
         // Sólo si el fetch fue íntegro: si una query falló, la ausencia puede ser
         // por el error y no porque el problema se haya resuelto de verdad.
         const rowsToResolve = (fetchOkRef.current ? existing : [])
-          .filter((row) => row.status === "active" && !currentKeys.has(row.recommendation_key))
+          .filter((row) => (row.status === "active" || row.status === "working") && !currentKeys.has(row.recommendation_key))
           .map((row) => {
             const resolvedAt = row.resolved_at ?? nowIso;
             const meta = {
@@ -350,8 +355,68 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
   );
 
   const recommendations = React.useMemo(
-    () => currentRecs.filter((r) => (statusByKey.get(r.key) ?? "active") === "active"),
+    () =>
+      currentRecs
+        .map((r) => ({
+          ...r,
+          status: statusByKey.get(r.key) ?? "active",
+        }))
+        .filter((r) => r.status === "active" || r.status === "working"),
     [currentRecs, statusByKey],
+  );
+
+  const markWorking = React.useCallback(
+    async (key: string) => {
+      if (!businessId) return;
+      const nowIso = new Date().toISOString();
+      const rec = currentRecs.find((r) => r.key === key);
+      const prev = states.find((s) => s.recommendation_key === key);
+      const metadata = { ...(prev?.metadata ?? {}), ...(rec ? metaByKey.get(rec.key) ?? {} : {}) };
+
+      setStates((prevStates) => {
+        const exists = prevStates.some((s) => s.recommendation_key === key);
+        if (exists) {
+          return prevStates.map((s) =>
+            s.recommendation_key === key
+              ? { ...s, status: "working", last_seen_at: nowIso, metadata }
+              : s,
+          );
+        }
+        return [
+          ...prevStates,
+          {
+            recommendation_key: key,
+            status: "working",
+            score: rec?.score ?? 0,
+            first_seen_at: nowIso,
+            last_seen_at: nowIso,
+            resolved_at: null,
+            archived_at: null,
+            metadata,
+          },
+        ];
+      });
+
+      try {
+        await supabase.from("ai_recommendation_states").upsert(
+          {
+            business_id: businessId,
+            recommendation_key: key,
+            status: "working",
+            score: rec?.score ?? prev?.score ?? 0,
+            first_seen_at: prev?.first_seen_at ?? nowIso,
+            last_seen_at: nowIso,
+            resolved_at: null,
+            archived_at: null,
+            metadata,
+          },
+          { onConflict: "business_id,recommendation_key" },
+        );
+      } catch {
+        // Degradación segura: si la tabla aún no existe, el estado queda local.
+      }
+    },
+    [businessId, currentRecs, states, metaByKey],
   );
 
   const resolved = React.useMemo(() => {
@@ -385,6 +450,7 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
     loading: dataLoading,
     error: dataError || (clientsQuery.error as Error | null)?.message || null,
     recommendations,
+    markWorking,
     resolved,
     achievements,
     avgTicket: engineResult.avgTicket,
