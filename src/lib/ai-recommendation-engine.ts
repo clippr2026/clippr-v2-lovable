@@ -67,7 +67,7 @@ export type EngineInput = {
 
 // ─────────────────────────── Tipos de salida ────────────────────────────────
 
-export type RecommendationStatus = "active" | "resolved" | "archived";
+export type RecommendationStatus = "active" | "working" | "resolved" | "archived";
 export type RecommendationCategory =
   | "recuperacion"
   | "agenda"
