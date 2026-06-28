@@ -3234,6 +3234,254 @@ type GrowthRec = {
   priority: number;
 };
 
+type AiRecommendationStatus = "active" | "resolved" | "archived";
+
+type AiRecommendationState = {
+  recommendation_key: string;
+  status: AiRecommendationStatus;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  resolved_at: string | null;
+  hidden_at: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
+const AI_RECOMMENDATION_RESOLVED_VISIBLE_DAYS = 3;
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function getRecommendationMetadata(rec: GrowthRec) {
+  return {
+    title: rec.title,
+    category: rec.category,
+    tone: rec.tone,
+    icon: rec.icon,
+    moneyLost: rec.moneyLost,
+    moneyRecoverable: rec.moneyRecoverable,
+    priority: rec.priority,
+  };
+}
+
+function useAiRecommendationStates(
+  businessId: string | null | undefined,
+  currentRecommendations: GrowthRec[],
+) {
+  const [states, setStates] = React.useState<AiRecommendationState[]>([]);
+  const [ready, setReady] = React.useState(false);
+
+  const signature = React.useMemo(
+    () =>
+      currentRecommendations
+        .map((r) => `${r.id}:${r.priority}:${r.moneyLost}:${r.moneyRecoverable}`)
+        .sort()
+        .join("|"),
+    [currentRecommendations],
+  );
+
+  React.useEffect(() => {
+    if (!businessId) {
+      setStates([]);
+      setReady(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      setReady(false);
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const currentKeys = new Set(currentRecommendations.map((r) => r.id));
+
+      try {
+        const { data, error } = await supabase
+          .from("ai_recommendation_states")
+          .select("recommendation_key,status,first_seen_at,last_seen_at,resolved_at,hidden_at,metadata")
+          .eq("business_id", businessId);
+
+        if (error) throw error;
+
+        const existing = ((data ?? []) as AiRecommendationState[]).map((row) => ({
+          ...row,
+          metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        }));
+        const existingByKey = new Map(existing.map((row) => [row.recommendation_key, row]));
+
+        const activeRows = currentRecommendations.map((rec) => ({
+          business_id: businessId,
+          recommendation_key: rec.id,
+          status: "active",
+          last_seen_at: nowIso,
+          resolved_at: null,
+          hidden_at: null,
+          metadata: getRecommendationMetadata(rec),
+        }));
+
+        const rowsToResolve = existing
+          .filter((row) => row.status === "active" && !currentKeys.has(row.recommendation_key))
+          .map((row) => ({
+            business_id: businessId,
+            recommendation_key: row.recommendation_key,
+            status: "resolved",
+            last_seen_at: nowIso,
+            resolved_at: row.resolved_at ?? nowIso,
+            hidden_at: row.hidden_at ?? addDays(now, AI_RECOMMENDATION_RESOLVED_VISIBLE_DAYS).toISOString(),
+            metadata: row.metadata ?? {},
+          }));
+
+        const rowsToArchive = existing
+          .filter(
+            (row) =>
+              row.status === "resolved" &&
+              row.hidden_at &&
+              new Date(row.hidden_at).getTime() <= now.getTime(),
+          )
+          .map((row) => ({
+            business_id: businessId,
+            recommendation_key: row.recommendation_key,
+            status: "archived",
+            last_seen_at: nowIso,
+            resolved_at: row.resolved_at,
+            hidden_at: row.hidden_at,
+            metadata: row.metadata ?? {},
+          }));
+
+        const upserts = [...activeRows, ...rowsToResolve, ...rowsToArchive];
+        if (upserts.length > 0) {
+          await supabase
+            .from("ai_recommendation_states")
+            .upsert(upserts, { onConflict: "business_id,recommendation_key" });
+        }
+
+        if (cancelled) return;
+
+        const nextByKey = new Map(existingByKey);
+        for (const row of activeRows) {
+          nextByKey.set(row.recommendation_key, {
+            ...(existingByKey.get(row.recommendation_key) ?? {}),
+            recommendation_key: row.recommendation_key,
+            status: "active",
+            first_seen_at: existingByKey.get(row.recommendation_key)?.first_seen_at ?? nowIso,
+            last_seen_at: nowIso,
+            resolved_at: null,
+            hidden_at: null,
+            metadata: row.metadata,
+          } as AiRecommendationState);
+        }
+        for (const row of rowsToResolve) {
+          nextByKey.set(row.recommendation_key, {
+            ...(existingByKey.get(row.recommendation_key) ?? {}),
+            recommendation_key: row.recommendation_key,
+            status: "resolved",
+            first_seen_at: existingByKey.get(row.recommendation_key)?.first_seen_at ?? nowIso,
+            last_seen_at: nowIso,
+            resolved_at: row.resolved_at,
+            hidden_at: row.hidden_at,
+            metadata: row.metadata,
+          } as AiRecommendationState);
+        }
+        for (const row of rowsToArchive) {
+          nextByKey.set(row.recommendation_key, {
+            ...(existingByKey.get(row.recommendation_key) ?? {}),
+            recommendation_key: row.recommendation_key,
+            status: "archived",
+            first_seen_at: existingByKey.get(row.recommendation_key)?.first_seen_at ?? nowIso,
+            last_seen_at: nowIso,
+            resolved_at: row.resolved_at,
+            hidden_at: row.hidden_at,
+            metadata: row.metadata,
+          } as AiRecommendationState);
+        }
+
+        setStates(Array.from(nextByKey.values()));
+        setReady(true);
+      } catch (error) {
+        // Degradación segura: si la tabla SQL todavía no existe, el Gerente IA
+        // sigue funcionando con recomendaciones activas, pero sin historial de logros.
+        if (!cancelled) {
+          setStates(
+            currentRecommendations.map((rec) => ({
+              recommendation_key: rec.id,
+              status: "active",
+              first_seen_at: nowIso,
+              last_seen_at: nowIso,
+              resolved_at: null,
+              hidden_at: null,
+              metadata: getRecommendationMetadata(rec),
+            })),
+          );
+          setReady(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, signature]);
+
+  const stateByKey = React.useMemo(
+    () => new Map(states.map((state) => [state.recommendation_key, state])),
+    [states],
+  );
+
+  const visibleResolvedStates = React.useMemo(() => {
+    const now = Date.now();
+    return states.filter(
+      (state) =>
+        state.status === "resolved" &&
+        (!state.hidden_at || new Date(state.hidden_at).getTime() > now),
+    );
+  }, [states]);
+
+  return { ready, stateByKey, visibleResolvedStates };
+}
+
+function getDaysSince(dateIso: string | null) {
+  if (!dateIso) return 0;
+  const diff = Date.now() - new Date(dateIso).getTime();
+  return Math.max(0, Math.floor(diff / 86_400_000));
+}
+
+function ResolvedRecommendationCard({ state }: { state: AiRecommendationState }) {
+  const meta = (state.metadata ?? {}) as Record<string, unknown>;
+  const title = typeof meta.title === "string" ? meta.title : "Recomendación resuelta";
+  const recoverable = Number(meta.moneyRecoverable ?? 0);
+  const days = getDaysSince(state.resolved_at);
+
+  return (
+    <div className="relative overflow-hidden rounded-[26px] border border-emerald-300/20 bg-emerald-500/[0.055] p-5 ring-1 ring-emerald-300/20 backdrop-blur-2xl sm:p-6">
+      <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/30">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Objetivo logrado
+          </span>
+          <h3 className="mt-3 text-xl font-extrabold leading-tight text-white">{title}</h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-white/65">
+            Los datos muestran que esta oportunidad ya mejoró. La dejamos visible 3 días como logro y después pasa al historial del Gerente IA.
+          </p>
+        </div>
+        <div className="shrink-0 text-left sm:text-right">
+          {recoverable > 0 ? (
+            <>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">Impacto recuperado</div>
+              <div className="mt-1 text-2xl font-black text-emerald-200">{fmtAR(recoverable)}</div>
+            </>
+          ) : null}
+          <div className="mt-2 text-xs font-semibold text-emerald-200/75">
+            {days === 0 ? "Logrado hoy" : `Logrado hace ${days} ${days === 1 ? "día" : "días"}`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const DONE_STATUSES = ["completed", "charged"];
 const DOW_LABELS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
@@ -3694,10 +3942,10 @@ const GROWTH_TONES: Record<GrowthRec["tone"], { ring: string; glow: string; chip
 };
 
 type PriorityLevel = "alta" | "media" | "baja";
-const PRIORITY_META: Record<PriorityLevel, { label: string; dot: string; chip: string }> = {
-  alta: { label: "Alta", dot: "bg-rose-400", chip: "bg-rose-500/10 text-rose-100 ring-rose-400/25" },
-  media: { label: "Media", dot: "bg-amber-300", chip: "bg-amber-400/10 text-amber-100 ring-amber-300/25" },
-  baja: { label: "Baja", dot: "bg-emerald-400", chip: "bg-emerald-400/10 text-emerald-100 ring-emerald-300/25" },
+const PRIORITY_META: Record<PriorityLevel, { label: string; emoji: string; chip: string }> = {
+  alta: { label: "Alta", emoji: "🔥", chip: "bg-rose-500/15 text-rose-200 ring-rose-400/35" },
+  media: { label: "Media", emoji: "🟡", chip: "bg-amber-400/15 text-amber-100 ring-amber-300/30" },
+  baja: { label: "Baja", emoji: "🟢", chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30" },
 };
 
 function GrowthRecCard({
@@ -3716,17 +3964,17 @@ function GrowthRecCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#080b16]/82 p-5 shadow-[0_18px_70px_-58px_rgba(56,189,248,0.55)] ring-1 backdrop-blur-2xl sm:p-6",
-        hero ? t.ring : "ring-white/[0.04]",
+        "relative overflow-hidden rounded-[26px] border border-white/10 bg-[#080b16]/80 p-5 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] ring-1 backdrop-blur-2xl sm:p-6",
+        t.ring,
+        hero && "ring-2",
       )}
     >
-      <div className={cn("pointer-events-none absolute -top-28 right-0 h-52 w-52 rounded-full bg-gradient-to-br opacity-70 blur-3xl", t.glow)} />
+      <div className={cn("pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl", t.glow)} />
       <div className="relative">
         {/* Prioridad (triage en un segundo) + categoría */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ring-1", pm.chip)}>
-            <span className={cn("h-1.5 w-1.5 rounded-full", pm.dot)} />
-            {pm.label}
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", pm.chip)}>
+            <span className="text-xs leading-none">{pm.emoji}</span> Prioridad {pm.label}
           </span>
           <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", t.chip)}>
             {rec.category}
@@ -3736,7 +3984,7 @@ function GrowthRecCard({
         {/* Nivel 1 · Título */}
         <div className="mt-3 flex items-start gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
-          <h3 className={cn("font-extrabold leading-[1.08] tracking-[-0.02em] text-white", hero ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl")}>
+          <h3 className={cn("font-extrabold leading-[1.05] tracking-[-0.02em] text-white", hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>
             {rec.title}
           </h3>
         </div>
@@ -3744,22 +3992,28 @@ function GrowthRecCard({
         {/* Nivel 5 · Explicación de una línea */}
         <p className="mt-2.5 text-[13px] leading-relaxed text-white/55">{rec.problem}</p>
 
-        {/* Nivel 2 · Plata */}
+        {/* Nivel 2 · Plata, con iconos grandes */}
         <div className="mt-4 grid grid-cols-2 gap-3">
           {rec.moneyLost > 0 ? (
-            <div className="rounded-2xl border border-rose-400/18 bg-rose-500/[0.045] p-3.5">
-              <div className="text-[11px] font-semibold text-white/45">Pérdida estimada</div>
-              <div className="mt-1 text-2xl font-extrabold tracking-tight text-rose-100 sm:text-3xl">{fmtAR(rec.moneyLost)}</div>
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-200/70">
+                <span className="text-base leading-none">💸</span> Estás perdiendo
+              </div>
+              <div className="mt-1 text-2xl font-black tracking-tight text-rose-200 sm:text-3xl">{fmtAR(rec.moneyLost)}</div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3.5">
-              <div className="text-[11px] font-semibold text-white/45">Oportunidad</div>
-              <div className="mt-1 text-sm font-semibold text-white/75">Ingreso extra sin sumar costos</div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/45">
+                <span className="text-base leading-none">✨</span> Oportunidad
+              </div>
+              <div className="mt-1 text-sm font-semibold text-white/70">Ingreso extra sin sumar costos</div>
             </div>
           )}
-          <div className="rounded-2xl border border-emerald-400/22 bg-emerald-500/[0.065] p-3.5">
-            <div className="text-[11px] font-semibold text-emerald-100/65">Recuperable</div>
-            <div className="mt-1 text-2xl font-extrabold tracking-tight text-emerald-100 sm:text-3xl">{fmtAR(rec.moneyRecoverable)}</div>
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.08] p-3.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
+              <span className="text-base leading-none">📈</span> Podés recuperar
+            </div>
+            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-200 sm:text-3xl">{fmtAR(rec.moneyRecoverable)}</div>
           </div>
         </div>
 
@@ -3772,7 +4026,7 @@ function GrowthRecCard({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/[0.08] px-4 py-2 text-sm font-bold text-white ring-1 ring-white/12 transition hover:bg-white/[0.13]"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15"
           >
             {open ? "Ocultar estrategia" : "Ver estrategia"}
             <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
@@ -3815,10 +4069,16 @@ function GrowthRecCard({
 
 function GrowthManagerTab({ businessId }: { businessId: string | null | undefined }) {
   const { clients, appts, services, employees, loading, error } = useGrowthData(businessId);
-  const { recs, avgTicket, totalOpportunity } = React.useMemo(
+  const { recs, avgTicket } = React.useMemo(
     () => buildGrowthRecommendations(clients, appts, services, employees),
     [clients, appts, services, employees],
   );
+  const { stateByKey, visibleResolvedStates } = useAiRecommendationStates(businessId, recs);
+  const activeRecs = React.useMemo(
+    () => recs.filter((rec) => (stateByKey.get(rec.id)?.status ?? "active") === "active"),
+    [recs, stateByKey],
+  );
+  const totalOpportunity = activeRecs.reduce((s, r) => s + r.moneyRecoverable, 0);
 
   if (loading) {
     return (
@@ -3841,13 +4101,17 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
     );
   }
 
-  if (recs.length === 0) {
+  if (activeRecs.length === 0) {
     return (
       <div className="mt-6 space-y-5">
+        {visibleResolvedStates.map((state) => (
+          <ResolvedRecommendationCard key={state.recommendation_key} state={state} />
+        ))}
+
         <div className="rounded-[28px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center">
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-3xl ring-1 ring-emerald-400/30">✅</div>
           <p className="mt-4 text-lg font-bold text-white">No detectamos fugas de plata hoy</p>
-          <p className="mt-1 text-sm text-white/60">Tu agenda, clientes y servicios están bien aprovechados. Volvé mañana: el gerente IA revisa todo cada día.</p>
+          <p className="mt-1 text-sm text-white/60">Tu agenda, clientes y servicios están bien aprovechados. El Gerente IA solo retira una recomendación cuando los datos muestran que se resolvió.</p>
         </div>
 
         {/* Gerente IA: demanda no atendida */}
@@ -3856,12 +4120,10 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
     );
   }
 
-  const visibleRecs = recs.slice(0, 3);
-  const hiddenRecsCount = Math.max(0, recs.length - visibleRecs.length);
-  const [hero, ...rest] = visibleRecs;
+  const [hero, ...rest] = activeRecs;
   // Prioridad visual (Alta/Media/Baja) según el impacto en plata de cada
   // recomendación, relativo a la de mayor impacto. Permite triage en un segundo.
-  const maxImpact = Math.max(1, ...visibleRecs.map((r) => r.moneyLost + r.moneyRecoverable));
+  const maxImpact = Math.max(1, ...activeRecs.map((r) => r.moneyLost + r.moneyRecoverable));
   const levelFor = (r: GrowthRec): PriorityLevel => {
     const v = r.moneyLost + r.moneyRecoverable;
     if (v >= maxImpact * 0.6) return "alta";
@@ -3871,31 +4133,32 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
 
   return (
     <div className="mt-6 space-y-5">
-      {/* Encabezado: frase ejecutiva + número principal */}
-      <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#070b18]/80 p-5 shadow-[0_26px_80px_-58px_rgba(16,185,129,0.65)] backdrop-blur-2xl sm:p-6">
-        <div className="pointer-events-none absolute -top-24 left-1/3 h-56 w-56 rounded-full bg-emerald-500/16 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-56 w-56 rounded-full bg-cyan-500/12 blur-3xl" />
+      {/* Encabezado: el número que importa */}
+      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#070b18]/80 p-6 shadow-[0_30px_90px_-50px_rgba(16,185,129,0.7)] backdrop-blur-2xl sm:p-7">
+        <div className="pointer-events-none absolute -top-24 left-1/3 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/[0.08] text-base ring-1 ring-white/12">🧠</span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Tu gerente IA</span>
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-lg ring-1 ring-white/15">🧠</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Tu gerente de crecimiento IA</span>
             </div>
-            <h2 className="mt-2 text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">
-              Hoy tu mayor oportunidad es: {hero.title}
+            <h2 className="mt-2 text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">
+              Si ejecutás las {activeRecs.length} acciones de hoy, podés sumar hasta
             </h2>
-            <p className="mt-1 text-sm text-white/50">
-              Si ejecutás las {visibleRecs.length} acciones principales, podés sumar hasta
-            </p>
           </div>
-          <div className="shrink-0 text-left sm:text-right">
-            <div className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
+          <div className="shrink-0 text-right">
+            <div className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-4xl font-black text-transparent sm:text-5xl">
               {fmtAR(totalOpportunity)}
             </div>
-            <div className="mt-1 text-xs text-white/42">Ticket promedio real: {fmtAR(avgTicket)}</div>
+            <div className="mt-1 text-xs text-white/45">Ticket promedio real: {fmtAR(avgTicket)}</div>
           </div>
         </div>
       </div>
+
+      {visibleResolvedStates.map((state) => (
+        <ResolvedRecommendationCard key={state.recommendation_key} state={state} />
+      ))}
 
       {/* Gerente IA: demanda no atendida */}
       <DemandaNoAtendidaSection businessId={businessId} />
@@ -3909,17 +4172,6 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
           {rest.map((r) => (
             <GrowthRecCard key={r.id} rec={r} priority={levelFor(r)} />
           ))}
-        </div>
-      ) : null}
-
-      {hiddenRecsCount > 0 ? (
-        <div className="text-center">
-          <button
-            type="button"
-            className="rounded-full bg-white/[0.06] px-4 py-2 text-xs font-semibold text-white/60 ring-1 ring-white/10 transition hover:bg-white/[0.1] hover:text-white/80"
-          >
-            Ver todas las recomendaciones ({recs.length})
-          </button>
         </div>
       ) : null}
 
@@ -4589,15 +4841,6 @@ function DemandaNoAtendidaSection({
     const sum = a.peakHours.filter((h) => h.hour >= start && h.hour < end).reduce((s, h) => s + h.count, 0);
     return month > 0 ? Math.round((sum / month) * 100) : null;
   })();
-
-  const shouldShowDemand = !isLoading && (
-    a.counts.month >= 3 ||
-    a.lostRevenue.month > 0 ||
-    (a.topProfessionals?.[0]?.count ?? 0) >= 2 ||
-    ((a.avgOccupancyMonth ?? 0) >= 82 && a.counts.month > 0)
-  );
-
-  if (!shouldShowDemand) return null;
 
   const narrative: string[] = [];
   if (month > 0) narrative.push(`Durante este mes rechazaste ${month} clientes por falta de disponibilidad.`);
