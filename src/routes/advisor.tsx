@@ -5254,6 +5254,27 @@ function LabPrecios({ data }: { data: LabData }) {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-[22px] border border-cyan-300/15 bg-cyan-400/[0.035] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-100/55">
+              Elegí el servicio
+            </p>
+            <p className="mt-1 text-xs text-white/45">
+              Seleccioná el servicio que querés analizar antes de probar el aumento.
+            </p>
+          </div>
+          <span className="hidden rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[11px] font-bold text-white/45 sm:inline-flex">
+            {services.length} servicios
+          </span>
+        </div>
+        <LabChips
+          options={services.map((s) => ({ key: s.id, label: s.nombre }))}
+          value={svc?.id ?? ""}
+          onChange={setSvcId}
+        />
+      </div>
+
       <div className="relative overflow-hidden rounded-[24px] border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.10] via-white/[0.035] to-emerald-400/[0.06] p-5 shadow-[0_22px_70px_-48px_rgba(34,211,238,0.95)]">
         <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-cyan-400/18 blur-3xl" />
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -5273,17 +5294,6 @@ function LabPrecios({ data }: { data: LabData }) {
             <p className={cn("mt-1 text-2xl font-extrabold", riesgoCls)}>{riesgoLabel}</p>
           </div>
         </div>
-      </div>
-
-      <div>
-        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">
-          Elegí el servicio
-        </div>
-        <LabChips
-          options={services.map((s) => ({ key: s.id, label: s.nombre }))}
-          value={svc?.id ?? ""}
-          onChange={setSvcId}
-        />
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -5322,20 +5332,6 @@ function LabPrecios({ data }: { data: LabData }) {
         projectedValue={fmtAR(precioNuevo)}
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.028] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-white/38">Datos usados</p>
-          <p className="mt-2 text-sm text-white/75">{mensual} ventas estimadas por mes.</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.028] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-white/38">Margen de seguridad</p>
-          <p className="mt-2 text-sm text-white/75">Podés perder hasta <span className="font-bold text-rose-200">{perdibles}</span> clientes/mes.</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.028] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-white/38">Confianza</p>
-          <p className="mt-2 text-sm text-white/75">{mensual >= 8 ? "Alta" : mensual >= 3 ? "Media" : "Preliminar"}</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -5772,15 +5768,17 @@ function LaboratorioDecisiones(props: SimuladorProps) {
       <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#080b16]/80 p-5 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] backdrop-blur-2xl sm:p-6">
         <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent blur-3xl" />
         <div className="relative">
-          <div className="mb-4 flex items-center gap-3 border-b border-white/8 pb-4">
-            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/8 ring-1 ring-white/10 text-white">
-              {React.createElement(current.icon, { className: "h-5 w-5" })}
-            </span>
-            <div>
-              <h3 className="text-lg font-bold text-white">{current.label}</h3>
-              <p className="text-xs text-white/45">{current.sub}</p>
+          {sim !== "precios" ? (
+            <div className="mb-4 flex items-center gap-3 border-b border-white/8 pb-4">
+              <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/8 ring-1 ring-white/10 text-white">
+                {React.createElement(current.icon, { className: "h-5 w-5" })}
+              </span>
+              <div>
+                <h3 className="text-lg font-bold text-white">{current.label}</h3>
+                <p className="text-xs text-white/45">{current.sub}</p>
+              </div>
             </div>
-          </div>
+          ) : null}
           {sim === "precios" && <LabPrecios data={data} />}
           {sim === "profesional" && <LabProfesional data={data} ocupacion={props.ocupacion} />}
           {sim === "horario" && <LabHorario data={data} />}
