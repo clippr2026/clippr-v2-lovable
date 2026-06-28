@@ -2101,7 +2101,7 @@ function PrioridadesTab({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 xl:space-y-2">
       {/* Main card */}
       <GlassCard className="relative overflow-hidden border-cyan-400/20 p-6 shadow-[0_0_80px_rgba(34,211,238,0.10),0_0_110px_rgba(16,185,129,0.08)] sm:p-8">
         <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-cyan-400/20 blur-[90px]" />
@@ -3802,7 +3802,7 @@ function getDaysSince(dateIso: string | null) {
 function ResolvedRecommendationCard({ achievement }: { achievement: RecommendationAchievement }) {
   const days = achievement.daysSince;
   return (
-    <div className="relative overflow-hidden rounded-[26px] border border-emerald-300/20 bg-emerald-500/[0.055] p-5 ring-1 ring-emerald-300/20 backdrop-blur-2xl sm:p-6">
+    <div className="relative overflow-hidden rounded-[26px] border border-emerald-300/20 bg-emerald-500/[0.055] p-5 ring-1 ring-emerald-300/20 backdrop-blur-2xl sm:p-4">
       <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
@@ -5099,20 +5099,20 @@ function LabScenario({
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">
           {currentLabel}
         </div>
-        <div className="mt-1 text-xl font-bold text-white/85">{currentValue}</div>
+        <div className="mt-0.5 text-lg font-bold leading-none text-white/85">{currentValue}</div>
       </div>
-      <div className="grid place-items-center text-white/30">
-        <ArrowRight className="h-5 w-5" />
+      <div className="grid place-items-center text-white/25">
+        <ArrowRight className="h-4 w-4" />
       </div>
-      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.07] p-3">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">
+      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.07] px-3 py-2.5">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/70">
           {projectedLabel}
         </div>
-        <div className="mt-1 text-xl font-bold text-emerald-200">{projectedValue}</div>
+        <div className="mt-0.5 text-lg font-bold leading-none text-emerald-200">{projectedValue}</div>
       </div>
     </div>
   );
@@ -5129,24 +5129,24 @@ function LabImpact({
 }) {
   return (
     <div className={cn("grid gap-2", extra ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-      <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] px-3.5 py-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-200/70">
+      <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] px-3.5 py-3">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-sky-200/70">
           Facturación adicional
         </div>
-        <div className="mt-1 text-2xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
+        <div className="mt-0.5 text-xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
       </div>
-      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] px-3.5 py-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
+      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] px-3.5 py-3">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80">
           Ganancia estimada
         </div>
-        <div className="mt-1 text-2xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
+        <div className="mt-0.5 text-xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
       </div>
       {extra ? (
-        <div className="rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] px-3.5 py-4">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-violet-200/70">
+        <div className="rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] px-3.5 py-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200/70">
             {extra.label}
           </div>
-          <div className="mt-1 text-2xl font-extrabold text-violet-200">{extra.value}</div>
+          <div className="mt-0.5 text-xl font-extrabold text-violet-200">{extra.value}</div>
         </div>
       ) : null}
     </div>
@@ -5156,23 +5156,24 @@ function LabImpact({
 function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: string }) {
   const meta = nivelMeta[nivel];
   const title = nivel === "alto_riesgo" ? "Revisar antes de aplicar" : nivel === "evaluar" ? "Conviene probar con cuidado" : "Recomendado por IA";
+  const Icon = meta.icon;
   return (
-    <div className={cn("rounded-[22px] border p-4", meta.cls)}>
+    <div className={cn("rounded-[20px] border px-3.5 py-3", meta.cls)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/10 text-base ring-1 ring-white/15">
-            {meta.emoji}
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15">
+            <Icon className={cn("h-4 w-4", meta.titleCls)} />
           </span>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
               Veredicto del Gerente IA
             </p>
-            <p className={cn("text-base font-extrabold", meta.titleCls)}>{title}</p>
+            <p className={cn("text-sm font-extrabold", meta.titleCls)}>{title}</p>
           </div>
         </div>
-        <span className={cn("rounded-full px-3 py-1 text-[11px] font-bold", meta.titleCls, "bg-white/8")}>{meta.label}</span>
+        <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold", meta.titleCls, "bg-white/8")}>{meta.label}</span>
       </div>
-      <p className="mt-3 text-sm leading-relaxed text-white/82">{text}</p>
+      <p className="mt-2 text-xs leading-relaxed text-white/80">{text}</p>
     </div>
   );
 }
@@ -5187,16 +5188,16 @@ function LabChips({
   onChange: (k: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((o) => (
         <button
           key={o.key}
           type="button"
           onClick={() => onChange(o.key)}
           className={cn(
-            "rounded-xl border px-3.5 py-1.5 text-sm font-semibold transition-all",
+            "rounded-xl border px-3 py-1 text-xs font-semibold transition-all",
             value === o.key
-              ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100 shadow-[0_0_24px_-8px_rgba(34,211,238,0.6)]"
+              ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100 shadow-[0_0_18px_-10px_rgba(34,211,238,0.65)]"
               : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white hover:border-white/20",
           )}
         >
@@ -5230,27 +5231,26 @@ function LabPrecios({ data }: { data: LabData }) {
   const perdibles =
     precioNuevo > 0 ? Math.max(0, mensual - Math.ceil((mensual * precioActual) / precioNuevo)) : 0;
   const facturacion = Math.max(0, diferenciaMensual);
-  const utilidad = Math.round(facturacion * 0.9);
   const riesgoLabel = pct > 30 ? "Alto" : pct > 20 ? "Medio" : "Bajo";
   const riesgoCls = pct > 30 ? "text-rose-200" : pct > 20 ? "text-amber-200" : "text-emerald-200";
   const nivel: keyof typeof nivelMeta =
     pct > 30 ? "alto_riesgo" : pct <= 12 ? "recomendado" : pct <= 20 ? "progresivo" : "evaluar";
   const verdict =
     pct > 30
-      ? `Subir ${fmtAR(aumento)} representa un ${pct.toFixed(0)}% de golpe. Es mejor probar un aumento menor o hacerlo en dos etapas para cuidar la demanda.`
-      : `Este aumento puede sumar ${fmtAR(facturacion)} por mes y mantiene el riesgo ${riesgoLabel.toLowerCase()}. Aunque pierdas hasta ${perdibles} clientes por mes en este servicio, tu facturación se mantiene o crece.`;
+      ? `Subir ${fmtAR(aumento)} representa un ${pct.toFixed(0)}% de golpe. Mejor probar un aumento menor o hacerlo en dos etapas.`
+      : `Puede sumar ${fmtAR(facturacion)} por mes con riesgo ${riesgoLabel.toLowerCase()}. Podés perder hasta ${perdibles} clientes/mes y mantener la facturación.`;
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-[22px] border border-cyan-300/15 bg-cyan-400/[0.035] p-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
+    <div className="space-y-2.5 xl:space-y-2">
+      <div className="rounded-[18px] border border-cyan-300/15 bg-cyan-400/[0.035] px-3 py-2.5">
+        <div className="mb-1.5 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-100/55">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/55">
               Elegí el servicio
             </p>
-            <p className="mt-0.5 text-xs text-white/45">Elegí un servicio para simular el cambio.</p>
+            <p className="hidden text-[11px] text-white/40 sm:block">Servicio para simular el cambio.</p>
           </div>
-          <span className="hidden rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[11px] font-bold text-white/45 sm:inline-flex">
+          <span className="hidden rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-0.5 text-[10px] font-bold text-white/42 sm:inline-flex">
             {services.length} servicios
           </span>
         </div>
@@ -5261,36 +5261,36 @@ function LabPrecios({ data }: { data: LabData }) {
         />
       </div>
 
-      <div className="relative overflow-hidden rounded-[24px] border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.10] via-white/[0.035] to-emerald-400/[0.06] p-5 shadow-[0_22px_70px_-48px_rgba(34,211,238,0.95)]">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-cyan-400/18 blur-3xl" />
-        <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="mb-1.5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/80">
-              <Sparkles className="h-3.5 w-3.5" /> Resultado estimado
+      <div className="relative overflow-hidden rounded-[20px] border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.10] via-white/[0.035] to-emerald-400/[0.06] px-4 py-3 shadow-[0_18px_60px_-48px_rgba(34,211,238,0.95)]">
+        <div className="pointer-events-none absolute -right-12 -top-20 h-44 w-44 rounded-full bg-cyan-400/18 blur-3xl" />
+        <div className="relative flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-cyan-100/80">
+              <Sparkles className="h-3 w-3" /> Resultado estimado
             </div>
-            <h3 className="max-w-2xl text-xl font-extrabold tracking-[-0.03em] text-white sm:text-2xl">
+            <h3 className="max-w-2xl text-lg font-extrabold tracking-[-0.03em] text-white sm:text-xl">
               Si aumentás {fmtAR(aumento)}, podrías generar {fmtAR(facturacion)} más por mes.
             </h3>
-            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-white/62">
-              Simulación sobre <span className="font-semibold text-white">{svc?.nombre}</span>, con {mensual} ventas mensuales estimadas y un riesgo de pérdida de clientes <span className={cn("font-bold", riesgoCls)}>{riesgoLabel.toLowerCase()}</span>.
+            <p className="mt-1 max-w-2xl truncate text-xs text-white/58">
+              {svc?.nombre} · {mensual} ventas mensuales estimadas · riesgo <span className={cn("font-bold", riesgoCls)}>{riesgoLabel.toLowerCase()}</span>
             </p>
           </div>
-          <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.055] px-4 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Riesgo estimado</p>
-            <p className={cn("mt-0.5 text-xl font-extrabold", riesgoCls)}>{riesgoLabel}</p>
+          <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.055] px-4 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-white/42">Riesgo</p>
+            <p className={cn("mt-0.5 text-lg font-extrabold leading-none", riesgoCls)}>{riesgoLabel}</p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <div className="mb-2 flex items-end justify-between gap-4">
+      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+        <div className="mb-1.5 flex items-end justify-between gap-4">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
               Aumento seleccionado
             </span>
-            <p className="mt-1 text-xs text-white/45">Probá distintos valores antes de cambiar el precio real.</p>
+            <p className="hidden text-[11px] text-white/40 sm:block">Probá valores antes de cambiar el precio real.</p>
           </div>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200 sm:text-3xl">
+          <span className="text-2xl font-extrabold leading-none text-cyan-200">
             +{fmtAR(aumento)}
           </span>
         </div>
@@ -5301,9 +5301,9 @@ function LabPrecios({ data }: { data: LabData }) {
           step={100}
           value={aumento}
           onChange={(e) => setAumento(Number(e.target.value))}
-          className="w-full accent-cyan-400"
+          className="h-2 w-full accent-cyan-400"
         />
-        <div className="mt-2 flex justify-between text-[10px] font-semibold text-white/35">
+        <div className="mt-1 flex justify-between text-[9px] font-semibold text-white/32">
           <span>$0</span>
           <span>+{fmtAR(Math.max(5000, Math.round(precioActual)))}</span>
         </div>
@@ -5317,7 +5317,6 @@ function LabPrecios({ data }: { data: LabData }) {
         projectedLabel="Precio sugerido"
         projectedValue={fmtAR(precioNuevo)}
       />
-
     </div>
   );
 }
@@ -5684,7 +5683,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
   return (
     <div className="space-y-5">
       {/* Encabezado del laboratorio · franja compacta */}
-      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#070b18]/80 px-4 py-3.5 shadow-[0_20px_70px_-50px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
+      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#070b18]/80 px-4 py-2.5 shadow-[0_20px_70px_-50px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
         <div className="pointer-events-none absolute -top-16 left-1/4 h-40 w-40 rounded-full bg-cyan-500/15 blur-3xl" />
         <div className="relative flex items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-xl ring-1 ring-white/15">
@@ -5711,14 +5710,14 @@ function LaboratorioDecisiones(props: SimuladorProps) {
       </div>
 
       {/* Selector de simuladores */}
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {sims.map((s) => (
           <button
             key={s.key}
             type="button"
             onClick={() => setSim(s.key)}
             className={cn(
-              "group flex items-center gap-3 rounded-2xl border p-3 text-left transition-all",
+              "group flex min-h-[54px] items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-all",
               sim === s.key
                 ? "border-cyan-300/40 bg-cyan-400/[0.1] opacity-100 shadow-[0_0_30px_-10px_rgba(34,211,238,0.6)]"
                 : "border-white/10 bg-white/[0.03] opacity-55 hover:border-white/20 hover:bg-white/[0.05] hover:opacity-100",
@@ -5726,32 +5725,22 @@ function LaboratorioDecisiones(props: SimuladorProps) {
           >
             <span
               className={cn(
-                "grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1 text-white",
+                "grid h-8 w-8 shrink-0 place-items-center rounded-xl ring-1 text-white",
                 sim === s.key ? "bg-white/15 ring-white/20" : "bg-white/[0.06] ring-white/10",
               )}
             >
-              {React.createElement(s.icon, { className: "h-5 w-5" })}
+              {React.createElement(s.icon, { className: "h-4 w-4" })}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-bold text-white">{s.label}</span>
-              <span className="block truncate text-xs text-white/45">{s.sub}</span>
-              <span
-                className={cn(
-                  "mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]",
-                  sim === s.key
-                    ? "bg-cyan-300/15 text-cyan-100"
-                    : "bg-white/[0.055] text-white/35 group-hover:text-white/55",
-                )}
-              >
-                Simulación rápida
-              </span>
+              <span className="hidden truncate text-[11px] text-white/42 xl:block">{s.sub}</span>
             </span>
           </button>
         ))}
       </div>
 
       {/* Simulador activo */}
-      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#080b16]/80 p-5 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] backdrop-blur-2xl sm:p-6">
+      <div className="relative overflow-hidden rounded-[24px] border border-white/12 bg-[#080b16]/80 p-3 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] backdrop-blur-2xl sm:p-6">
         <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent blur-3xl" />
         <div className="relative">
           {sim !== "precios" ? (
