@@ -11,6 +11,55 @@ export type SessionActionType =
 // Used when cash_sessions table doesn't exist or errors out.
 const CAJA_KEY = "_cajaSession";
 
+
+function localDateISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+async function getRejectedCloseSummary(businessId: string): Promise<{
+  count: number;
+  lostRevenue: number;
+}> {
+  try {
+    const today = localDateISO(new Date());
+    const { data: rejected, error } = await supabase
+      .from("rejected_clients")
+      .select("service_id,service_name")
+      .eq("business_id", businessId)
+      .eq("rejected_date", today);
+    if (error) throw error;
+
+    const rows = (rejected ?? []) as Array<{ service_id: string | null; service_name: string | null }>;
+    if (rows.length === 0) return { count: 0, lostRevenue: 0 };
+
+    let priceById = new Map<string, number>();
+    let priceByName = new Map<string, number>();
+    try {
+      const { data: prices } = await supabase
+        .from("price_catalog")
+        .select("id,name,price")
+        .eq("business_id", businessId);
+      (prices ?? []).forEach((r: { id: string; name?: string | null; price?: number | null }) => {
+        if (r.id) priceById.set(r.id, Number(r.price ?? 0));
+        if (r.name) priceByName.set(r.name.toLowerCase().trim(), Number(r.price ?? 0));
+      });
+    } catch { /* price catalog optional */ }
+
+    const lostRevenue = rows.reduce((sum, r) => {
+      const byId = r.service_id ? priceById.get(r.service_id) : undefined;
+      const byName = r.service_name ? priceByName.get(r.service_name.toLowerCase().trim()) : undefined;
+      return sum + Number(byId ?? byName ?? 0);
+    }, 0);
+
+    return { count: rows.length, lostRevenue };
+  } catch {
+    return { count: 0, lostRevenue: 0 };
+  }
+}
+
 type CajaSessionState = {
   status: "open" | "closed";
   sessionId: string | null;
@@ -124,13 +173,17 @@ export async function closeCashSession(params: {
     } catch { /* ignore */ }
   }
 
-  // 3. Log event (best effort)
+  // 3. Log event (best effort) + snapshot de clientes rechazados del día.
+  const rejectedSummary = await getRejectedCloseSummary(params.businessId);
+  const rejectedLine = `Clientes rechazados: ${rejectedSummary.count} · Facturación potencial perdida: $${Math.round(rejectedSummary.lostRevenue).toLocaleString("es-AR")}`;
+  const observation = [params.observation, rejectedLine].filter(Boolean).join("\n");
+
   await logSessionEvent({
     businessId: params.businessId,
     sessionId: params.sessionId,
     actionType,
     userId: params.closedBy,
-    observation: params.observation,
+    observation,
   });
 }
 
