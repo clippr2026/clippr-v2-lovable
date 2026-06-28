@@ -96,7 +96,7 @@ type AdvisorAction = {
   }[];
 };
 
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const THREE_DAYS_MS = 0;
 
 type StoredAdvisorStatus = {
   status: AdvisorAction["status"];
@@ -3607,7 +3607,7 @@ function ResolvedRecommendationCard({ achievement }: { achievement: Recommendati
           </h3>
           <p className="mt-1.5 text-sm leading-relaxed text-white/70">{achievement.message}</p>
           <p className="mt-1 text-xs text-white/45">
-            La dejamos visible 3 días como logro y después pasa al historial del Gerente IA.
+            La movemos automáticamente al historial del Gerente IA apenas se detecta el objetivo logrado.
           </p>
         </div>
         <div className="shrink-0 text-left sm:text-right">
@@ -3995,10 +3995,10 @@ function getAdvisorMonitoring(action: AdvisorAction): AdvisorMonitoring {
       trend: "completed",
       label: "Objetivo logrado",
       title: "La IA detectó el objetivo cumplido",
-      description: "Los indicadores alcanzaron la meta y la estrategia quedará visible durante 3 días antes de archivarse.",
+      description: "Los indicadores alcanzaron la meta y la estrategia se movió automáticamente al historial de logros.",
       progress: 100,
       progressLabel: "Meta alcanzada automáticamente",
-      objectiveLabel: "Se archivará en 3 días",
+      objectiveLabel: "Archivado automáticamente",
       ctaLabel: "Ver detalle",
       lastReview: "recién",
     };
@@ -4147,11 +4147,7 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
     const withStoredStatus = generated.map((action) => {
       const saved = actionStatuses[action.id];
       if (!saved) return action;
-      if (
-        saved.status === "completed" &&
-        saved.completedAt &&
-        Date.now() - saved.completedAt >= THREE_DAYS_MS
-      ) {
+      if (saved.status === "completed") {
         return {
           ...action,
           status: "archived" as const,
@@ -4169,8 +4165,12 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
     return sortAdvisorActions(withStoredStatus);
   }, [actionStatuses]);
 
-  const activeActions = actions.filter((action) => action.status !== "archived");
-  const archivedActions = actions.filter((action) => action.status === "archived");
+  const activeActions = actions.filter(
+    (action) => action.status !== "archived" && action.status !== "completed",
+  );
+  const archivedActions = actions.filter(
+    (action) => action.status === "archived" || action.status === "completed",
+  );
 
   const heroAction = activeActions[0] ?? null;
   const secondaryActions = activeActions
@@ -4182,11 +4182,11 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
       const next = {
         ...current,
         [action.id]: {
-          status,
+          status: status === "completed" ? "archived" : status,
           startedAt:
             status === "running" ? Date.now() : (current[action.id]?.startedAt ?? action.startedAt),
           completedAt:
-            status === "completed"
+            status === "completed" || status === "archived"
               ? Date.now()
               : (current[action.id]?.completedAt ?? action.completedAt),
         },
@@ -4309,7 +4309,7 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                   {heroAction.status === "running"
                     ? getAdvisorMonitoring(heroAction).description
                     : heroAction.status === "completed"
-                      ? "La IA detectó automáticamente que el objetivo fue alcanzado. Quedará visible durante 3 días antes de archivarse."
+                      ? "La IA detectó automáticamente que el objetivo fue alcanzado. Ya se movió automáticamente al historial de logros."
                       : "Empezá la estrategia para activar el seguimiento automático. Si el indicador mejora, empeora o queda igual, la IA lo va a mostrar claramente."}
                 </p>
               </div>
@@ -4529,8 +4529,8 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
             })
           ) : (
             <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm text-white/50">
-              Todavía no hay logros archivados. Cuando una estrategia se complete, se mostrará acá
-              después de 3 días.
+              Todavía no hay logros archivados. Cuando la IA detecte un objetivo logrado, se moverá
+              automáticamente acá.
             </div>
           )}
         </div>
