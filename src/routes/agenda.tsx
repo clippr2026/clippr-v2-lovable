@@ -1062,7 +1062,7 @@ function AgendaPage() {
 
           <div className="h-5 w-px bg-white/10 shrink-0" />
 
-          <RejectedClientsButton businessId={data.businessId} />
+          <RejectedClientsButton businessId={data.businessId} date={cursor} services={data.services} />
 
           <div className="h-5 w-px bg-white/10 shrink-0" />
 
@@ -1208,7 +1208,7 @@ function AgendaPage() {
           services={data.services}
           employees={data.employees}
           appointments={data.appointments}
-          openHoursToday={getScheduleForDate(data.schedule, new Date())}
+          openHoursToday={getScheduleForDate(data.schedule, cursor)}
         />
 
         {/* Always day view */}
