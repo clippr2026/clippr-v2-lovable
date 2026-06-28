@@ -42,16 +42,7 @@ import {
   Scissors,
   Gem,
   Package,
-  Crown,
-  UserX,
-  Clock,
-  Ban,
-  CalendarX,
-  UserRound,
-  Receipt,
-  Bot,
-  CheckCircle,
-} from "lucide-react";
+  Crown, UserX, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/advisor")({
   head: () => ({
@@ -3305,21 +3296,11 @@ const GROWTH_TONES: Record<RecommendationTone, { ring: string; glow: string; chi
   client: { ring: "ring-cyan-300/25", glow: "from-cyan-500/20 via-blue-500/10 to-transparent", chip: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/30" },
 };
 
-const PRIORITY_META: Record<RecommendationPriority, { label: string; dot: string; chip: string }> = {
-  alta: { label: "Alta", dot: "bg-rose-300", chip: "bg-rose-500/15 text-rose-200 ring-rose-400/35" },
-  media: { label: "Media", dot: "bg-amber-300", chip: "bg-amber-400/15 text-amber-100 ring-amber-300/30" },
-  baja: { label: "Baja", dot: "bg-emerald-300", chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30" },
+const PRIORITY_META: Record<RecommendationPriority, { label: string; emoji: string; chip: string }> = {
+  alta: { label: "Alta", emoji: "🔥", chip: "bg-rose-500/15 text-rose-200 ring-rose-400/35" },
+  media: { label: "Media", emoji: "🟡", chip: "bg-amber-400/15 text-amber-100 ring-amber-300/30" },
+  baja: { label: "Baja", emoji: "🟢", chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30" },
 };
-
-function getRecommendationIcon(rec: Recommendation): React.ComponentType<{ className?: string }> {
-  if (rec.key.includes("cancel")) return Ban;
-  if (rec.key.includes("dia") || rec.strategy.category === "agenda") return CalendarX;
-  if (rec.key.includes("prof") || rec.strategy.category === "equipo") return UserRound;
-  if (rec.key.includes("ticket") || rec.key.includes("barba")) return Receipt;
-  if (rec.strategy.category === "rentabilidad") return TrendingUp;
-  return Target;
-}
-
 
 function getDaysSince(dateIso: string | null) {
   if (!dateIso) return 0;
@@ -3406,152 +3387,221 @@ function AchievementsHistory({ achievements }: { achievements: RecommendationAch
   );
 }
 
-function GrowthRecCard({ rec, hero = false, onMarkWorking }: { rec: Recommendation; hero?: boolean; onMarkWorking: (key: string) => void }) {
+function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: boolean }) {
   const s = rec.strategy;
   const t = GROWTH_TONES[s.tone];
   const pm = PRIORITY_META[rec.priority];
-  const Icon = getRecommendationIcon(rec);
-  const isWorking = rec.status === "working";
   const [open, setOpen] = React.useState(false);
 
   return (
-    <div
+    <article
       className={cn(
-        "relative overflow-hidden rounded-[26px] border border-white/10 bg-[#080b16]/80 p-5 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] ring-1 backdrop-blur-2xl sm:p-6",
+        "group relative overflow-hidden rounded-[28px] border border-white/10 bg-[#070b18]/76 p-5 shadow-[0_24px_80px_-58px_rgba(124,58,237,0.72)] ring-1 backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:bg-[#080b18]/90 sm:p-6",
         t.ring,
         hero && "ring-2",
       )}
     >
-      <div className={cn("pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl", t.glow)} />
+      <div className={cn("pointer-events-none absolute -top-28 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl opacity-80", t.glow)} />
       <div className="relative">
-        {/* Prioridad + categoría + estado operativo. El score queda oculto: sólo ordena. */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", pm.chip)}>
-            <span className={cn("h-1.5 w-1.5 rounded-full", pm.dot)} /> {pm.label}
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1", pm.chip)}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current" /> {pm.label}
           </span>
-          <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", t.chip)}>
+          <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1", t.chip)}>
             {s.category}
           </span>
-          {isWorking ? (
-            <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-amber-400/12 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200 ring-1 ring-amber-300/25">
-              <Clock className="h-3 w-3" /> Trabajando en eso
-            </span>
-          ) : null}
         </div>
 
-        {/* Título dinámico */}
-        <div className="mt-3 flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/8 text-white/80 ring-1 ring-white/10">
-            <Icon className="h-5 w-5" />
+        <div className="mt-4 flex items-start gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-2xl ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            {s.icon}
           </span>
-          <h3 className={cn("font-extrabold leading-[1.05] tracking-[-0.02em] text-white", hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>
-            {rec.title}
-          </h3>
-        </div>
-
-        {/* Explicación de una línea (dinámica) */}
-        <p className="mt-2.5 text-[13px] leading-relaxed text-white/55">{rec.description}</p>
-
-        {/* Plata */}
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {s.moneyLost > 0 ? (
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-200/70">
-                <TrendingDown className="h-3.5 w-3.5" /> Pérdida estimada
-              </div>
-              <div className="mt-1 text-2xl font-black tracking-tight text-rose-200 sm:text-3xl">{fmtAR(s.moneyLost)}</div>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/45">
-                <Sparkles className="h-3.5 w-3.5" /> Oportunidad
-              </div>
-              <div className="mt-1 text-sm font-semibold text-white/70">Ingreso extra sin sumar costos</div>
-            </div>
-          )}
-          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.08] p-3.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
-              <TrendingUp className="h-3.5 w-3.5" /> Podés recuperar
-            </div>
-            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-200 sm:text-3xl">{fmtAR(s.moneyRecoverable)}</div>
+          <div className="min-w-0">
+            <h3 className={cn("font-display font-extrabold leading-[1.08] tracking-[-0.035em] text-white", hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>
+              {rec.title}
+            </h3>
+            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-white/55">{rec.description}</p>
           </div>
         </div>
 
-        {/* Resumen de acciones + Ver plan */}
+        <div className={cn("mt-5 rounded-2xl border p-4", s.moneyRecoverable > 0 ? "border-emerald-400/25 bg-emerald-500/[0.075]" : "border-white/10 bg-white/[0.035]")}> 
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+            {s.moneyRecoverable > 0 ? "Podés recuperar" : "Oportunidad"}
+          </div>
+          <div className={cn("mt-1 font-display text-3xl font-black tracking-[-0.04em]", s.moneyRecoverable > 0 ? "text-emerald-200" : "text-white/85")}>
+            {s.moneyRecoverable > 0 ? fmtAR(s.moneyRecoverable) : "Sin monto directo"}
+          </div>
+          {s.moneyRecoverable > 0 ? <div className="mt-0.5 text-xs font-semibold text-emerald-200/55">por mes</div> : null}
+        </div>
+
         <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-2 text-sm font-semibold text-white/65">
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-            {s.steps.length} {s.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}
+          <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white/60">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span className="truncate">{s.steps.length} {s.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}</span>
           </span>
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/[0.10] px-4 py-2 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/[0.16]"
           >
-            {open ? "Ocultar estrategia" : "Ver estrategia"}
+            {open ? "Ocultar" : "Ver estrategia"}
             <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
           </button>
         </div>
 
-        {/* Detalle expandible */}
         {open ? (
-          <div className="mt-4 space-y-3 border-t border-white/[0.08] pt-4">
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-3.5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Qué hacer hoy</div>
-              <p className="mt-1 text-lg font-semibold leading-snug text-white/90">{s.action}</p>
-              <ol className="mt-2.5 space-y-2">
+          <div className="mt-5 space-y-3 border-t border-white/[0.08] pt-5">
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4">
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">Estrategia recomendada</div>
+              <p className="mt-1.5 text-base font-bold leading-snug text-white/90">{s.action}</p>
+              <ol className="mt-3 space-y-2">
                 {s.steps.map((step, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-white/70">
+                  <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-white/68">
                     <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">{i + 1}</span>
                     <span>{step}</span>
                   </li>
                 ))}
               </ol>
             </div>
-
             <GrowthContactsBlock contacts={s.contacts} />
             <GrowthMessageBlock message={s.message} />
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Cómo mide Clippr si funcionó</div>
-              <p className="mt-0.5 text-[13px] text-white/60">{s.measure}</p>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">Cómo medir si funcionó</div>
+              <p className="mt-1 text-sm leading-relaxed text-white/60">{s.measure}</p>
             </div>
-
-            {isWorking ? (
-              <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.055] p-3 text-sm font-semibold text-amber-100">
-                En seguimiento. El Gerente IA la va a retirar solo cuando los datos muestren que el objetivo se logró.
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onMarkWorking(rec.key)}
-                className="w-full rounded-2xl border border-amber-300/20 bg-amber-400/[0.08] px-4 py-3 text-sm font-bold text-amber-100 transition hover:bg-amber-400/[0.13]"
-              >
-                Estoy trabajando en esto
-              </button>
-            )}
-
-            <p className="text-[11px] text-white/35">{s.basis}</p>
           </div>
         ) : null}
       </div>
-    </div>
+    </article>
   );
 }
 
-// Cantidad de recomendaciones que se muestran de entrada (req. 5). El resto
-// queda detrás de "Ver todas las recomendaciones".
-const GROWTH_VISIBLE_LIMIT = 4;
+function ManagerTrendSparkline() {
+  return (
+    <svg viewBox="0 0 320 120" className="h-28 w-full max-w-[360px] overflow-visible" aria-hidden="true">
+      <defs>
+        <linearGradient id="clippr-manager-line" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stopColor="rgb(124 58 237)" />
+          <stop offset="55%" stopColor="rgb(168 85 247)" />
+          <stop offset="100%" stopColor="rgb(94 234 212)" />
+        </linearGradient>
+        <filter id="clippr-manager-glow" x="-20%" y="-80%" width="140%" height="260%">
+          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <path
+        d="M8 94 C36 84 42 65 66 68 S100 88 124 64 S157 28 184 42 S220 74 244 48 S286 40 312 18"
+        fill="none"
+        stroke="url(#clippr-manager-line)"
+        strokeWidth="5"
+        strokeLinecap="round"
+        filter="url(#clippr-manager-glow)"
+      />
+      <circle cx="312" cy="18" r="7" fill="rgb(94 234 212)" className="drop-shadow-[0_0_14px_rgba(94,234,212,0.8)]" />
+    </svg>
+  );
+}
+
+function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOpportunity: number }) {
+  const s = rec.strategy;
+  const amount = s.moneyRecoverable > 0 ? s.moneyRecoverable : totalOpportunity;
+  const keyMetric = s.moneyLost > 0 ? fmtAR(s.moneyLost) : rec.score;
+  const keyLabel = s.moneyLost > 0 ? "pérdida estimada detectada" : "score de prioridad";
+
+  return (
+    <section className="relative overflow-hidden rounded-[34px] border border-violet-300/20 bg-[#090b18]/82 p-6 shadow-[0_36px_120px_-58px_rgba(139,92,246,0.95)] ring-1 ring-white/10 backdrop-blur-2xl sm:p-8 lg:p-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_10%,rgba(168,85,247,0.22),transparent_38%),radial-gradient(circle_at_92%_12%,rgba(20,184,166,0.20),transparent_35%),linear-gradient(135deg,rgba(168,85,247,0.12),transparent_42%,rgba(14,165,233,0.08))]" />
+      <div className="relative grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-violet-500/12 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-violet-200 ring-1 ring-violet-300/25">
+            <Brain className="h-3.5 w-3.5" /> Tu prioridad hoy
+          </div>
+          <h2 className="mt-5 max-w-2xl font-display text-4xl font-black leading-[0.98] tracking-[-0.055em] text-white sm:text-5xl">
+            {rec.title}
+          </h2>
+          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/68">
+            {rec.description}
+          </p>
+          <div className="mt-6">
+            <div className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-200/70">Podés recuperar</div>
+            <div className="mt-1 bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-200 bg-clip-text font-display text-5xl font-black tracking-[-0.06em] text-transparent sm:text-6xl">
+              {fmtAR(amount)}
+            </div>
+            <div className="mt-1 text-sm font-semibold text-white/50">este mes si ejecutás la estrategia principal</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById(`strategy-${rec.key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_-22px_rgba(168,85,247,0.9)] ring-1 ring-white/15 transition hover:brightness-110"
+          >
+            Ver estrategia <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="relative min-h-[220px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 ring-1 ring-white/8">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_22%,rgba(168,85,247,0.22),transparent_42%)]" />
+          <div className="relative flex h-full flex-col justify-between gap-6">
+            <ManagerTrendSparkline />
+            <div className="ml-auto w-full max-w-[330px] rounded-3xl border border-fuchsia-300/28 bg-fuchsia-500/[0.09] p-5 ring-1 ring-fuchsia-300/20">
+              <div className="flex items-end gap-4">
+                <div className="font-display text-5xl font-black tracking-[-0.06em] text-white">{keyMetric}</div>
+                <div className="pb-1 text-sm font-semibold leading-snug text-white/70">{keyLabel}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RecentAchievements({ resolved, achievements }: { resolved: RecommendationAchievement[]; achievements: RecommendationAchievement[] }) {
+  const recent = [...resolved, ...achievements].slice(0, 4);
+  if (recent.length === 0) return null;
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-black tracking-[-0.035em] text-white">Logros recientes</h2>
+          <p className="mt-1 text-sm text-white/48">Problemas que ya mejoraron y dejaron impacto positivo.</p>
+        </div>
+        {achievements.length > 4 ? <button className="text-sm font-bold text-violet-200 hover:text-white">Ver historial completo →</button> : null}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {recent.map((a) => (
+          <div key={a.key} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 ring-1 ring-white/8 backdrop-blur-xl">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-500/16 text-emerald-200 ring-1 ring-emerald-400/25">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <h3 className="mt-3 line-clamp-2 text-sm font-black leading-snug text-white/90">{a.title}</h3>
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/52">{a.message}</p>
+            <span className="mt-3 inline-flex rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-bold text-white/55 ring-1 ring-white/10">
+              {a.daysSince === 0 ? "Logrado hoy" : `Hace ${a.daysSince} ${a.daysSince === 1 ? "día" : "días"}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Cantidad de recomendaciones visibles de entrada. El Gerente IA no debe llenar
+// la pantalla: 1 prioridad ejecutiva + 3 recomendaciones compactas.
+const GROWTH_VISIBLE_LIMIT = 3;
 
 function GrowthManagerTab({ businessId }: { businessId: string | null | undefined }) {
   const {
     loading,
     error,
     recommendations,
-    markWorking,
     resolved,
     achievements,
-    avgTicket,
     totalOpportunity,
   } = useAiRecommendations(businessId);
 
@@ -3559,10 +3609,10 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
 
   if (loading) {
     return (
-      <div className="relative mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[#070b18]/80 p-10 text-center shadow-2xl">
+      <div className="relative mt-6 overflow-hidden rounded-[32px] border border-white/10 bg-[#070b18]/80 p-10 text-center shadow-2xl">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(56,189,248,0.18),transparent_60%)]" />
         <div className="relative">
-          <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-white/8 text-cyan-200 ring-1 ring-white/15"><Bot className="h-7 w-7" /></div>
+          <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-white/8 text-3xl ring-1 ring-white/15">🧠</div>
           <p className="mt-4 text-lg font-bold text-white">Tu gerente IA está analizando el negocio…</p>
           <p className="mt-1 text-sm text-white/55">Leyendo clientes, agenda y servicios reales de tu barbería.</p>
         </div>
@@ -3572,100 +3622,107 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
 
   if (error) {
     return (
-      <div className="mt-6 rounded-[28px] border border-rose-400/20 bg-rose-500/[0.06] p-8 text-center">
+      <div className="mt-6 rounded-[32px] border border-rose-400/20 bg-rose-500/[0.06] p-8 text-center">
         <p className="text-sm text-rose-200">No pudimos leer los datos del negocio. Probá recargar.</p>
       </div>
     );
   }
 
-  // Sin recomendaciones activas: mostramos logros recientes, historial y demanda.
   if (recommendations.length === 0) {
     return (
-      <div className="mt-6 space-y-5">
-        {resolved.map((a) => (
-          <ResolvedRecommendationCard key={a.key} achievement={a} />
-        ))}
-
-        <div className="rounded-[28px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30"><CheckCircle className="h-7 w-7" /></div>
-          <p className="mt-4 text-lg font-bold text-white">No detectamos fugas de plata hoy</p>
-          <p className="mt-1 text-sm text-white/60">Tu agenda, clientes y servicios están bien aprovechados. El Gerente IA solo retira una recomendación cuando los datos muestran que se resolvió.</p>
+      <div className="mt-6 space-y-8">
+        <div className="rounded-[32px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center ring-1 ring-emerald-300/10">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-3xl ring-1 ring-emerald-400/30">✅</div>
+          <p className="mt-4 text-xl font-black tracking-tight text-white">No detectamos fugas de plata hoy</p>
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
+            El Gerente IA solo muestra oportunidades cuando los datos reales indican un problema o una mejora posible.
+          </p>
         </div>
-
-        <AchievementsHistory achievements={achievements} />
+        <RecentAchievements resolved={resolved} achievements={achievements} />
+        <ManagerFooter />
       </div>
     );
   }
 
-  const visible = showAll ? recommendations : recommendations.slice(0, GROWTH_VISIBLE_LIMIT);
-  const [hero, ...rest] = visible;
-  const hiddenCount = recommendations.length - visible.length;
+  const [hero, ...others] = recommendations;
+  const visible = showAll ? others : others.slice(0, GROWTH_VISIBLE_LIMIT);
+  const hiddenCount = Math.max(0, recommendations.length - 1 - visible.length);
 
   return (
-    <div className="mt-6 space-y-5">
-      {/* Encabezado: el número que importa */}
-      <div className="relative overflow-hidden rounded-[28px] border border-white/12 bg-[#070b18]/80 p-6 shadow-[0_30px_90px_-50px_rgba(16,185,129,0.7)] backdrop-blur-2xl sm:p-7">
-        <div className="pointer-events-none absolute -top-24 left-1/3 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-cyan-200 ring-1 ring-white/15"><Bot className="h-4 w-4" /></span>
-              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Tu gerente de crecimiento IA</span>
-            </div>
-            <h2 className="mt-2 text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">
-              Si ejecutás las {recommendations.length} {recommendations.length === 1 ? "acción" : "acciones"} de hoy, podés sumar hasta
-            </h2>
-          </div>
-          <div className="shrink-0 text-right">
-            <div className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-4xl font-black text-transparent sm:text-5xl">
-              {fmtAR(totalOpportunity)}
-            </div>
-            <div className="mt-1 text-xs text-white/45">Ticket promedio real: {fmtAR(avgTicket)}</div>
-          </div>
-        </div>
-      </div>
+    <div className="mt-6 space-y-9">
+      <ManagerHero rec={hero} totalOpportunity={totalOpportunity} />
 
-      {resolved.map((a) => (
-        <ResolvedRecommendationCard key={a.key} achievement={a} />
-      ))}
-
-      {/* Prioridad del día (mayor score) */}
-      <GrowthRecCard rec={hero} hero onMarkWorking={markWorking} />
-
-      {/* Resto de las visibles */}
-      {rest.length > 0 ? (
-        <div className="grid gap-5 lg:grid-cols-2">
-          {rest.map((r) => (
-            <GrowthRecCard key={r.key} rec={r} onMarkWorking={markWorking} />
+      {resolved.length > 0 ? (
+        <div className="space-y-3">
+          {resolved.map((a) => (
+            <ResolvedRecommendationCard key={a.key} achievement={a} />
           ))}
         </div>
       ) : null}
 
-      {/* Ver todas / Ver menos (req. 5) */}
-      {recommendations.length > GROWTH_VISIBLE_LIMIT ? (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShowAll((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-5 py-2.5 text-sm font-bold text-white/85 ring-1 ring-white/10 transition hover:bg-white/[0.08]"
-          >
-            {showAll
-              ? "Ver menos"
-              : `Ver todas las recomendaciones (${hiddenCount} más)`}
-            <ChevronDown className={cn("h-4 w-4 transition-transform", showAll && "rotate-180")} />
-          </button>
+      <section className="space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl font-black tracking-[-0.035em] text-white">Recomendaciones para vos</h2>
+            <p className="mt-1 text-sm text-white/48">Las 3 oportunidades más importantes detectadas por tu Gerente IA.</p>
+          </div>
+          {recommendations.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="text-sm font-black text-violet-200 transition hover:text-white"
+            >
+              {showAll ? "Ver menos" : `Ver todas las recomendaciones (${recommendations.length})`} →
+            </button>
+          ) : null}
         </div>
-      ) : null}
 
-      <AchievementsHistory achievements={achievements} />
+        {visible.length > 0 ? (
+          <div className="grid gap-4 lg:grid-cols-3">
+            {visible.map((r) => (
+              <div key={r.key} id={`strategy-${r.key}`}>
+                <GrowthRecCard rec={r} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-sm text-white/55">
+            La prioridad principal concentra la oportunidad más importante del momento.
+          </div>
+        )}
 
-      <p className="px-2 text-center text-xs text-white/35">
-        Recomendaciones calculadas con los datos reales de tu negocio (clientes, agenda y servicios de los últimos 90 días). El orden surge de un score automático: impacto económico, urgencia, persistencia y facilidad de resolución.
-      </p>
+        {hiddenCount > 0 && !showAll ? (
+          <div className="text-center text-xs text-white/35">Hay {hiddenCount} recomendaciones más ocultas para mantener el panel limpio.</div>
+        ) : null}
+      </section>
+
+      <RecentAchievements resolved={[]} achievements={achievements} />
+      <ManagerFooter />
     </div>
   );
 }
+
+function ManagerFooter() {
+  const updated = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return (
+    <footer className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] p-5 ring-1 ring-white/8 backdrop-blur-xl sm:p-6">
+      <div className="pointer-events-none absolute -left-16 -top-16 h-40 w-40 rounded-full bg-violet-500/15 blur-3xl" />
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/12 text-2xl ring-1 ring-violet-300/20">🧠</span>
+          <div>
+            <p className="font-display text-base font-black tracking-tight text-white">El Gerente IA aprende de tu negocio todos los días</p>
+            <p className="mt-1 text-sm text-white/52">Analiza tus datos, detecta oportunidades y prioriza automáticamente las acciones con mayor impacto económico.</p>
+          </div>
+        </div>
+        <div className="shrink-0 text-sm font-semibold text-white/52">
+          Última actualización: Hoy {updated} <span className="ml-2 inline-block h-2 w-2 rounded-full bg-emerald-400" />
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 
 // ══════════════════════════════════════════════════════════════════════════
 //  LABORATORIO DE DECISIONES — 7 simuladores para barberías y peluquerías.
