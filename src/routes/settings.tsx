@@ -2271,6 +2271,19 @@ function HorariosSection() {
   const [saving, setSaving] = useState(false);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
+  const timeToMinutes = (value: string) => {
+    const [hours, minutes] = value.split(":").map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+    return hours * 60 + minutes;
+  };
+
+  const normalizeCloseTime = (open: string, close: string) => {
+    const openMin = timeToMinutes(open);
+    const closeMin = timeToMinutes(close);
+    if (openMin == null || closeMin == null || closeMin <= openMin) return "20:00";
+    return close;
+  };
+
   useEffect(() => {
     if (!businessId) return;
     supabase
@@ -2285,10 +2298,12 @@ function HorariosSection() {
           current.map((day, i) => {
             const saved = schedule[dayKeys[i]];
             if (!saved || typeof saved !== "object") return day;
+            const open = typeof saved.start === "string" ? saved.start : day.open;
+            const close = typeof saved.end === "string" ? saved.end : day.close;
             return {
               ...day,
-              open: typeof saved.start === "string" ? saved.start : day.open,
-              close: typeof saved.end === "string" ? saved.end : day.close,
+              open,
+              close: normalizeCloseTime(open, close),
               enabled: saved.enabled !== false,
             };
           }),
@@ -2309,6 +2324,19 @@ function HorariosSection() {
 
   async function saveSchedule() {
     if (!businessId) return toast.error("No se encontró el negocio");
+
+    const invalidDay = days.find((day) => {
+      if (!day.enabled) return false;
+      const openMin = timeToMinutes(day.open);
+      const closeMin = timeToMinutes(day.close);
+      return openMin == null || closeMin == null || closeMin <= openMin;
+    });
+
+    if (invalidDay) {
+      toast.error("El horario de cierre debe ser posterior al horario de apertura.");
+      return;
+    }
+
     setSaving(true);
 
     // IMPORTANTE: leer el schedule existente y MERGEAR. Antes se reconstruía
@@ -2441,7 +2469,17 @@ function HorariosSection() {
               <Toggle
                 on={d.enabled}
                 onChange={(v) =>
-                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, enabled: v } : x)))
+                  setDays((s) =>
+                    s.map((x, idx) =>
+                      idx === i
+                        ? {
+                            ...x,
+                            enabled: v,
+                            close: v ? normalizeCloseTime(x.open, x.close) : x.close,
+                          }
+                        : x,
+                    ),
+                  )
                 }
               />
               <button
