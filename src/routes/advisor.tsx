@@ -4567,6 +4567,31 @@ function DemandaNoAtendidaSection({
     [a, occForRecs],
   );
 
+  const hasActionableDemand = React.useMemo(() => {
+    if (isLoading) return false;
+
+    const hasRealRecommendation = recs.some(
+      (r) => r.kind !== "esperar" && r.nivel !== "no_recomendado",
+    );
+    const hasMeaningfulVolume = a.counts.month >= 5 || a.counts.week >= 3;
+    const hasMeaningfulMoney = a.lostRevenue.month > 0 && a.counts.month >= 2;
+    const hasProfessionalSignal = a.topProfessionals.some((p) => p.count >= 3);
+    const hasCapacityPressure = (occForRecs ?? 0) >= 80 && a.counts.month >= 3;
+
+    return (
+      hasRealRecommendation ||
+      hasMeaningfulVolume ||
+      hasMeaningfulMoney ||
+      hasProfessionalSignal ||
+      hasCapacityPressure
+    );
+  }, [a, isLoading, occForRecs, recs]);
+
+  if (!hasActionableDemand) return null;
+
+  const actionableRecs = recs.filter((r) => r.kind !== "esperar" && r.nivel !== "no_recomendado");
+  const visibleRecs = actionableRecs.length > 0 ? actionableRecs : recs;
+
   const topProf = a.topProfessionals[0];
   const topDay = a.peakDays[0];
   const topDayShare = month > 0 && topDay ? Math.round((topDay.count / month) * 100) : 0;
@@ -4600,13 +4625,7 @@ function DemandaNoAtendidaSection({
         </div>
       </div>
 
-      {a.total === 0 && !isLoading ? (
-        <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6 text-center text-sm text-white/50">
-          Todavía no hay clientes rechazados registrados. Usá <span className="font-semibold text-rose-200/80">+ Cliente rechazado</span> en la
-          Agenda para empezar a medir la demanda que el negocio no pudo atender. A medida que se acumulen datos, las recomendaciones se vuelven más precisas.
-        </div>
-      ) : (
-        <>
+      <>
           {narrative.length > 0 && (
             <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
               <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
@@ -4725,10 +4744,10 @@ function DemandaNoAtendidaSection({
             </div>
           )}
 
-          {recs.length > 0 && (
+          {visibleRecs.length > 0 && (
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Recomendaciones de Clippr IA</div>
-              {recs.map((r, i) => {
+              {visibleRecs.map((r, i) => {
                 const meta = DEMAND_REC_NIVEL[r.nivel] ?? DEMAND_REC_NIVEL.evaluar;
                 const prio =
                   r.priority === "alta"
@@ -4753,8 +4772,7 @@ function DemandaNoAtendidaSection({
               })}
             </div>
           )}
-        </>
-      )}
+      </>
     </section>
   );
 }
