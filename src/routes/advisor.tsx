@@ -4240,40 +4240,50 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                 </p>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div className="flex min-h-[112px] min-w-0 flex-col items-start justify-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-left">
-                    <div className="mb-3 flex w-full items-center gap-2 text-xs leading-tight text-white/55">
-                      <DollarSign className="h-4 w-4 shrink-0 text-emerald-300" />
-                      <span className="min-w-0 break-words">Impacto estimado</span>
+                  <div className="flex min-h-[124px] min-w-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+                    <div className="flex h-9 items-start gap-2 text-xs leading-tight text-white/55">
+                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                      <span className="min-w-0 font-medium">Impacto estimado</span>
                     </div>
-                    <div className="max-w-full whitespace-nowrap text-[clamp(0.92rem,1.15vw,1.08rem)] font-bold leading-none tracking-[-0.045em] text-emerald-300">
-                      {heroAction.impactAmount}
+                    <div className="mt-3 min-w-0">
+                      <div className="whitespace-nowrap text-[clamp(1.02rem,1.28vw,1.22rem)] font-bold leading-none tracking-[-0.04em] text-emerald-300">
+                        {heroAction.impactAmount}
+                      </div>
+                      <div className="mt-2 text-xs leading-tight text-white/50">en 30 días</div>
                     </div>
-                    <div className="mt-2 text-xs leading-tight text-white/55">en 30 días</div>
                   </div>
 
-                  <div className="flex min-h-[112px] min-w-0 flex-col items-start justify-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-left">
-                    <div className="mb-3 flex w-full items-center gap-2 text-xs leading-tight text-white/55">
-                      <Users className="h-4 w-4 shrink-0 text-blue-300" />
-                      <span className="min-w-0 break-words">{heroAction.metricLabel}</span>
+                  <div className="flex min-h-[124px] min-w-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+                    <div className="flex h-9 items-start gap-2 text-xs leading-tight text-white/55">
+                      <Users className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
+                      <span className="min-w-0 font-medium">{heroAction.metricLabel}</span>
                     </div>
-                    <div className="text-3xl font-bold leading-none text-white">{heroAction.metricValue}</div>
+                    <div className="mt-3 min-w-0">
+                      <div className="text-3xl font-bold leading-none text-white">
+                        {heroAction.metricValue}
+                      </div>
+                      <div className="mt-2 text-xs leading-tight text-white/0">.</div>
+                    </div>
                   </div>
 
-                  <div className="flex min-h-[112px] min-w-0 flex-col items-start justify-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-left">
-                    <div className="mb-3 flex w-full items-center gap-2 text-xs leading-tight text-white/55">
-                      <Target className="h-4 w-4 shrink-0 text-violet-300" />
-                      <span>Objetivo</span>
+                  <div className="flex min-h-[124px] min-w-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+                    <div className="flex h-9 items-start gap-2 text-xs leading-tight text-white/55">
+                      <Target className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                      <span className="min-w-0 font-medium">Objetivo</span>
                     </div>
-                    <div className="max-w-full text-[15px] font-bold leading-snug text-white break-words [overflow-wrap:anywhere]">
-                      {heroAction.objective}
+                    <div className="mt-3 min-w-0">
+                      <div className="text-[15px] font-bold leading-snug text-white [overflow-wrap:anywhere]">
+                        {heroAction.objective}
+                      </div>
+                      <div className="mt-2 text-xs leading-tight text-white/0">.</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.055] p-4 text-sm leading-relaxed text-white/75">
-                  <div className="flex gap-3">
+                <div className="mt-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.055] px-5 py-4 text-sm leading-relaxed text-white/75">
+                  <div className="flex items-start gap-3">
                     <Brain className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
-                    <p>
+                    <p className="max-w-[31rem]">
                       Esta acción fue seleccionada porque representa la mayor oportunidad económica
                       detectada hoy en tu negocio.
                     </p>
