@@ -68,6 +68,7 @@ export function RejectedClientCaptureModal({
   employees,
   appointments,
   openHoursToday,
+  initialAt,
 }: {
   open: boolean;
   onClose: () => void;
@@ -76,6 +77,7 @@ export function RejectedClientCaptureModal({
   employees: EmployeeLite[];
   appointments: ApptLite[];
   openHoursToday: OpenHours;
+  initialAt?: Date | null;
 }) {
   const insert = useInsertRejectedClient(businessId);
   const actives = React.useMemo(() => activeEmployees(employees), [employees]);
@@ -102,7 +104,7 @@ export function RejectedClientCaptureModal({
     }
     const svc = services.find((s) => s.id === serviceId) ?? null;
     const emp = reason === "profesional" ? actives.find((e) => e.id === employeeId) ?? null : null;
-    const now = new Date();
+    const now = initialAt ?? new Date();
     const snap = computeSnapshot(appointments, now, employees, openHoursToday);
     try {
       await insert.mutateAsync({
@@ -257,9 +259,9 @@ export function RejectedClientsButton({
           className,
         )}
         style={{
-          background: "oklch(0.65 0.2 25 / 0.12)",
-          boxShadow: "0 0 0 1px oklch(0.65 0.2 25 / 0.3)",
-          color: "oklch(0.65 0.2 25)",
+          background: "oklch(0.72 0.16 55 / 0.12)",
+          boxShadow: "0 0 0 1px oklch(0.72 0.16 55 / 0.30)",
+          color: "oklch(0.78 0.16 55)",
         }}
         title="Clientes rechazados del día"
       >
