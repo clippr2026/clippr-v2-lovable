@@ -3694,10 +3694,10 @@ const GROWTH_TONES: Record<GrowthRec["tone"], { ring: string; glow: string; chip
 };
 
 type PriorityLevel = "alta" | "media" | "baja";
-const PRIORITY_META: Record<PriorityLevel, { label: string; emoji: string; chip: string }> = {
-  alta: { label: "Alta", emoji: "🔥", chip: "bg-rose-500/15 text-rose-200 ring-rose-400/35" },
-  media: { label: "Media", emoji: "🟡", chip: "bg-amber-400/15 text-amber-100 ring-amber-300/30" },
-  baja: { label: "Baja", emoji: "🟢", chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30" },
+const PRIORITY_META: Record<PriorityLevel, { label: string; dot: string; chip: string }> = {
+  alta: { label: "Alta", dot: "bg-rose-400", chip: "bg-rose-500/10 text-rose-100 ring-rose-400/25" },
+  media: { label: "Media", dot: "bg-amber-300", chip: "bg-amber-400/10 text-amber-100 ring-amber-300/25" },
+  baja: { label: "Baja", dot: "bg-emerald-400", chip: "bg-emerald-400/10 text-emerald-100 ring-emerald-300/25" },
 };
 
 function GrowthRecCard({
@@ -3716,16 +3716,17 @@ function GrowthRecCard({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-[30px] border border-white/[0.10] bg-[linear-gradient(145deg,rgba(8,11,25,0.94),rgba(14,17,34,0.78))] p-5 shadow-[0_24px_90px_-62px_rgba(99,102,241,0.85)] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.16] hover:bg-white/[0.045] sm:p-6",
-        hero && "lg:col-span-2",
+        "relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#080b16]/82 p-5 shadow-[0_18px_70px_-58px_rgba(56,189,248,0.55)] ring-1 backdrop-blur-2xl sm:p-6",
+        hero ? t.ring : "ring-white/[0.04]",
       )}
     >
-      <div className={cn("pointer-events-none absolute -top-28 right-0 h-52 w-52 rounded-full bg-gradient-to-br opacity-70 blur-3xl transition group-hover:opacity-90", t.glow)} />
+      <div className={cn("pointer-events-none absolute -top-28 right-0 h-52 w-52 rounded-full bg-gradient-to-br opacity-70 blur-3xl", t.glow)} />
       <div className="relative">
         {/* Prioridad (triage en un segundo) + categoría */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", pm.chip)}>
-            <span className="text-xs leading-none">{pm.emoji}</span> Prioridad {pm.label}
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ring-1", pm.chip)}>
+            <span className={cn("h-1.5 w-1.5 rounded-full", pm.dot)} />
+            {pm.label}
           </span>
           <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", t.chip)}>
             {rec.category}
@@ -3734,37 +3735,31 @@ function GrowthRecCard({
 
         {/* Nivel 1 · Título */}
         <div className="mt-3 flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-xl ring-1 ring-white/10">{rec.icon}</span>
-          <h3 className={cn("font-extrabold leading-[1.05] tracking-[-0.02em] text-white", hero ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl")}>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{rec.icon}</span>
+          <h3 className={cn("font-extrabold leading-[1.08] tracking-[-0.02em] text-white", hero ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl")}>
             {rec.title}
           </h3>
         </div>
 
         {/* Nivel 5 · Explicación de una línea */}
-        <p className="mt-2.5 text-[13px] leading-relaxed text-white/58">{rec.problem}</p>
+        <p className="mt-2.5 text-[13px] leading-relaxed text-white/55">{rec.problem}</p>
 
-        {/* Nivel 2 · Plata, con iconos grandes */}
+        {/* Nivel 2 · Plata */}
         <div className="mt-4 grid grid-cols-2 gap-3">
           {rec.moneyLost > 0 ? (
-            <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.045] p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-200/70">
-                <span className="text-base leading-none">💸</span> Estás perdiendo
-              </div>
-              <div className="mt-1 text-2xl font-black tracking-tight text-rose-100">{fmtAR(rec.moneyLost)}</div>
+            <div className="rounded-2xl border border-rose-400/18 bg-rose-500/[0.045] p-3.5">
+              <div className="text-[11px] font-semibold text-white/45">Pérdida estimada</div>
+              <div className="mt-1 text-2xl font-extrabold tracking-tight text-rose-100 sm:text-3xl">{fmtAR(rec.moneyLost)}</div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/45">
-                <span className="text-base leading-none">✨</span> Oportunidad
-              </div>
-              <div className="mt-1 text-sm font-semibold text-white/70">Ingreso extra sin sumar costos</div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3.5">
+              <div className="text-[11px] font-semibold text-white/45">Oportunidad</div>
+              <div className="mt-1 text-sm font-semibold text-white/75">Ingreso extra sin sumar costos</div>
             </div>
           )}
-          <div className="rounded-2xl border border-emerald-300/18 bg-emerald-500/[0.06] p-3.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
-              <span className="text-base leading-none">📈</span> Podés recuperar
-            </div>
-            <div className="mt-1 text-2xl font-black tracking-tight text-emerald-100">{fmtAR(rec.moneyRecoverable)}</div>
+          <div className="rounded-2xl border border-emerald-400/22 bg-emerald-500/[0.065] p-3.5">
+            <div className="text-[11px] font-semibold text-emerald-100/65">Recuperable</div>
+            <div className="mt-1 text-2xl font-extrabold tracking-tight text-emerald-100 sm:text-3xl">{fmtAR(rec.moneyRecoverable)}</div>
           </div>
         </div>
 
@@ -3777,9 +3772,9 @@ function GrowthRecCard({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/[0.08] px-4 py-2 text-sm font-bold text-white ring-1 ring-white/12 transition hover:bg-white/[0.13]"
           >
-            {open ? "Ocultar plan" : "Ver plan"}
+            {open ? "Ocultar estrategia" : "Ver estrategia"}
             <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
           </button>
         </div>
@@ -3861,10 +3856,12 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
     );
   }
 
-  const [hero, ...rest] = recs;
+  const visibleRecs = recs.slice(0, 3);
+  const hiddenRecsCount = Math.max(0, recs.length - visibleRecs.length);
+  const [hero, ...rest] = visibleRecs;
   // Prioridad visual (Alta/Media/Baja) según el impacto en plata de cada
   // recomendación, relativo a la de mayor impacto. Permite triage en un segundo.
-  const maxImpact = Math.max(1, ...recs.map((r) => r.moneyLost + r.moneyRecoverable));
+  const maxImpact = Math.max(1, ...visibleRecs.map((r) => r.moneyLost + r.moneyRecoverable));
   const levelFor = (r: GrowthRec): PriorityLevel => {
     const v = r.moneyLost + r.moneyRecoverable;
     if (v >= maxImpact * 0.6) return "alta";
@@ -3874,25 +3871,28 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
 
   return (
     <div className="mt-6 space-y-5">
-      {/* Encabezado: el número que importa */}
-      <div className="relative overflow-hidden rounded-[30px] border border-white/[0.12] bg-[linear-gradient(135deg,rgba(9,13,31,0.96),rgba(5,20,29,0.86))] p-6 shadow-[0_30px_100px_-60px_rgba(34,211,238,0.8)] backdrop-blur-2xl sm:p-7">
-        <div className="pointer-events-none absolute -top-24 left-1/3 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
+      {/* Encabezado: frase ejecutiva + número principal */}
+      <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#070b18]/80 p-5 shadow-[0_26px_80px_-58px_rgba(16,185,129,0.65)] backdrop-blur-2xl sm:p-6">
+        <div className="pointer-events-none absolute -top-24 left-1/3 h-56 w-56 rounded-full bg-emerald-500/16 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-56 w-56 rounded-full bg-cyan-500/12 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-lg ring-1 ring-white/15">🧠</span>
-              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">Tu gerente de crecimiento IA</span>
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/[0.08] text-base ring-1 ring-white/12">🧠</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">Tu gerente IA</span>
             </div>
-            <h2 className="mt-2 text-xl font-extrabold tracking-[-0.02em] text-white sm:text-2xl">
-              Si ejecutás las {recs.length} acciones de hoy, podés sumar hasta
+            <h2 className="mt-2 text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">
+              Hoy tu mayor oportunidad es: {hero.title}
             </h2>
+            <p className="mt-1 text-sm text-white/50">
+              Si ejecutás las {visibleRecs.length} acciones principales, podés sumar hasta
+            </p>
           </div>
-          <div className="shrink-0 text-right">
-            <div className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-4xl font-black text-transparent sm:text-5xl">
+          <div className="shrink-0 text-left sm:text-right">
+            <div className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
               {fmtAR(totalOpportunity)}
             </div>
-            <div className="mt-1 text-xs text-white/45">Ticket promedio real: {fmtAR(avgTicket)}</div>
+            <div className="mt-1 text-xs text-white/42">Ticket promedio real: {fmtAR(avgTicket)}</div>
           </div>
         </div>
       </div>
@@ -3909,6 +3909,17 @@ function GrowthManagerTab({ businessId }: { businessId: string | null | undefine
           {rest.map((r) => (
             <GrowthRecCard key={r.id} rec={r} priority={levelFor(r)} />
           ))}
+        </div>
+      ) : null}
+
+      {hiddenRecsCount > 0 ? (
+        <div className="text-center">
+          <button
+            type="button"
+            className="rounded-full bg-white/[0.06] px-4 py-2 text-xs font-semibold text-white/60 ring-1 ring-white/10 transition hover:bg-white/[0.1] hover:text-white/80"
+          >
+            Ver todas las recomendaciones ({recs.length})
+          </button>
         </div>
       ) : null}
 
@@ -4522,7 +4533,7 @@ function DemandMiniRow({
   empty: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
+    <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
       <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
         {icon}
         {title}
@@ -4566,31 +4577,6 @@ function DemandaNoAtendidaSection({
     [a, occForRecs],
   );
 
-  const hasActionableDemand = React.useMemo(() => {
-    if (isLoading) return false;
-
-    const hasRealRecommendation = recs.some(
-      (r) => r.kind !== "esperar" && r.nivel !== "no_recomendado",
-    );
-    const hasMeaningfulVolume = a.counts.month >= 5 || a.counts.week >= 3;
-    const hasMeaningfulMoney = a.lostRevenue.month > 0 && a.counts.month >= 2;
-    const hasProfessionalSignal = a.topProfessionals.some((p) => p.count >= 3);
-    const hasCapacityPressure = (occForRecs ?? 0) >= 80 && a.counts.month >= 3;
-
-    return (
-      hasRealRecommendation ||
-      hasMeaningfulVolume ||
-      hasMeaningfulMoney ||
-      hasProfessionalSignal ||
-      hasCapacityPressure
-    );
-  }, [a, isLoading, occForRecs, recs]);
-
-  if (!hasActionableDemand) return null;
-
-  const actionableRecs = recs.filter((r) => r.kind !== "esperar" && r.nivel !== "no_recomendado");
-  const visibleRecs = actionableRecs.length > 0 ? actionableRecs : recs;
-
   const topProf = a.topProfessionals[0];
   const topDay = a.peakDays[0];
   const topDayShare = month > 0 && topDay ? Math.round((topDay.count / month) * 100) : 0;
@@ -4604,6 +4590,15 @@ function DemandaNoAtendidaSection({
     return month > 0 ? Math.round((sum / month) * 100) : null;
   })();
 
+  const shouldShowDemand = !isLoading && (
+    a.counts.month >= 3 ||
+    a.lostRevenue.month > 0 ||
+    (a.topProfessionals?.[0]?.count ?? 0) >= 2 ||
+    ((a.avgOccupancyMonth ?? 0) >= 82 && a.counts.month > 0)
+  );
+
+  if (!shouldShowDemand) return null;
+
   const narrative: string[] = [];
   if (month > 0) narrative.push(`Durante este mes rechazaste ${month} clientes por falta de disponibilidad.`);
   if (topProf) narrative.push(`${topProf.label} recibió ${topProf.count} solicitudes que no pudieron concretarse.`);
@@ -4613,30 +4608,33 @@ function DemandaNoAtendidaSection({
     narrative.push(`Los ${pluralDemandDay(topDay.label.toLowerCase())} concentran el ${topDayShare}% de la demanda no atendida.`);
 
   return (
-    <section className="relative overflow-hidden rounded-[30px] border border-orange-300/15 bg-[linear-gradient(145deg,rgba(14,10,24,0.92),rgba(8,11,25,0.82))] p-5 shadow-[0_24px_90px_-62px_rgba(251,146,60,0.65)] backdrop-blur-2xl sm:p-6">
-      <div className="pointer-events-none absolute -top-28 right-0 h-56 w-56 rounded-full bg-orange-500/12 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-28 left-1/4 h-56 w-56 rounded-full bg-fuchsia-500/10 blur-3xl" />
-      <div className="relative space-y-4">
+    <section className="space-y-4">
       <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-orange-500/12 text-orange-200 ring-1 ring-orange-400/25">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
           <UserX className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="font-display text-xl font-extrabold tracking-tight text-white sm:text-2xl">Demanda no atendida</h2>
+          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">Demanda no atendida</h2>
           <p className="text-xs text-white/45">Clientes que no pudieron atenderse por falta de disponibilidad</p>
         </div>
       </div>
 
-      <>
+      {a.total === 0 && !isLoading ? (
+        <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6 text-center text-sm text-white/50">
+          Todavía no hay clientes rechazados registrados. Usá <span className="font-semibold text-rose-200/80">+ Cliente rechazado</span> en la
+          Agenda para empezar a medir la demanda que el negocio no pudo atender. A medida que se acumulen datos, las recomendaciones se vuelven más precisas.
+        </div>
+      ) : (
+        <>
           {narrative.length > 0 && (
-            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
               <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
                 <Sparkles className="h-3.5 w-3.5" /> Lo que detectó Clippr IA
               </div>
               <ul className="space-y-1.5">
                 {narrative.map((t, i) => (
                   <li key={i} className="flex gap-2 text-sm leading-relaxed text-white/75">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-orange-300/70" />
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-300/70" />
                     {t}
                   </li>
                 ))}
@@ -4645,8 +4643,8 @@ function DemandaNoAtendidaSection({
           )}
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-2xl border border-orange-300/18 bg-orange-500/[0.055] p-4">
-              <div className="text-3xl font-extrabold tabular-nums text-orange-300">{a.counts.today}</div>
+            <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.05] p-4">
+              <div className="text-3xl font-extrabold tabular-nums text-rose-300">{a.counts.today}</div>
               <div className="mt-0.5 text-[11px] text-white/45">Rechazados hoy</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -4657,7 +4655,7 @@ function DemandaNoAtendidaSection({
               <div className="text-3xl font-extrabold tabular-nums text-white">{a.counts.month}</div>
               <div className="mt-0.5 text-[11px] text-white/45">Este mes</div>
             </div>
-            <div className="rounded-2xl border border-amber-300/18 bg-amber-500/[0.055] p-4">
+            <div className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] p-4">
               <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums text-amber-300">
                 <TrendingDown className="h-4 w-4" />
                 {fmtDemandARS(a.lostRevenue.month)}
@@ -4700,7 +4698,7 @@ function DemandaNoAtendidaSection({
               items={a.topReasons.map((r) => ({ label: r.label, value: r.count }))}
               empty="Sin datos suficientes."
             />
-            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
               <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
                 <TrendingDown className="h-3.5 w-3.5" /> Evolución mensual
               </div>
@@ -4708,7 +4706,7 @@ function DemandaNoAtendidaSection({
                 {a.monthly.map((m) => (
                   <div key={m.ym} className="flex flex-1 flex-col items-center justify-end gap-1">
                     <div
-                      className="w-full rounded-t bg-orange-400/70"
+                      className="w-full rounded-t bg-rose-400/60"
                       style={{ height: `${Math.max(3, (m.count / maxMonthly) * 52)}px` }}
                       title={`${m.count} rechazos`}
                     />
@@ -4720,7 +4718,7 @@ function DemandaNoAtendidaSection({
           </div>
 
           {a.professionals.length > 0 && (
-            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-white/45">Índice de demanda por profesional</div>
               <div className="space-y-2">
                 {a.professionals.map((p) => (
@@ -4746,10 +4744,10 @@ function DemandaNoAtendidaSection({
             </div>
           )}
 
-          {visibleRecs.length > 0 && (
+          {recs.length > 0 && (
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Recomendaciones de Clippr IA</div>
-              {visibleRecs.map((r, i) => {
+              {recs.map((r, i) => {
                 const meta = DEMAND_REC_NIVEL[r.nivel] ?? DEMAND_REC_NIVEL.evaluar;
                 const prio =
                   r.priority === "alta"
@@ -4774,8 +4772,8 @@ function DemandaNoAtendidaSection({
               })}
             </div>
           )}
-      </>
-      </div>
+        </>
+      )}
     </section>
   );
 }
