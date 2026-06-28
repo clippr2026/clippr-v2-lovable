@@ -256,6 +256,7 @@ function AgendaPage() {
   } | null>(null);
   const [newMenu, setNewMenu] = React.useState(false);
   const [rejectOpen, setRejectOpen] = React.useState(false);
+  const [rejectAt, setRejectAt] = React.useState<Date | null>(null);
   // Descansos habilitados temporalmente (solo en esta sesión, sin tocar la
   // config permanente). Clave: `${employeeId}|${YYYY-MM-DD}`.
   const [enabledBreaks, setEnabledBreaks] = React.useState<Set<string>>(() => new Set());
@@ -1111,10 +1112,11 @@ function AgendaPage() {
                     className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
                     onClick={() => {
                       setNewMenu(false);
+                      setRejectAt(cursor);
                       setRejectOpen(true);
                     }}
                   >
-                    <UserX className="h-4 w-4 text-rose-300" /> Cliente rechazado
+                    <UserX className="h-4 w-4 text-orange-300" /> Cliente rechazado
                   </button>
                 </div>
               </>
@@ -1203,12 +1205,16 @@ function AgendaPage() {
         {/* Modal de captura rápida (desde el menú +) */}
         <RejectedClientCaptureModal
           open={rejectOpen}
-          onClose={() => setRejectOpen(false)}
+          onClose={() => {
+            setRejectOpen(false);
+            setRejectAt(null);
+          }}
           businessId={data.businessId}
           services={data.services}
           employees={data.employees}
           appointments={data.appointments}
-          openHoursToday={getScheduleForDate(data.schedule, new Date())}
+          openHoursToday={getScheduleForDate(data.schedule, rejectAt ?? cursor)}
+          initialAt={rejectAt ?? cursor}
         />
 
         {/* Always day view */}
@@ -1285,6 +1291,18 @@ function AgendaPage() {
               >
                 <Pencil className="h-4 w-4 text-violet-300" />
                 Horario especial
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectAt(slotMenu.startsAt);
+                  setSlotMenu(null);
+                  setRejectOpen(true);
+                }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+              >
+                <UserX className="h-4 w-4 text-orange-300" />
+                Cliente rechazado
               </button>
             </div>
           </>
