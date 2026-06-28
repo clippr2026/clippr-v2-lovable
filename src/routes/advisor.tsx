@@ -5173,12 +5173,17 @@ function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: stri
         <span className={cn("rounded-full px-3 py-1 text-[11px] font-bold", meta.titleCls, "bg-white/8")}>{meta.label}</span>
       </div>
       <p className="mt-4 text-sm leading-relaxed text-white/82">{text}</p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {["Historial de ventas", "Ticket promedio", "Riesgo de demanda"].map((item) => (
-          <div key={item} className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-white/65">
-            ✓ {item}
-          </div>
-        ))}
+      <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+          Qué evalúa del servicio
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {["Ventas estimadas", "Precio actual", "Riesgo de demanda"].map((item) => (
+            <div key={item} className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-white/65">
+              ✓ {item}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -5236,11 +5241,6 @@ function LabPrecios({ data }: { data: LabData }) {
   const pct = precioActual > 0 ? (aumento / precioActual) * 100 : 0;
   const perdibles =
     precioNuevo > 0 ? Math.max(0, mensual - Math.ceil((mensual * precioActual) / precioNuevo)) : 0;
-  const avgPrice =
-    services.length > 0
-      ? Math.round(services.reduce((s, x) => s + x.precio, 0) / services.length)
-      : 0;
-
   const facturacion = Math.max(0, diferenciaMensual);
   const utilidad = Math.round(facturacion * 0.9);
   const riesgoLabel = pct > 30 ? "Alto" : pct > 20 ? "Medio" : "Bajo";
@@ -5268,19 +5268,9 @@ function LabPrecios({ data }: { data: LabData }) {
               Simulación sobre <span className="font-semibold text-white">{svc?.nombre}</span>, con {mensual} ventas mensuales estimadas y un riesgo de pérdida de clientes <span className={cn("font-bold", riesgoCls)}>{riesgoLabel.toLowerCase()}</span>.
             </p>
           </div>
-          <div className="grid min-w-[260px] grid-cols-3 gap-2">
-            <div className="rounded-2xl border border-sky-300/18 bg-sky-400/[0.08] p-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-100/55">Facturación</p>
-              <p className="mt-1 text-xl font-extrabold text-sky-100">+{fmtAR(facturacion)}</p>
-            </div>
-            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] p-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-100/55">Ganancia</p>
-              <p className="mt-1 text-xl font-extrabold text-emerald-100">+{fmtAR(utilidad)}</p>
-            </div>
-            <div className="rounded-2xl border border-white/12 bg-white/[0.055] p-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Riesgo</p>
-              <p className={cn("mt-1 text-xl font-extrabold", riesgoCls)}>{riesgoLabel}</p>
-            </div>
+          <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.055] px-5 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Riesgo estimado</p>
+            <p className={cn("mt-1 text-2xl font-extrabold", riesgoCls)}>{riesgoLabel}</p>
           </div>
         </div>
       </div>
@@ -5323,20 +5313,13 @@ function LabPrecios({ data }: { data: LabData }) {
         </div>
       </div>
 
+      <LabVerdict nivel={nivel} text={verdict} />
+
       <LabScenario
         currentLabel="Precio actual"
         currentValue={fmtAR(precioActual)}
         projectedLabel="Precio sugerido"
         projectedValue={fmtAR(precioNuevo)}
-      />
-
-      <LabImpact
-        facturacion={facturacion}
-        utilidad={utilidad}
-        extra={{
-          label: "Comparación",
-          value: `${precioNuevo >= avgPrice ? "+" : ""}${fmtAR(precioNuevo - avgPrice)}`,
-        }}
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -5353,8 +5336,6 @@ function LabPrecios({ data }: { data: LabData }) {
           <p className="mt-2 text-sm text-white/75">{mensual >= 8 ? "Alta" : mensual >= 3 ? "Media" : "Preliminar"}</p>
         </div>
       </div>
-
-      <LabVerdict nivel={nivel} text={verdict} />
     </div>
   );
 }
