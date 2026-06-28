@@ -650,10 +650,11 @@ function AdvisorContent({
                 <button
                   type="button"
                   onClick={() => setInfoModal(INFO_CONTENT.health)}
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-emerald-300/35 bg-emerald-300/10 text-xs font-bold text-emerald-300 shadow-[0_0_22px_rgba(45,212,191,0.18)] transition hover:bg-emerald-300/20 hover:text-white"
-                  aria-label="Información de estado actual"
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 text-xs font-bold text-emerald-200 shadow-[0_0_22px_rgba(45,212,191,0.14)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 hover:text-white"
+                  aria-label="Cómo funciona estado actual"
                 >
-                  i
+                  <CircleHelp className="h-3.5 w-3.5" />
+                  <span>Cómo funciona</span>
                 </button>
               </div>
 
@@ -838,10 +839,11 @@ function AdvisorContent({
                 <button
                   type="button"
                   onClick={() => setInfoModal(INFO_CONTENT.growth)}
-                  className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full border border-sky-300/40 bg-sky-300/10 text-xs font-bold text-sky-300 transition hover:bg-sky-300/20"
-                  aria-label="Información de crecimiento"
+                  className="absolute right-4 top-4 inline-flex h-9 items-center justify-center gap-2 rounded-full border border-sky-300/35 bg-sky-300/10 px-3 text-xs font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white"
+                  aria-label="Cómo funciona crecimiento"
                 >
-                  i
+                  <CircleHelp className="h-3.5 w-3.5" />
+                  <span>Cómo funciona</span>
                 </button>
               </div>
 
@@ -1974,10 +1976,11 @@ function GrowthMetric({
           <button
             type="button"
             onClick={() => onInfo(info)}
-            className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-white/[0.05] text-xs font-bold text-muted-foreground transition hover:border-primary/50 hover:text-primary"
-            aria-label={`Información de ${label}`}
+            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-2.5 text-[11px] font-bold text-muted-foreground transition hover:border-primary/50 hover:bg-white/[0.08] hover:text-primary"
+            aria-label={`Cómo funciona ${label}`}
           >
-            i
+            <CircleHelp className="h-3 w-3" />
+            <span>Cómo funciona</span>
           </button>
         ) : null}
       </div>
@@ -2473,44 +2476,112 @@ function RecommendationDetailModal({
 }
 
 function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/65 px-4 backdrop-blur-md">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-[#090714]/95 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_35px_120px_-55px_rgba(45,212,191,0.85)]">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-emerald-400/12 blur-3xl" />
-        <div className="pointer-events-none absolute -left-20 bottom-0 h-48 w-48 rounded-full bg-sky-400/10 blur-3xl" />
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">
-              Información
-            </div>
-            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">
-              {content.title}
-            </h2>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-              {content.description}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-white/[0.09] hover:text-white"
-          >
-            Cerrar
-          </button>
-        </div>
+  const readablePoints = content.points.map((point) => {
+    const [lead, ...rest] = point.split(":");
+    const hasLead = rest.length > 0 && lead.length < 72;
+    return {
+      lead: hasLead ? lead : null,
+      text: hasLead ? rest.join(":").trim() : point,
+    };
+  });
 
-        <div className="relative mt-6 space-y-3">
-          {content.points.map((point, index) => (
-            <div
-              key={point}
-              className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-relaxed text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
-            >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-300/10 text-xs font-bold text-emerald-300">
-                {index + 1}
-              </span>
-              <span>{point}</span>
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
+      <div className="relative max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/12 bg-[#080713]/96 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_38px_130px_-58px_rgba(124,58,237,0.95)]">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-400/16 blur-3xl" />
+        <div className="pointer-events-none absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-emerald-400/12 blur-3xl" />
+        <div className="relative flex max-h-[86vh] flex-col">
+          <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/25 bg-violet-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200">
+                <CircleHelp className="h-3.5 w-3.5" />
+                Cómo funciona
+              </div>
+              <h2 className="mt-4 font-display text-2xl font-bold tracking-tight text-white">
+                {content.title}
+              </h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/62">
+                {content.description}
+              </p>
             </div>
-          ))}
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white/55 transition hover:bg-white/[0.09] hover:text-white"
+            >
+              Cerrar
+            </button>
+          </div>
+
+          <div className="overflow-y-auto px-6 py-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-emerald-300/18 bg-emerald-300/[0.055] p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                  Qué analiza
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">
+                  Datos reales del negocio, clientes, agenda, ventas y evolución del período.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-sky-300/18 bg-sky-300/[0.055] p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-300">
+                  Cómo lo calcula
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">
+                  Compara resultados actuales contra períodos anteriores y detecta cambios relevantes.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-violet-300/18 bg-violet-300/[0.055] p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-300">
+                  Para qué sirve
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">
+                  Ayuda a decidir rápido dónde enfocar acciones para mejorar el negocio.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
+                <Brain className="h-4 w-4 text-violet-300" />
+                Lectura simple
+              </div>
+              <div className="space-y-2.5">
+                {readablePoints.map((point, index) => (
+                  <div
+                    key={`${point.text}-${index}`}
+                    className="flex gap-3 rounded-xl border border-white/[0.07] bg-black/18 p-3 text-sm leading-relaxed text-white/72"
+                  >
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/[0.07] text-[11px] font-bold text-white/70">
+                      {index + 1}
+                    </span>
+                    <span>
+                      {point.lead ? (
+                        <>
+                          <span className="font-semibold text-white">{point.lead}:</span>{" "}
+                          {point.text}
+                        </>
+                      ) : (
+                        point.text
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.045] px-3 py-2 text-xs leading-relaxed text-emerald-100/80">
+                <span className="font-bold text-emerald-300">Verde:</span> va bien o mejora.
+              </div>
+              <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.045] px-3 py-2 text-xs leading-relaxed text-amber-100/80">
+                <span className="font-bold text-amber-300">Naranja:</span> requiere atención.
+              </div>
+              <div className="rounded-xl border border-rose-300/15 bg-rose-300/[0.045] px-3 py-2 text-xs leading-relaxed text-rose-100/80">
+                <span className="font-bold text-rose-300">Rojo:</span> puede estar costando plata.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -4240,50 +4311,40 @@ function GrowthManagerTab({ businessId: _businessId }: { businessId: string | nu
                 </p>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div className="flex min-h-[124px] min-w-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
-                    <div className="flex h-9 items-start gap-2 text-xs leading-tight text-white/55">
-                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                      <span className="min-w-0 font-medium">Impacto estimado</span>
+                  <div className="flex min-h-[112px] min-w-0 flex-col items-start justify-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-left">
+                    <div className="mb-3 flex w-full items-center gap-2 text-xs leading-tight text-white/55">
+                      <DollarSign className="h-4 w-4 shrink-0 text-emerald-300" />
+                      <span className="min-w-0 break-words">Impacto estimado</span>
                     </div>
-                    <div className="mt-3 min-w-0">
-                      <div className="whitespace-nowrap text-[clamp(1.02rem,1.28vw,1.22rem)] font-bold leading-none tracking-[-0.04em] text-emerald-300">
-                        {heroAction.impactAmount}
-                      </div>
-                      <div className="mt-2 text-xs leading-tight text-white/50">en 30 días</div>
+                    <div className="max-w-full whitespace-nowrap text-[clamp(0.92rem,1.15vw,1.08rem)] font-bold leading-none tracking-[-0.045em] text-emerald-300">
+                      {heroAction.impactAmount}
                     </div>
+                    <div className="mt-2 text-xs leading-tight text-white/55">en 30 días</div>
                   </div>
 
-                  <div className="flex min-h-[124px] min-w-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
-                    <div className="flex h-9 items-start gap-2 text-xs leading-tight text-white/55">
-                      <Users className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
-                      <span className="min-w-0 font-medium">{heroAction.metricLabel}</span>
+                  <div className="flex min-h-[112px] min-w-0 flex-col items-start justify-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-left">
+                    <div className="mb-3 flex w-full items-center gap-2 text-xs leading-tight text-white/55">
+                      <Users className="h-4 w-4 shrink-0 text-blue-300" />
+                      <span className="min-w-0 break-words">{heroAction.metricLabel}</span>
                     </div>
-                    <div className="mt-3 min-w-0">
-                      <div className="text-3xl font-bold leading-none text-white">
-                        {heroAction.metricValue}
-                      </div>
-                      <div className="mt-2 text-xs leading-tight text-white/0">.</div>
-                    </div>
+                    <div className="text-3xl font-bold leading-none text-white">{heroAction.metricValue}</div>
                   </div>
 
-                  <div className="flex min-h-[124px] min-w-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
-                    <div className="flex h-9 items-start gap-2 text-xs leading-tight text-white/55">
-                      <Target className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-                      <span className="min-w-0 font-medium">Objetivo</span>
+                  <div className="flex min-h-[112px] min-w-0 flex-col items-start justify-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-left">
+                    <div className="mb-3 flex w-full items-center gap-2 text-xs leading-tight text-white/55">
+                      <Target className="h-4 w-4 shrink-0 text-violet-300" />
+                      <span>Objetivo</span>
                     </div>
-                    <div className="mt-3 min-w-0">
-                      <div className="text-[15px] font-bold leading-snug text-white [overflow-wrap:anywhere]">
-                        {heroAction.objective}
-                      </div>
-                      <div className="mt-2 text-xs leading-tight text-white/0">.</div>
+                    <div className="max-w-full text-[15px] font-bold leading-snug text-white break-words [overflow-wrap:anywhere]">
+                      {heroAction.objective}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.055] px-5 py-4 text-sm leading-relaxed text-white/75">
-                  <div className="flex items-start gap-3">
+                <div className="mt-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.055] p-4 text-sm leading-relaxed text-white/75">
+                  <div className="flex gap-3">
                     <Brain className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
-                    <p className="max-w-[31rem]">
+                    <p>
                       Esta acción fue seleccionada porque representa la mayor oportunidad económica
                       detectada hoy en tu negocio.
                     </p>
