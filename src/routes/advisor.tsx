@@ -2717,6 +2717,11 @@ type SimuladorProps = {
 type IARecomendacion = {
   nivel: "recomendado" | "evaluar" | "no_recomendado" | "progresivo" | "alto_riesgo";
   resumen: string;
+  score: number;
+  confianza: number;
+  factores: { label: string; value: number; estado: "positivo" | "neutral" | "riesgo" }[];
+  razones: string[];
+  sugerencia: string;
 };
 
 type ProfSimResult = {
@@ -2814,43 +2819,56 @@ const nivelMeta = {
   recomendado: {
     emoji: "✅",
     label: "Recomendado",
-    cls: "border-emerald-400/30 bg-emerald-400/[0.16]",
+    cls: "border-emerald-400/30 bg-emerald-400/[0.14]",
     titleCls: "text-emerald-300",
     dot: "bg-emerald-400",
+    icon: CheckCircle2,
   },
   progresivo: {
-    emoji: "🟡",
+    emoji: "🟦",
     label: "Aplicar progresivamente",
-    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",
+    cls: "border-cyan-400/30 bg-cyan-400/[0.08]",
     titleCls: "text-cyan-300",
     dot: "bg-cyan-400",
+    icon: TrendingUp,
   },
   evaluar: {
     emoji: "🟡",
     label: "Evaluar con cuidado",
-    cls: "border-cyan-400/30 bg-cyan-400/[0.07]",
-    titleCls: "text-cyan-300",
-    dot: "bg-cyan-400",
+    cls: "border-amber-400/30 bg-amber-400/[0.08]",
+    titleCls: "text-amber-300",
+    dot: "bg-amber-400",
+    icon: CircleHelp,
   },
   no_recomendado: {
     emoji: "🔴",
     label: "No recomendado todavía",
-    cls: "border-rose-400/30 bg-rose-400/[0.07]",
+    cls: "border-rose-400/30 bg-rose-400/[0.08]",
     titleCls: "text-rose-300",
     dot: "bg-rose-400",
+    icon: AlertTriangle,
   },
   alto_riesgo: {
     emoji: "⚠️",
     label: "Alto riesgo",
-    cls: "border-orange-400/30 bg-orange-400/[0.07]",
+    cls: "border-orange-400/30 bg-orange-400/[0.08]",
     titleCls: "text-orange-300",
     dot: "bg-orange-400",
+    icon: AlertTriangle,
   },
 };
 
 // Servicios demo (en producción vendrían de price_catalog de Supabase)
 const PRESETS_PCT = [10, 15, 20];
 const PRESETS_FIJO = [500, 1000, 2000, 5000];
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function scoreFactor(value: number, estado: "positivo" | "neutral" | "riesgo") {
+  return { value: clampScore(value), estado };
+}
 
 function getRecomendacion(
   aumentoNum: number,
@@ -2861,40 +2879,76 @@ function getRecomendacion(
 ): IARecomendacion & { nivel: keyof typeof nivelMeta } {
   const pctAumento = precioActual > 0 ? (aumentoNum / precioActual) * 100 : 0;
   const pctPerdible = cantidadMensual > 0 ? (serviciosPerdibles / cantidadMensual) * 100 : 0;
+  const precioCompetitivo = precioActual > 0 ? Math.max(0, 100 - Math.max(0, ((precioActual - DEMO.ticket) / DEMO.ticket) * 100)) : 60;
 
-  if (pctAumento > 30) {
-    return {
-      nivel: "alto_riesgo",
-      resumen: `Este aumento representa un ${pctAumento.toFixed(0)}% sobre el precio actual, lo que es demasiado alto en relación a la demanda. Podrías perder más clientes de los que compensaría el nuevo precio. Considerá hacerlo en dos etapas.`,
-    };
-  }
-  if (ocupacion >= 80 && pctAumento <= 15) {
-    return {
-      nivel: "recomendado",
-      resumen: `Tu ocupación es alta (${ocupacion}%) y el aumento es moderado (${pctAumento.toFixed(0)}%). Este cambio parece seguro: podés perder hasta ${serviciosPerdibles} servicios al mes y seguir facturando lo mismo. Podés aplicarlo directamente.`,
-    };
-  }
-  if (ocupacion >= 80 && pctAumento > 15) {
-    return {
-      nivel: "progresivo",
-      resumen: `Tu ocupación es alta (${ocupacion}%) pero el aumento es considerable (${pctAumento.toFixed(0)}%). Conviene aplicarlo primero en clientes nuevos y servicios premium durante 2 semanas antes de generalizarlo.`,
-    };
-  }
-  if (ocupacion >= 60 && pctAumento <= 15) {
-    return {
-      nivel: "progresivo",
-      resumen: `Tu ocupación es moderada (${ocupacion}%) y el aumento es razonable (${pctAumento.toFixed(0)}%). Puede funcionar bien, pero conviene comunicarlo con anticipación y medir la respuesta los primeros 15 días. Podés perder hasta ${serviciosPerdibles} turnos sin perder facturación.`,
-    };
-  }
-  if (ocupacion >= 60 && pctAumento > 15) {
-    return {
-      nivel: "evaluar",
-      resumen: `Tu ocupación es del ${ocupacion}% y el aumento es del ${pctAumento.toFixed(0)}%. El riesgo es medio-alto. Antes de aplicarlo en toda la agenda, probalo en servicios premium o con clientes nuevos y medí el impacto real.`,
-    };
-  }
+  const demanda = cantidadMensual >= 70 ? 95 : cantidadMensual >= 40 ? 82 : cantidadMensual >= 15 ? 68 : 48;
+  const recurrencia = ocupacion >= 80 ? 88 : ocupacion >= 65 ? 74 : 56;
+  const rentabilidad = pctAumento <= 6 ? 92 : pctAumento <= 12 ? 84 : pctAumento <= 20 ? 68 : pctAumento <= 30 ? 52 : 28;
+  const riesgo = pctPerdible <= 8 ? 90 : pctPerdible <= 18 ? 72 : pctPerdible <= 28 ? 50 : 28;
+  const competitividad = Math.max(20, Math.min(95, precioCompetitivo - Math.max(0, pctAumento - 10) * 1.2));
+  const estabilidad = pctAumento <= 10 ? 86 : pctAumento <= 18 ? 68 : pctAumento <= 28 ? 48 : 24;
+
+  const score = clampScore(
+    demanda * 0.22 +
+      recurrencia * 0.14 +
+      rentabilidad * 0.18 +
+      riesgo * 0.18 +
+      competitividad * 0.16 +
+      estabilidad * 0.12,
+  );
+
+  const confianza = clampScore(
+    58 + Math.min(22, cantidadMensual * 0.22) + (ocupacion >= 60 ? 10 : 0) + (precioActual > 0 ? 8 : 0),
+  );
+
+  const factores: IARecomendacion["factores"] = [
+    { label: "Frecuencia de venta", ...scoreFactor(demanda, demanda >= 75 ? "positivo" : demanda >= 60 ? "neutral" : "riesgo") },
+    { label: "Precio vs. ticket promedio", ...scoreFactor(competitividad, competitividad >= 75 ? "positivo" : competitividad >= 55 ? "neutral" : "riesgo") },
+    { label: "Clientes recurrentes", ...scoreFactor(recurrencia, recurrencia >= 80 ? "positivo" : recurrencia >= 65 ? "neutral" : "riesgo") },
+    { label: "Rentabilidad del aumento", ...scoreFactor(rentabilidad, rentabilidad >= 80 ? "positivo" : rentabilidad >= 60 ? "neutral" : "riesgo") },
+    { label: "Riesgo de pérdida", ...scoreFactor(riesgo, riesgo >= 80 ? "positivo" : riesgo >= 60 ? "neutral" : "riesgo") },
+    { label: "Estabilidad del cambio", ...scoreFactor(estabilidad, estabilidad >= 80 ? "positivo" : estabilidad >= 60 ? "neutral" : "riesgo") },
+  ];
+
+  let nivel: keyof typeof nivelMeta = "no_recomendado";
+  if (score >= 86) nivel = "recomendado";
+  else if (score >= 70) nivel = "progresivo";
+  else if (score >= 52) nivel = "evaluar";
+  else nivel = pctAumento > 30 || pctPerdible > 28 ? "alto_riesgo" : "no_recomendado";
+
+  const razones: string[] = [];
+  if (demanda >= 75) razones.push("El servicio tiene buena frecuencia de venta.");
+  if (recurrencia >= 75) razones.push("La ocupación indica demanda estable y clientes que vuelven.");
+  if (pctAumento <= 12) razones.push(`El aumento es moderado: ${pctAumento.toFixed(0)}% sobre el precio actual.`);
+  if (pctAumento > 18) razones.push(`El aumento ya es fuerte: ${pctAumento.toFixed(0)}% sobre el precio actual.`);
+  if (serviciosPerdibles > 0) razones.push(`Podés perder hasta ${serviciosPerdibles} servicios por mes sin facturar menos.`);
+  if (competitividad >= 70) razones.push("El precio sugerido sigue competitivo frente al ticket promedio.");
+  if (competitividad < 55) razones.push("El precio sugerido empieza a quedar alto frente al ticket promedio.");
+
+  const resumenByNivel: Record<keyof typeof nivelMeta, string> = {
+    recomendado: `El score IA es ${score}/100. El aumento es saludable para este servicio: buena demanda, riesgo bajo y precio todavía competitivo.`,
+    progresivo: `El score IA es ${score}/100. La oportunidad es buena, pero conviene aplicarla en etapas para reducir el riesgo de pérdida.`,
+    evaluar: `El score IA es ${score}/100. El impacto económico es atractivo, pero el riesgo empieza a subir. Conviene probarlo antes de aplicarlo a todos los clientes.`,
+    no_recomendado: `El score IA es ${score}/100. Todavía no conviene aplicar este aumento: primero es mejor mejorar demanda, ocupación o percepción de valor.`,
+    alto_riesgo: `El score IA es ${score}/100. El aumento puede afectar fuerte la demanda. No conviene aplicarlo completo en este momento.`,
+  };
+
+  const sugerenciaByNivel: Record<keyof typeof nivelMeta, string> = {
+    recomendado: "Podés aplicarlo directamente y revisar la respuesta durante los próximos 15 días.",
+    progresivo: `Aplicá primero +${fmtAR(Math.max(500, Math.round(aumentoNum / 2)))} y completá el resto dentro de 30 a 45 días si la demanda se mantiene.`,
+    evaluar: "Probalo con clientes nuevos o servicios premium y acompañalo con una mejora de experiencia o combo.",
+    no_recomendado: "Probá un aumento menor o esperá a tener más ocupación antes de subir este servicio.",
+    alto_riesgo: "No lo apliques completo. Dividilo en etapas o elegí un aumento más chico.",
+  };
+
   return {
-    nivel: "no_recomendado",
-    resumen: `Tu ocupación actual (${ocupacion}%) todavía tiene margen libre. Subir precios ahora podría frenar la captación de nuevos clientes justo cuando más los necesitás. Primero conviene completar la agenda y luego revisar los precios.`,
+    nivel,
+    score,
+    confianza,
+    factores,
+    razones: razones.slice(0, 4),
+    resumen: resumenByNivel[nivel],
+    sugerencia: sugerenciaByNivel[nivel],
   };
 }
 
@@ -3243,25 +3297,107 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
             </div>
           </div>
 
-          {/* Recomendación IA dinámica */}
-          {recomendacion && (
-            <div className={cn("rounded-2xl border p-5", nivelMeta[recomendacion.nivel].cls)}>
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-2xl">{nivelMeta[recomendacion.nivel].emoji}</span>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                    Recomendación IA
-                  </p>
-                  <p className={cn("text-base font-bold", nivelMeta[recomendacion.nivel].titleCls)}>
-                    {nivelMeta[recomendacion.nivel].label}
-                  </p>
+          {/* Veredicto IA con score */}
+          {recomendacion && (() => {
+            const meta = nivelMeta[recomendacion.nivel];
+            const Icon = meta.icon;
+            return (
+              <div className={cn("overflow-hidden rounded-2xl border p-5", meta.cls)}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-2xl ring-1", meta.dot, "bg-opacity-15 ring-white/10")}>
+                      <Icon className={cn("h-5 w-5", meta.titleCls)} />
+                    </span>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+                        Veredicto del Gerente IA
+                      </p>
+                      <p className={cn("mt-1 text-lg font-bold", meta.titleCls)}>
+                        {meta.label}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid min-w-[180px] gap-2 rounded-2xl border border-white/10 bg-black/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                        Score IA
+                      </span>
+                      <span className={cn("font-display text-2xl font-bold tabular-nums", meta.titleCls)}>
+                        {recomendacion.score}/100
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div className={cn("h-full rounded-full", meta.dot)} style={{ width: `${recomendacion.score}%` }} />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Confianza</span>
+                      <span className="font-semibold text-white/80">{recomendacion.confianza}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-relaxed text-white/72">
+                  {recomendacion.resumen}
+                </p>
+
+                <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_0.95fr]">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                      Qué evaluó del servicio
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {recomendacion.factores.map((factor) => (
+                        <div key={factor.label} className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-white/70">{factor.label}</span>
+                            <span
+                              className={cn(
+                                "font-bold tabular-nums",
+                                factor.estado === "positivo" && "text-emerald-300",
+                                factor.estado === "neutral" && "text-cyan-300",
+                                factor.estado === "riesgo" && "text-orange-300",
+                              )}
+                            >
+                              {factor.value}/100
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className={cn(
+                                "h-full rounded-full",
+                                factor.estado === "positivo" && "bg-emerald-400",
+                                factor.estado === "neutral" && "bg-cyan-400",
+                                factor.estado === "riesgo" && "bg-orange-400",
+                              )}
+                              style={{ width: `${factor.value}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                      Por qué llegó a esa conclusión
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {recomendacion.razones.map((razon) => (
+                        <div key={razon} className="flex items-start gap-2 text-xs leading-relaxed text-white/72">
+                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                          <span>{razon}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-xl border border-primary/15 bg-primary/[0.06] p-3 text-xs leading-relaxed text-white/75">
+                      <span className="font-semibold text-primary">Sugerencia:</span> {recomendacion.sugerencia}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {recomendacion.resumen}
-              </p>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </GlassCard>
