@@ -1,8 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { UserX, X, ChevronDown, Calendar as CalIcon, TrendingDown } from "lucide-react";
+import { UserX, X, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import {
   REJECT_REASONS,
   reasonLabel,
@@ -11,7 +10,6 @@ import {
   useInsertRejectedClient,
   type RejectReason,
 } from "@/hooks/use-rejected-clients";
-import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
 
 // ── Shapes mínimos ──────────────────────────────────────────────────────────
 type ServiceLite = { id: string; name: string; price?: number | null };
@@ -234,14 +232,44 @@ export function RejectedClientCaptureModal({
 // ════════════════════════════════════════════════════════════════════════════
 // Pill "Cliente rechazado" → Panel de CONSULTA (resumen + historial)
 // ════════════════════════════════════════════════════════════════════════════
-export function RejectedClientsButton({ businessId, className }: { businessId: string | null | undefined; className?: string }) {
+export function RejectedClientsButton({
+  businessId,
+  date,
+  services,
+  className,
+}: {
+  businessId: string | null | undefined;
+  date: Date;
+  services: ServiceLite[];
+  className?: string;
+}) {
   const [open, setOpen] = React.useState(false);
-  const [pickedDay, setPickedDay] = React.useState<Date>(() => new Date());
-  const [calOpen, setCalOpen] = React.useState(false);
-  const pickedISO = localDateISO(pickedDay);
+  const dayISO = localDateISO(date);
+  const { data: dayRejected = [] } = useRejectedByDay(businessId, dayISO);
 
-  const { analytics } = useRejectedAnalytics(businessId);
-  const { data: pickedRejected = [] } = useRejectedByDay(businessId, pickedISO);
+  const priceByService = React.useMemo(() => {
+    const map = new Map<string, number>();
+    services.forEach((s) => {
+      const price = Number(s.price ?? 0);
+      if (s.id) map.set(s.id, price);
+      if (s.name) map.set(s.name.toLowerCase().trim(), price);
+    });
+    return map;
+  }, [services]);
+
+  const lostRevenue = React.useMemo(() => {
+    return dayRejected.reduce((total, r) => {
+      const byId = r.service_id ? priceByService.get(r.service_id) : undefined;
+      const byName = r.service_name ? priceByService.get(r.service_name.toLowerCase().trim()) : undefined;
+      return total + Number(byId ?? byName ?? 0);
+    }, 0);
+  }, [dayRejected, priceByService]);
+
+  const dayLabel = date.toLocaleDateString("es-AR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 
   return (
     <>
@@ -252,12 +280,12 @@ export function RejectedClientsButton({ businessId, className }: { businessId: s
           "inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-200/90 ring-1 ring-rose-400/25 transition hover:bg-rose-500/15 shrink-0",
           className,
         )}
-        title="Clientes rechazados — consulta"
+        title="Clientes rechazados del día"
       >
         <UserX className="h-3.5 w-3.5" />
         <span className="whitespace-nowrap">Rechazados</span>
-        {analytics.counts.today > 0 && (
-          <span className="ml-0.5 rounded-full bg-rose-500/25 px-1.5 text-[10px] font-bold tabular-nums text-rose-100">{analytics.counts.today}</span>
+        {dayRejected.length > 0 && (
+          <span className="ml-0.5 rounded-full bg-rose-500/25 px-1.5 text-[10px] font-bold tabular-nums text-rose-100">{dayRejected.length}</span>
         )}
       </button>
 
@@ -266,7 +294,6 @@ export function RejectedClientsButton({ businessId, className }: { businessId: s
           <div className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm" onClick={() => setOpen(false)} />
           <div className="fixed inset-0 z-[81] grid place-items-center p-4" onClick={() => setOpen(false)}>
             <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()}>
-              {/* Header */}
               <div className="flex items-center justify-between gap-2 border-b border-white/8 px-5 py-3.5">
                 <div className="flex items-center gap-2.5">
                   <span className="grid h-8 w-8 place-items-center rounded-xl bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
@@ -274,7 +301,7 @@ export function RejectedClientsButton({ businessId, className }: { businessId: s
                   </span>
                   <div>
                     <div className="text-sm font-bold text-white">Clientes rechazados</div>
-                    <div className="text-[11px] text-white/45">Consulta — demanda no atendida</div>
+                    <div className="text-[11px] capitalize text-white/45">{dayLabel}</div>
                   </div>
                 </div>
                 <button type="button" onClick={() => setOpen(false)} className="rounded-full p-1.5 text-white/50 transition hover:bg-white/5 hover:text-white" aria-label="Cerrar">
@@ -282,68 +309,37 @@ export function RejectedClientsButton({ businessId, className }: { businessId: s
                 </button>
               </div>
 
-              <div className="space-y-5 overflow-y-auto px-5 py-4">
-                {/* Resumen */}
-                <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Resumen</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
-                      <div className="text-2xl font-extrabold tabular-nums text-rose-300">{analytics.counts.today}</div>
-                      <div className="mt-0.5 text-[11px] leading-tight text-white/45">Rechazados hoy</div>
+              <div className="space-y-4 overflow-y-auto px-5 py-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                    <div className="text-3xl font-extrabold tabular-nums text-rose-300">{dayRejected.length}</div>
+                    <div className="mt-1 text-xs leading-tight text-white/45">Clientes rechazados del día</div>
+                  </div>
+                  <div className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] px-4 py-4">
+                    <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums text-amber-300">
+                      <TrendingDown className="h-4 w-4" />
+                      {fmtARS(lostRevenue)}
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
-                      <div className="text-2xl font-extrabold tabular-nums text-white">{analytics.counts.month}</div>
-                      <div className="mt-0.5 text-[11px] leading-tight text-white/45">Este mes</div>
-                    </div>
-                    <div className="rounded-xl border border-amber-300/15 bg-amber-500/[0.05] px-3 py-3">
-                      <div className="flex items-center gap-1 text-lg font-extrabold tabular-nums text-amber-300">
-                        <TrendingDown className="h-3.5 w-3.5" />
-                        {fmtARS(analytics.lostRevenue.month)}
-                      </div>
-                      <div className="mt-0.5 text-[11px] leading-tight text-white/45">Facturación perdida</div>
-                    </div>
+                    <div className="mt-1 text-xs leading-tight text-white/45">Facturación potencial perdida</div>
                   </div>
                 </div>
 
-                {/* Historial */}
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Historial</span>
-                    {/* Selector de fecha compacto */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setCalOpen((v) => !v)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1 text-xs font-semibold text-white/80 ring-1 ring-white/10 transition hover:bg-white/10"
-                      >
-                        <CalIcon className="h-3.5 w-3.5 text-white/50" />
-                        {fmtDMY(pickedDay)}
-                        <ChevronDown className="h-3.5 w-3.5 text-white/40" />
-                      </button>
-                      {calOpen && (
-                        <>
-                          <div className="fixed inset-0 z-[82]" onClick={() => setCalOpen(false)} />
-                          <div className="absolute right-0 z-[83] mt-1">
-                            <DarkCalendar
-                              value={pickedDay}
-                              onSelect={(d) => {
-                                setPickedDay(d);
-                                setCalOpen(false);
-                              }}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="mb-1.5 text-xs font-bold uppercase tracking-wider text-white/45">¿Para qué sirve?</div>
+                  <p className="text-sm leading-relaxed text-white/60">
+                    Registrá los clientes que no pudieron atenderse. Clippr usa esta información junto con la ocupación de la agenda para detectar demanda no atendida. El Asesor IA analizará estos datos para ayudarte a decidir cuándo conviene incorporar un profesional, ampliar horarios o ajustar precios.
+                  </p>
+                </div>
 
-                  {pickedRejected.length === 0 ? (
+                <div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Registros del día</div>
+                  {dayRejected.length === 0 ? (
                     <div className="rounded-xl border border-white/8 bg-white/[0.02] px-3 py-6 text-center text-xs text-white/40">
                       Sin clientes rechazados este día.
                     </div>
                   ) : (
                     <div className="max-h-[280px] space-y-1.5 overflow-y-auto pr-1">
-                      {pickedRejected.map((r) => {
+                      {dayRejected.map((r) => {
                         const motivo =
                           r.reason === "profesional" && r.requested_employee_name
                             ? `Quería a ${r.requested_employee_name}`
