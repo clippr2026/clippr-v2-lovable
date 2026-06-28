@@ -2420,7 +2420,7 @@ function RecommendationDetailModal({
           </button>
         </div>
         <div className="mt-6 grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               🔍 Oportunidad detectada
             </div>
@@ -2687,7 +2687,7 @@ function ReportCard({
 
 function ReportPlaceholder({ month }: { month: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
       <p className="text-sm font-semibold text-white">{month}</p>
       <p className="mt-1 text-xs text-muted-foreground">Sin informe guardado.</p>
       <p className="mt-4 text-xs text-muted-foreground">
@@ -5103,16 +5103,16 @@ function LabScenario({
         <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">
           {currentLabel}
         </div>
-        <div className="mt-1 text-2xl font-bold text-white/85">{currentValue}</div>
+        <div className="mt-1 text-xl font-bold text-white/85">{currentValue}</div>
       </div>
       <div className="grid place-items-center text-white/30">
         <ArrowRight className="h-5 w-5" />
       </div>
-      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.07] p-4">
+      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.07] p-3">
         <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">
           {projectedLabel}
         </div>
-        <div className="mt-1 text-2xl font-bold text-emerald-200">{projectedValue}</div>
+        <div className="mt-1 text-xl font-bold text-emerald-200">{projectedValue}</div>
       </div>
     </div>
   );
@@ -5157,7 +5157,7 @@ function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: stri
   const meta = nivelMeta[nivel];
   const title = nivel === "alto_riesgo" ? "Revisar antes de aplicar" : nivel === "evaluar" ? "Conviene probar con cuidado" : "Recomendado por IA";
   return (
-    <div className={cn("rounded-[22px] border p-5", meta.cls)}>
+    <div className={cn("rounded-[22px] border p-4", meta.cls)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/10 text-base ring-1 ring-white/15">
@@ -5172,19 +5172,7 @@ function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: stri
         </div>
         <span className={cn("rounded-full px-3 py-1 text-[11px] font-bold", meta.titleCls, "bg-white/8")}>{meta.label}</span>
       </div>
-      <p className="mt-4 text-sm leading-relaxed text-white/82">{text}</p>
-      <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
-          Qué evalúa del servicio
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          {["Ventas estimadas", "Precio actual", "Riesgo de demanda"].map((item) => (
-            <div key={item} className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-white/65">
-              ✓ {item}
-            </div>
-          ))}
-        </div>
-      </div>
+      <p className="mt-3 text-sm leading-relaxed text-white/82">{text}</p>
     </div>
   );
 }
@@ -5253,16 +5241,14 @@ function LabPrecios({ data }: { data: LabData }) {
       : `Este aumento puede sumar ${fmtAR(facturacion)} por mes y mantiene el riesgo ${riesgoLabel.toLowerCase()}. Aunque pierdas hasta ${perdibles} clientes por mes en este servicio, tu facturación se mantiene o crece.`;
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-[22px] border border-cyan-300/15 bg-cyan-400/[0.035] p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="space-y-3">
+      <div className="rounded-[22px] border border-cyan-300/15 bg-cyan-400/[0.035] p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-100/55">
               Elegí el servicio
             </p>
-            <p className="mt-1 text-xs text-white/45">
-              Seleccioná el servicio que querés analizar antes de probar el aumento.
-            </p>
+            <p className="mt-0.5 text-xs text-white/45">Elegí un servicio para simular el cambio.</p>
           </div>
           <span className="hidden rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[11px] font-bold text-white/45 sm:inline-flex">
             {services.length} servicios
@@ -5277,34 +5263,34 @@ function LabPrecios({ data }: { data: LabData }) {
 
       <div className="relative overflow-hidden rounded-[24px] border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.10] via-white/[0.035] to-emerald-400/[0.06] p-5 shadow-[0_22px_70px_-48px_rgba(34,211,238,0.95)]">
         <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-cyan-400/18 blur-3xl" />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/80">
+            <div className="mb-1.5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/80">
               <Sparkles className="h-3.5 w-3.5" /> Resultado estimado
             </div>
-            <h3 className="max-w-2xl text-2xl font-extrabold tracking-[-0.03em] text-white sm:text-3xl">
+            <h3 className="max-w-2xl text-xl font-extrabold tracking-[-0.03em] text-white sm:text-2xl">
               Si aumentás {fmtAR(aumento)}, podrías generar {fmtAR(facturacion)} más por mes.
             </h3>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/62">
+            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-white/62">
               Simulación sobre <span className="font-semibold text-white">{svc?.nombre}</span>, con {mensual} ventas mensuales estimadas y un riesgo de pérdida de clientes <span className={cn("font-bold", riesgoCls)}>{riesgoLabel.toLowerCase()}</span>.
             </p>
           </div>
-          <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.055] px-5 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.055] px-4 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
             <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Riesgo estimado</p>
-            <p className={cn("mt-1 text-2xl font-extrabold", riesgoCls)}>{riesgoLabel}</p>
+            <p className={cn("mt-0.5 text-xl font-extrabold", riesgoCls)}>{riesgoLabel}</p>
           </div>
         </div>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <div className="mb-3 flex items-end justify-between gap-4">
+        <div className="mb-2 flex items-end justify-between gap-4">
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
               Aumento seleccionado
             </span>
             <p className="mt-1 text-xs text-white/45">Probá distintos valores antes de cambiar el precio real.</p>
           </div>
-          <span className="text-3xl font-extrabold leading-none text-cyan-200 sm:text-4xl">
+          <span className="text-2xl font-extrabold leading-none text-cyan-200 sm:text-3xl">
             +{fmtAR(aumento)}
           </span>
         </div>
