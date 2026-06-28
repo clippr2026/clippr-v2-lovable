@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
 import { TIER_EMOJI, buildDemandRecommendations } from "@/lib/rejected-analytics";
-import { useAiRecommendations, type RecommendationAchievement } from "@/hooks/use-ai-recommendations";
+import { type RecommendationAchievement } from "@/hooks/use-ai-recommendations";
 import type {
   Recommendation,
   RecommendationContact,
@@ -19,12 +19,10 @@ import type {
 } from "@/lib/ai-recommendation-engine";
 import {
   AlertTriangle,
-  Bell,
   Brain,
   BarChart2,
   CheckCircle2,
   ClipboardList,
-  HeartPulse,
   Loader2,
   MessageCircle,
   Sparkles,
@@ -33,16 +31,24 @@ import {
   Users,
   DollarSign,
   TrendingDown,
-  Minus,
   ChevronDown,
-  ChevronUp,
   ArrowRight,
   Activity,
   CalendarDays,
   Scissors,
   Gem,
   Package,
-  Crown, UserX, Clock } from "lucide-react";
+  Crown,
+  UserX,
+  Clock,
+  Gift,
+  BadgePercent,
+  Wallet,
+  Trophy,
+  CircleHelp,
+  Tag,
+  BriefcaseBusiness,
+} from "lucide-react";
 
 export const Route = createFileRoute("/advisor")({
   head: () => ({
@@ -57,6 +63,7 @@ export const Route = createFileRoute("/advisor")({
 type ActionTone = "money" | "warning" | "growth" | "client" | "neutral";
 
 type AdvisorAction = {
+  id: string;
   title: string;
   detail: string;
   impact: string;
@@ -69,14 +76,84 @@ type AdvisorAction = {
   howToAct: string[];
   suggestedMessage: string;
   actionButtons: string[];
+  score: number;
+  status: "pending" | "running" | "completed" | "archived";
+  startedAt?: number;
+  completedAt?: number;
+  area: "Clientes" | "Agenda" | "Ventas" | "Equipo" | "Caja";
+  metricLabel: string;
+  metricValue: string;
+  objective: string;
+  priorityLabel: string;
+  priorityTone: "max" | "high" | "medium";
+  icon: React.ComponentType<{ className?: string }>;
   occupancyOptions?: {
     label: string;
-    emoji: string;
+    icon: React.ComponentType<{ className?: string }>;
     recommended?: boolean;
     discount?: number;
     message?: string;
   }[];
 };
+
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+type StoredAdvisorStatus = {
+  status: AdvisorAction["status"];
+  startedAt?: number;
+  completedAt?: number;
+};
+
+function getStoredAdvisorStatuses(): Record<string, StoredAdvisorStatus> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem("clippr_advisor_action_statuses_demo");
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredAdvisorStatuses(statuses: Record<string, StoredAdvisorStatus>) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("clippr_advisor_action_statuses_demo", JSON.stringify(statuses));
+}
+
+function sortAdvisorActions(actions: AdvisorAction[]) {
+  return [...actions].sort((a, b) => b.score - a.score);
+}
+
+function getDaysAgo(timestamp?: number) {
+  if (!timestamp) return "Hoy";
+  const diff = Date.now() - timestamp;
+  const days = Math.max(0, Math.floor(diff / (24 * 60 * 60 * 1000)));
+  if (days <= 0) return "Hoy";
+  if (days === 1) return "Hace 1 día";
+  return `Hace ${days} días`;
+}
+
+function getPriorityToneClasses(tone: AdvisorAction["priorityTone"]) {
+  if (tone === "max") return "border-violet-300/35 bg-violet-400/10 text-violet-200";
+  if (tone === "high") return "border-blue-300/30 bg-blue-400/10 text-blue-200";
+  return "border-orange-300/30 bg-orange-400/10 text-orange-200";
+}
+
+function getAreaIcon(area: AdvisorAction["area"]) {
+  switch (area) {
+    case "Clientes":
+      return Users;
+    case "Agenda":
+      return CalendarDays;
+    case "Ventas":
+      return DollarSign;
+    case "Equipo":
+      return BriefcaseBusiness;
+    case "Caja":
+      return Wallet;
+    default:
+      return Target;
+  }
+}
 
 type InfoModalContent = {
   title: string;
@@ -175,7 +252,11 @@ const RADAR_LOCAL: {
 }[] = [
   { tone: "ok", icon: TrendingUp, label: "Utilidad creciendo (+30% vs mes anterior)" },
   { tone: "ok", icon: Users, label: "Nuevos clientes creciendo (+16%)" },
-  { tone: "warn", icon: CalendarDays, label: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} con baja ocupación` },
+  {
+    tone: "warn",
+    icon: CalendarDays,
+    label: `${DEMO.lowDay.charAt(0).toUpperCase() + DEMO.lowDay.slice(1)} con baja ocupación`,
+  },
   { tone: "alert", icon: Users, label: `${DEMO.inactiveClients} clientes para recuperar` },
   { tone: "bad", icon: Package, label: "Venta de productos baja (6%)" },
 ];
@@ -186,8 +267,18 @@ const RADIOGRAFIA_LOCAL: {
   value: string;
   tone?: "good" | "warn" | "bad";
 }[] = [
-  { icon: Users, label: "Clientes para recuperar", value: String(DEMO.inactiveClients), tone: "warn" },
-  { icon: CalendarDays, label: "Turnos vacíos este mes", value: String(DEMO.freeSlotsMonth), tone: "warn" },
+  {
+    icon: Users,
+    label: "Clientes para recuperar",
+    value: String(DEMO.inactiveClients),
+    tone: "warn",
+  },
+  {
+    icon: CalendarDays,
+    label: "Turnos vacíos este mes",
+    value: String(DEMO.freeSlotsMonth),
+    tone: "warn",
+  },
   { icon: TrendingUp, label: "Profesional con mayor ocupación", value: "Alan", tone: "good" },
   { icon: TrendingDown, label: "Profesional con menor ocupación", value: "Juan", tone: "warn" },
   { icon: Scissors, label: "Servicio más vendido", value: "Corte clásico" },
@@ -196,17 +287,60 @@ const RADIOGRAFIA_LOCAL: {
   { icon: Crown, label: "Clientes VIP", value: "18", tone: "good" },
 ];
 
-const MONTH_INSIGHTS: Record<string, { badge: string; mejora: string; problema: string; resumen: string }> = {
-  "Junio 2026": { badge: "Mejor mes del trimestre", mejora: "Más clientes nuevos", problema: `${DEMO.inactiveClients} clientes inactivos`, resumen: "La IA detectó un crecimiento sostenido impulsado por una mayor ocupación y un mejor ticket promedio." },
-  "Mayo 2026": { badge: "Recuperación", mejora: "Mayor ticket promedio", problema: "Baja ocupación", resumen: "La facturación comenzó a recuperarse, aunque la ocupación siguió por debajo del objetivo." },
-  "Abril 2026": { badge: "Ocupación baja", mejora: "Más reservas online", problema: "Poca fidelización", resumen: "La principal causa fue la caída de reservas durante la segunda quincena." },
+const MONTH_INSIGHTS: Record<
+  string,
+  { badge: string; mejora: string; problema: string; resumen: string }
+> = {
+  "Junio 2026": {
+    badge: "Mejor mes del trimestre",
+    mejora: "Más clientes nuevos",
+    problema: `${DEMO.inactiveClients} clientes inactivos`,
+    resumen:
+      "La IA detectó un crecimiento sostenido impulsado por una mayor ocupación y un mejor ticket promedio.",
+  },
+  "Mayo 2026": {
+    badge: "Recuperación",
+    mejora: "Mayor ticket promedio",
+    problema: "Baja ocupación",
+    resumen:
+      "La facturación comenzó a recuperarse, aunque la ocupación siguió por debajo del objetivo.",
+  },
+  "Abril 2026": {
+    badge: "Ocupación baja",
+    mejora: "Más reservas online",
+    problema: "Poca fidelización",
+    resumen: "La principal causa fue la caída de reservas durante la segunda quincena.",
+  },
 };
 
-const RADAR_STYLES: Record<"ok" | "warn" | "alert" | "bad", { icon: string; ring: string; text: string; bg: string }> = {
-  ok: { icon: "text-emerald-300", ring: "border-emerald-400/20 bg-emerald-400/[0.05]", text: "text-emerald-200", bg: "bg-emerald-400/10" },
-  warn: { icon: "text-amber-300", ring: "border-amber-400/20 bg-amber-400/[0.05]", text: "text-amber-200", bg: "bg-amber-400/10" },
-  alert: { icon: "text-orange-300", ring: "border-orange-400/20 bg-orange-400/[0.05]", text: "text-orange-200", bg: "bg-orange-400/10" },
-  bad: { icon: "text-rose-300", ring: "border-rose-400/20 bg-rose-400/[0.05]", text: "text-rose-200", bg: "bg-rose-400/10" },
+const RADAR_STYLES: Record<
+  "ok" | "warn" | "alert" | "bad",
+  { icon: string; ring: string; text: string; bg: string }
+> = {
+  ok: {
+    icon: "text-emerald-300",
+    ring: "border-emerald-400/20 bg-emerald-400/[0.05]",
+    text: "text-emerald-200",
+    bg: "bg-emerald-400/10",
+  },
+  warn: {
+    icon: "text-amber-300",
+    ring: "border-amber-400/20 bg-amber-400/[0.05]",
+    text: "text-amber-200",
+    bg: "bg-amber-400/10",
+  },
+  alert: {
+    icon: "text-orange-300",
+    ring: "border-orange-400/20 bg-orange-400/[0.05]",
+    text: "text-orange-200",
+    bg: "bg-orange-400/10",
+  },
+  bad: {
+    icon: "text-rose-300",
+    ring: "border-rose-400/20 bg-rose-400/[0.05]",
+    text: "text-rose-200",
+    bg: "bg-rose-400/10",
+  },
 };
 
 function AdvisorRoute() {
@@ -243,92 +377,92 @@ function AdvisorRoute() {
   return (
     <AppShell>
       <div className="app-premium-shell">
-      
-      <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-<div className="flex items-center justify-between gap-4 flex-wrap">
-        <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-        {analysisStarted && !isAnalyzing && (
-          <div className="relative flex w-full items-center justify-end sm:w-auto">
-            <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
-            <div className="relative flex max-w-full items-center gap-2 overflow-x-auto rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-              {(
-                [
-                  {
-                    key: "analisis",
-                    icon: "📊",
-                    label: "Análisis",
-                    active:
-                      "from-cyan-400/25 via-blue-500/18 to-indigo-500/20 text-cyan-100 ring-cyan-300/35 shadow-cyan-500/20",
-                    idle: "hover:text-cyan-100 hover:ring-cyan-300/20 hover:bg-cyan-400/8",
-                  },
-                  {
-                    key: "acciones",
-                    icon: "🧠",
-                    label: "Gerente IA",
-                    active:
-                      "from-fuchsia-400/25 via-violet-500/18 to-indigo-500/20 text-fuchsia-100 ring-fuchsia-300/35 shadow-fuchsia-500/20",
-                    idle: "hover:text-fuchsia-100 hover:ring-fuchsia-300/20 hover:bg-fuchsia-400/8",
-                  },
-                  {
-                    key: "simuladores",
-                    icon: "💰",
-                    label: "Simuladores",
-                    active:
-                      "from-emerald-400/25 via-teal-500/18 to-cyan-500/20 text-emerald-100 ring-emerald-300/35 shadow-emerald-500/20",
-                    idle: "hover:text-emerald-100 hover:ring-emerald-300/20 hover:bg-emerald-400/8",
-                  },
-                ] as const
-              ).map((t) => {
-                const active = advisorTab === t.key;
-                return (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => setAdvisorTab(t.key)}
-                    className={cn(
-                      "group relative min-h-[48px] overflow-hidden rounded-[18px] px-4 py-3 text-sm font-bold tracking-[-0.01em] transition-all duration-300 ring-1 ring-white/10 sm:px-5",
-                      "before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent before:opacity-0 before:transition-opacity",
-                      "after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.16),transparent_48%)] after:opacity-0 after:transition-opacity",
-                      active
-                        ? cn(
-                            "bg-gradient-to-br shadow-[0_16px_42px_var(--tw-shadow-color)] before:opacity-100 after:opacity-100 scale-[1.01]",
-                            t.active,
-                          )
-                        : cn(
-                            "text-muted-foreground bg-white/[0.035] hover:-translate-y-0.5 hover:ring-1 hover:shadow-[0_12px_30px_rgba(15,23,42,0.35)]",
-                            t.idle,
-                          ),
-                    )}
-                  >
-                    <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
-                      <span
-                        className={cn(
-                          "grid h-7 w-7 place-items-center rounded-full text-[14px] transition-all",
-                          active
-                            ? "bg-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_18px_rgba(255,255,255,0.10)]"
-                            : "bg-white/[0.06] group-hover:bg-white/12",
-                        )}
-                      >
-                        {t.icon}
+        <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
+          {analysisStarted && !isAnalyzing && (
+            <div className="relative flex w-full items-center justify-end sm:w-auto">
+              <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
+              <div className="relative flex max-w-full items-center gap-2 overflow-x-auto rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
+                {(
+                  [
+                    {
+                      key: "analisis",
+                      icon: BarChart2,
+                      label: "Análisis",
+                      active:
+                        "from-cyan-400/25 via-blue-500/18 to-indigo-500/20 text-cyan-100 ring-cyan-300/35 shadow-cyan-500/20",
+                      idle: "hover:text-cyan-100 hover:ring-cyan-300/20 hover:bg-cyan-400/8",
+                    },
+                    {
+                      key: "acciones",
+                      icon: Brain,
+                      label: "Gerente IA",
+                      active:
+                        "from-fuchsia-400/25 via-violet-500/18 to-indigo-500/20 text-fuchsia-100 ring-fuchsia-300/35 shadow-fuchsia-500/20",
+                      idle: "hover:text-fuchsia-100 hover:ring-fuchsia-300/20 hover:bg-fuchsia-400/8",
+                    },
+                    {
+                      key: "simuladores",
+                      icon: DollarSign,
+                      label: "Simuladores",
+                      active:
+                        "from-emerald-400/25 via-teal-500/18 to-cyan-500/20 text-emerald-100 ring-emerald-300/35 shadow-emerald-500/20",
+                      idle: "hover:text-emerald-100 hover:ring-emerald-300/20 hover:bg-emerald-400/8",
+                    },
+                  ] as const
+                ).map((t) => {
+                  const active = advisorTab === t.key;
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setAdvisorTab(t.key)}
+                      className={cn(
+                        "group relative min-h-[48px] overflow-hidden rounded-[18px] px-4 py-3 text-sm font-bold tracking-[-0.01em] transition-all duration-300 ring-1 ring-white/10 sm:px-5",
+                        "before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent before:opacity-0 before:transition-opacity",
+                        "after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.16),transparent_48%)] after:opacity-0 after:transition-opacity",
+                        active
+                          ? cn(
+                              "bg-gradient-to-br shadow-[0_16px_42px_var(--tw-shadow-color)] before:opacity-100 after:opacity-100 scale-[1.01]",
+                              t.active,
+                            )
+                          : cn(
+                              "text-muted-foreground bg-white/[0.035] hover:-translate-y-0.5 hover:ring-1 hover:shadow-[0_12px_30px_rgba(15,23,42,0.35)]",
+                              t.idle,
+                            ),
+                      )}
+                    >
+                      <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
+                        <span
+                          className={cn(
+                            "grid h-7 w-7 place-items-center rounded-full text-[14px] transition-all",
+                            active
+                              ? "bg-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_18px_rgba(255,255,255,0.10)]"
+                              : "bg-white/[0.06] group-hover:bg-white/12",
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span>{t.label}</span>
                       </span>
-                      <span>{t.label}</span>
-                    </span>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <AdvisorContent
-        advisorTab={advisorTab}
-        setAdvisorTab={setAdvisorTab}
-        analysisStarted={analysisStarted}
-        setAnalysisStarted={setAnalysisStarted}
-        isAnalyzing={isAnalyzing}
-        setIsAnalyzing={setIsAnalyzing}
-      />
+        <AdvisorContent
+          advisorTab={advisorTab}
+          setAdvisorTab={setAdvisorTab}
+          analysisStarted={analysisStarted}
+          setAnalysisStarted={setAnalysisStarted}
+          isAnalyzing={isAnalyzing}
+          setIsAnalyzing={setIsAnalyzing}
+        />
       </div>
     </AppShell>
   );
@@ -374,12 +508,7 @@ function AdvisorContent({
   React.useEffect(() => {
     if (!isAnalyzing) return;
 
-    const steps = [
-      "Ventas",
-      "Clientes",
-      "Agenda",
-      "Generando recomendaciones",
-    ];
+    const steps = ["Ventas", "Clientes", "Agenda", "Generando recomendaciones"];
 
     let index = 0;
     setAnalysisStep(0);
@@ -435,7 +564,14 @@ function AdvisorContent({
   });
 
   const healthTone = getHealthTone(DEMO.health);
-  const healthHeadline = DEMO.health >= 80 ? "Excelente" : DEMO.health >= 65 ? "Muy bien" : DEMO.health >= 50 ? "Aceptable" : "Necesita atención";
+  const healthHeadline =
+    DEMO.health >= 80
+      ? "Excelente"
+      : DEMO.health >= 65
+        ? "Muy bien"
+        : DEMO.health >= 50
+          ? "Aceptable"
+          : "Necesita atención";
   const animatedHealth = Math.round(DEMO.health * animationProgress);
   const animatedProfit = Math.round(DEMO.profit * animationProgress);
 
@@ -504,7 +640,9 @@ function AdvisorContent({
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">Estado actual</h2>
+                  <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
+                    Estado actual
+                  </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Rentabilidad, clientes y ocupación del período.
                   </p>
@@ -581,7 +719,8 @@ function AdvisorContent({
                       <div className="h-px bg-white/10" />
 
                       <p className="text-xs leading-relaxed text-muted-foreground">
-                        Tu local está sólido. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios.
+                        Tu local está sólido. El próximo salto está en llenar la agenda y recuperar
+                        clientes, no en bajar precios.
                       </p>
 
                       <div>
@@ -591,10 +730,20 @@ function AdvisorContent({
                         <div className="space-y-1.5 text-xs leading-relaxed text-white/72">
                           <p>La principal oportunidad detectada está en la ocupación.</p>
                           <p>
-                            Tenés <span className="font-semibold text-white">{DEMO.freeSlotsMonth} turnos disponibles</span> este mes.
+                            Tenés{" "}
+                            <span className="font-semibold text-white">
+                              {DEMO.freeSlotsMonth} turnos disponibles
+                            </span>{" "}
+                            este mes.
                           </p>
                           <p>
-                            Si alcanzás una ocupación del <span className="font-semibold text-white">75%</span>, podrías generar aproximadamente <span className="font-semibold text-emerald-300">{fmtAR(Math.round(DEMO.freeSlotsMonth * 0.21 * DEMO.ticket))}</span> adicionales sin incorporar más personal.
+                            Si alcanzás una ocupación del{" "}
+                            <span className="font-semibold text-white">75%</span>, podrías generar
+                            aproximadamente{" "}
+                            <span className="font-semibold text-emerald-300">
+                              {fmtAR(Math.round(DEMO.freeSlotsMonth * 0.21 * DEMO.ticket))}
+                            </span>{" "}
+                            adicionales sin incorporar más personal.
                           </p>
                         </div>
                       </div>
@@ -624,9 +773,17 @@ function AdvisorContent({
                       return (
                         <div
                           key={item.label}
-                          className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", style.ring)}
+                          className={cn(
+                            "flex items-center gap-3 rounded-xl border px-3 py-2",
+                            style.ring,
+                          )}
                         >
-                          <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg", style.bg)}>
+                          <span
+                            className={cn(
+                              "grid h-7 w-7 shrink-0 place-items-center rounded-lg",
+                              style.bg,
+                            )}
+                          >
                             <Icon className={cn("h-4 w-4", style.icon)} />
                           </span>
                           <span className="text-sm text-white/85">{item.label}</span>
@@ -634,7 +791,8 @@ function AdvisorContent({
                       );
                     })}
                     <p className="pt-1 text-[11px] leading-relaxed text-white/40">
-                      La IA marca en verde lo que va bien y en naranja/rojo lo que te está costando plata. Empezá por lo rojo.
+                      La IA marca en verde lo que va bien y en naranja/rojo lo que te está costando
+                      plata. Empezá por lo rojo.
                     </p>
                   </div>
                 </div>
@@ -730,8 +888,16 @@ function AdvisorContent({
                     <div className="text-xs text-muted-foreground">vs mes anterior</div>
                   </div>
                   <div className="rounded-xl border border-sky-300/15 bg-sky-300/[0.04] px-3 py-1.5 text-[11px]">
-                    <div className="text-white/70">Objetivo: <span className="font-semibold text-sky-200">{fmtAR(Math.round(DEMO.ticket * 1.2))}</span></div>
-                    <div className="mt-0.5 text-white/45">Potencial: +{fmtAR(Math.round(DEMO.ticket * 0.2))} por cliente sumando barba y productos al corte.</div>
+                    <div className="text-white/70">
+                      Objetivo:{" "}
+                      <span className="font-semibold text-sky-200">
+                        {fmtAR(Math.round(DEMO.ticket * 1.2))}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-white/45">
+                      Potencial: +{fmtAR(Math.round(DEMO.ticket * 0.2))} por cliente sumando barba y
+                      productos al corte.
+                    </div>
                   </div>
                 </div>
 
@@ -751,8 +917,14 @@ function AdvisorContent({
                     <div className="text-xs text-muted-foreground">vs mes anterior</div>
                   </div>
                   <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-3 py-1.5 text-[11px]">
-                    <div className="text-white/70">Meta: <span className="font-semibold text-orange-200">75%</span> · {DEMO.freeSlotsMonth} turnos vacíos</div>
-                    <div className="mt-0.5 text-white/45">Potencial: +{fmtAR(Math.round(DEMO.freeSlotsMonth * 0.21 * DEMO.ticket))} por mes si los llenás.</div>
+                    <div className="text-white/70">
+                      Meta: <span className="font-semibold text-orange-200">75%</span> ·{" "}
+                      {DEMO.freeSlotsMonth} turnos vacíos
+                    </div>
+                    <div className="mt-0.5 text-white/45">
+                      Potencial: +{fmtAR(Math.round(DEMO.freeSlotsMonth * 0.21 * DEMO.ticket))} por
+                      mes si los llenás.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -823,7 +995,9 @@ function AdvisorContent({
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
             </div>
             <GlassCard className="p-5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
-              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">Tu negocio de un vistazo</h2>
+              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
+                Tu negocio de un vistazo
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Los números que un dueño de barbería o peluquería mira todos los días.
               </p>
@@ -863,7 +1037,9 @@ function AdvisorContent({
                       >
                         {item.value}
                       </div>
-                      <div className="mt-1.5 text-xs leading-snug text-muted-foreground">{item.label}</div>
+                      <div className="mt-1.5 text-xs leading-snug text-muted-foreground">
+                        {item.label}
+                      </div>
                     </div>
                   );
                 })}
@@ -903,10 +1079,26 @@ function AdvisorContent({
                   ...reports,
                   ...(reports.some((r) => r.month === "Mayo 2026")
                     ? []
-                    : [{ month: "Mayo 2026", health: 76, growth: 12, profit: 1420000, revenue: 3100000 }]),
+                    : [
+                        {
+                          month: "Mayo 2026",
+                          health: 76,
+                          growth: 12,
+                          profit: 1420000,
+                          revenue: 3100000,
+                        },
+                      ]),
                   ...(reports.some((r) => r.month === "Abril 2026")
                     ? []
-                    : [{ month: "Abril 2026", health: 71, growth: 8, profit: 1180000, revenue: 2780000 }]),
+                    : [
+                        {
+                          month: "Abril 2026",
+                          health: 71,
+                          growth: 8,
+                          profit: 1180000,
+                          revenue: 2780000,
+                        },
+                      ]),
                 ]
                   .slice(0, 3)
                   .map((report) => {
@@ -1170,7 +1362,8 @@ function AnalysisLoader({ step }: { step: number }) {
                     pending && "text-muted-foreground",
                   )}
                 >
-                  {item.label}{current ? "..." : ""}
+                  {item.label}
+                  {current ? "..." : ""}
                 </span>
               </div>
             );
@@ -1191,7 +1384,17 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       impact: `Impacto estimado: +${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
       impactAmount: `+${fmtAR(DEMO.inactiveClients * DEMO.ticket)}`,
       impactExplanation: `Facturación recuperable si ${DEMO.inactiveClients} clientes inactivos vuelven al menos una vez. Basado en el ticket promedio actual de ${fmtAR(DEMO.ticket)}.`,
-      button: "Tomar acción",
+      id: "recover-inactive-clients",
+      score: 97,
+      status: "pending",
+      area: "Clientes",
+      metricLabel: "Clientes involucrados",
+      metricValue: String(DEMO.inactiveClients),
+      objective: "Recuperar y fidelizar",
+      priorityLabel: "Prioridad máxima",
+      priorityTone: "max",
+      icon: Users,
+      button: "Empezar estrategia",
       tone: "client",
       problem: `${DEMO.inactiveClients} clientes no volvieron hace más de 45 días.`,
       opportunity: `Si recuperás parte de esos clientes, podrías sumar hasta ${fmtAR(DEMO.inactiveClients * DEMO.ticket)} en facturación estimada.`,
@@ -1214,7 +1417,17 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       impact: `Impacto estimado: +${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
       impactAmount: `+${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)}`,
       impactExplanation: `Ingresos que se perderían si los ${DEMO.emptySlotsTomorrow} turnos disponibles mañana quedan vacíos. Cada turno vale en promedio ${fmtAR(DEMO.ticket)}.`,
-      button: "Tomar acción",
+      id: "fill-empty-slots",
+      score: 90,
+      status: "pending",
+      area: "Agenda",
+      metricLabel: "Turnos libres",
+      metricValue: String(DEMO.emptySlotsTomorrow),
+      objective: "Ocupación",
+      priorityLabel: "Prioridad alta",
+      priorityTone: "high",
+      icon: CalendarDays,
+      button: "Empezar estrategia",
       tone: "warning",
       problem: `Mañana hay ${DEMO.emptySlotsTomorrow} horarios disponibles sin ocupar.`,
       opportunity: `Completar esos espacios puede generar hasta ${fmtAR(DEMO.emptySlotsTomorrow * DEMO.ticket)} adicionales.`,
@@ -1243,7 +1456,17 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       impact: `Potencial estimado: +${fmtAR(DEMO.payments * 1000)}`,
       impactAmount: `+${fmtAR(DEMO.payments * 1000)}`,
       impactExplanation: `Si agregás en promedio $1.000 por venta, sobre los ${DEMO.payments} servicios del período, podés generar este ingreso adicional sin necesidad de sumar nuevos clientes.`,
-      button: "Tomar acción",
+      id: "increase-average-ticket",
+      score: 84,
+      status: "pending",
+      area: "Ventas",
+      metricLabel: "Mejora por ticket",
+      metricValue: "+$1.000",
+      objective: "Ticket promedio",
+      priorityLabel: "Prioridad alta",
+      priorityTone: "high",
+      icon: Tag,
+      button: "Empezar estrategia",
       tone: "money",
       problem:
         "Hay oportunidad de aumentar la facturación por cliente sin subir precios de forma directa.",
@@ -1267,7 +1490,17 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       impact: `Impacto estimado: +${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
       impactAmount: `+${fmtAR(DEMO.vipInactive * DEMO.ticket)}`,
       impactExplanation: `Estimado si los ${DEMO.vipInactive} clientes VIP inactivos regresan. Son clientes de alto valor con un ticket promedio de ${fmtAR(DEMO.ticket)}.`,
-      button: "Tomar acción",
+      id: "reactivate-vip-clients",
+      score: 79,
+      status: "pending",
+      area: "Clientes",
+      metricLabel: "Clientes VIP",
+      metricValue: String(DEMO.vipInactive),
+      objective: "Fidelización",
+      priorityLabel: "Prioridad alta",
+      priorityTone: "high",
+      icon: Crown,
+      button: "Empezar estrategia",
       tone: "growth",
       problem: `${DEMO.vipInactive} clientes VIP no volvieron en los últimos 30 días.`,
       opportunity: `Recuperarlos puede sumar aproximadamente ${fmtAR(DEMO.vipInactive * DEMO.ticket)} y reforzar la fidelización.`,
@@ -1295,7 +1528,17 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       impact: "Reduce ausencias y huecos de agenda.",
       impactAmount: `${DEMO.unconfirmedAppointments} turnos`,
       impactExplanation: `Confirmarlos reduce el riesgo de ausencias y turnos perdidos. Cada turno sin confirmar representa un posible hueco de ${fmtAR(DEMO.ticket)} que no podés reasignar a tiempo.`,
-      button: "Tomar acción",
+      id: "confirm-pending-appointments",
+      score: 74,
+      status: "pending",
+      area: "Agenda",
+      metricLabel: "Turnos pendientes",
+      metricValue: String(DEMO.unconfirmedAppointments),
+      objective: "Reducir ausencias",
+      priorityLabel: "Prioridad media",
+      priorityTone: "medium",
+      icon: ClipboardList,
+      button: "Empezar estrategia",
       tone: "neutral",
       problem: `${DEMO.unconfirmedAppointments} turnos todavía no están confirmados.`,
       opportunity:
@@ -1325,7 +1568,17 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       impact: `Oportunidad estimada: +${fmtAR(Math.round(8 * DEMO.ticket))} sin bajar precios`,
       impactAmount: `+${fmtAR(Math.round(8 * DEMO.ticket))} por mes`,
       impactExplanation: `Completar 8 turnos vacíos los ${DEMO.lowDay}s al precio normal generaría aproximadamente ${fmtAR(Math.round(8 * DEMO.ticket))} de facturación mensual sin afectar los márgenes. Implementar descuentos agresivos reduce la utilidad por turno — preferí acciones que aumenten la demanda sin ceder rentabilidad.`,
-      button: "Tomar acción",
+      id: "boost-low-occupancy-day",
+      score: 88,
+      status: "pending",
+      area: "Agenda",
+      metricLabel: "Día detectado",
+      metricValue: dayLabel,
+      objective: "Llenar agenda",
+      priorityLabel: "Prioridad alta",
+      priorityTone: "high",
+      icon: TrendingUp,
+      button: "Empezar estrategia",
       tone: "growth",
       problem: `${dayLabel} tiene menor ocupación que el resto de la semana — hay turnos disponibles sin cubrir.`,
       opportunity: `Aumentar la demanda ese día con beneficios o acciones focalizadas puede sumar hasta ${fmtAR(Math.round(8 * DEMO.ticket))} mensuales sin reducir precios.`,
@@ -1339,31 +1592,31 @@ function getDemoActions(showExtraRecommendation = false): AdvisorAction[] {
       actionButtons: ["Crear beneficio", "Ver horarios", "Enviar WhatsApp", "Marcar como resuelto"],
       occupancyOptions: [
         {
-          emoji: "🎁",
+          icon: Gift,
           label: "Beneficio sin descuento",
           recommended: true,
           discount: 0,
           message: `Hola 👋 Tenemos algunos horarios disponibles para ${DEMO.lowDay} y queremos ofrecerte algo especial. Si reservás ese día, te sumamos una bebida de regalo. Respondé este mensaje y te ayudamos a coordinar.`,
         },
         {
-          emoji: "⭐",
+          icon: Sparkles,
           label: "Upgrade de servicio",
           discount: 0,
           message: `Hola 👋 Reservá tu turno para el ${DEMO.lowDay} y te incluimos un upgrade de servicio sin cargo. Es nuestra forma de reconocer tu preferencia. Escribinos y te contamos los horarios disponibles.`,
         },
         {
-          emoji: "💸",
+          icon: BadgePercent,
           label: "10% OFF",
           discount: 10,
           message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 10% de descuento por tiempo limitado. Respondé este mensaje y te reservamos el lugar.`,
         },
         {
-          emoji: "💸",
+          icon: BadgePercent,
           label: "15% OFF",
           discount: 15,
           message: `Hola 👋 Tenemos horarios disponibles para el ${DEMO.lowDay} con un 15% de descuento especial. Si te interesa, respondé y te ayudamos a reservar.`,
         },
-        { emoji: "⚙️", label: "Personalizado", discount: undefined, message: "" },
+        { icon: CircleHelp, label: "Personalizado", discount: undefined, message: "" },
       ],
     });
   }
@@ -1491,7 +1744,7 @@ function HistorialMesAnterior() {
             Historial del mes anterior
           </div>
           <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight">
-            📅 {DEMO_PREV.month}
+            {DEMO_PREV.month}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Resumen completo del período anterior para comparar con el mes actual.
@@ -1872,7 +2125,7 @@ function PrioridadesTab({
           <div className="relative overflow-hidden rounded-3xl border border-emerald-300/35 bg-gradient-to-br from-emerald-400/[0.16] via-cyan-400/[0.08] to-white/[0.035] p-5 shadow-[0_0_55px_rgba(16,185,129,0.16),inset_0_1px_0_rgba(255,255,255,0.10)] flex flex-col justify-between">
             <div className="pointer-events-none absolute -right-14 -top-14 h-40 w-40 rounded-full bg-emerald-300/25 blur-3xl" />
             <div className="relative text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">
-              💰 Potencial mensual
+              Potencial mensual
             </div>
             <div className="relative mt-3 font-display text-5xl font-semibold tracking-tight text-emerald-300 leading-none drop-shadow-[0_0_20px_rgba(52,211,153,0.22)]">
               {current.impactAmount}
@@ -1955,7 +2208,9 @@ function PrioridadesTab({
                               : "border-white/10 bg-white/[0.03] hover:border-white/20",
                           )}
                         >
-                          <span className="text-base shrink-0">{opt.emoji}</span>
+                          <span className="shrink-0 text-primary">
+                            {React.createElement(opt.icon, { className: "h-4 w-4" })}
+                          </span>
                           <span
                             className={cn(
                               "font-medium",
@@ -2170,7 +2425,7 @@ function RecommendationDetailModal({
           </div>
           <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
-              💰 Impacto estimado
+              Impacto estimado
             </div>
             <div className="mt-2 font-display text-2xl font-semibold text-emerald-300">
               {action.impact}
@@ -2336,11 +2591,15 @@ function ReportCard({
         <div className="space-y-1.5 rounded-xl border border-white/[0.08] bg-white/[0.025] p-2.5 text-[11px]">
           <div className="flex items-start gap-1.5">
             <span className="text-emerald-300">▲</span>
-            <span className="text-white/70"><span className="text-white/45">Mejora:</span> {insight.mejora}</span>
+            <span className="text-white/70">
+              <span className="text-white/45">Mejora:</span> {insight.mejora}
+            </span>
           </div>
           <div className="flex items-start gap-1.5">
             <span className="text-rose-300">▼</span>
-            <span className="text-white/70"><span className="text-white/45">Problema:</span> {insight.problema}</span>
+            <span className="text-white/70">
+              <span className="text-white/45">Problema:</span> {insight.problema}
+            </span>
           </div>
         </div>
       ) : null}
@@ -2632,7 +2891,7 @@ function SimuladorPrecios({ ticket, ocupacion, businessId }: SimuladorProps) {
       <div>
         <Badge icon={DollarSign}>Simulador de precios</Badge>
         <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
-          💰 Simulador de precios
+          Simulador de precios
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Elegí un servicio, elegí el aumento y la IA te dice si conviene, cuánto ganás y cuántos
@@ -3028,7 +3287,7 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
         <div>
           <Badge icon={TrendingUp}>Análisis de equipo</Badge>
           <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
-            👥 ¿Conviene incorporar un profesional?
+            ¿Conviene incorporar un profesional?
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             La IA analiza la ocupación, demanda y capacidad actual para recomendarte si es el
@@ -3037,9 +3296,9 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
         </div>
         <div className="flex flex-wrap gap-3">
           {[
-            { label: "📅 Ocupación", value: `${ocupacion}%` },
+            { label: "Ocupación", value: `${ocupacion}%` },
             { label: "🎟️ Ticket prom.", value: `$${fmtNum(ticket)}` },
-            { label: "💰 Facturación", value: `$${fmtNum(facturacion)}` },
+            { label: "Facturación", value: `$${fmtNum(facturacion)}` },
           ].map((d) => (
             <div
               key={d.label}
@@ -3163,7 +3422,7 @@ JSON: {"nivel":"recomendado","resumen":"2-3 oraciones concretas con los datos re
           ) : (
             <div className="rounded-2xl border border-primary/20 bg-primary/[0.06] p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                📅 Capacidad disponible actual
+                Capacidad disponible actual
               </p>
               <p className="mt-3 font-display text-4xl font-semibold text-foreground tracking-tight">
                 ~{Math.round(servicios * (1 - ocupacion / 100))}
@@ -3266,7 +3525,9 @@ function GrowthMessageBlock({ message }: { message: string }) {
           <span className="text-[11px] font-bold uppercase tracking-wider text-white/45">
             Mensaje listo
           </span>
-          <ChevronDown className={cn("h-3.5 w-3.5 text-white/40 transition-transform", open && "rotate-180")} />
+          <ChevronDown
+            className={cn("h-3.5 w-3.5 text-white/40 transition-transform", open && "rotate-180")}
+          />
         </button>
         <button
           type="button"
@@ -3275,31 +3536,54 @@ function GrowthMessageBlock({ message }: { message: string }) {
               navigator.clipboard?.writeText(message);
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }}
           className="rounded-lg bg-white/8 px-2.5 py-1 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/15"
         >
           {copied ? "¡Copiado!" : "Copiar"}
         </button>
       </div>
-      {open ? (
-        <p className="mt-2 text-sm leading-relaxed text-white/80">{message}</p>
-      ) : null}
+      {open ? <p className="mt-2 text-sm leading-relaxed text-white/80">{message}</p> : null}
     </div>
   );
 }
 
 const GROWTH_TONES: Record<RecommendationTone, { ring: string; glow: string; chip: string }> = {
-  money: { ring: "ring-amber-300/25", glow: "from-amber-500/20 via-orange-500/10 to-transparent", chip: "bg-amber-400/15 text-amber-200 ring-amber-300/30" },
-  warning: { ring: "ring-rose-300/25", glow: "from-rose-500/20 via-red-500/10 to-transparent", chip: "bg-rose-400/15 text-rose-200 ring-rose-300/30" },
-  growth: { ring: "ring-emerald-300/25", glow: "from-emerald-500/20 via-teal-500/10 to-transparent", chip: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" },
-  client: { ring: "ring-cyan-300/25", glow: "from-cyan-500/20 via-blue-500/10 to-transparent", chip: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/30" },
+  money: {
+    ring: "ring-amber-300/25",
+    glow: "from-amber-500/20 via-orange-500/10 to-transparent",
+    chip: "bg-amber-400/15 text-amber-200 ring-amber-300/30",
+  },
+  warning: {
+    ring: "ring-rose-300/25",
+    glow: "from-rose-500/20 via-red-500/10 to-transparent",
+    chip: "bg-rose-400/15 text-rose-200 ring-rose-300/30",
+  },
+  growth: {
+    ring: "ring-emerald-300/25",
+    glow: "from-emerald-500/20 via-teal-500/10 to-transparent",
+    chip: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30",
+  },
+  client: {
+    ring: "ring-cyan-300/25",
+    glow: "from-cyan-500/20 via-blue-500/10 to-transparent",
+    chip: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/30",
+  },
 };
 
-const PRIORITY_META: Record<RecommendationPriority, { label: string; emoji: string; chip: string }> = {
+const PRIORITY_META: Record<
+  RecommendationPriority,
+  { label: string; emoji: string; chip: string }
+> = {
   alta: { label: "Alta", emoji: "🔥", chip: "bg-rose-500/15 text-rose-200 ring-rose-400/35" },
   media: { label: "Media", emoji: "🟡", chip: "bg-amber-400/15 text-amber-100 ring-amber-300/30" },
-  baja: { label: "Baja", emoji: "🟢", chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30" },
+  baja: {
+    label: "Baja",
+    emoji: "🟢",
+    chip: "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30",
+  },
 };
 
 function getDaysSince(dateIso: string | null) {
@@ -3318,7 +3602,9 @@ function ResolvedRecommendationCard({ achievement }: { achievement: Recommendati
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/30">
             <CheckCircle2 className="h-3.5 w-3.5" /> Objetivo logrado
           </span>
-          <h3 className="mt-3 text-xl font-extrabold leading-tight text-white">{achievement.title}</h3>
+          <h3 className="mt-3 text-xl font-extrabold leading-tight text-white">
+            {achievement.title}
+          </h3>
           <p className="mt-1.5 text-sm leading-relaxed text-white/70">{achievement.message}</p>
           <p className="mt-1 text-xs text-white/45">
             La dejamos visible 3 días como logro y después pasa al historial del Gerente IA.
@@ -3327,8 +3613,12 @@ function ResolvedRecommendationCard({ achievement }: { achievement: Recommendati
         <div className="shrink-0 text-left sm:text-right">
           {achievement.moneyRecoverable > 0 ? (
             <>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">Impacto recuperado</div>
-              <div className="mt-1 text-2xl font-black text-emerald-200">{fmtAR(achievement.moneyRecoverable)}</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+                Impacto recuperado
+              </div>
+              <div className="mt-1 text-2xl font-black text-emerald-200">
+                {fmtAR(achievement.moneyRecoverable)}
+              </div>
             </>
           ) : null}
           <div className="mt-2 text-xs font-semibold text-emerald-200/75">
@@ -3351,7 +3641,9 @@ function AchievementsHistory({ achievements }: { achievements: RecommendationAch
           <Sparkles className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">Historial de logros IA</h2>
+          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+            Historial de logros IA
+          </h2>
           <p className="text-xs text-white/45">La evolución de tu negocio gracias al Gerente IA</p>
         </div>
       </div>
@@ -3367,7 +3659,9 @@ function AchievementsHistory({ achievements }: { achievements: RecommendationAch
                 <p className="text-[13px] leading-relaxed text-white/55">{a.message}</p>
               </div>
               {a.moneyRecoverable > 0 ? (
-                <span className="ml-auto shrink-0 text-xs font-bold text-emerald-200/80">{fmtAR(a.moneyRecoverable)}</span>
+                <span className="ml-auto shrink-0 text-xs font-bold text-emerald-200/80">
+                  {fmtAR(a.moneyRecoverable)}
+                </span>
               ) : null}
             </li>
           ))}
@@ -3401,13 +3695,28 @@ function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: bool
         hero && "ring-2",
       )}
     >
-      <div className={cn("pointer-events-none absolute -top-28 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl opacity-80", t.glow)} />
+      <div
+        className={cn(
+          "pointer-events-none absolute -top-28 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl opacity-80",
+          t.glow,
+        )}
+      />
       <div className="relative">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1", pm.chip)}>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1",
+              pm.chip,
+            )}
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-current" /> {pm.label}
           </span>
-          <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1", t.chip)}>
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1",
+              t.chip,
+            )}
+          >
             {s.category}
           </span>
         </div>
@@ -3417,27 +3726,51 @@ function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: bool
             {s.icon}
           </span>
           <div className="min-w-0">
-            <h3 className={cn("font-display font-extrabold leading-[1.08] tracking-[-0.035em] text-white", hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>
+            <h3
+              className={cn(
+                "font-display font-extrabold leading-[1.08] tracking-[-0.035em] text-white",
+                hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl",
+              )}
+            >
               {rec.title}
             </h3>
-            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-white/55">{rec.description}</p>
+            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-white/55">
+              {rec.description}
+            </p>
           </div>
         </div>
 
-        <div className={cn("mt-5 rounded-2xl border p-4", s.moneyRecoverable > 0 ? "border-emerald-400/25 bg-emerald-500/[0.075]" : "border-white/10 bg-white/[0.035]")}> 
+        <div
+          className={cn(
+            "mt-5 rounded-2xl border p-4",
+            s.moneyRecoverable > 0
+              ? "border-emerald-400/25 bg-emerald-500/[0.075]"
+              : "border-white/10 bg-white/[0.035]",
+          )}
+        >
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
             {s.moneyRecoverable > 0 ? "Podés recuperar" : "Oportunidad"}
           </div>
-          <div className={cn("mt-1 font-display text-3xl font-black tracking-[-0.04em]", s.moneyRecoverable > 0 ? "text-emerald-200" : "text-white/85")}>
+          <div
+            className={cn(
+              "mt-1 font-display text-3xl font-black tracking-[-0.04em]",
+              s.moneyRecoverable > 0 ? "text-emerald-200" : "text-white/85",
+            )}
+          >
             {s.moneyRecoverable > 0 ? fmtAR(s.moneyRecoverable) : "Sin monto directo"}
           </div>
-          {s.moneyRecoverable > 0 ? <div className="mt-0.5 text-xs font-semibold text-emerald-200/55">por mes</div> : null}
+          {s.moneyRecoverable > 0 ? (
+            <div className="mt-0.5 text-xs font-semibold text-emerald-200/55">por mes</div>
+          ) : null}
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white/60">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-            <span className="truncate">{s.steps.length} {s.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}</span>
+            <span className="truncate">
+              {s.steps.length}{" "}
+              {s.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}
+            </span>
           </span>
           <button
             type="button"
@@ -3452,12 +3785,16 @@ function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: bool
         {open ? (
           <div className="mt-5 space-y-3 border-t border-white/[0.08] pt-5">
             <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4">
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">Estrategia recomendada</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+                Estrategia recomendada
+              </div>
               <p className="mt-1.5 text-base font-bold leading-snug text-white/90">{s.action}</p>
               <ol className="mt-3 space-y-2">
                 {s.steps.map((step, i) => (
                   <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-white/68">
-                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">{i + 1}</span>
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">
+                      {i + 1}
+                    </span>
                     <span>{step}</span>
                   </li>
                 ))}
@@ -3466,7 +3803,9 @@ function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: bool
             <GrowthContactsBlock contacts={s.contacts} />
             <GrowthMessageBlock message={s.message} />
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">Cómo medir si funcionó</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+                Cómo medir si funcionó
+              </div>
               <p className="mt-1 text-sm leading-relaxed text-white/60">{s.measure}</p>
             </div>
           </div>
@@ -3478,7 +3817,11 @@ function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: bool
 
 function ManagerTrendSparkline() {
   return (
-    <svg viewBox="0 0 320 120" className="h-28 w-full max-w-[360px] overflow-visible" aria-hidden="true">
+    <svg
+      viewBox="0 0 320 120"
+      className="h-28 w-full max-w-[360px] overflow-visible"
+      aria-hidden="true"
+    >
       <defs>
         <linearGradient id="clippr-manager-line" x1="0" x2="1" y1="0" y2="0">
           <stop offset="0%" stopColor="rgb(124 58 237)" />
@@ -3501,7 +3844,13 @@ function ManagerTrendSparkline() {
         strokeLinecap="round"
         filter="url(#clippr-manager-glow)"
       />
-      <circle cx="312" cy="18" r="7" fill="rgb(94 234 212)" className="drop-shadow-[0_0_14px_rgba(94,234,212,0.8)]" />
+      <circle
+        cx="312"
+        cy="18"
+        r="7"
+        fill="rgb(94 234 212)"
+        className="drop-shadow-[0_0_14px_rgba(94,234,212,0.8)]"
+      />
     </svg>
   );
 }
@@ -3523,20 +3872,24 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
           <h2 className="mt-5 max-w-2xl font-display text-4xl font-black leading-[0.98] tracking-[-0.055em] text-white sm:text-5xl">
             {rec.title}
           </h2>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/68">
-            {rec.description}
-          </p>
+          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/68">{rec.description}</p>
           <div className="mt-6">
-            <div className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-200/70">Podés recuperar</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-200/70">
+              Podés recuperar
+            </div>
             <div className="mt-1 bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-200 bg-clip-text font-display text-5xl font-black tracking-[-0.06em] text-transparent sm:text-6xl">
               {fmtAR(amount)}
             </div>
-            <div className="mt-1 text-sm font-semibold text-white/50">este mes si ejecutás la estrategia principal</div>
+            <div className="mt-1 text-sm font-semibold text-white/50">
+              este mes si ejecutás la estrategia principal
+            </div>
           </div>
           <button
             type="button"
             onClick={() => {
-              document.getElementById(`strategy-${rec.key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+              document
+                .getElementById(`strategy-${rec.key}`)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
             }}
             className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_-22px_rgba(168,85,247,0.9)] ring-1 ring-white/15 transition hover:brightness-110"
           >
@@ -3550,8 +3903,12 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
             <ManagerTrendSparkline />
             <div className="ml-auto w-full max-w-[330px] rounded-3xl border border-fuchsia-300/28 bg-fuchsia-500/[0.09] p-5 ring-1 ring-fuchsia-300/20">
               <div className="flex items-end gap-4">
-                <div className="font-display text-5xl font-black tracking-[-0.06em] text-white">{keyMetric}</div>
-                <div className="pb-1 text-sm font-semibold leading-snug text-white/70">{keyLabel}</div>
+                <div className="font-display text-5xl font-black tracking-[-0.06em] text-white">
+                  {keyMetric}
+                </div>
+                <div className="pb-1 text-sm font-semibold leading-snug text-white/70">
+                  {keyLabel}
+                </div>
               </div>
             </div>
           </div>
@@ -3561,28 +3918,49 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
   );
 }
 
-function RecentAchievements({ resolved, achievements }: { resolved: RecommendationAchievement[]; achievements: RecommendationAchievement[] }) {
+function RecentAchievements({
+  resolved,
+  achievements,
+}: {
+  resolved: RecommendationAchievement[];
+  achievements: RecommendationAchievement[];
+}) {
   const recent = [...resolved, ...achievements].slice(0, 4);
   if (recent.length === 0) return null;
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-2xl font-black tracking-[-0.035em] text-white">Logros recientes</h2>
-          <p className="mt-1 text-sm text-white/48">Problemas que ya mejoraron y dejaron impacto positivo.</p>
+          <h2 className="font-display text-2xl font-black tracking-[-0.035em] text-white">
+            Logros recientes
+          </h2>
+          <p className="mt-1 text-sm text-white/48">
+            Problemas que ya mejoraron y dejaron impacto positivo.
+          </p>
         </div>
-        {achievements.length > 4 ? <button className="text-sm font-bold text-violet-200 hover:text-white">Ver historial completo →</button> : null}
+        {achievements.length > 4 ? (
+          <button className="text-sm font-bold text-violet-200 hover:text-white">
+            Ver historial completo →
+          </button>
+        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {recent.map((a) => (
-          <div key={a.key} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 ring-1 ring-white/8 backdrop-blur-xl">
+          <div
+            key={a.key}
+            className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 ring-1 ring-white/8 backdrop-blur-xl"
+          >
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-500/16 text-emerald-200 ring-1 ring-emerald-400/25">
               <CheckCircle2 className="h-5 w-5" />
             </div>
-            <h3 className="mt-3 line-clamp-2 text-sm font-black leading-snug text-white/90">{a.title}</h3>
+            <h3 className="mt-3 line-clamp-2 text-sm font-black leading-snug text-white/90">
+              {a.title}
+            </h3>
             <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/52">{a.message}</p>
             <span className="mt-3 inline-flex rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-bold text-white/55 ring-1 ring-white/10">
-              {a.daysSince === 0 ? "Logrado hoy" : `Hace ${a.daysSince} ${a.daysSince === 1 ? "día" : "días"}`}
+              {a.daysSince === 0
+                ? "Logrado hoy"
+                : `Hace ${a.daysSince} ${a.daysSince === 1 ? "día" : "días"}`}
             </span>
           </div>
         ))}
@@ -3595,134 +3973,424 @@ function RecentAchievements({ resolved, achievements }: { resolved: Recommendati
 // la pantalla: 1 prioridad ejecutiva + 3 recomendaciones compactas.
 const GROWTH_VISIBLE_LIMIT = 3;
 
-function GrowthManagerTab({ businessId }: { businessId: string | null | undefined }) {
-  const {
-    loading,
-    error,
-    recommendations,
-    resolved,
-    achievements,
-    totalOpportunity,
-  } = useAiRecommendations(businessId);
+function GrowthManagerTab({ businessId: _businessId }: { businessId: string | null | undefined }) {
+  const [actionStatuses, setActionStatuses] = React.useState(() => getStoredAdvisorStatuses());
 
-  const [showAll, setShowAll] = React.useState(false);
+  const actions = React.useMemo(() => {
+    const generated = getDemoActions(true);
+    const withStoredStatus = generated.map((action) => {
+      const saved = actionStatuses[action.id];
+      if (!saved) return action;
+      if (
+        saved.status === "completed" &&
+        saved.completedAt &&
+        Date.now() - saved.completedAt >= THREE_DAYS_MS
+      ) {
+        return {
+          ...action,
+          status: "archived" as const,
+          startedAt: saved.startedAt,
+          completedAt: saved.completedAt,
+        };
+      }
+      return {
+        ...action,
+        status: saved.status,
+        startedAt: saved.startedAt,
+        completedAt: saved.completedAt,
+      };
+    });
+    return sortAdvisorActions(withStoredStatus);
+  }, [actionStatuses]);
 
-  if (loading) {
-    return (
-      <div className="relative mt-6 overflow-hidden rounded-[32px] border border-white/10 bg-[#070b18]/80 p-10 text-center shadow-2xl">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(56,189,248,0.18),transparent_60%)]" />
-        <div className="relative">
-          <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-white/8 text-3xl ring-1 ring-white/15">🧠</div>
-          <p className="mt-4 text-lg font-bold text-white">Tu gerente IA está analizando el negocio…</p>
-          <p className="mt-1 text-sm text-white/55">Leyendo clientes, agenda y servicios reales de tu barbería.</p>
-        </div>
-      </div>
-    );
+  const activeActions = actions.filter((action) => action.status !== "archived");
+  const archivedActions = actions.filter((action) => action.status === "archived");
+
+  const heroAction = activeActions[0] ?? null;
+  const secondaryActions = activeActions
+    .filter((action) => action.id !== heroAction?.id)
+    .slice(0, 3);
+
+  function updateActionStatus(action: AdvisorAction, status: AdvisorAction["status"]) {
+    setActionStatuses((current) => {
+      const next = {
+        ...current,
+        [action.id]: {
+          status,
+          startedAt:
+            status === "running" ? Date.now() : (current[action.id]?.startedAt ?? action.startedAt),
+          completedAt:
+            status === "completed"
+              ? Date.now()
+              : (current[action.id]?.completedAt ?? action.completedAt),
+        },
+      };
+      saveStoredAdvisorStatuses(next);
+      return next;
+    });
   }
 
-  if (error) {
-    return (
-      <div className="mt-6 rounded-[32px] border border-rose-400/20 bg-rose-500/[0.06] p-8 text-center">
-        <p className="text-sm text-rose-200">No pudimos leer los datos del negocio. Probá recargar.</p>
-      </div>
-    );
+  function handlePrimaryAction(action: AdvisorAction) {
+    if (action.status === "pending") {
+      updateActionStatus(action, "running");
+      return;
+    }
+    if (action.status === "running") {
+      updateActionStatus(action, "completed");
+      return;
+    }
   }
-
-  if (recommendations.length === 0) {
-    return (
-      <div className="mt-6 space-y-8">
-        <div className="rounded-[32px] border border-emerald-400/20 bg-emerald-500/[0.05] p-10 text-center ring-1 ring-emerald-300/10">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-3xl ring-1 ring-emerald-400/30">✅</div>
-          <p className="mt-4 text-xl font-black tracking-tight text-white">No detectamos fugas de plata hoy</p>
-          <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
-            El Gerente IA solo muestra oportunidades cuando los datos reales indican un problema o una mejora posible.
-          </p>
-        </div>
-        <RecentAchievements resolved={resolved} achievements={achievements} />
-        <ManagerFooter />
-      </div>
-    );
-  }
-
-  const [hero, ...others] = recommendations;
-  const visible = showAll ? others : others.slice(0, GROWTH_VISIBLE_LIMIT);
-  const hiddenCount = Math.max(0, recommendations.length - 1 - visible.length);
 
   return (
-    <div className="mt-6 space-y-9">
-      <ManagerHero rec={hero} totalOpportunity={totalOpportunity} />
+    <div className="mt-6 space-y-8">
+      {heroAction && (
+        <section className="relative overflow-hidden rounded-[28px] border border-violet-400/35 bg-[#070b18]/80 p-5 shadow-[0_0_0_1px_rgba(139,92,246,0.12),0_28px_95px_-45px_rgba(139,92,246,0.95)] backdrop-blur-xl sm:p-6">
+          <div className="pointer-events-none absolute -inset-x-20 -top-24 h-56 bg-violet-500/20 blur-3xl" />
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-violet-200">
+              <Target className="h-4 w-4" />
+              Recomendación principal
+            </div>
 
-      {resolved.length > 0 ? (
-        <div className="space-y-3">
-          {resolved.map((a) => (
-            <ResolvedRecommendationCard key={a.key} achievement={a} />
-          ))}
-        </div>
-      ) : null}
-
-      <section className="space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl font-black tracking-[-0.035em] text-white">Recomendaciones para vos</h2>
-            <p className="mt-1 text-sm text-white/48">Las 3 oportunidades más importantes detectadas por tu Gerente IA.</p>
-          </div>
-          {recommendations.length > 1 ? (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              className="text-sm font-black text-violet-200 transition hover:text-white"
+            <div
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
+                getPriorityToneClasses(heroAction.priorityTone),
+              )}
             >
-              {showAll ? "Ver menos" : `Ver todas las recomendaciones (${recommendations.length})`} →
-            </button>
-          ) : null}
+              <Crown className="h-4 w-4" />
+              {heroAction.priorityLabel}
+            </div>
+          </div>
+
+          <div className="relative mt-6 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="flex gap-5">
+              <div className="grid h-24 w-24 shrink-0 place-items-center rounded-3xl border border-violet-300/35 bg-violet-500/20 shadow-[0_0_34px_rgba(139,92,246,0.35)]">
+                <heroAction.icon className="h-11 w-11 text-violet-200" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  {heroAction.title}
+                </h2>
+
+                <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/70">
+                  {heroAction.detail}
+                </p>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
+                      <DollarSign className="h-4 w-4 text-emerald-300" />
+                      Impacto estimado
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-300">
+                      {heroAction.impactAmount}
+                    </div>
+                    <div className="mt-1 text-xs text-white/55">en 30 días</div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
+                      <Users className="h-4 w-4 text-blue-300" />
+                      {heroAction.metricLabel}
+                    </div>
+                    <div className="text-2xl font-bold text-white">{heroAction.metricValue}</div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <div className="mb-2 flex items-center gap-2 text-xs text-white/55">
+                      <Target className="h-4 w-4 text-violet-300" />
+                      Objetivo
+                    </div>
+                    <div className="text-base font-bold leading-snug text-white">
+                      {heroAction.objective}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.055] p-4 text-sm leading-relaxed text-white/75">
+                  <div className="flex gap-3">
+                    <Brain className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
+                    <p>
+                      Esta acción fue seleccionada porque representa la mayor oportunidad económica
+                      detectada hoy en tu negocio.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+              <h3 className="text-base font-bold text-white">¿Por qué es prioridad?</h3>
+
+              <div className="mt-4 space-y-3 text-sm text-white/75">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-violet-300" />
+                  <span>{heroAction.problem}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-violet-300" />
+                  <span>{heroAction.impactExplanation}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-violet-300" />
+                  <span>Es la oportunidad con mayor impacto detectada hoy.</span>
+                </div>
+              </div>
+
+              <div className="mt-5 h-28 rounded-2xl border border-violet-300/10 bg-[radial-gradient(circle_at_80%_20%,rgba(168,85,247,0.35),transparent_32%),linear-gradient(135deg,rgba(139,92,246,0.12),rgba(15,23,42,0.25))]" />
+
+              <div className="mt-5 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  className="rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  Ver detalle
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePrimaryAction(heroAction)}
+                  className={cn(
+                    "inline-flex items-center gap-3 rounded-2xl px-6 py-3 text-sm font-bold transition",
+                    heroAction.status === "completed"
+                      ? "border border-emerald-300/30 bg-emerald-400/12 text-emerald-200 shadow-[0_0_30px_rgba(16,185,129,0.18)]"
+                      : heroAction.status === "running"
+                        ? "border border-violet-300/30 bg-violet-400/12 text-violet-100"
+                        : "bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white shadow-[0_20px_55px_-24px_rgba(168,85,247,0.9)] hover:-translate-y-0.5",
+                  )}
+                >
+                  {heroAction.status === "completed" ? (
+                    <>
+                      <CheckCircle2 className="h-5 w-5" />
+                      Objetivo logrado
+                    </>
+                  ) : heroAction.status === "running" ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Trabajando sobre esto
+                    </>
+                  ) : (
+                    <>
+                      Empezar estrategia
+                      <ArrowRight className="h-5 w-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {secondaryActions.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-white">Próximas prioridades</h2>
+            <CircleHelp className="h-4 w-4 text-white/35" />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {secondaryActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <article
+                  key={action.id}
+                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 shadow-[0_22px_70px_-52px_rgba(0,0,0,0.95)] transition hover:-translate-y-0.5 hover:border-violet-300/25 hover:bg-white/[0.045]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-violet-300/25 bg-violet-400/12">
+                      <Icon className="h-7 w-7 text-violet-200" />
+                    </div>
+
+                    <span
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-semibold",
+                        getPriorityToneClasses(action.priorityTone),
+                      )}
+                    >
+                      {action.priorityLabel}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-4 text-lg font-bold text-white">{action.title}</h3>
+                  <p className="mt-2 min-h-[56px] text-sm leading-relaxed text-white/65">
+                    {action.detail}
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-white/8 bg-white/[0.025] p-3">
+                      <div className="text-[11px] text-white/45">Impacto estimado</div>
+                      <div className="mt-1 text-base font-bold text-emerald-300">
+                        {action.impactAmount}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-white/8 bg-white/[0.025] p-3">
+                      <div className="text-[11px] text-white/45">{action.metricLabel}</div>
+                      <div className="mt-1 text-base font-bold text-white">
+                        {action.metricValue}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrimaryAction(action)}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/25 bg-violet-400/[0.045] px-4 py-3 text-sm font-bold text-violet-100 transition hover:bg-violet-400/10"
+                  >
+                    {action.status === "completed" ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                        Objetivo logrado
+                      </>
+                    ) : action.status === "running" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Trabajando sobre esto
+                      </>
+                    ) : (
+                      <>
+                        Empezar estrategia
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Trophy className="h-5 w-5 text-white/75" />
+            <h2 className="text-xl font-bold text-white">Historial de logros</h2>
+          </div>
+
+          <button
+            type="button"
+            className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+          >
+            Ver todos
+          </button>
         </div>
 
-        {visible.length > 0 ? (
-          <div className="grid gap-4 lg:grid-cols-3">
-            {visible.map((r) => (
-              <div key={r.key} id={`strategy-${r.key}`}>
-                <GrowthRecCard rec={r} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-sm text-white/55">
-            La prioridad principal concentra la oportunidad más importante del momento.
-          </div>
-        )}
+        <div className="relative space-y-2 pl-6">
+          <div className="absolute bottom-4 left-[11px] top-4 w-px bg-emerald-400/35" />
 
-        {hiddenCount > 0 && !showAll ? (
-          <div className="text-center text-xs text-white/35">Hay {hiddenCount} recomendaciones más ocultas para mantener el panel limpio.</div>
-        ) : null}
+          {archivedActions.length > 0 ? (
+            archivedActions.map((action) => {
+              const AreaIcon = getAreaIcon(action.area);
+              return (
+                <div
+                  key={action.id}
+                  className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                >
+                  <div className="absolute -left-[30px] top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full bg-emerald-400 text-[#06140c] shadow-[0_0_20px_rgba(16,185,129,0.45)]">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_120px] md:items-center">
+                    <div>
+                      <div className="font-semibold text-white">{action.title}</div>
+                      <div className="mt-1 text-sm text-white/50">
+                        Completado automáticamente por el Gerente IA
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-white/45">Impacto</div>
+                      <div className="font-bold text-emerald-300">{action.impactAmount}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-white/45">Área</div>
+                      <div className="mt-1 flex items-center gap-2 text-sm text-white/75">
+                        <AreaIcon className="h-4 w-4" />
+                        {action.area}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-white/55">
+                      <CalendarDays className="h-4 w-4" />
+                      {getDaysAgo(action.completedAt)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm text-white/50">
+              Todavía no hay logros archivados. Cuando una estrategia se complete, se mostrará acá
+              después de 3 días.
+            </div>
+          )}
+        </div>
       </section>
 
-      <RecentAchievements resolved={[]} achievements={achievements} />
-      <ManagerFooter />
+      <div className="rounded-[24px] border border-violet-300/25 bg-violet-400/[0.055] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-400/10 ring-1 ring-violet-300/25">
+              <Brain className="h-8 w-8 text-violet-300" />
+            </div>
+
+            <div>
+              <div className="font-bold text-violet-200">El Asesor IA aprende de tu negocio</div>
+              <div className="mt-1 text-sm text-white/60">
+                Cuanto más uses las recomendaciones, mejores y más precisas serán.
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="rounded-2xl border border-violet-300/30 px-6 py-3 text-sm font-bold text-violet-100 transition hover:bg-violet-400/10"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function ManagerFooter() {
-  const updated = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const updated = new Date().toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
   return (
     <footer className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] p-5 ring-1 ring-white/8 backdrop-blur-xl sm:p-6">
       <div className="pointer-events-none absolute -left-16 -top-16 h-40 w-40 rounded-full bg-violet-500/15 blur-3xl" />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/12 text-2xl ring-1 ring-violet-300/20">🧠</span>
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/12 text-2xl ring-1 ring-violet-300/20">
+            🧠
+          </span>
           <div>
-            <p className="font-display text-base font-black tracking-tight text-white">El Gerente IA aprende de tu negocio todos los días</p>
-            <p className="mt-1 text-sm text-white/52">Analiza tus datos, detecta oportunidades y prioriza automáticamente las acciones con mayor impacto económico.</p>
+            <p className="font-display text-base font-black tracking-tight text-white">
+              El Gerente IA aprende de tu negocio todos los días
+            </p>
+            <p className="mt-1 text-sm text-white/52">
+              Analiza tus datos, detecta oportunidades y prioriza automáticamente las acciones con
+              mayor impacto económico.
+            </p>
           </div>
         </div>
         <div className="shrink-0 text-sm font-semibold text-white/52">
-          Última actualización: Hoy {updated} <span className="ml-2 inline-block h-2 w-2 rounded-full bg-emerald-400" />
+          Última actualización: Hoy {updated}{" "}
+          <span className="ml-2 inline-block h-2 w-2 rounded-full bg-emerald-400" />
         </div>
       </div>
     </footer>
   );
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════
 //  LABORATORIO DE DECISIONES — 7 simuladores para barberías y peluquerías.
@@ -3753,11 +4421,25 @@ const LAB_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 // Estados que cuentan como turno efectivamente realizado (espejo del motor).
 const DONE_STATUSES = ["completed", "charged"];
 
-function useLabData(businessId: string | null | undefined, fallbackTicket: number, fallbackClients: number): LabData {
+function useLabData(
+  businessId: string | null | undefined,
+  fallbackTicket: number,
+  fallbackClients: number,
+): LabData {
   const clientsQuery = useClientsData(businessId ?? null);
   const { servicios, loading: loadingServices } = useServicesData(businessId);
-  const [appts, setAppts] = React.useState<{ starts_at: string; status: string; client_id: string | null }[]>([]);
-  const [openDays, setOpenDays] = React.useState<boolean[]>([false, true, true, true, true, true, false]);
+  const [appts, setAppts] = React.useState<
+    { starts_at: string; status: string; client_id: string | null }[]
+  >([]);
+  const [openDays, setOpenDays] = React.useState<boolean[]>([
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+  ]);
   const [loadingExtra, setLoadingExtra] = React.useState(true);
 
   React.useEffect(() => {
@@ -3777,11 +4459,25 @@ function useLabData(businessId: string | null | undefined, fallbackTicket: numbe
             .select("starts_at,status,client_id")
             .eq("business_id", businessId)
             .gte("starts_at", since.toISOString()),
-          supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
+          supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle(),
         ]);
         if (cancelled) return;
-        setAppts(apptRes.error ? [] : ((apptRes.data ?? []) as { starts_at: string; status: string; client_id: string | null }[]));
-        const schedule = (settRes.data as { schedule?: Record<string, { enabled?: boolean }> } | null)?.schedule;
+        setAppts(
+          apptRes.error
+            ? []
+            : ((apptRes.data ?? []) as {
+                starts_at: string;
+                status: string;
+                client_id: string | null;
+              }[]),
+        );
+        const schedule = (
+          settRes.data as { schedule?: Record<string, { enabled?: boolean }> } | null
+        )?.schedule;
         if (schedule && typeof schedule === "object") {
           setOpenDays(LAB_DAY_KEYS.map((k) => schedule[k]?.enabled !== false && !!schedule[k]));
         }
@@ -3799,16 +4495,26 @@ function useLabData(businessId: string | null | undefined, fallbackTicket: numbe
   const clients = clientsQuery.data ?? [];
   const totalVisits = clients.reduce((s, c) => s + c.visits, 0);
   const totalSpent = clients.reduce((s, c) => s + c.spent, 0);
-  const svcAvg = servicios.length > 0 ? Math.round(servicios.reduce((s, x) => s + x.precio, 0) / servicios.length) : 0;
-  const avgTicket = totalVisits > 0 ? Math.round(totalSpent / totalVisits) : svcAvg || fallbackTicket;
+  const svcAvg =
+    servicios.length > 0
+      ? Math.round(servicios.reduce((s, x) => s + x.precio, 0) / servicios.length)
+      : 0;
+  const avgTicket =
+    totalVisits > 0 ? Math.round(totalSpent / totalVisits) : svcAvg || fallbackTicket;
 
   const done = appts.filter((a) => DONE_STATUSES.includes(a.status));
   const monthlyVisits = done.length || Math.round(fallbackClients * 1.5);
-  const monthlyClients = new Set(done.map((a) => a.client_id).filter(Boolean)).size || fallbackClients;
+  const monthlyClients =
+    new Set(done.map((a) => a.client_id).filter(Boolean)).size || fallbackClients;
 
-  const inactivosList = clients.filter((c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180);
+  const inactivosList = clients.filter(
+    (c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180,
+  );
   const inactivos = inactivosList.length;
-  const inactivosValue = inactivosList.reduce((s, c) => s + (c.visits > 0 ? Math.round(c.spent / c.visits) : avgTicket), 0);
+  const inactivosValue = inactivosList.reduce(
+    (s, c) => s + (c.visits > 0 ? Math.round(c.spent / c.visits) : avgTicket),
+    0,
+  );
 
   const openDaysPerWeek = openDays.filter(Boolean).length || 6;
   const sundayOpen = openDays[0] === true;
@@ -3844,34 +4550,52 @@ function LabScenario({
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">{currentLabel}</div>
+        <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+          {currentLabel}
+        </div>
         <div className="mt-1 text-2xl font-bold text-white/85">{currentValue}</div>
       </div>
       <div className="grid place-items-center text-white/30">
         <ArrowRight className="h-5 w-5" />
       </div>
       <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.07] p-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">{projectedLabel}</div>
+        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">
+          {projectedLabel}
+        </div>
         <div className="mt-1 text-2xl font-bold text-emerald-200">{projectedValue}</div>
       </div>
     </div>
   );
 }
 
-function LabImpact({ facturacion, utilidad, extra }: { facturacion: number; utilidad: number; extra?: { label: string; value: string } }) {
+function LabImpact({
+  facturacion,
+  utilidad,
+  extra,
+}: {
+  facturacion: number;
+  utilidad: number;
+  extra?: { label: string; value: string };
+}) {
   return (
     <div className={cn("grid gap-2", extra ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
       <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] px-3.5 py-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-200/70">Facturación extra / mes</div>
+        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-200/70">
+          Facturación extra / mes
+        </div>
         <div className="mt-1 text-2xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
       </div>
       <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] px-3.5 py-4">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">Utilidad extra / mes</div>
+        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/80">
+          Utilidad extra / mes
+        </div>
         <div className="mt-1 text-2xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
       </div>
       {extra ? (
         <div className="rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] px-3.5 py-4">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-violet-200/70">{extra.label}</div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-violet-200/70">
+            {extra.label}
+          </div>
           <div className="mt-1 text-2xl font-extrabold text-violet-200">{extra.value}</div>
         </div>
       ) : null}
@@ -3891,7 +4615,15 @@ function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: stri
   );
 }
 
-function LabChips({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (k: string) => void }) {
+function LabChips({
+  options,
+  value,
+  onChange,
+}: {
+  options: { key: string; label: string }[];
+  value: string;
+  onChange: (k: string) => void;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => (
@@ -3934,10 +4666,15 @@ function LabPrecios({ data }: { data: LabData }) {
   const diferenciaMensual = mensual * aumento;
   const pct = precioActual > 0 ? (aumento / precioActual) * 100 : 0;
   // Clientes que podés perder manteniendo la misma facturación del servicio.
-  const perdibles = precioNuevo > 0 ? Math.max(0, mensual - Math.ceil((mensual * precioActual) / precioNuevo)) : 0;
-  const avgPrice = services.length > 0 ? Math.round(services.reduce((s, x) => s + x.precio, 0) / services.length) : 0;
+  const perdibles =
+    precioNuevo > 0 ? Math.max(0, mensual - Math.ceil((mensual * precioActual) / precioNuevo)) : 0;
+  const avgPrice =
+    services.length > 0
+      ? Math.round(services.reduce((s, x) => s + x.precio, 0) / services.length)
+      : 0;
 
-  const nivel: keyof typeof nivelMeta = pct > 30 ? "alto_riesgo" : pct <= 12 ? "recomendado" : pct <= 20 ? "progresivo" : "evaluar";
+  const nivel: keyof typeof nivelMeta =
+    pct > 30 ? "alto_riesgo" : pct <= 12 ? "recomendado" : pct <= 20 ? "progresivo" : "evaluar";
   const verdict =
     pct > 30
       ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% de golpe: demasiado. Hacelo en dos etapas para no asustar clientes.`
@@ -3946,13 +4683,23 @@ function LabPrecios({ data }: { data: LabData }) {
   return (
     <div className="space-y-4">
       <div>
-        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Elegí el servicio</div>
-        <LabChips options={services.map((s) => ({ key: s.id, label: s.nombre }))} value={svc?.id ?? ""} onChange={setSvcId} />
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">
+          Elegí el servicio
+        </div>
+        <LabChips
+          options={services.map((s) => ({ key: s.id, label: s.nombre }))}
+          value={svc?.id ?? ""}
+          onChange={setSvcId}
+        />
       </div>
       <div>
         <div className="mb-2 flex items-end justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Aumento a probar</span>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200 sm:text-3xl">+{fmtAR(aumento)}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+            Aumento a probar
+          </span>
+          <span className="text-2xl font-extrabold leading-none text-cyan-200 sm:text-3xl">
+            +{fmtAR(aumento)}
+          </span>
         </div>
         <input
           type="range"
@@ -3964,14 +4711,24 @@ function LabPrecios({ data }: { data: LabData }) {
           className="w-full accent-cyan-400"
         />
       </div>
-      <LabScenario currentLabel="Precio actual" currentValue={fmtAR(precioActual)} projectedLabel="Precio sugerido" projectedValue={fmtAR(precioNuevo)} />
+      <LabScenario
+        currentLabel="Precio actual"
+        currentValue={fmtAR(precioActual)}
+        projectedLabel="Precio sugerido"
+        projectedValue={fmtAR(precioNuevo)}
+      />
       <LabImpact
         facturacion={Math.max(0, diferenciaMensual)}
         utilidad={Math.round(Math.max(0, diferenciaMensual) * 0.9)}
-        extra={{ label: "Vs. tu precio promedio", value: `${precioNuevo >= avgPrice ? "+" : ""}${fmtAR(precioNuevo - avgPrice)}` }}
+        extra={{
+          label: "Vs. tu precio promedio",
+          value: `${precioNuevo >= avgPrice ? "+" : ""}${fmtAR(precioNuevo - avgPrice)}`,
+        }}
       />
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/55">
-        Este servicio se vende ~<span className="font-semibold text-white/80">{mensual}</span> veces por mes. Podés perder hasta <span className="font-semibold text-rose-200">{perdibles}</span> clientes/mes sin bajar la facturación.
+        Este servicio se vende ~<span className="font-semibold text-white/80">{mensual}</span> veces
+        por mes. Podés perder hasta <span className="font-semibold text-rose-200">{perdibles}</span>{" "}
+        clientes/mes sin bajar la facturación.
       </div>
       <LabVerdict nivel={nivel} text={verdict} />
     </div>
@@ -3987,7 +4744,8 @@ function LabProfesional({ data, ocupacion }: { data: LabData; ocupacion: number 
   const utilidadAdic = Math.round(facturacionAdic * (LAB_MARGIN - 0.05)); // descontá su comisión
   const dias = utilidadAdic > 0 ? Math.max(1, Math.round(inversion / (utilidadAdic / 30))) : 0;
 
-  const nivel: keyof typeof nivelMeta = ocupacion >= 75 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
+  const nivel: keyof typeof nivelMeta =
+    ocupacion >= 75 ? "recomendado" : ocupacion >= 60 ? "evaluar" : "no_recomendado";
   const verdict =
     ocupacion >= 75
       ? `Tu ocupación está alta (${ocupacion}%): ya estás rechazando demanda. Incorporar un profesional podría generar hasta ${fmtAR(facturacionAdic)} adicionales por mes y recuperar la inversión en ~${dias} días.`
@@ -3998,7 +4756,8 @@ function LabProfesional({ data, ocupacion }: { data: LabData; ocupacion: number 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/60">
-        Ocupación actual: <span className="font-bold text-white">{ocupacion}%</span> · Servicios/mes: <span className="font-bold text-white">{data.monthlyVisits}</span>
+        Ocupación actual: <span className="font-bold text-white">{ocupacion}%</span> ·
+        Servicios/mes: <span className="font-bold text-white">{data.monthlyVisits}</span>
       </div>
       <LabScenario
         currentLabel="Servicios / mes hoy"
@@ -4008,10 +4767,20 @@ function LabProfesional({ data, ocupacion }: { data: LabData; ocupacion: number 
       />
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Inversión inicial (sillón, herramientas, alta)</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+            Inversión inicial (sillón, herramientas, alta)
+          </span>
           <span className="text-sm font-bold text-cyan-200">{fmtAR(inversion)}</span>
         </div>
-        <input type="range" min={0} max={800000} step={20000} value={inversion} onChange={(e) => setInversion(Number(e.target.value))} className="w-full accent-cyan-400" />
+        <input
+          type="range"
+          min={0}
+          max={800000}
+          step={20000}
+          value={inversion}
+          onChange={(e) => setInversion(Number(e.target.value))}
+          className="w-full accent-cyan-400"
+        />
       </div>
       <LabImpact
         facturacion={facturacionAdic}
@@ -4020,7 +4789,8 @@ function LabProfesional({ data, ocupacion }: { data: LabData; ocupacion: number 
       />
       <LabVerdict nivel={nivel} text={verdict} />
       <p className="text-center text-[11px] text-white/35">
-        Para el análisis completo de demanda no atendida y la recomendación de Clippr IA, mirá la sección <span className="text-white/55">Demanda no atendida</span> en Análisis.
+        Para el análisis completo de demanda no atendida y la recomendación de Clippr IA, mirá la
+        sección <span className="text-white/55">Demanda no atendida</span> en Análisis.
       </p>
     </div>
   );
@@ -4078,9 +4848,16 @@ function LabDomingos({ data }: { data: LabData }) {
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/60">
-        En tu barbería un día típico rinde <span className="font-bold text-white">{data.avgTurnosPerDay}</span> turnos. Los domingos suelen tener alta demanda en este rubro.
+        En tu barbería un día típico rinde{" "}
+        <span className="font-bold text-white">{data.avgTurnosPerDay}</span> turnos. Los domingos
+        suelen tener alta demanda en este rubro.
       </div>
-      <LabScenario currentLabel="Domingos hoy" currentValue="Cerrado" projectedLabel="Turnos / mes" projectedValue={`+${turnosAdic}`} />
+      <LabScenario
+        currentLabel="Domingos hoy"
+        currentValue="Cerrado"
+        projectedLabel="Turnos / mes"
+        projectedValue={`+${turnosAdic}`}
+      />
       <LabImpact facturacion={ingreso} utilidad={utilidad} />
       <LabVerdict
         nivel="recomendado"
@@ -4094,17 +4871,23 @@ function LabRecuperar({ data }: { data: LabData }) {
   const [pct, setPct] = React.useState(20);
   if (data.loading) return <LabSkeleton />;
   if (data.inactivos === 0) {
-    return <LabEmpty text="¡Buenas noticias! No detectamos clientes perdidos hace más de 45 días para recuperar." />;
+    return (
+      <LabEmpty text="¡Buenas noticias! No detectamos clientes perdidos hace más de 45 días para recuperar." />
+    );
   }
   const recuperables = Math.round((data.inactivos * pct) / 100);
-  const ticketProm = data.inactivos > 0 ? Math.round(data.inactivosValue / data.inactivos) : data.avgTicket;
+  const ticketProm =
+    data.inactivos > 0 ? Math.round(data.inactivosValue / data.inactivos) : data.avgTicket;
   const facturacion = recuperables * ticketProm;
   const utilidad = Math.round(facturacion * LAB_MARGIN);
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/60">
-        Tenés <span className="font-bold text-white">{data.inactivos}</span> clientes que no vienen hace más de 45 días. Valen <span className="font-bold text-emerald-200">{fmtAR(data.inactivosValue)}</span> si volvieran todos.
+        Tenés <span className="font-bold text-white">{data.inactivos}</span> clientes que no vienen
+        hace más de 45 días. Valen{" "}
+        <span className="font-bold text-emerald-200">{fmtAR(data.inactivosValue)}</span> si
+        volvieran todos.
       </div>
       <LabChips
         options={[
@@ -4115,7 +4898,12 @@ function LabRecuperar({ data }: { data: LabData }) {
         value={String(pct)}
         onChange={(k) => setPct(Number(k))}
       />
-      <LabScenario currentLabel="Clientes perdidos" currentValue={String(data.inactivos)} projectedLabel="Recuperás" projectedValue={`${recuperables}`} />
+      <LabScenario
+        currentLabel="Clientes perdidos"
+        currentValue={String(data.inactivos)}
+        projectedLabel="Recuperás"
+        projectedValue={`${recuperables}`}
+      />
       <LabImpact facturacion={facturacion} utilidad={utilidad} />
       <LabVerdict
         nivel={pct <= 20 ? "recomendado" : "progresivo"}
@@ -4139,13 +4927,25 @@ function LabProductos({ data }: { data: LabData }) {
     <div className="space-y-4">
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">% de clientes que compran productos hoy</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+            % de clientes que compran productos hoy
+          </span>
           <span className="text-sm font-bold text-cyan-200">{actual}%</span>
         </div>
-        <input type="range" min={0} max={30} step={1} value={actual} onChange={(e) => setActual(Number(e.target.value))} className="w-full accent-cyan-400" />
+        <input
+          type="range"
+          min={0}
+          max={30}
+          step={1}
+          value={actual}
+          onChange={(e) => setActual(Number(e.target.value))}
+          className="w-full accent-cyan-400"
+        />
       </div>
       <div>
-        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Meta a alcanzar</div>
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">
+          Meta a alcanzar
+        </div>
         <LabChips
           options={[
             { key: "5", label: "Llegar a 5%" },
@@ -4156,7 +4956,12 @@ function LabProductos({ data }: { data: LabData }) {
           onChange={setTarget}
         />
       </div>
-      <LabScenario currentLabel="Compran producto hoy" currentValue={`${actual}%`} projectedLabel="Meta" projectedValue={`${targetPct}%`} />
+      <LabScenario
+        currentLabel="Compran producto hoy"
+        currentValue={`${actual}%`}
+        projectedLabel="Meta"
+        projectedValue={`${targetPct}%`}
+      />
       <LabImpact facturacion={facturacion} utilidad={utilidad} />
       <LabVerdict
         nivel={targetPct - actual <= 5 ? "recomendado" : "progresivo"}
@@ -4181,21 +4986,50 @@ function LabFidelizacion({ data }: { data: LabData }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Frecuencia actual</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+              Frecuencia actual
+            </span>
             <span className="text-sm font-bold text-white/70">{freqActual} días</span>
           </div>
-          <input type="range" min={20} max={60} step={1} value={freqActual} onChange={(e) => setFreqActual(Number(e.target.value))} className="w-full accent-white/40" />
+          <input
+            type="range"
+            min={20}
+            max={60}
+            step={1}
+            value={freqActual}
+            onChange={(e) => setFreqActual(Number(e.target.value))}
+            className="w-full accent-white/40"
+          />
         </div>
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">Frecuencia objetivo</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-200/70">
+              Frecuencia objetivo
+            </span>
             <span className="text-sm font-bold text-emerald-200">{freqSim} días</span>
           </div>
-          <input type="range" min={15} max={freqActual} step={1} value={Math.min(freqSim, freqActual)} onChange={(e) => setFreqSim(Number(e.target.value))} className="w-full accent-emerald-400" />
+          <input
+            type="range"
+            min={15}
+            max={freqActual}
+            step={1}
+            value={Math.min(freqSim, freqActual)}
+            onChange={(e) => setFreqSim(Number(e.target.value))}
+            className="w-full accent-emerald-400"
+          />
         </div>
       </div>
-      <LabScenario currentLabel="Vuelven cada" currentValue={`${freqActual} días`} projectedLabel="Si vuelven cada" projectedValue={`${Math.min(freqSim, freqActual)} días`} />
-      <LabImpact facturacion={facturacion} utilidad={utilidad} extra={{ label: "Visitas extra / mes", value: `+${visitasAdic}` }} />
+      <LabScenario
+        currentLabel="Vuelven cada"
+        currentValue={`${freqActual} días`}
+        projectedLabel="Si vuelven cada"
+        projectedValue={`${Math.min(freqSim, freqActual)} días`}
+      />
+      <LabImpact
+        facturacion={facturacion}
+        utilidad={utilidad}
+        extra={{ label: "Visitas extra / mes", value: `+${visitasAdic}` }}
+      />
       <LabVerdict
         nivel="recomendado"
         text={`Si tus clientes vuelven cada ${Math.min(freqSim, freqActual)} días en vez de ${freqActual}, sumás ~${visitasAdic} visitas por mes (${fmtAR(facturacion)}). Se logra con recordatorio de WhatsApp y un programa de puntos: el corte 5 con descuento.`}
@@ -4216,18 +5050,40 @@ function LabSkeleton() {
 
 function LabEmpty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-white/60">{text}</div>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-white/60">
+      {text}
+    </div>
   );
 }
 
 const LAB_SIMS = [
-  { key: "precios", icon: "💰", label: "Subir precios", sub: "Probá un aumento sin perder clientes" },
-  { key: "profesional", icon: "✂️", label: "Sumar un profesional", sub: "¿Conviene contratar?" },
-  { key: "horario", icon: "📅", label: "Extender horario", sub: "Abrir antes o cerrar más tarde" },
-  { key: "domingos", icon: "📆", label: "Abrir domingos", sub: "El día de mayor demanda" },
-  { key: "recuperar", icon: "🔥", label: "Recuperar clientes", sub: "Traer de vuelta a los perdidos" },
-  { key: "productos", icon: "🧴", label: "Venta de productos", sub: "Ticket extra sin más turnos" },
-  { key: "fidelizacion", icon: "🎁", label: "Fidelización", sub: "Que vuelvan más seguido" },
+  {
+    key: "precios",
+    icon: DollarSign,
+    label: "Subir precios",
+    sub: "Probá un aumento sin perder clientes",
+  },
+  {
+    key: "profesional",
+    icon: Scissors,
+    label: "Sumar un profesional",
+    sub: "¿Conviene contratar?",
+  },
+  { key: "horario", icon: Clock, label: "Extender horario", sub: "Abrir antes o cerrar más tarde" },
+  { key: "domingos", icon: CalendarDays, label: "Abrir domingos", sub: "El día de mayor demanda" },
+  {
+    key: "recuperar",
+    icon: Users,
+    label: "Recuperar clientes",
+    sub: "Traer de vuelta a los perdidos",
+  },
+  {
+    key: "productos",
+    icon: Package,
+    label: "Venta de productos",
+    sub: "Ticket extra sin más turnos",
+  },
+  { key: "fidelizacion", icon: Gift, label: "Fidelización", sub: "Que vuelvan más seguido" },
 ] as const;
 
 function LaboratorioDecisiones(props: SimuladorProps) {
@@ -4244,10 +5100,16 @@ function LaboratorioDecisiones(props: SimuladorProps) {
       <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#070b18]/80 px-4 py-3.5 shadow-[0_20px_70px_-50px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
         <div className="pointer-events-none absolute -top-16 left-1/4 h-40 w-40 rounded-full bg-cyan-500/15 blur-3xl" />
         <div className="relative flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-xl ring-1 ring-white/15">🧪</span>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-xl ring-1 ring-white/15">
+            🧪
+          </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">Simulá una decisión de negocio</h2>
-            <p className="truncate text-xs text-white/55">Clippr IA calcula el impacto antes de que tomes la decisión.</p>
+            <h2 className="text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">
+              Simulá una decisión de negocio
+            </h2>
+            <p className="truncate text-xs text-white/55">
+              Clippr IA calcula el impacto antes de que tomes la decisión.
+            </p>
           </div>
           <button
             type="button"
@@ -4274,7 +5136,14 @@ function LaboratorioDecisiones(props: SimuladorProps) {
                 : "border-white/10 bg-white/[0.03] opacity-55 hover:border-white/20 hover:bg-white/[0.05] hover:opacity-100",
             )}
           >
-            <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xl ring-1", sim === s.key ? "bg-white/15 ring-white/20" : "bg-white/[0.06] ring-white/10")}>{s.icon}</span>
+            <span
+              className={cn(
+                "grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1 text-white",
+                sim === s.key ? "bg-white/15 ring-white/20" : "bg-white/[0.06] ring-white/10",
+              )}
+            >
+              {React.createElement(s.icon, { className: "h-5 w-5" })}
+            </span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-bold text-white">{s.label}</span>
               <span className="block truncate text-xs text-white/45">{s.sub}</span>
@@ -4288,7 +5157,9 @@ function LaboratorioDecisiones(props: SimuladorProps) {
         <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent blur-3xl" />
         <div className="relative">
           <div className="mb-4 flex items-center gap-3 border-b border-white/8 pb-4">
-            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/8 text-2xl ring-1 ring-white/10">{current.icon}</span>
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/8 ring-1 ring-white/10 text-white">
+              {React.createElement(current.icon, { className: "h-5 w-5" })}
+            </span>
             <div>
               <h3 className="text-lg font-bold text-white">{current.label}</h3>
               <p className="text-xs text-white/45">{current.sub}</p>
@@ -4352,9 +5223,17 @@ function DemandMiniRow({
 }
 
 const DEMAND_REC_NIVEL: Record<string, { cls: string; titleCls: string; emoji: string }> = {
-  recomendado: { cls: "border-emerald-400/30 bg-emerald-400/[0.12]", titleCls: "text-emerald-300", emoji: "✅" },
+  recomendado: {
+    cls: "border-emerald-400/30 bg-emerald-400/[0.12]",
+    titleCls: "text-emerald-300",
+    emoji: "✅",
+  },
   evaluar: { cls: "border-cyan-400/30 bg-cyan-400/[0.07]", titleCls: "text-cyan-300", emoji: "🟡" },
-  no_recomendado: { cls: "border-white/12 bg-white/[0.03]", titleCls: "text-white/70", emoji: "⏸️" },
+  no_recomendado: {
+    cls: "border-white/12 bg-white/[0.03]",
+    titleCls: "text-white/70",
+    emoji: "⏸️",
+  },
 };
 
 function DemandaNoAtendidaSection({
@@ -4383,17 +5262,27 @@ function DemandaNoAtendidaSection({
     if (!m) return null;
     const start = Number(m[1]);
     const end = Number(m[2]);
-    const sum = a.peakHours.filter((h) => h.hour >= start && h.hour < end).reduce((s, h) => s + h.count, 0);
+    const sum = a.peakHours
+      .filter((h) => h.hour >= start && h.hour < end)
+      .reduce((s, h) => s + h.count, 0);
     return month > 0 ? Math.round((sum / month) * 100) : null;
   })();
 
   const narrative: string[] = [];
-  if (month > 0) narrative.push(`Durante este mes rechazaste ${month} clientes por falta de disponibilidad.`);
-  if (topProf) narrative.push(`${topProf.label} recibió ${topProf.count} solicitudes que no pudieron concretarse.`);
+  if (month > 0)
+    narrative.push(`Durante este mes rechazaste ${month} clientes por falta de disponibilidad.`);
+  if (topProf)
+    narrative.push(
+      `${topProf.label} recibió ${topProf.count} solicitudes que no pudieron concretarse.`,
+    );
   if (windowShare != null && a.peakRangeLabel)
-    narrative.push(`El ${windowShare}% de los rechazos ocurrió entre las ${a.peakRangeLabel.replace(" y ", " y las ")}.`);
+    narrative.push(
+      `El ${windowShare}% de los rechazos ocurrió entre las ${a.peakRangeLabel.replace(" y ", " y las ")}.`,
+    );
   if (topDay && topDayShare > 0)
-    narrative.push(`Los ${pluralDemandDay(topDay.label.toLowerCase())} concentran el ${topDayShare}% de la demanda no atendida.`);
+    narrative.push(
+      `Los ${pluralDemandDay(topDay.label.toLowerCase())} concentran el ${topDayShare}% de la demanda no atendida.`,
+    );
 
   return (
     <section className="space-y-4">
@@ -4402,15 +5291,21 @@ function DemandaNoAtendidaSection({
           <UserX className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">Demanda no atendida</h2>
-          <p className="text-xs text-white/45">Clientes que no pudieron atenderse por falta de disponibilidad</p>
+          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+            Demanda no atendida
+          </h2>
+          <p className="text-xs text-white/45">
+            Clientes que no pudieron atenderse por falta de disponibilidad
+          </p>
         </div>
       </div>
 
       {a.total === 0 && !isLoading ? (
         <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6 text-center text-sm text-white/50">
-          Todavía no hay clientes rechazados registrados. Usá <span className="font-semibold text-rose-200/80">+ Cliente rechazado</span> en la
-          Agenda para empezar a medir la demanda que el negocio no pudo atender. A medida que se acumulen datos, las recomendaciones se vuelven más precisas.
+          Todavía no hay clientes rechazados registrados. Usá{" "}
+          <span className="font-semibold text-rose-200/80">+ Cliente rechazado</span> en la Agenda
+          para empezar a medir la demanda que el negocio no pudo atender. A medida que se acumulen
+          datos, las recomendaciones se vuelven más precisas.
         </div>
       ) : (
         <>
@@ -4432,7 +5327,9 @@ function DemandaNoAtendidaSection({
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.05] p-4">
-              <div className="text-3xl font-extrabold tabular-nums text-rose-300">{a.counts.today}</div>
+              <div className="text-3xl font-extrabold tabular-nums text-rose-300">
+                {a.counts.today}
+              </div>
               <div className="mt-0.5 text-[11px] text-white/45">Rechazados hoy</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -4440,7 +5337,9 @@ function DemandaNoAtendidaSection({
               <div className="mt-0.5 text-[11px] text-white/45">Esta semana</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-3xl font-extrabold tabular-nums text-white">{a.counts.month}</div>
+              <div className="text-3xl font-extrabold tabular-nums text-white">
+                {a.counts.month}
+              </div>
               <div className="mt-0.5 text-[11px] text-white/45">Este mes</div>
             </div>
             <div className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] p-4">
@@ -4448,7 +5347,9 @@ function DemandaNoAtendidaSection({
                 <TrendingDown className="h-4 w-4" />
                 {fmtDemandARS(a.lostRevenue.month)}
               </div>
-              <div className="mt-0.5 text-[11px] text-white/45">Facturación potencial perdida (mes)</div>
+              <div className="mt-0.5 text-[11px] text-white/45">
+                Facturación potencial perdida (mes)
+              </div>
             </div>
           </div>
 
@@ -4507,12 +5408,16 @@ function DemandaNoAtendidaSection({
 
           {a.professionals.length > 0 && (
             <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-white/45">Índice de demanda por profesional</div>
+              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-white/45">
+                Índice de demanda por profesional
+              </div>
               <div className="space-y-2">
                 {a.professionals.map((p) => (
                   <div key={p.name} className="flex items-center gap-3">
                     <span className="text-base">{TIER_EMOJI[p.tier]}</span>
-                    <span className="w-28 shrink-0 truncate text-sm font-semibold text-white/85">{p.name}</span>
+                    <span className="w-28 shrink-0 truncate text-sm font-semibold text-white/85">
+                      {p.name}
+                    </span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
                       <div
                         className={cn(
@@ -4525,7 +5430,9 @@ function DemandaNoAtendidaSection({
                         style={{ width: `${p.score}%` }}
                       />
                     </div>
-                    <span className="w-14 shrink-0 text-right text-xs font-bold tabular-nums text-white/70">{p.score}/100</span>
+                    <span className="w-14 shrink-0 text-right text-xs font-bold tabular-nums text-white/70">
+                      {p.score}/100
+                    </span>
                   </div>
                 ))}
               </div>
@@ -4534,7 +5441,9 @@ function DemandaNoAtendidaSection({
 
           {recs.length > 0 && (
             <div className="space-y-2">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">Recomendaciones de Clippr IA</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">
+                Recomendaciones de Clippr IA
+              </div>
               {recs.map((r, i) => {
                 const meta = DEMAND_REC_NIVEL[r.nivel] ?? DEMAND_REC_NIVEL.evaluar;
                 const prio =
@@ -4546,11 +5455,19 @@ function DemandaNoAtendidaSection({
                 return (
                   <div key={i} className={cn("rounded-2xl border p-4", meta.cls)}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("text-sm font-bold", meta.titleCls)}>{meta.emoji} {r.title}</span>
+                      <span className={cn("text-sm font-bold", meta.titleCls)}>
+                        {meta.emoji} {r.title}
+                      </span>
                       <span className="ml-auto flex items-center gap-1.5">
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", prio.cls)}>{prio.label}</span>
+                        <span
+                          className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", prio.cls)}
+                        >
+                          {prio.label}
+                        </span>
                         {r.confidence === "preliminar" && (
-                          <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold text-white/50">Evidencia preliminar</span>
+                          <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold text-white/50">
+                            Evidencia preliminar
+                          </span>
                         )}
                       </span>
                     </div>
