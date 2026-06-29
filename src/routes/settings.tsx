@@ -766,14 +766,24 @@ function LandingSection() {
                 key={mode}
                 type="button"
                 onClick={() => setTheme(mode)}
-                className={
-                  "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-                  (theme === mode
-                    ? "bg-white text-white"
-                    : "text-white/60 hover:bg-white/10 hover:text-white")
-                }
+                className={cn(
+                  "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition",
+                  theme === mode
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "bg-transparent text-white/65 hover:bg-white/10 hover:text-white",
+                )}
               >
-                {mode === "dark" ? "Modo oscuro" : "Modo claro"}
+                {mode === "dark" ? (
+                    <>
+                      <Moon className="h-3.5 w-3.5" />
+                      Modo oscuro
+                    </>
+                  ) : (
+                    <>
+                      <Sun className="h-3.5 w-3.5" />
+                      Modo claro
+                    </>
+                  )}
               </button>
             ))}
           </div>
@@ -2465,14 +2475,24 @@ function BrandingSection() {
                     key={mode}
                     type="button"
                     onClick={() => setTheme(mode)}
-                    className={
-                      "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-                      (theme === mode
-                        ? "bg-white text-white"
-                        : "text-white/60 hover:bg-white/10 hover:text-white")
-                    }
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition",
+                      theme === mode
+                        ? "bg-white text-slate-950 shadow-sm"
+                        : "bg-transparent text-white/65 hover:bg-white/10 hover:text-white",
+                    )}
                   >
-                    {mode === "dark" ? "Modo oscuro" : "Modo claro"}
+                    {mode === "dark" ? (
+                    <>
+                      <Moon className="h-3.5 w-3.5" />
+                      Modo oscuro
+                    </>
+                  ) : (
+                    <>
+                      <Sun className="h-3.5 w-3.5" />
+                      Modo claro
+                    </>
+                  )}
                   </button>
                 ))}
               </div>
