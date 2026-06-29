@@ -1522,7 +1522,7 @@ function BrandingSection() {
                 setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
               }
               maxLength={80}
-              placeholder="Ej: 10% OFF pagando en efectivo"
+              placeholder="🔥 Últimos turnos para hoy"
               className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
             />
             <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
