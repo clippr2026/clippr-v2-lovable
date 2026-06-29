@@ -85,7 +85,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SpecialHoursEditor } from "@/components/settings/special-hours-editor";
-import type { SpecialDateMap, EmployeeSpecialDateMap } from "@/components/agenda/use-agenda-data";
+import type {
+  SpecialDateMap,
+  EmployeeSpecialDateMap,
+} from "@/components/agenda/use-agenda-data";
 
 type SectionId =
   | "branding"
@@ -228,7 +231,9 @@ function AparienciaSection() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-display font-semibold">Apariencia</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Elegí el tema visual de la aplicación.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Elegí el tema visual de la aplicación.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -255,7 +260,10 @@ function AparienciaSection() {
                 )}
               >
                 <opt.Icon
-                  className={cn("size-7", opt.id === "dark" ? "text-white/60" : "text-white/50")}
+                  className={cn(
+                    "size-7",
+                    opt.id === "dark" ? "text-white/60" : "text-white/50",
+                  )}
                 />
               </div>
 
@@ -323,6 +331,17 @@ const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
   "Otro",
 ];
 
+function makeEmptyFeaturedClient(order = 0): FeaturedClient {
+  return {
+    id: `featured-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: "",
+    category: "Marca",
+    image_url: "",
+    active: true,
+    order,
+  };
+}
+
 // ─────────── Beneficios del local (lista editable, máx. 12) ───────────
 type Benefit = { id: string; label: string; active: boolean };
 
@@ -346,7 +365,11 @@ function makeBenefitId(): string {
 }
 
 function buildDefaultBenefits(): Benefit[] {
-  return DEFAULT_BENEFITS.map((label) => ({ id: makeBenefitId(), label, active: false }));
+  return DEFAULT_BENEFITS.map((label, index) => ({
+    id: makeBenefitId(),
+    label,
+    active: index < 8,
+  }));
 }
 
 function normalizeBenefits(value: unknown): Benefit[] {
@@ -366,12 +389,20 @@ function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item, index) => {
-      const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-      const category = FEATURED_CLIENT_CATEGORIES.includes(row.category as FeaturedClientCategory)
+      const row =
+        item && typeof item === "object"
+          ? (item as Record<string, unknown>)
+          : {};
+      const category = FEATURED_CLIENT_CATEGORIES.includes(
+        row.category as FeaturedClientCategory,
+      )
         ? (row.category as FeaturedClientCategory)
         : "Otro";
       return {
-        id: typeof row.id === "string" && row.id ? row.id : `featured-${Date.now()}-${index}`,
+        id:
+          typeof row.id === "string" && row.id
+            ? row.id
+            : `featured-${Date.now()}-${index}`,
         name: typeof row.name === "string" ? row.name : "",
         category,
         image_url: typeof row.image_url === "string" ? row.image_url : "",
@@ -393,6 +424,7 @@ type BrandingData = {
   website: string;
   description: string;
   profile_note: string;
+  profile_note_active: boolean;
   logo_url: string;
   avatar_url: string;
   cover_url: string;
@@ -414,6 +446,7 @@ const EMPTY_BRANDING: BrandingData = {
   website: "",
   description: "",
   profile_note: "",
+  profile_note_active: false,
   logo_url: "",
   avatar_url: "",
   cover_url: "",
@@ -456,7 +489,9 @@ async function processImage(
   if (!ctx) throw new Error("No se pudo procesar la imagen");
   ctx.drawImage(img, 0, 0, w, h);
   const toBlob = (type: string) =>
-    new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), type, quality));
+    new Promise<Blob | null>((res) =>
+      canvas.toBlob((b) => res(b), type, quality),
+    );
   let blob = await toBlob("image/webp");
   let ext = "webp";
   let type = "image/webp";
@@ -543,22 +578,32 @@ function LandingSection() {
         const schedule = (data?.schedule ?? {}) as Record<string, any>;
         const c = (schedule._branding?.colors ?? {}) as Record<string, string>;
         setColors({
-          primary: normalizeHex(c.primary, normalizeHex(c.secondary, LANDING_DEFAULTS.primary)),
+          primary: normalizeHex(
+            c.primary,
+            normalizeHex(c.secondary, LANDING_DEFAULTS.primary),
+          ),
           secondary: normalizeHex(c.secondary, LANDING_DEFAULTS.secondary),
           accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
           buttonText: normalizeHex(c.buttonText, LANDING_DEFAULTS.buttonText),
         });
         const savedTheme = schedule._branding?.theme;
         setTheme(savedTheme === "light" ? "light" : "dark");
-        const savedAdditional = Array.isArray(schedule._branding?.additional_info)
+        const savedAdditional = Array.isArray(
+          schedule._branding?.additional_info,
+        )
           ? schedule._branding.additional_info
           : [];
         const cleanAdditional = savedAdditional
           .filter(
-            (item: unknown): item is string => typeof item === "string" && item.trim().length > 0,
+            (item: unknown): item is string =>
+              typeof item === "string" && item.trim().length > 0,
           )
           .slice(0, MAX_ADDITIONAL_INFO);
-        setAdditionalInfo(cleanAdditional.length > 0 ? cleanAdditional : ADDITIONAL_INFO_OPTIONS);
+        setAdditionalInfo(
+          cleanAdditional.length > 0
+            ? cleanAdditional
+            : ADDITIONAL_INFO_OPTIONS,
+        );
         setLoading(false);
       });
   }, [businessId]);
@@ -580,18 +625,30 @@ function LandingSection() {
       .maybeSingle();
     if (loadErr) {
       setSaving(false);
-      return toast.error("No se pudo leer la configuración: " + loadErr.message);
+      return toast.error(
+        "No se pudo leer la configuración: " + loadErr.message,
+      );
     }
     const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
     const branding = (schedule._branding ?? {}) as Record<string, unknown>;
-    const nextAdditionalInfo = additionalInfo.filter((item) => item.trim().length > 0).slice(0, 12);
+    const nextAdditionalInfo = additionalInfo
+      .filter((item) => item.trim().length > 0)
+      .slice(0, 12);
     const nextSchedule = {
       ...schedule,
-      _branding: { ...branding, colors: next, theme, additional_info: nextAdditionalInfo },
+      _branding: {
+        ...branding,
+        colors: next,
+        theme,
+        additional_info: nextAdditionalInfo,
+      },
     };
     const { error } = await supabase
       .from("business_settings")
-      .upsert({ business_id: businessId, schedule: nextSchedule }, { onConflict: "business_id" });
+      .upsert(
+        { business_id: businessId, schedule: nextSchedule },
+        { onConflict: "business_id" },
+      );
     setSaving(false);
     if (error) return toast.error("No se pudo guardar: " + error.message);
     setColors(next);
@@ -617,7 +674,9 @@ function LandingSection() {
       toast.error("Máximo 12 beneficios.");
       return;
     }
-    setAdditionalInfo((current) => [...current, value].slice(0, MAX_ADDITIONAL_INFO));
+    setAdditionalInfo((current) =>
+      [...current, value].slice(0, MAX_ADDITIONAL_INFO),
+    );
     setNewAdditionalInfo("");
   }
 
@@ -650,12 +709,15 @@ function LandingSection() {
   return (
     <div className="space-y-3">
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
-        <h2 id="pagina-reservas-colores" className="scroll-mt-28 text-lg font-semibold">
+        <h2
+          id="pagina-reservas-colores"
+          className="scroll-mt-28 text-lg font-semibold"
+        >
           Colores
         </h2>
         <p className="mt-1 text-sm text-white/55">
-          Personalizá modo claro/oscuro, gradientes, glows, color de resaltado, texto de botones y
-          beneficios del local.
+          Personalizá modo claro/oscuro, gradientes, glows, color de resaltado,
+          texto de botones y beneficios del local.
         </p>
 
         <div className="mt-5 space-y-4">
@@ -668,7 +730,9 @@ function LandingSection() {
                 <input
                   type="color"
                   value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
-                  onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
+                  onChange={(e) =>
+                    setColors((c) => ({ ...c, [key]: e.target.value }))
+                  }
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
               </label>
@@ -679,7 +743,9 @@ function LandingSection() {
               <input
                 type="text"
                 value={colors[key]}
-                onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
+                onChange={(e) =>
+                  setColors((c) => ({ ...c, [key]: e.target.value }))
+                }
                 spellCheck={false}
                 className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25"
                 placeholder="#000000"
@@ -691,7 +757,8 @@ function LandingSection() {
         <div className="mt-6 border-t border-white/10 pt-5">
           <h3 className="text-sm font-semibold">Modo de la página pública</h3>
           <p className="mt-1 text-xs text-white/50">
-            Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.
+            Elegí si el perfil público y la reserva online se ven en modo oscuro
+            o claro.
           </p>
           <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
             {(["dark", "light"] as LandingTheme[]).map((mode) => (
@@ -699,12 +766,12 @@ function LandingSection() {
                 key={mode}
                 type="button"
                 onClick={() => setTheme(mode)}
-                className={
-                  "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-                  (theme === mode
-                    ? "bg-white text-white"
-                    : "text-white/60 hover:bg-white/10 hover:text-white")
-                }
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-semibold transition",
+                  theme === mode
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-white/60 hover:bg-white/10 hover:text-white",
+                )}
               >
                 {mode === "dark" ? "Modo oscuro" : "Modo claro"}
               </button>
@@ -771,7 +838,9 @@ function LandingSection() {
             </button>
           </div>
           {additionalInfo.length >= MAX_ADDITIONAL_INFO ? (
-            <p className="mt-2 text-xs text-white/45">Llegaste al máximo de 12.</p>
+            <p className="mt-2 text-xs text-white/45">
+              Llegaste al máximo de 12.
+            </p>
           ) : null}
         </div>
         <div className="mt-5 flex items-center gap-3">
@@ -799,7 +868,10 @@ function LandingSection() {
         <div
           className="mt-3 overflow-hidden rounded-2xl border p-6"
           style={{
-            borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+            borderColor:
+              theme === "light"
+                ? "rgba(15,23,42,0.10)"
+                : "rgba(255,255,255,0.10)",
             color: theme === "light" ? "#0f172a" : "#fff",
             background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`,
           }}
@@ -815,8 +887,14 @@ function LandingSection() {
             <div
               className="relative rounded-3xl border p-4 shadow-xl"
               style={{
-                borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
-                background: theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)",
+                borderColor:
+                  theme === "light"
+                    ? "rgba(15,23,42,0.10)"
+                    : "rgba(255,255,255,0.10)",
+                background:
+                  theme === "light"
+                    ? "rgba(255,255,255,0.88)"
+                    : "rgba(255,255,255,0.04)",
                 color: theme === "light" ? "#0f172a" : "#fff",
               }}
             >
@@ -833,8 +911,13 @@ function LandingSection() {
                 Reservar turno
               </button>
               <div className="mt-3 flex items-center gap-2 text-sm">
-                <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} />
-                <span style={{ color: colors.accent, fontWeight: 600 }}>Abierto ahora</span>
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: colors.accent }}
+                />
+                <span style={{ color: colors.accent, fontWeight: 600 }}>
+                  Abierto ahora
+                </span>
               </div>
             </div>
           </div>
@@ -884,9 +967,15 @@ function BrandingSection() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
-  const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<number | null>(null);
-  const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">("info");
+  const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<
+    number | null
+  >(null);
+  const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(
+    null,
+  );
+  const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">(
+    "info",
+  );
   const [colors, setColors] = useState(LANDING_DEFAULTS);
   const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
@@ -901,7 +990,9 @@ function BrandingSection() {
     Promise.all([
       supabase
         .from("businesses")
-        .select("name,slug,address,phone,email,instagram,avatar_url,cover_url,business_start_date")
+        .select(
+          "name,slug,address,phone,email,instagram,avatar_url,cover_url,business_start_date",
+        )
         .eq("id", businessId)
         .maybeSingle(),
       supabase
@@ -911,39 +1002,57 @@ function BrandingSection() {
         .maybeSingle(),
     ]).then(([bizRes, settRes]) => {
       const biz = bizRes.data;
-      const schedule = (settRes.data?.schedule ?? {}) as Record<string, unknown>;
+      const schedule = (settRes.data?.schedule ?? {}) as Record<
+        string,
+        unknown
+      >;
       const cfg = (schedule._branding ?? {}) as Record<string, unknown>;
+      const normalizedFeaturedClients = normalizeFeaturedClients(
+        cfg.featured_clients,
+      );
       setData({
         name: (biz?.name as string) ?? "",
         slug: (biz?.slug as string) ?? "",
         address: (cfg.address as string) ?? (biz?.address as string) ?? "",
         phone: (cfg.phone as string) ?? (biz?.phone as string) ?? "",
         email: (cfg.email as string) ?? (biz?.email as string) ?? "",
-        instagram: (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
+        instagram:
+          (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
         profile_note: (cfg.profile_note as string) ?? "",
+        profile_note_active: cfg.profile_note_active === true,
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
         cover_url: (biz?.cover_url as string) ?? "",
         portfolio_urls: Array.isArray(cfg.portfolio_urls)
           ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3)
           : [],
-        featured_clients: normalizeFeaturedClients(cfg.featured_clients),
+        featured_clients:
+          normalizedFeaturedClients.length > 0
+            ? normalizedFeaturedClients
+            : [makeEmptyFeaturedClient()],
         avatar_position: (cfg.avatar_position as string) ?? "50% 50%",
         cover_position: (cfg.cover_position as string) ?? "50% 50%",
         portfolio_positions: Array.isArray(cfg.portfolio_positions)
           ? (cfg.portfolio_positions as string[])
           : [],
-        featured_positions: (cfg.featured_positions && typeof cfg.featured_positions === "object"
+        featured_positions: (cfg.featured_positions &&
+        typeof cfg.featured_positions === "object"
           ? cfg.featured_positions
           : {}) as Record<string, string>,
         business_start_date: (biz?.business_start_date as string) ?? "",
       });
       const cc = (cfg.colors ?? {}) as Record<string, string>;
       setColors({
-        primary: normalizeHex(cc.primary, normalizeHex(cc.secondary, LANDING_DEFAULTS.primary)),
-        secondary: normalizeHex(cc.secondary, normalizeHex(cc.primary, LANDING_DEFAULTS.secondary)),
+        primary: normalizeHex(
+          cc.primary,
+          normalizeHex(cc.secondary, LANDING_DEFAULTS.primary),
+        ),
+        secondary: normalizeHex(
+          cc.secondary,
+          normalizeHex(cc.primary, LANDING_DEFAULTS.secondary),
+        ),
         accent: normalizeHex(cc.accent, LANDING_DEFAULTS.accent),
         buttonText: normalizeHex(cc.buttonText, LANDING_DEFAULTS.buttonText),
       });
@@ -961,7 +1070,11 @@ function BrandingSection() {
           legacy.length > 0
             ? legacy
                 .slice(0, 12)
-                .map((label) => ({ id: makeBenefitId(), label: label.slice(0, 35), active: true }))
+                .map((label) => ({
+                  id: makeBenefitId(),
+                  label: label.slice(0, 35),
+                  active: true,
+                }))
             : buildDefaultBenefits(),
         );
       }
@@ -975,7 +1088,8 @@ function BrandingSection() {
   const coverPreview = data.cover_url;
 
   const set =
-    (k: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (k: keyof BrandingData) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setData((d) => ({ ...d, [k]: e.target.value }));
 
   async function uploadImage(file: File, path: string): Promise<string | null> {
@@ -986,20 +1100,33 @@ function BrandingSection() {
       toast.error("Error subiendo imagen: " + error.message);
       return null;
     }
-    const { data: urlData } = supabase.storage.from("business-assets").getPublicUrl(path);
+    const { data: urlData } = supabase.storage
+      .from("business-assets")
+      .getPublicUrl(path);
     return urlData.publicUrl;
   }
 
-  async function uploadBlob(blob: Blob, path: string, contentType: string): Promise<string | null> {
+  async function uploadBlob(
+    blob: Blob,
+    path: string,
+    contentType: string,
+  ): Promise<string | null> {
     const { error } = await supabase.storage
       .from("business-assets")
       .upload(path, blob, { upsert: true, contentType });
     if (error) {
-      console.error("[storage] upload failed", { path, contentType, size: blob.size, error });
+      console.error("[storage] upload failed", {
+        path,
+        contentType,
+        size: blob.size,
+        error,
+      });
       toast.error("No se pudo subir la imagen: " + error.message);
       return null;
     }
-    const { data: urlData } = supabase.storage.from("business-assets").getPublicUrl(path);
+    const { data: urlData } = supabase.storage
+      .from("business-assets")
+      .getPublicUrl(path);
     // Cache-bust: el path se sobrescribe (upsert), así forzamos refrescar el CDN.
     return `${urlData.publicUrl}?v=${Date.now()}`;
   }
@@ -1034,8 +1161,14 @@ function BrandingSection() {
       return false;
     }
 
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const existingBranding = (existingSchedule._branding ?? {}) as Record<string, unknown>;
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const existingBranding = (existingSchedule._branding ?? {}) as Record<
+      string,
+      unknown
+    >;
     const nextSchedule = {
       ...existingSchedule,
       _branding: {
@@ -1046,7 +1179,10 @@ function BrandingSection() {
 
     const { error } = await supabase
       .from("business_settings")
-      .upsert({ business_id: businessId, schedule: nextSchedule }, { onConflict: "business_id" });
+      .upsert(
+        { business_id: businessId, schedule: nextSchedule },
+        { onConflict: "business_id" },
+      );
     if (error) {
       console.error("[branding] persistBrandingPatch error", { patch, error });
       toast.error("No se pudo guardar la configuración: " + error.message);
@@ -1072,7 +1208,9 @@ function BrandingSection() {
       return false;
     }
     if (!row) {
-      toast.error("No se pudo guardar la imagen. Revisá los permisos del negocio.");
+      toast.error(
+        "No se pudo guardar la imagen. Revisá los permisos del negocio.",
+      );
       return false;
     }
     return true;
@@ -1125,7 +1263,11 @@ function BrandingSection() {
     setUploadingPortfolioIndex(index);
     try {
       const { blob, ext, type } = await processImage(file, 1200, 900, 0.78);
-      const url = await uploadBlob(blob, `${businessId}/portfolio-${index + 1}.${ext}`, type);
+      const url = await uploadBlob(
+        blob,
+        `${businessId}/portfolio-${index + 1}.${ext}`,
+        type,
+      );
       if (!url) return;
       const next = [...data.portfolio_urls];
       next[index] = url;
@@ -1157,19 +1299,26 @@ function BrandingSection() {
       return;
     }
     setBenefits((current) =>
-      [...current, { id: makeBenefitId(), label: value, active: true }].slice(0, 12),
+      [...current, { id: makeBenefitId(), label: value, active: true }].slice(
+        0,
+        12,
+      ),
     );
     setCustomBenefit("");
   }
 
   function updateBenefit(id: string, label: string) {
     setBenefits((current) =>
-      current.map((b) => (b.id === id ? { ...b, label: label.slice(0, 35) } : b)),
+      current.map((b) =>
+        b.id === id ? { ...b, label: label.slice(0, 35) } : b,
+      ),
     );
   }
 
   function toggleBenefit(id: string) {
-    setBenefits((current) => current.map((b) => (b.id === id ? { ...b, active: !b.active } : b)));
+    setBenefits((current) =>
+      current.map((b) => (b.id === id ? { ...b, active: !b.active } : b)),
+    );
   }
 
   function removeBenefit(id: string) {
@@ -1193,14 +1342,7 @@ function BrandingSection() {
       ...d,
       featured_clients: [
         ...d.featured_clients,
-        {
-          id: `featured-${Date.now()}`,
-          name: "",
-          category: "Marca",
-          image_url: "",
-          active: true,
-          order: d.featured_clients.length,
-        },
+        makeEmptyFeaturedClient(d.featured_clients.length),
       ],
     }));
   }
@@ -1215,12 +1357,15 @@ function BrandingSection() {
   }
 
   function removeFeaturedClient(id: string) {
-    setData((d) => ({
-      ...d,
-      featured_clients: d.featured_clients
+    setData((d) => {
+      const next = d.featured_clients
         .filter((item) => item.id !== id)
-        .map((item, index) => ({ ...item, order: index })),
-    }));
+        .map((item, index) => ({ ...item, order: index }));
+      return {
+        ...d,
+        featured_clients: next.length > 0 ? next : [makeEmptyFeaturedClient()],
+      };
+    });
   }
 
   function moveFeaturedClient(id: string, direction: -1 | 1) {
@@ -1230,11 +1375,18 @@ function BrandingSection() {
       const nextIndex = index + direction;
       if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return d;
       [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
-      return { ...d, featured_clients: list.map((item, order) => ({ ...item, order })) };
+      return {
+        ...d,
+        featured_clients: list.map((item, order) => ({ ...item, order })),
+      };
     });
   }
 
-  function nudgePosition(value: string | undefined, dx: number, dy: number): string {
+  function nudgePosition(
+    value: string | undefined,
+    dx: number,
+    dy: number,
+  ): string {
     const [xRaw, yRaw] = String(value || "50% 50%").split(" ");
     const x = Math.min(100, Math.max(0, parseFloat(xRaw) || 50));
     const y = Math.min(100, Math.max(0, parseFloat(yRaw) || 50));
@@ -1256,7 +1408,11 @@ function BrandingSection() {
     setUploadingFeaturedId(id);
     try {
       const { blob, ext, type } = await processImage(file, 512, 512, 0.82);
-      const url = await uploadBlob(blob, `${businessId}/featured-${id}.${ext}`, type);
+      const url = await uploadBlob(
+        blob,
+        `${businessId}/featured-${id}.${ext}`,
+        type,
+      );
       if (!url) return;
       updateFeaturedClient(id, { image_url: url });
       toast.success("Imagen actualizada");
@@ -1328,8 +1484,14 @@ function BrandingSection() {
       .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle();
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const existingBranding = (existingSchedule._branding ?? {}) as Record<string, unknown>;
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const existingBranding = (existingSchedule._branding ?? {}) as Record<
+      string,
+      unknown
+    >;
     const nextPortfolioUrls = data.portfolio_urls.filter(Boolean).slice(0, 3);
     const nextFeaturedClients = data.featured_clients
       .map((item, index) => ({
@@ -1350,7 +1512,9 @@ function BrandingSection() {
         website: data.website,
         description: data.description,
         profile_note: data.profile_note,
-        logo_url: logo_url || (existingBranding.logo_url as string | undefined) || "",
+        profile_note_active: data.profile_note_active,
+        logo_url:
+          logo_url || (existingBranding.logo_url as string | undefined) || "",
         portfolio_urls:
           nextPortfolioUrls.length > 0
             ? nextPortfolioUrls
@@ -1363,7 +1527,10 @@ function BrandingSection() {
           primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
           secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
           accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
-          buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
+          buttonText: normalizeHex(
+            colors.buttonText,
+            LANDING_DEFAULTS.buttonText,
+          ),
         },
         theme,
         benefits: benefits
@@ -1382,16 +1549,21 @@ function BrandingSection() {
     };
     const cfgResult = await supabase
       .from("business_settings")
-      .upsert({ business_id: businessId, schedule: newSchedule }, { onConflict: "business_id" });
+      .upsert(
+        { business_id: businessId, schedule: newSchedule },
+        { onConflict: "business_id" },
+      );
 
     setSaving(false);
-    if (nameResult.error) return toast.error("Error guardando: " + nameResult.error.message);
+    if (nameResult.error)
+      return toast.error("Error guardando: " + nameResult.error.message);
     if (!nameResult.data) {
       return toast.error(
         "No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.",
       );
     }
-    if (cfgResult.error) return toast.error("Error guardando: " + cfgResult.error.message);
+    if (cfgResult.error)
+      return toast.error("Error guardando: " + cfgResult.error.message);
     setData((d) => ({
       ...d,
       phone: normalizedPhone,
@@ -1402,7 +1574,9 @@ function BrandingSection() {
     }));
     setLogoFile(null);
     // Avisar al header (botón 🌐) para que actualice el link al instante.
-    window.dispatchEvent(new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }));
+    window.dispatchEvent(
+      new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }),
+    );
     toast.success("Branding guardado correctamente");
   }
 
@@ -1421,7 +1595,11 @@ function BrandingSection() {
   }, []);
 
   if (loading)
-    return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
+    return (
+      <div className="text-sm text-muted-foreground animate-pulse p-6">
+        Cargando…
+      </div>
+    );
 
   const publicSlug = slugify(data.slug) || slugify(data.name);
   const publicUrl = `https://myclippr.com/negocio/${publicSlug}`;
@@ -1447,7 +1625,10 @@ function BrandingSection() {
     };
     if (typeof nav.share === "function") {
       try {
-        await nav.share({ title: data.name || "Reservá tu turno", url: publicUrl });
+        await nav.share({
+          title: data.name || "Reservá tu turno",
+          url: publicUrl,
+        });
       } catch {
         /* usuario canceló el share */
       }
@@ -1478,51 +1659,142 @@ function BrandingSection() {
   return (
     <>
       <div>
-        <h2 className="text-xl font-display font-semibold">Página de reservas</h2>
+        <h2 className="text-xl font-display font-semibold">
+          Página de reservas
+        </h2>
         <p className="text-sm text-muted-foreground mt-1">
           Configuración de la página pública de reservas
         </p>
       </div>
 
       <SectionCard label="Estado">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <div className="flex flex-1 items-start gap-4 min-w-0">
-            <div className="relative h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.95)]" />
-              <Sparkles className="h-5 w-5 text-violet-200" />
+        <div
+          className={cn(
+            "relative flex flex-col gap-4 pr-0 transition lg:flex-row lg:items-center lg:pr-24",
+            data.profile_note_active && "rounded-2xl",
+          )}
+        >
+          <div className="absolute right-0 top-0 flex items-center">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={data.profile_note_active}
+              onClick={() =>
+                setData((d) => {
+                  const nextActive = !d.profile_note_active;
+                  return {
+                    ...d,
+                    profile_note_active: nextActive,
+                    profile_note:
+                      nextActive && !d.profile_note.trim()
+                        ? "🔥 Últimos turnos para hoy"
+                        : d.profile_note,
+                  };
+                })
+              }
+              className={cn(
+                "relative h-8 w-16 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary/40",
+                data.profile_note_active
+                  ? "border-violet-400/35 bg-violet-500/25 shadow-[0_0_22px_rgba(139,92,246,0.22)]"
+                  : "border-white/8 bg-white/[0.035]",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-1 h-6 w-6 rounded-full transition-all duration-200",
+                  data.profile_note_active
+                    ? "left-9 bg-white shadow-[0_0_14px_rgba(255,255,255,0.35)]"
+                    : "left-1 bg-white/60",
+                )}
+              />
+            </button>
+          </div>
+
+          <div className="flex flex-1 items-start gap-4 min-w-0 pt-2 lg:pt-0">
+            <div
+              className={cn(
+                "relative h-11 w-11 rounded-2xl ring-1 grid place-items-center shrink-0 transition",
+                data.profile_note_active
+                  ? "bg-violet-500/10 ring-violet-400/25"
+                  : "bg-white/5 ring-white/10",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute right-2 top-2 h-2.5 w-2.5 rounded-full transition",
+                  data.profile_note_active
+                    ? "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.9)]"
+                    : "bg-white/25",
+                )}
+              />
+              <Sparkles
+                className={cn(
+                  "h-5 w-5 transition",
+                  data.profile_note_active
+                    ? "text-violet-200"
+                    : "text-white/45",
+                )}
+              />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="font-semibold text-sm">Estado público</div>
-                {data.profile_note.trim() ? (
-                  <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200 ring-1 ring-violet-400/20">
-                    Activo
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/45 ring-1 ring-white/10">
-                    Oculto
-                  </span>
+              <div className="font-semibold text-sm">Estado público</div>
+              <p
+                className={cn(
+                  "mt-1 text-xs transition",
+                  data.profile_note_active
+                    ? "text-muted-foreground"
+                    : "text-muted-foreground/70",
                 )}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Aparece arriba de tu página pública. Ideal para promociones, avisos o novedades.
+              >
+                Aparece arriba de tu página pública. Ideal para promociones,
+                avisos o novedades.
               </p>
             </div>
           </div>
 
           <div className="w-full lg:w-[420px]">
-            <input
-              type="text"
-              value={data.profile_note}
-              onChange={(e) =>
-                setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
-              }
-              maxLength={80}
-              placeholder="Ej: 10% OFF pagando en efectivo"
-              className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={data.profile_note}
+                onChange={(e) =>
+                  setData((d) => ({
+                    ...d,
+                    profile_note: e.target.value.slice(0, 80),
+                  }))
+                }
+                maxLength={80}
+                placeholder="🔥 Últimos turnos para hoy"
+                className={cn(
+                  "w-full rounded-xl px-3 py-2.5 pr-10 text-sm transition focus:outline-none",
+                  data.profile_note_active
+                    ? "bg-white/5 ring-1 ring-violet-400/40 focus:ring-violet-300/60 text-white"
+                    : "bg-white/[0.035] ring-1 ring-white/10 text-white/60 placeholder:text-white/35 focus:ring-white/20",
+                )}
+              />
+              {data.profile_note.trim() ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setData((d) => ({
+                      ...d,
+                      profile_note: "",
+                      profile_note_active: false,
+                    }))
+                  }
+                  className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-white/45 transition hover:bg-white/10 hover:text-white"
+                  aria-label="Limpiar estado"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
             <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>Máximo 80 caracteres</span>
+              <span>
+                {data.profile_note_active
+                  ? "Publicado en tu página pública"
+                  : "Guardado como borrador. Activá el switch para publicarlo."}
+              </span>
               <span>{data.profile_note.length}/80</span>
             </div>
           </div>
@@ -1560,13 +1832,18 @@ function BrandingSection() {
               {infoRows.map((f) => {
                 const Icon = f.icon;
                 return (
-                  <div key={f.key} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+                  <div
+                    key={f.key}
+                    className="flex items-center gap-4 py-3 first:pt-0 last:pb-0"
+                  >
                     <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
                       <Icon className="h-4.5 w-4.5 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm">{f.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{f.hint}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {f.hint}
+                      </div>
                     </div>
                     <div className="w-72 max-w-[55%]">
                       <input
@@ -1584,9 +1861,12 @@ function BrandingSection() {
                   <CalendarDays className="h-4.5 w-4.5 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">Fecha de inicio del negocio</div>
+                  <div className="font-medium text-sm">
+                    Fecha de inicio del negocio
+                  </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Se usa para calcular los años de experiencia en el perfil público.
+                    Se usa para calcular los años de experiencia en el perfil
+                    público.
                   </div>
                 </div>
                 <div className="w-72 max-w-[55%]">
@@ -1594,7 +1874,10 @@ function BrandingSection() {
                     type="date"
                     value={data.business_start_date}
                     onChange={(e) =>
-                      setData((d) => ({ ...d, business_start_date: e.target.value }))
+                      setData((d) => ({
+                        ...d,
+                        business_start_date: e.target.value,
+                      }))
                     }
                     className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 [color-scheme:dark]"
                   />
@@ -1616,8 +1899,15 @@ function BrandingSection() {
                 <input
                   type="text"
                   value={data.slug}
-                  onChange={(e) => setData((d) => ({ ...d, slug: slugifyLive(e.target.value) }))}
-                  onBlur={() => setData((d) => ({ ...d, slug: slugify(d.slug) }))}
+                  onChange={(e) =>
+                    setData((d) => ({
+                      ...d,
+                      slug: slugifyLive(e.target.value),
+                    }))
+                  }
+                  onBlur={() =>
+                    setData((d) => ({ ...d, slug: slugify(d.slug) }))
+                  }
                   placeholder="auro-styloff"
                   className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
                 />
@@ -1705,7 +1995,9 @@ function BrandingSection() {
               <div className="flex gap-2">
                 <input
                   value={customBenefit}
-                  onChange={(e) => setCustomBenefit(e.target.value.slice(0, 35))}
+                  onChange={(e) =>
+                    setCustomBenefit(e.target.value.slice(0, 35))
+                  }
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -1739,180 +2031,209 @@ function BrandingSection() {
       {activeTab === "imagenes" && (
         <>
           <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
-            <div className="space-y-3">
-              {/* Foto de perfil (sitio web público) */}
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <UserIcon className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
+            <div className="space-y-5">
+              {/* Foto de perfil */}
+              <div className="flex items-center gap-4 border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
+                <label
+                  className={cn(
+                    "group relative grid h-16 w-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                    uploadingAvatar && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="Foto de perfil"
+                      className="h-full w-full object-cover"
+                      style={{ objectPosition: data.avatar_position }}
+                    />
+                  ) : (
+                    <UserIcon className="h-5 w-5 text-white/45" />
+                  )}
+                  <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                    <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                      {uploadingAvatar ? "Subiendo" : "Cargar"}
+                    </span>
+                  </div>
+                  {!avatarPreview ? (
+                    <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                      Cargar
+                    </span>
+                  ) : null}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingAvatar}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      e.target.value = "";
+                      handleAvatarSelect(f);
+                    }}
+                  />
+                </label>
+
+                <div className="min-w-0 flex-1">
                   <div className="font-medium text-sm">Foto de perfil</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Se muestra en tu sitio web público. Se optimiza a WebP 512px.
+                    Imagen circular del perfil público. Se optimiza a WebP
+                    512px.
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
-                    {avatarPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                        uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                      )}
-                    >
-                      <Upload className="h-3.5 w-3.5" />{" "}
-                      {uploadingAvatar
-                        ? "Subiendo…"
-                        : avatarPreview
-                          ? "Cambiar foto"
-                          : "Subir foto"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={uploadingAvatar}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          e.target.value = "";
-                          handleAvatarSelect(f);
-                        }}
-                      />
-                    </label>
-                    {avatarPreview ? (
-                      <button
-                        type="button"
-                        onClick={removeAvatar}
-                        className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                      >
-                        <X className="h-3.5 w-3.5" /> Eliminar
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+
                 {avatarPreview ? (
-                  <PositionControls
-                    value={data.avatar_position}
-                    onChange={(next) => setData((d) => ({ ...d, avatar_position: next }))}
-                  />
+                  <button
+                    type="button"
+                    onClick={removeAvatar}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                    aria-label="Eliminar foto de perfil"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 ) : null}
               </div>
 
-              {/* Portada (sitio web público) */}
-              <div className="border-t border-white/5 pt-5">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                    <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
+              {/* Portada */}
+              <div className="flex items-center gap-4 border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
+                <label
+                  className={cn(
+                    "group relative grid h-16 w-28 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07] sm:w-36",
+                    uploadingCover && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  {coverPreview ? (
+                    <img
+                      src={coverPreview}
+                      alt="Portada"
+                      className="h-full w-full object-cover"
+                      style={{ objectPosition: data.cover_position }}
+                    />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-white/45" />
+                  )}
+                  <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                    <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                      {uploadingCover ? "Subiendo" : "Cargar"}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">Portada</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Banner superior de tu sitio web. Se optimiza a WebP 1600×600.
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
-                      {coverPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                          uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                        )}
-                      >
-                        <Upload className="h-3.5 w-3.5" />{" "}
-                        {uploadingCover
-                          ? "Subiendo…"
-                          : coverPreview
-                            ? "Cambiar imagen"
-                            : "Subir portada"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingCover}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0] ?? null;
-                            e.target.value = "";
-                            handleCoverSelect(f);
-                          }}
-                        />
-                      </label>
-                      {coverPreview ? (
-                        <button
-                          type="button"
-                          onClick={removeCover}
-                          className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                        >
-                          <X className="h-3.5 w-3.5" /> Eliminar
-                        </button>
-                      ) : null}
-                    </div>
+                  {!coverPreview ? (
+                    <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                      Cargar
+                    </span>
+                  ) : null}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingCover}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      e.target.value = "";
+                      handleCoverSelect(f);
+                    }}
+                  />
+                </label>
+
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm">Portada</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Banner superior de tu sitio web. Se optimiza a WebP
+                    1600×600.
                   </div>
                 </div>
+
+                {coverPreview ? (
+                  <button
+                    type="button"
+                    onClick={removeCover}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                    aria-label="Eliminar portada"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
 
-              {/* Portafolio (sitio web público) */}
-              <div className="border-t border-white/5 pt-5">
-                <div className="flex items-start gap-4">
+              {/* Portafolio */}
+              <div>
+                <div className="mb-3 flex items-start gap-4">
                   <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
                     <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm">Portafolio</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      Imágenes destacadas que se mostrarán en tu página pública.
+                      Hasta 3 imágenes destacadas para tu página pública.
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-3">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
                     return (
                       <div
                         key={index}
-                        className="rounded-xl border border-white/10 bg-white/[0.03] p-3"
+                        className="flex items-center gap-3 rounded-2xl bg-white/[0.03] p-2 ring-1 ring-white/10"
                       >
-                        <div className="mb-2 text-xs text-muted-foreground">
-                          {url
-                            ? `✅ Imagen ${index + 1} cargada`
-                            : `📷 Imagen ${index + 1} sin cargar`}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label
-                            className={cn(
-                              "inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                              uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                            )}
-                          >
-                            <Upload className="h-3.5 w-3.5" />{" "}
-                            {uploading ? "Subiendo…" : url ? "Cambiar" : "Subir"}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploading}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handlePortfolioSelect(index, f);
-                              }}
-                            />
-                          </label>
+                        <label
+                          className={cn(
+                            "group relative grid h-20 w-20 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            uploading && "cursor-not-allowed opacity-50",
+                          )}
+                        >
                           {url ? (
-                            <button
-                              type="button"
-                              onClick={() => removePortfolioImage(index)}
-                              className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
+                            <img
+                              src={url}
+                              alt={`Imagen ${index + 1}`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-white/45" />
+                          )}
+                          <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                            <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                              {uploading ? "Subiendo" : "Cargar"}
+                            </span>
+                          </div>
+                          {!url ? (
+                            <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                              Cargar
+                            </span>
                           ) : null}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] ?? null;
+                              e.target.value = "";
+                              handlePortfolioSelect(index, f);
+                            }}
+                          />
+                        </label>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium">
+                            Imagen {index + 1}
+                          </div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {url ? "Cargada" : "Sin cargar"}
+                          </div>
                         </div>
+
+                        {url ? (
+                          <button
+                            type="button"
+                            onClick={() => removePortfolioImage(index)}
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            aria-label={`Eliminar imagen ${index + 1}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -1921,127 +2242,147 @@ function BrandingSection() {
             </div>
           </SectionCard>
 
-          <SectionCard label="Confían en nosotros">
+          <SectionCard label="">
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-sm font-medium">Clientes destacados</div>
+                  <div className="text-sm font-medium">Confían en nosotros</div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta
+                    Logos o fotos de personas, marcas o equipos que querés
+                    mostrar en tu página pública. Si no hay activos, esta
                     sección no aparece.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={addFeaturedClient}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10"
                 >
                   <Plus className="h-4 w-4" /> Agregar
                 </button>
               </div>
 
-              {data.featured_clients.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-center text-sm text-muted-foreground">
-                  Todavía no cargaste clientes destacados.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.featured_clients.map((item, index) => {
-                    const uploading = uploadingFeaturedId === item.id;
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+              <div className="space-y-2">
+                {data.featured_clients.map((item, index) => {
+                  const uploading = uploadingFeaturedId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 lg:grid-cols-[72px_1fr_170px_auto] lg:items-center"
+                    >
+                      <label
+                        className={cn(
+                          "group relative grid h-16 w-16 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                          uploading && "cursor-not-allowed opacity-50",
+                        )}
                       >
-                        <div className="grid gap-3 lg:grid-cols-[1fr_180px_150px_auto] lg:items-center">
-                          <input
-                            value={item.name}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, { name: e.target.value })
-                            }
-                            placeholder="Nombre: Nike, Duki, Boca Juniors..."
-                            className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.name || "Confían en nosotros"}
+                            className="h-full w-full object-cover"
                           />
-                          <select
-                            value={item.category}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, {
-                                category: e.target.value as FeaturedClientCategory,
-                              })
-                            }
-                            className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                          >
-                            {FEATURED_CLIENT_CATEGORIES.map((cat) => (
-                              <option key={cat} value={cat}>
-                                {cat}
-                              </option>
-                            ))}
-                          </select>
-                          <label
-                            className={cn(
-                              "inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10",
-                              uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                            )}
-                          >
-                            <Upload className="h-3.5 w-3.5" />{" "}
-                            {uploading ? "Subiendo…" : item.image_url ? "✅ Cambiar" : "📷 Imagen"}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploading}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handleFeaturedImageSelect(item.id, f);
-                              }}
-                            />
-                          </label>
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateFeaturedClient(item.id, { active: !item.active })
-                              }
-                              className={cn(
-                                "rounded-lg px-2.5 py-2 text-xs ring-1",
-                                item.active
-                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                  : "bg-white/5 text-muted-foreground ring-white/10",
-                              )}
-                            >
-                              {item.active ? "Activo" : "Inactivo"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveFeaturedClient(item.id, -1)}
-                              disabled={index === 0}
-                              className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                            >
-                              <ChevronUp className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveFeaturedClient(item.id, 1)}
-                              disabled={index === data.featured_clients.length - 1}
-                              className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeFeaturedClient(item.id)}
-                              className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-white/45" />
+                        )}
+                        <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                          <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                            {uploading ? "Subiendo" : "Cargar"}
+                          </span>
                         </div>
+                        {!item.image_url ? (
+                          <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                            Cargar
+                          </span>
+                        ) : null}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploading}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] ?? null;
+                            e.target.value = "";
+                            handleFeaturedImageSelect(item.id, f);
+                          }}
+                        />
+                      </label>
+
+                      <input
+                        value={item.name}
+                        onChange={(e) =>
+                          updateFeaturedClient(item.id, {
+                            name: e.target.value,
+                          })
+                        }
+                        placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                        className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      />
+
+                      <select
+                        value={item.category}
+                        onChange={(e) =>
+                          updateFeaturedClient(item.id, {
+                            category: e.target.value as FeaturedClientCategory,
+                          })
+                        }
+                        className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                      >
+                        {FEATURED_CLIENT_CATEGORIES.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateFeaturedClient(item.id, {
+                              active: !item.active,
+                            })
+                          }
+                          className={cn(
+                            "rounded-full px-2.5 py-2 text-xs ring-1 transition",
+                            item.active
+                              ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                              : "bg-white/5 text-muted-foreground ring-white/10",
+                          )}
+                        >
+                          {item.active ? "Activo" : "Inactivo"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFeaturedClient(item.id, -1)}
+                          disabled={index === 0}
+                          className="rounded-full bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
+                          aria-label="Subir"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFeaturedClient(item.id, 1)}
+                          disabled={index === data.featured_clients.length - 1}
+                          className="rounded-full bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
+                          aria-label="Bajar"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeFeaturedClient(item.id)}
+                          className="rounded-full bg-white/5 p-2 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                          aria-label="Eliminar de Confían en nosotros"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </SectionCard>
         </>
@@ -2051,21 +2392,21 @@ function BrandingSection() {
         <>
           <SectionCard label="Colores">
             <p className="text-sm text-white/55">
-              Personalizá modo claro/oscuro, gradientes, glows, color de resaltado y texto de
-              botones.
+              Personalizá modo claro/oscuro, gradientes, glows, color de
+              resaltado y texto de botones.
             </p>
             <div className="mt-5 space-y-4">
               {(
                 [
                   {
                     key: "primary",
-                    label: "Color 1 (izquierda)",
-                    desc: "Extremo izquierdo del gradiente de la cabecera, glows y fondo ambiental.",
+                    label: "Color principal",
+                    desc: "Color base de la portada, glows y fondo ambiental.",
                   },
                   {
                     key: "secondary",
-                    label: "Color 2 (derecha)",
-                    desc: "Extremo derecho del gradiente de la cabecera, glows y fondo ambiental.",
+                    label: "Color secundario",
+                    desc: "Color complementario del gradiente y luces ambientales.",
                   },
                   {
                     key: "accent",
@@ -2087,7 +2428,9 @@ function BrandingSection() {
                     <input
                       type="color"
                       value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
-                      onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
+                      onChange={(e) =>
+                        setColors((c) => ({ ...c, [key]: e.target.value }))
+                      }
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     />
                   </label>
@@ -2098,7 +2441,9 @@ function BrandingSection() {
                   <input
                     type="text"
                     value={colors[key]}
-                    onChange={(e) => setColors((c) => ({ ...c, [key]: e.target.value }))}
+                    onChange={(e) =>
+                      setColors((c) => ({ ...c, [key]: e.target.value }))
+                    }
                     spellCheck={false}
                     className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25"
                     placeholder="#000000"
@@ -2107,9 +2452,12 @@ function BrandingSection() {
               ))}
             </div>
             <div className="mt-6 border-t border-white/10 pt-5">
-              <h3 className="text-sm font-semibold">Modo de la página pública</h3>
+              <h3 className="text-sm font-semibold">
+                Modo de la página pública
+              </h3>
               <p className="mt-1 text-xs text-white/50">
-                Elegí si el perfil público y la reserva online se ven en modo oscuro o claro.
+                Elegí si el perfil público y la reserva online se ven en modo
+                oscuro o claro.
               </p>
               <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
                 {(["dark", "light"] as LandingTheme[]).map((mode) => (
@@ -2117,12 +2465,12 @@ function BrandingSection() {
                     key={mode}
                     type="button"
                     onClick={() => setTheme(mode)}
-                    className={
-                      "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-                      (theme === mode
-                        ? "bg-white text-white"
-                        : "text-white/60 hover:bg-white/10 hover:text-white")
-                    }
+                    className={cn(
+                      "rounded-xl px-4 py-2 text-sm font-semibold transition",
+                      theme === mode
+                        ? "bg-white text-slate-950 shadow-sm"
+                        : "text-white/60 hover:bg-white/10 hover:text-white",
+                    )}
                   >
                     {mode === "dark" ? "Modo oscuro" : "Modo claro"}
                   </button>
@@ -2135,7 +2483,10 @@ function BrandingSection() {
               <div
                 className="mt-3 overflow-hidden rounded-2xl border p-6"
                 style={{
-                  borderColor: theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+                  borderColor:
+                    theme === "light"
+                      ? "rgba(15,23,42,0.10)"
+                      : "rgba(255,255,255,0.10)",
                   color: theme === "light" ? "#0f172a" : "#fff",
                   background: `linear-gradient(90deg, color-mix(in oklch, ${colors.primary} 42%, transparent), color-mix(in oklch, ${colors.secondary} 42%, transparent)), ${theme === "light" ? "#f8fafc" : "#080512"}`,
                 }}
@@ -2144,9 +2495,13 @@ function BrandingSection() {
                   className="relative rounded-3xl border p-4 shadow-xl"
                   style={{
                     borderColor:
-                      theme === "light" ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
+                      theme === "light"
+                        ? "rgba(15,23,42,0.10)"
+                        : "rgba(255,255,255,0.10)",
                     background:
-                      theme === "light" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)",
+                      theme === "light"
+                        ? "rgba(255,255,255,0.88)"
+                        : "rgba(255,255,255,0.04)",
                   }}
                 >
                   <h3 className="text-base font-semibold">Reservá tu turno</h3>
@@ -2162,8 +2517,13 @@ function BrandingSection() {
                     Reservar turno
                   </button>
                   <div className="mt-3 flex items-center gap-2 text-sm">
-                    <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} />
-                    <span style={{ color: colors.accent, fontWeight: 600 }}>Abierto ahora</span>
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: colors.accent }}
+                    />
+                    <span style={{ color: colors.accent, fontWeight: 600 }}>
+                      Abierto ahora
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2176,7 +2536,13 @@ function BrandingSection() {
 }
 
 // ─────────── shared bits ───────────
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  on,
+  onChange,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <button
       onClick={() => onChange(!on)}
@@ -2197,12 +2563,20 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   );
 }
 
-function SectionCard({ label, children }: { label: string; children: React.ReactNode }) {
+function SectionCard({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-4">
-        {label}
-      </div>
+      {label ? (
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-4">
+          {label}
+        </div>
+      ) : null}
       {children}
     </div>
   );
@@ -2231,7 +2605,9 @@ function ConfirmDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
         <div>
-          <div className="font-display font-semibold text-base text-foreground">{title}</div>
+          <div className="font-display font-semibold text-base text-foreground">
+            {title}
+          </div>
           <div className="text-sm text-muted-foreground mt-1">{message}</div>
         </div>
         <div className="flex gap-3 justify-end">
@@ -2259,7 +2635,15 @@ function ConfirmDialog({
 }
 
 // ─────────── Horarios ───────────
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const DAYS = [
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+  "Domingo",
+];
 
 type ReservationSettings = {
   interval: string;
@@ -2283,9 +2667,8 @@ function HorariosSection() {
       enabled: i < 6,
     })),
   );
-  const [reservationSettings, setReservationSettings] = useState<ReservationSettings>(
-    DEFAULT_RESERVATION_SETTINGS,
-  );
+  const [reservationSettings, setReservationSettings] =
+    useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
   const [businessSpecial, setBusinessSpecial] = useState<SpecialDateMap>({});
   const [saving, setSaving] = useState(false);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -2299,7 +2682,8 @@ function HorariosSection() {
   const normalizeCloseTime = (open: string, close: string) => {
     const openMin = timeToMinutes(open);
     const closeMin = timeToMinutes(close);
-    if (openMin == null || closeMin == null || closeMin <= openMin) return "20:00";
+    if (openMin == null || closeMin == null || closeMin <= openMin)
+      return "20:00";
     return close;
   };
 
@@ -2311,13 +2695,15 @@ function HorariosSection() {
       .eq("business_id", businessId)
       .maybeSingle()
       .then(({ data }) => {
-        const schedule = data?.schedule as Record<string, any> | null | undefined;
+        const schedule = data?.schedule as
+          Record<string, any> | null | undefined;
         if (!schedule || typeof schedule !== "object") return;
         setDays((current) =>
           current.map((day, i) => {
             const saved = schedule[dayKeys[i]];
             if (!saved || typeof saved !== "object") return day;
-            const open = typeof saved.start === "string" ? saved.start : day.open;
+            const open =
+              typeof saved.start === "string" ? saved.start : day.open;
             const close = typeof saved.end === "string" ? saved.end : day.close;
             return {
               ...day,
@@ -2330,12 +2716,21 @@ function HorariosSection() {
         const settings = schedule._settings;
         if (settings && typeof settings === "object") {
           setReservationSettings({
-            interval: String(settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval),
-            maxAdvance: String(settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance),
-            minCancel: String(settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel),
+            interval: String(
+              settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval,
+            ),
+            maxAdvance: String(
+              settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
+            ),
+            minCancel: String(
+              settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
+            ),
           });
         }
-        if (schedule._specialDates && typeof schedule._specialDates === "object") {
+        if (
+          schedule._specialDates &&
+          typeof schedule._specialDates === "object"
+        ) {
           setBusinessSpecial(schedule._specialDates as SpecialDateMap);
         }
       });
@@ -2352,7 +2747,9 @@ function HorariosSection() {
     });
 
     if (invalidDay) {
-      toast.error("El horario de cierre debe ser posterior al horario de apertura.");
+      toast.error(
+        "El horario de cierre debe ser posterior al horario de apertura.",
+      );
       return;
     }
 
@@ -2388,7 +2785,10 @@ function HorariosSection() {
 
     const { error } = await supabase
       .from("business_settings")
-      .upsert({ business_id: businessId, schedule }, { onConflict: "business_id" });
+      .upsert(
+        { business_id: businessId, schedule },
+        { onConflict: "business_id" },
+      );
 
     setSaving(false);
     if (error) return toast.error("Error guardando horarios: " + error.message);
@@ -2437,8 +2837,12 @@ function HorariosSection() {
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-display font-semibold">Horarios de atención</h2>
-          <p className="text-sm text-muted-foreground mt-1">Días y horarios de atención.</p>
+          <h2 className="text-xl font-display font-semibold">
+            Horarios de atención
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Días y horarios de atención.
+          </p>
         </div>
       </div>
 
@@ -2494,7 +2898,9 @@ function HorariosSection() {
                         ? {
                             ...x,
                             enabled: v,
-                            close: v ? normalizeCloseTime(x.open, x.close) : x.close,
+                            close: v
+                              ? normalizeCloseTime(x.open, x.close)
+                              : x.close,
                           }
                         : x,
                     ),
@@ -2540,13 +2946,18 @@ function HorariosSection() {
           {reservationRows.map((r) => {
             const Icon = r.icon;
             return (
-              <div key={r.key} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+              <div
+                key={r.key}
+                className="flex items-center gap-4 py-3 first:pt-0 last:pb-0"
+              >
                 <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
                   <Icon className="h-4.5 w-4.5 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{r.title}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{r.hint}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {r.hint}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2">
                   <input
@@ -2561,7 +2972,9 @@ function HorariosSection() {
                     }
                     className="w-16 bg-transparent text-sm focus:outline-none text-right"
                   />
-                  <span className="text-xs text-muted-foreground">{r.suffix}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {r.suffix}
+                  </span>
                 </div>
               </div>
             );
@@ -2760,12 +3173,15 @@ function Field({
         {label}
       </div>
       {children}
-      {hint && <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>}
+      {hint && (
+        <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>
+      )}
     </div>
   );
 }
 
-type RolePermissionId = "admin_general" | "socio" | "admin_local" | "recepcionista" | "profesional";
+type RolePermissionId =
+  "admin_general" | "socio" | "admin_local" | "recepcionista" | "profesional";
 
 type PermissionKey =
   | "dashboard"
@@ -2827,8 +3243,16 @@ const EMPTY_ACCESS_FORM: AccessFormState = {
   branch_id: null,
 };
 
-const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
-  { key: "dashboard", label: "Dashboard", desc: "Métricas generales del negocio." },
+const MAIN_PERMISSION_ITEMS: {
+  key: PermissionKey;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    desc: "Métricas generales del negocio.",
+  },
   { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },
   { key: "caja_cobro", label: "Caja", desc: "Cobros y medios de pago." },
   {
@@ -2837,7 +3261,11 @@ const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }
     desc: "Vista operativa para profesionales.",
   },
   { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
-  { key: "configuracion", label: "Configuración", desc: "Acceso a ajustes del negocio." },
+  {
+    key: "configuracion",
+    label: "Configuración",
+    desc: "Acceso a ajustes del negocio.",
+  },
   {
     key: "asesor_ia",
     label: "Asesor IA",
@@ -2845,15 +3273,43 @@ const MAIN_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }
   },
 ];
 
-const CONFIG_PERMISSION_ITEMS: { key: PermissionKey; label: string; desc: string }[] = [
-  { key: "branding", label: "Página de reservas", desc: "Identidad visual y datos del negocio." },
-  { key: "horarios", label: "Horarios", desc: "Disponibilidad y reglas de agenda." },
-  { key: "equipo", label: "Equipo", desc: "Profesionales, usuarios y permisos." },
-  { key: "servicios", label: "Servicios", desc: "Servicios, precios y categorías." },
-  { key: "catalogo", label: "Catálogo", desc: "Productos, stock y categorías." },
+const CONFIG_PERMISSION_ITEMS: {
+  key: PermissionKey;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    key: "branding",
+    label: "Página de reservas",
+    desc: "Identidad visual y datos del negocio.",
+  },
+  {
+    key: "horarios",
+    label: "Horarios",
+    desc: "Disponibilidad y reglas de agenda.",
+  },
+  {
+    key: "equipo",
+    label: "Equipo",
+    desc: "Profesionales, usuarios y permisos.",
+  },
+  {
+    key: "servicios",
+    label: "Servicios",
+    desc: "Servicios, precios y categorías.",
+  },
+  {
+    key: "catalogo",
+    label: "Catálogo",
+    desc: "Productos, stock y categorías.",
+  },
   { key: "caja", label: "Caja", desc: "Métodos de pago y reglas de cobro." },
   { key: "senas", label: "Señas", desc: "Reglas de señas para reservas." },
-  { key: "plan_facturacion", label: "Plan & Facturación", desc: "Suscripción y facturación." },
+  {
+    key: "plan_facturacion",
+    label: "Plan & Facturación",
+    desc: "Suscripción y facturación.",
+  },
 ];
 
 const ALL_PERMISSION_KEYS: PermissionKey[] = [
@@ -2874,7 +3330,10 @@ const CONFIG_SUB_KEYS: PermissionKey[] = [
 ];
 
 const allOnPermissions = (): PermissionMap =>
-  ALL_PERMISSION_KEYS.reduce((acc, key) => ({ ...acc, [key]: true }), {} as PermissionMap);
+  ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: true }),
+    {} as PermissionMap,
+  );
 
 const buildPermissions = (enabled: PermissionKey[]): PermissionMap =>
   ALL_PERMISSION_KEYS.reduce(
@@ -2958,7 +3417,10 @@ const ROLE_PERMISSION_OPTIONS: {
   },
 ];
 
-const ROLE_ACCESS_SUMMARY: Record<RolePermissionId, { title: string; desc: string; can: string[]; cannot: string[] }> = {
+const ROLE_ACCESS_SUMMARY: Record<
+  RolePermissionId,
+  { title: string; desc: string; can: string[]; cannot: string[] }
+> = {
   admin_general: {
     title: "Acceso total",
     desc: "Dueño principal del negocio. Control completo de Clippr.",
@@ -2992,7 +3454,9 @@ const ROLE_ACCESS_SUMMARY: Record<RolePermissionId, { title: string; desc: strin
 };
 
 function normalizeRolePermissions(value: unknown): RolePermissions {
-  const saved = (value && typeof value === "object" ? value : {}) as Partial<RolePermissions>;
+  const saved = (
+    value && typeof value === "object" ? value : {}
+  ) as Partial<RolePermissions>;
   return ROLE_PERMISSION_OPTIONS.reduce((acc, role) => {
     const base = DEFAULT_ROLE_PERMISSIONS[role.id];
     const incoming = (saved[role.id] ?? {}) as Partial<PermissionMap>;
@@ -3002,7 +3466,10 @@ function normalizeRolePermissions(value: unknown): RolePermissions {
         : ALL_PERMISSION_KEYS.reduce(
             (roleAcc, key) => ({
               ...roleAcc,
-              [key]: typeof incoming[key] === "boolean" ? Boolean(incoming[key]) : base[key],
+              [key]:
+                typeof incoming[key] === "boolean"
+                  ? Boolean(incoming[key])
+                  : base[key],
             }),
             {} as PermissionMap,
           );
@@ -3011,7 +3478,10 @@ function normalizeRolePermissions(value: unknown): RolePermissions {
 }
 
 function normalizePermissionMap(value: unknown): PermissionMap {
-  const src = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const src = (value && typeof value === "object" ? value : {}) as Record<
+    string,
+    unknown
+  >;
   return ALL_PERMISSION_KEYS.reduce(
     (acc, key) => ({ ...acc, [key]: src[key] === true }),
     {} as PermissionMap,
@@ -3052,11 +3522,26 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   const displayName = emp.full_name || emp.name || "—";
   const active = emp.is_active !== false;
   return (
-    <div className={cn("glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity", (!active || deleting) && "opacity-70")}>
+    <div
+      className={cn(
+        "glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity",
+        (!active || deleting) && "opacity-70",
+      )}
+    >
       <div className="flex items-center gap-3">
-        <div className={cn("h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10", tintClass)}>
+        <div
+          className={cn(
+            "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10",
+            tintClass,
+          )}
+        >
           {emp.avatar_url ? (
-            <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
+            <img
+              src={emp.avatar_url}
+              alt={displayName}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
           ) : (
             displayName[0]?.toUpperCase()
           )}
@@ -3065,13 +3550,20 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           <div className="font-medium text-sm truncate">{displayName}</div>
           <div className="text-xs text-muted-foreground">Profesional</div>
         </div>
-        <span className={cn(
-          "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
-          active
-            ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-            : "bg-white/5 ring-white/10 text-muted-foreground",
-        )}>
-          <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground")} />
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
+            active
+              ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
+              : "bg-white/5 ring-white/10 text-muted-foreground",
+          )}
+        >
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
+            )}
+          />
           {active ? "Activo" : "Inactivo"}
         </span>
       </div>
@@ -3095,7 +3587,11 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           disabled={deleting}
           className="inline-flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5 disabled:opacity-60"
         >
-          {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          {deleting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="h-3.5 w-3.5" />
+          )}
         </button>
       </div>
     </div>
@@ -3105,30 +3601,45 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
 function EquipoSection() {
   const { businessId } = useAuth();
   const [tab, setTab] = useState<"pros" | "users">("pros");
-  const [selectedPermRole, setSelectedPermRole] = useState<RolePermissionId>("admin_general");
-  const [rolePermissions, setRolePermissions] = useState<RolePermissions>(DEFAULT_ROLE_PERMISSIONS);
+  const [selectedPermRole, setSelectedPermRole] =
+    useState<RolePermissionId>("admin_general");
+  const [rolePermissions, setRolePermissions] = useState<RolePermissions>(
+    DEFAULT_ROLE_PERMISSIONS,
+  );
   const [individualPermMode, setIndividualPermMode] = useState(true);
   const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
-  const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(null);
-  const [pendingDeleteUser, setPendingDeleteUser] = useState<AccessUser | null>(null);
+  const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(
+    null,
+  );
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<AccessUser | null>(
+    null,
+  );
   const [deletingAccess, setDeletingAccess] = useState(false);
   const [accessTouched, setAccessTouched] = useState(false);
-  const [accessPermissionsForm, setAccessPermissionsForm] = useState<PermissionMap>(
-    DEFAULT_ROLE_PERMISSIONS.profesional,
-  );
-  const [userPermissions, setUserPermissions] = useState<Record<string, PermissionMap>>({});
+  const [accessPermissionsForm, setAccessPermissionsForm] =
+    useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
+  const [userPermissions, setUserPermissions] = useState<
+    Record<string, PermissionMap>
+  >({});
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
   const [rows, setRows] = useState<EmployeeRow[]>([]);
-  const [employeeOnlineMap, setEmployeeOnlineMap] = useState<Record<string, boolean>>({});
+  const [employeeOnlineMap, setEmployeeOnlineMap] = useState<
+    Record<string, boolean>
+  >({});
   // Horario individual por profesional cargado desde
   // business_settings.schedule._employeeSchedules. Pre-carga el form al editar
   // y evita perderlo al re-guardar.
-  const [employeeSchedules, setEmployeeSchedules] = useState<Record<string, ScheduleMap>>({});
-  const [employeeSpecialDates, setEmployeeSpecialDates] = useState<EmployeeSpecialDateMap>({});
-  const [pendingProfessionals, setPendingProfessionals] = useState<PendingProfessional[]>([]);
+  const [employeeSchedules, setEmployeeSchedules] = useState<
+    Record<string, ScheduleMap>
+  >({});
+  const [employeeSpecialDates, setEmployeeSpecialDates] =
+    useState<EmployeeSpecialDateMap>({});
+  const [pendingProfessionals, setPendingProfessionals] = useState<
+    PendingProfessional[]
+  >([]);
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -3137,7 +3648,9 @@ function EquipoSection() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
-  const [dlgTab, setDlgTab] = useState<"perfil" | "horarios" | "comisiones">("perfil");
+  const [dlgTab, setDlgTab] = useState<"perfil" | "horarios" | "comisiones">(
+    "perfil",
+  );
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -3153,7 +3666,9 @@ function EquipoSection() {
         .order("full_name", { ascending: true }),
       supabase
         .from("price_catalog")
-        .select("id,name,price,duration_min,category,active,stock,cash_discount")
+        .select(
+          "id,name,price,duration_min,category,active,stock,cash_discount",
+        )
         .eq("business_id", businessId)
         .order("category")
         .order("name"),
@@ -3165,8 +3680,13 @@ function EquipoSection() {
     ]);
     if (error) toast.error("Error cargando profesionales: " + error.message);
     if (catalogResult.error)
-      toast.error("Error cargando servicios y catálogo: " + catalogResult.error.message);
-    const schedule = (settingsResult.data?.schedule ?? {}) as Record<string, unknown>;
+      toast.error(
+        "Error cargando servicios y catálogo: " + catalogResult.error.message,
+      );
+    const schedule = (settingsResult.data?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
     const employeeRoles = (
       schedule._employeeRoles && typeof schedule._employeeRoles === "object"
         ? schedule._employeeRoles
@@ -3203,13 +3723,20 @@ function EquipoSection() {
     // la fila se conserva en la base para bloquear el re-acceso, pero NO debe
     // mostrarse en la lista de accesos.
     const rows = ((data ?? []) as Array<Record<string, unknown>>).filter(
-      (r) => !["deleted", "removed"].includes(String(r.status ?? "").toLowerCase()),
+      (r) =>
+        !["deleted", "removed"].includes(String(r.status ?? "").toLowerCase()),
     );
     const users: AccessUser[] = rows.map((r) => {
       const rawStatus = String(r.status ?? "invited");
       const status: AccessStatus =
-        rawStatus === "active" ? "active" : rawStatus === "suspended" ? "suspended" : "invited";
-      const role: RolePermissionId = ROLE_PERMISSION_OPTIONS.some((o) => o.id === r.role)
+        rawStatus === "active"
+          ? "active"
+          : rawStatus === "suspended"
+            ? "suspended"
+            : "invited";
+      const role: RolePermissionId = ROLE_PERMISSION_OPTIONS.some(
+        (o) => o.id === r.role,
+      )
         ? (r.role as RolePermissionId)
         : "profesional";
       return {
@@ -3250,16 +3777,20 @@ function EquipoSection() {
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
         const visibility = getPublicVisibility(schedule);
         setEmployeeOnlineMap(
-          normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline),
+          normalizePublicBooleanMap(
+            visibility.employees ?? schedule._employeeOnline,
+          ),
         );
         const loadedEmployeeSchedules = (
-          schedule._employeeSchedules && typeof schedule._employeeSchedules === "object"
+          schedule._employeeSchedules &&
+          typeof schedule._employeeSchedules === "object"
             ? schedule._employeeSchedules
             : {}
         ) as Record<string, ScheduleMap>;
         setEmployeeSchedules(loadedEmployeeSchedules);
         const loadedEmployeeSpecial = (
-          schedule._employeeSpecialDates && typeof schedule._employeeSpecialDates === "object"
+          schedule._employeeSpecialDates &&
+          typeof schedule._employeeSpecialDates === "object"
             ? schedule._employeeSpecialDates
             : {}
         ) as EmployeeSpecialDateMap;
@@ -3270,7 +3801,10 @@ function EquipoSection() {
             : {}
         ) as Record<string, string>;
         setRows((current) =>
-          current.map((emp) => ({ ...emp, role: employeeRoles[emp.id] ?? emp.role ?? null })),
+          current.map((emp) => ({
+            ...emp,
+            role: employeeRoles[emp.id] ?? emp.role ?? null,
+          })),
         );
         setApprovalEnabled(caja.approvalModeEnabled === true);
         setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
@@ -3297,7 +3831,8 @@ function EquipoSection() {
 
         if (error || !inserted) {
           return toast.error(
-            "Error guardando profesional: " + (error?.message ?? "no se pudo crear"),
+            "Error guardando profesional: " +
+              (error?.message ?? "no se pudo crear"),
           );
         }
 
@@ -3307,12 +3842,14 @@ function EquipoSection() {
             .select("schedule")
             .eq("business_id", businessId)
             .maybeSingle();
-          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<
             string,
             unknown
           >;
-          const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
+          const existingCommissions = (existingSchedule._employeeCommissions ??
+            {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ??
+            {}) as Record<string, string>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(
             visibility.employees ?? existingSchedule._employeeOnline,
@@ -3329,10 +3866,16 @@ function EquipoSection() {
                       [inserted.id]: payload.commissions,
                     }
                   : existingCommissions,
-                _employeeRoles: { ...existingRoles, [inserted.id]: payload.role ?? "Profesional" },
+                _employeeRoles: {
+                  ...existingRoles,
+                  [inserted.id]: payload.role ?? "Profesional",
+                },
                 _employeeSchedules: payload.schedule
                   ? {
-                      ...((existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>),
+                      ...((existingSchedule._employeeSchedules ?? {}) as Record<
+                        string,
+                        unknown
+                      >),
                       [inserted.id]: payload.schedule,
                     }
                   : (existingSchedule._employeeSchedules ?? {}),
@@ -3359,7 +3902,8 @@ function EquipoSection() {
           })
           .eq("id", payload.id);
 
-        if (error) return toast.error("Error guardando profesional: " + error.message);
+        if (error)
+          return toast.error("Error guardando profesional: " + error.message);
 
         {
           const { data: existingRow } = await supabase
@@ -3367,12 +3911,14 @@ function EquipoSection() {
             .select("schedule")
             .eq("business_id", businessId)
             .maybeSingle();
-          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-          const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<
             string,
             unknown
           >;
-          const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
+          const existingCommissions = (existingSchedule._employeeCommissions ??
+            {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ??
+            {}) as Record<string, string>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(
             visibility.employees ?? existingSchedule._employeeOnline,
@@ -3389,10 +3935,16 @@ function EquipoSection() {
                       [payload.id]: payload.commissions,
                     }
                   : existingCommissions,
-                _employeeRoles: { ...existingRoles, [payload.id]: payload.role ?? "Profesional" },
+                _employeeRoles: {
+                  ...existingRoles,
+                  [payload.id]: payload.role ?? "Profesional",
+                },
                 _employeeSchedules: payload.schedule
                   ? {
-                      ...((existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>),
+                      ...((existingSchedule._employeeSchedules ?? {}) as Record<
+                        string,
+                        unknown
+                      >),
                       [payload.id]: payload.schedule,
                     }
                   : (existingSchedule._employeeSchedules ?? {}),
@@ -3417,7 +3969,10 @@ function EquipoSection() {
       .eq("business_id", businessId)
       .maybeSingle();
 
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
     const cleaned = normalizeRolePermissions(rolePermissions);
 
     const { error } = await supabase.from("business_settings").upsert(
@@ -3436,7 +3991,10 @@ function EquipoSection() {
       { onConflict: "business_id" },
     );
 
-    if (error) return toast.error("Error guardando accesos y permisos: " + error.message);
+    if (error)
+      return toast.error(
+        "Error guardando accesos y permisos: " + error.message,
+      );
     window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
     setPendingProfessionals([]);
     await load();
@@ -3487,7 +4045,17 @@ function EquipoSection() {
       const sourceY = Math.max(0, (image.height - sourceSize) / 2);
 
       ctx.clearRect(0, 0, size, size);
-      ctx.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+      ctx.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        size,
+        size,
+      );
 
       const toBlob = (quality: number) =>
         new Promise<Blob>((resolve, reject) => {
@@ -3533,11 +4101,13 @@ function EquipoSection() {
     const safeId = editingEmp?.id ?? `new-${crypto.randomUUID()}`;
     const path = `${businessId}/${safeId}-${Date.now()}.webp`;
 
-    const { error } = await supabase.storage.from("professionals").upload(path, compressed, {
-      cacheControl: "3600",
-      upsert: true,
-      contentType: "image/webp",
-    });
+    const { error } = await supabase.storage
+      .from("professionals")
+      .upload(path, compressed, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: "image/webp",
+      });
 
     if (error) {
       toast.error("Error subiendo la foto: " + error.message);
@@ -3546,7 +4116,9 @@ function EquipoSection() {
 
     const { data } = supabase.storage.from("professionals").getPublicUrl(path);
     setForm((current) => ({ ...current, avatarUrl: data.publicUrl }));
-    toast.success("Foto comprimida y cargada. Tocá Aceptar y luego Guardar para confirmar.");
+    toast.success(
+      "Foto comprimida y cargada. Tocá Aceptar y luego Guardar para confirmar.",
+    );
   }
 
   function openNew() {
@@ -3563,11 +4135,12 @@ function EquipoSection() {
       .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle();
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
       string,
       unknown
     >;
+    const existingCommissions = (existingSchedule._employeeCommissions ??
+      {}) as Record<string, unknown>;
 
     await supabase.from("business_settings").upsert(
       {
@@ -3621,7 +4194,10 @@ function EquipoSection() {
         ),
       );
 
-      setEmployeeOnlineMap((current) => ({ ...current, [editingEmp.id]: form.acceptsOnline }));
+      setEmployeeOnlineMap((current) => ({
+        ...current,
+        [editingEmp.id]: form.acceptsOnline,
+      }));
 
       // Persistencia INMEDIATA del horario individual del profesional, sin
       // depender del "Guardar" de la sección (igual que avatar/portada). Esto
@@ -3632,27 +4208,50 @@ function EquipoSection() {
           .select("schedule")
           .eq("business_id", businessId)
           .maybeSingle();
-        const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-        const existingEmpScheds = (existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>;
-        const { error: schedErr } = await supabase.from("business_settings").upsert(
-          {
-            business_id: businessId,
-            schedule: {
-              ...existingSchedule,
-              _employeeSchedules: { ...existingEmpScheds, [editingEmp.id]: form.schedule },
-              _employeeSpecialDates: {
-                ...((existingSchedule._employeeSpecialDates ?? {}) as Record<string, unknown>),
-                [editingEmp.id]: form.specialDates,
+        const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+          string,
+          unknown
+        >;
+        const existingEmpScheds = (existingSchedule._employeeSchedules ??
+          {}) as Record<string, unknown>;
+        const { error: schedErr } = await supabase
+          .from("business_settings")
+          .upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeSchedules: {
+                  ...existingEmpScheds,
+                  [editingEmp.id]: form.schedule,
+                },
+                _employeeSpecialDates: {
+                  ...((existingSchedule._employeeSpecialDates ?? {}) as Record<
+                    string,
+                    unknown
+                  >),
+                  [editingEmp.id]: form.specialDates,
+                },
               },
             },
-          },
-          { onConflict: "business_id" },
-        );
-        if (schedErr) toast.error("No se pudo guardar el horario del profesional. Probá de nuevo.");
-        setEmployeeSchedules((current) => ({ ...current, [editingEmp.id]: form.schedule }));
-        setEmployeeSpecialDates((current) => ({ ...current, [editingEmp.id]: form.specialDates }));
+            { onConflict: "business_id" },
+          );
+        if (schedErr)
+          toast.error(
+            "No se pudo guardar el horario del profesional. Probá de nuevo.",
+          );
+        setEmployeeSchedules((current) => ({
+          ...current,
+          [editingEmp.id]: form.schedule,
+        }));
+        setEmployeeSpecialDates((current) => ({
+          ...current,
+          [editingEmp.id]: form.specialDates,
+        }));
       } catch {
-        toast.error("No se pudo guardar el horario del profesional. Probá de nuevo.");
+        toast.error(
+          "No se pudo guardar el horario del profesional. Probá de nuevo.",
+        );
       }
 
       setPendingProfessionals((current) => [
@@ -3660,7 +4259,9 @@ function EquipoSection() {
         { tempId: editingEmp.id, payload, isNew: false },
       ]);
 
-      toast.success("Horario guardado. Tocá Guardar para confirmar los demás cambios.");
+      toast.success(
+        "Horario guardado. Tocá Guardar para confirmar los demás cambios.",
+      );
       setOpen(false);
       setEditingEmp(null);
       return;
@@ -3684,7 +4285,10 @@ function EquipoSection() {
         .single();
 
       if (error || !inserted) {
-        toast.error("Error guardando profesional: " + (error?.message ?? "no se pudo crear"));
+        toast.error(
+          "Error guardando profesional: " +
+            (error?.message ?? "no se pudo crear"),
+        );
         setSaving(false);
         return;
       }
@@ -3695,39 +4299,63 @@ function EquipoSection() {
         .select("schedule")
         .eq("business_id", businessId)
         .maybeSingle();
-      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-      const existingCommissions = (existingSchedule._employeeCommissions ?? {}) as Record<string, unknown>;
-      const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<string, string>;
-      const existingEmpScheds = (existingSchedule._employeeSchedules ?? {}) as Record<string, unknown>;
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const existingCommissions = (existingSchedule._employeeCommissions ??
+        {}) as Record<string, unknown>;
+      const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<
+        string,
+        string
+      >;
+      const existingEmpScheds = (existingSchedule._employeeSchedules ??
+        {}) as Record<string, unknown>;
       const visibility = getPublicVisibility(existingSchedule);
       const employeesVisibility = normalizePublicBooleanMap(
         visibility.employees ?? existingSchedule._employeeOnline,
       );
 
-      const { error: settingsErr } = await supabase.from("business_settings").upsert(
-        {
-          business_id: businessId,
-          schedule: {
-            ...existingSchedule,
-            _employeeCommissions: form.commissions
-              ? { ...existingCommissions, [newId]: form.commissions }
-              : existingCommissions,
-            _employeeRoles: { ...existingRoles, [newId]: form.role.trim() || "Profesional" },
-            _employeeSchedules: { ...existingEmpScheds, [newId]: form.schedule },
-            _employeeSpecialDates: {
-              ...((existingSchedule._employeeSpecialDates ?? {}) as Record<string, unknown>),
-              [newId]: form.specialDates,
-            },
-            _publicVisibility: {
-              ...visibility,
-              employees: { ...employeesVisibility, [newId]: form.acceptsOnline !== false },
+      const { error: settingsErr } = await supabase
+        .from("business_settings")
+        .upsert(
+          {
+            business_id: businessId,
+            schedule: {
+              ...existingSchedule,
+              _employeeCommissions: form.commissions
+                ? { ...existingCommissions, [newId]: form.commissions }
+                : existingCommissions,
+              _employeeRoles: {
+                ...existingRoles,
+                [newId]: form.role.trim() || "Profesional",
+              },
+              _employeeSchedules: {
+                ...existingEmpScheds,
+                [newId]: form.schedule,
+              },
+              _employeeSpecialDates: {
+                ...((existingSchedule._employeeSpecialDates ?? {}) as Record<
+                  string,
+                  unknown
+                >),
+                [newId]: form.specialDates,
+              },
+              _publicVisibility: {
+                ...visibility,
+                employees: {
+                  ...employeesVisibility,
+                  [newId]: form.acceptsOnline !== false,
+                },
+              },
             },
           },
-        },
-        { onConflict: "business_id" },
-      );
+          { onConflict: "business_id" },
+        );
       if (settingsErr) {
-        toast.error("Profesional creado, pero no se pudo guardar su configuración. Editalo para reintentar.");
+        toast.error(
+          "Profesional creado, pero no se pudo guardar su configuración. Editalo para reintentar.",
+        );
       }
 
       setRows((current) => [
@@ -3741,9 +4369,18 @@ function EquipoSection() {
           commission_pct: commission,
         },
       ]);
-      setEmployeeOnlineMap((current) => ({ ...current, [newId]: form.acceptsOnline }));
-      setEmployeeSchedules((current) => ({ ...current, [newId]: form.schedule }));
-      setEmployeeSpecialDates((current) => ({ ...current, [newId]: form.specialDates }));
+      setEmployeeOnlineMap((current) => ({
+        ...current,
+        [newId]: form.acceptsOnline,
+      }));
+      setEmployeeSchedules((current) => ({
+        ...current,
+        [newId]: form.schedule,
+      }));
+      setEmployeeSpecialDates((current) => ({
+        ...current,
+        [newId]: form.specialDates,
+      }));
 
       toast.success("Profesional agregado.");
       setOpen(false);
@@ -3754,14 +4391,20 @@ function EquipoSection() {
     }
   }
 
-  const toggleActive = useCallback(async (emp: EmployeeRow) => {
-    const { error } = await supabase
-      .from("employees")
-      .update({ is_active: !(emp.is_active !== false) })
-      .eq("id", emp.id);
-    if (error) return toast.error("No se pudo actualizar el estado del profesional. Probá de nuevo.");
-    load();
-  }, [load]);
+  const toggleActive = useCallback(
+    async (emp: EmployeeRow) => {
+      const { error } = await supabase
+        .from("employees")
+        .update({ is_active: !(emp.is_active !== false) })
+        .eq("id", emp.id);
+      if (error)
+        return toast.error(
+          "No se pudo actualizar el estado del profesional. Probá de nuevo.",
+        );
+      load();
+    },
+    [load],
+  );
 
   const remove = useCallback(async (emp: EmployeeRow) => {
     // Solo bloquean la eliminación los turnos FUTUROS reales (no cancelados y
@@ -3777,31 +4420,38 @@ function EquipoSection() {
       .neq("status", "blocked")
       .limit(1);
     if (checkError) {
-      toast.error("No se pudo verificar los turnos del profesional. Probá de nuevo.");
+      toast.error(
+        "No se pudo verificar los turnos del profesional. Probá de nuevo.",
+      );
       return;
     }
     if (future && future.length > 0) {
-      toast.error("No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.");
+      toast.error(
+        "No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.",
+      );
       return;
     }
     setConfirmDel(emp);
   }, []);
 
-  const handleEditPro = useCallback((emp: EmployeeRow) => {
-    setEditingEmp(emp);
-    setForm({
-      ...EMPTY_FORM,
-      fullName: emp.full_name ?? emp.name ?? "",
-      avatarUrl: emp.avatar_url ?? "",
-      commissionPct: String(emp.commission_pct ?? ""),
-      role: emp.role ?? "Barbero",
-      acceptsOnline: employeeOnlineMap[emp.id] !== false,
-      schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
-      specialDates: employeeSpecialDates[emp.id] ?? {},
-    });
-    setDlgTab("perfil");
-    setOpen(true);
-  }, [employeeOnlineMap, employeeSchedules, employeeSpecialDates]);
+  const handleEditPro = useCallback(
+    (emp: EmployeeRow) => {
+      setEditingEmp(emp);
+      setForm({
+        ...EMPTY_FORM,
+        fullName: emp.full_name ?? emp.name ?? "",
+        avatarUrl: emp.avatar_url ?? "",
+        commissionPct: String(emp.commission_pct ?? ""),
+        role: emp.role ?? "Barbero",
+        acceptsOnline: employeeOnlineMap[emp.id] !== false,
+        schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
+        specialDates: employeeSpecialDates[emp.id] ?? {},
+      });
+      setDlgTab("perfil");
+      setOpen(true);
+    },
+    [employeeOnlineMap, employeeSchedules, employeeSpecialDates],
+  );
 
   async function doRemoveEmp() {
     if (!confirmDel) return;
@@ -3837,13 +4487,21 @@ function EquipoSection() {
       return;
     }
 
-    const { error } = await supabase.from("employees").delete().eq("id", emp.id);
+    const { error } = await supabase
+      .from("employees")
+      .delete()
+      .eq("id", emp.id);
     if (error) {
       setDeletingId(null);
       // Backstop por si se agendó un turno FUTURO entre el chequeo y el borrado:
       // nunca mostramos el error técnico de la FK al usuario.
-      if (error.code === "23503" || /appointments_employee_id_fkey|foreign key/i.test(error.message)) {
-        toast.error("No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.");
+      if (
+        error.code === "23503" ||
+        /appointments_employee_id_fkey|foreign key/i.test(error.message)
+      ) {
+        toast.error(
+          "No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.",
+        );
         return;
       }
       toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
@@ -3875,7 +4533,10 @@ function EquipoSection() {
         });
       }
 
-      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && nextValue) {
+      if (
+        CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) &&
+        nextValue
+      ) {
         nextRole.configuracion = true;
       }
 
@@ -3885,7 +4546,9 @@ function EquipoSection() {
 
   async function saveAccessUser() {
     setAccessTouched(true);
-    const selectedEmployee = rows.find((emp) => emp.id === accessForm.employee_id);
+    const selectedEmployee = rows.find(
+      (emp) => emp.id === accessForm.employee_id,
+    );
     const fallbackName =
       accessForm.role === "profesional"
         ? selectedEmployee?.full_name || selectedEmployee?.name || ""
@@ -3909,29 +4572,40 @@ function EquipoSection() {
       full_name: name,
       role: accessForm.role,
       status:
-        editingAccessUserId && accessUsers.find((user) => user.id === editingAccessUserId)?.status === "invited"
+        editingAccessUserId &&
+        accessUsers.find((user) => user.id === editingAccessUserId)?.status ===
+          "invited"
           ? "invited"
           : accessForm.status === "inactive"
             ? "suspended"
             : "active",
-      professional_id: accessForm.role === "profesional" ? (selectedEmployee?.id ?? null) : null,
+      professional_id:
+        accessForm.role === "profesional"
+          ? (selectedEmployee?.id ?? null)
+          : null,
       branch_id: accessForm.branch_id ?? null,
       permissions: accessPermissionsForm,
     };
 
-    const { data, error } = await supabase.functions.invoke("invite-team-member", {
-      body: payload,
-    });
+    const { data, error } = await supabase.functions.invoke(
+      "invite-team-member",
+      {
+        body: payload,
+      },
+    );
     setSaving(false);
 
-    const rawErrMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    const rawErrMsg =
+      error?.message ?? (data as { error?: string } | null)?.error ?? null;
     const friendlyErrMsg = rawErrMsg?.includes("non-2xx status code")
       ? "No se pudo crear el acceso. Revisá si ese correo ya existe o tiene una invitación pendiente."
       : rawErrMsg;
     if (friendlyErrMsg) return toast.error(friendlyErrMsg);
 
     toast.success(
-      editingAccessUserId ? "Acceso actualizado correctamente" : "Invitación enviada por email",
+      editingAccessUserId
+        ? "Acceso actualizado correctamente"
+        : "Invitación enviada por email",
     );
     setEditingAccessUserId(null);
     setAccessForm(EMPTY_ACCESS_FORM);
@@ -3951,7 +4625,9 @@ function EquipoSection() {
       employee_id: user.employee_id ?? null,
       branch_id: user.branch_id ?? null,
     });
-    setAccessPermissionsForm(userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role]);
+    setAccessPermissionsForm(
+      userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role],
+    );
     setSelectedPermRole(user.role);
     setSelectedAccessUserId(user.id);
     setAccessTouched(false);
@@ -3972,17 +4648,21 @@ function EquipoSection() {
     }
 
     setDeletingAccess(true);
-    const { data, error } = await supabase.functions.invoke("invite-team-member", {
-      body: {
-        action: "delete",
-        business_id: businessId,
-        member_id: id,
+    const { data, error } = await supabase.functions.invoke(
+      "invite-team-member",
+      {
+        body: {
+          action: "delete",
+          business_id: businessId,
+          member_id: id,
+        },
       },
-    });
+    );
     setDeletingAccess(false);
     setPendingDeleteUser(null);
 
-    const errMsg = error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    const errMsg =
+      error?.message ?? (data as { error?: string } | null)?.error ?? null;
     if (errMsg) return toast.error("Error eliminando acceso: " + errMsg);
 
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
@@ -3996,7 +4676,9 @@ function EquipoSection() {
     const admins = accessUsers
       .filter((u) => u.role === "admin_general")
       .slice()
-      .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+      .sort((a, b) =>
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+      );
     return admins[0]?.id ?? null;
   })();
 
@@ -4015,7 +4697,10 @@ function EquipoSection() {
         });
       }
 
-      if (CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) && nextValue) {
+      if (
+        CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) &&
+        nextValue
+      ) {
         nextUser.configuracion = true;
       }
 
@@ -4062,7 +4747,9 @@ function EquipoSection() {
     if (!selectedAccessUser) return;
     setUserPermissions((current) => ({
       ...current,
-      [selectedAccessUser.id]: { ...DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role] },
+      [selectedAccessUser.id]: {
+        ...DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role],
+      },
     }));
     toast.success("Permisos recomendados restablecidos");
   }
@@ -4070,13 +4757,16 @@ function EquipoSection() {
   const selectedRole =
     ROLE_PERMISSION_OPTIONS.find((role) => role.id === selectedPermRole) ??
     ROLE_PERMISSION_OPTIONS[0];
-  const selectedRoleUsers = accessUsers.filter((user) => user.role === selectedPermRole);
+  const selectedRoleUsers = accessUsers.filter(
+    (user) => user.role === selectedPermRole,
+  );
   const selectedAccessUser =
     selectedRoleUsers.find((user) => user.id === selectedAccessUserId) ??
     selectedRoleUsers[0] ??
     null;
   const selectedUserPermissions = selectedAccessUser
-    ? (userPermissions[selectedAccessUser.id] ?? DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role])
+    ? (userPermissions[selectedAccessUser.id] ??
+      DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role])
     : null;
   const selectedPermissions =
     individualPermMode && selectedUserPermissions
@@ -4090,14 +4780,17 @@ function EquipoSection() {
       ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
       : selectedRole.label;
   const accessRoleOption =
-    ROLE_PERMISSION_OPTIONS.find((role) => role.id === accessForm.role) ?? ROLE_PERMISSION_OPTIONS[0];
+    ROLE_PERMISSION_OPTIONS.find((role) => role.id === accessForm.role) ??
+    ROLE_PERMISSION_OPTIONS[0];
   const accessRoleSummary = ROLE_ACCESS_SUMMARY[accessForm.role];
 
   return (
     <>
       <div>
         <h2 className="text-xl font-display font-semibold">Equipo</h2>
-        <p className="text-sm text-muted-foreground mt-1">Administrá tu equipo.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Administrá tu equipo.
+        </p>
       </div>
 
       <div className="flex items-center gap-1 border-b border-white/5">
@@ -4114,7 +4807,9 @@ function EquipoSection() {
               onClick={() => setTab(id)}
               className={cn(
                 "relative px-4 py-2.5 text-sm transition-colors",
-                active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                active
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {label}
@@ -4143,7 +4838,8 @@ function EquipoSection() {
             </div>
           ) : rows.length === 0 ? (
             <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
-              No hay profesionales cargados. Agregá el primero con el botón de arriba.
+              No hay profesionales cargados. Agregá el primero con el botón de
+              arriba.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -4167,9 +4863,12 @@ function EquipoSection() {
                   <ShieldCheck className="h-5 w-5 text-violet-200" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-base">Habilitar modo de aprobación</div>
+                  <div className="font-semibold text-base">
+                    Habilitar modo de aprobación
+                  </div>
                   <div className="text-sm text-muted-foreground mt-0.5">
-                    Definí si los cobros de profesionales se registran directo en Caja o si necesitan revisión.
+                    Definí si los cobros de profesionales se registran directo
+                    en Caja o si necesitan revisión.
                   </div>
                 </div>
                 <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
@@ -4193,7 +4892,9 @@ function EquipoSection() {
                         <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                           Modo
                         </div>
-                        <div className="mt-1 text-xl font-display font-semibold">Automático</div>
+                        <div className="mt-1 text-xl font-display font-semibold">
+                          Automático
+                        </div>
                       </div>
                       {approvalMode === "auto" && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
@@ -4202,17 +4903,23 @@ function EquipoSection() {
                       )}
                     </div>
                     <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
-                      El profesional cobra desde su panel y el ingreso se registra automáticamente en Caja.
+                      El profesional cobra desde su panel y el ingreso se
+                      registra automáticamente en Caja.
                     </p>
                     <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
                         Ejemplo
                       </div>
                       <p className="mt-2 text-sm leading-relaxed text-white/78">
-                        Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
+                        Juan finaliza un servicio de $20.000 y registra el cobro
+                        desde su panel.
                       </p>
                       <p className="mt-3 text-sm leading-relaxed text-white/90">
-                        <span className="font-semibold text-white">Resultado:</span> el cobro queda registrado, aparece automáticamente en Caja y se actualizan los ingresos del día.
+                        <span className="font-semibold text-white">
+                          Resultado:
+                        </span>{" "}
+                        el cobro queda registrado, aparece automáticamente en
+                        Caja y se actualizan los ingresos del día.
                       </p>
                     </div>
                   </button>
@@ -4233,7 +4940,9 @@ function EquipoSection() {
                         <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                           Modo
                         </div>
-                        <div className="mt-1 text-xl font-display font-semibold">Manual</div>
+                        <div className="mt-1 text-xl font-display font-semibold">
+                          Manual
+                        </div>
                       </div>
                       {approvalMode === "manual" && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
@@ -4242,17 +4951,23 @@ function EquipoSection() {
                       )}
                     </div>
                     <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
-                      El profesional informa el cobro y Caja lo revisa antes de registrarlo oficialmente.
+                      El profesional informa el cobro y Caja lo revisa antes de
+                      registrarlo oficialmente.
                     </p>
                     <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
                         Ejemplo
                       </div>
                       <p className="mt-2 text-sm leading-relaxed text-white/78">
-                        Juan finaliza un servicio de $20.000 y registra el cobro desde su panel.
+                        Juan finaliza un servicio de $20.000 y registra el cobro
+                        desde su panel.
                       </p>
                       <p className="mt-3 text-sm leading-relaxed text-white/90">
-                        <span className="font-semibold text-white">Resultado:</span> el cobro queda pendiente. Caja revisa la información y, al aprobarlo, el ingreso se registra oficialmente.
+                        <span className="font-semibold text-white">
+                          Resultado:
+                        </span>{" "}
+                        el cobro queda pendiente. Caja revisa la información y,
+                        al aprobarlo, el ingreso se registra oficialmente.
                       </p>
                     </div>
                   </button>
@@ -4267,7 +4982,9 @@ function EquipoSection() {
         <div className="-mt-2 space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="text-lg font-display font-semibold">Accesos del equipo</h3>
+              <h3 className="text-lg font-display font-semibold">
+                Accesos del equipo
+              </h3>
               <p className="text-sm text-muted-foreground">
                 Invitá y administrá quién puede entrar a Clippr.
               </p>
@@ -4295,7 +5012,9 @@ function EquipoSection() {
                 <div>
                   <div className="text-sm font-semibold">Nuevo acceso</div>
                   <div className="text-xs text-muted-foreground">
-                    {editingAccessUserId ? "Actualizá el acceso seleccionado." : "El usuario recibirá una invitación por email."}
+                    {editingAccessUserId
+                      ? "Actualizá el acceso seleccionado."
+                      : "El usuario recibirá una invitación por email."}
                   </div>
                 </div>
               </div>
@@ -4314,18 +5033,20 @@ function EquipoSection() {
                           employee_id: null,
                           email: "",
                         }));
-                        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[role]);
+                        setAccessPermissionsForm(
+                          DEFAULT_ROLE_PERMISSIONS[role],
+                        );
                         setAccessTouched(false);
                       }}
                       className={inputCls}
                     >
-                      {ROLE_PERMISSION_OPTIONS.filter((role) => role.id !== "admin_general").map(
-                        (role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.label}
-                          </option>
-                        ),
-                      )}
+                      {ROLE_PERMISSION_OPTIONS.filter(
+                        (role) => role.id !== "admin_general",
+                      ).map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.label}
+                        </option>
+                      ))}
                     </select>
                   </Field>
 
@@ -4352,7 +5073,10 @@ function EquipoSection() {
                       <select
                         value={accessForm.employee_id ?? ""}
                         onChange={(e) =>
-                          setAccessForm((f) => ({ ...f, employee_id: e.target.value || null }))
+                          setAccessForm((f) => ({
+                            ...f,
+                            employee_id: e.target.value || null,
+                          }))
                         }
                         className={cn(
                           inputCls,
@@ -4390,7 +5114,9 @@ function EquipoSection() {
                     autoComplete="off"
                     name="clippr-access-name"
                     value={accessForm.name}
-                    onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
+                    onChange={(e) =>
+                      setAccessForm((f) => ({ ...f, name: e.target.value }))
+                    }
                     className={inputCls}
                     placeholder="Nombre del usuario"
                   />
@@ -4403,7 +5129,9 @@ function EquipoSection() {
                       autoComplete="off"
                       name="clippr-access-email"
                       value={accessForm.email}
-                      onChange={(e) => setAccessForm((f) => ({ ...f, email: e.target.value }))}
+                      onChange={(e) =>
+                        setAccessForm((f) => ({ ...f, email: e.target.value }))
+                      }
                       className={cn(
                         inputCls,
                         accessTouched &&
@@ -4414,13 +5142,18 @@ function EquipoSection() {
                     />
                   </Field>
                   {accessTouched && !accessForm.email.trim() && (
-                    <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+                    <div className="text-xs text-red-400 mt-1">
+                      Campo requerido
+                    </div>
                   )}
                 </div>
 
                 <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
                   <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                  <span>La persona crea su contraseña desde la invitación que recibe por email.</span>
+                  <span>
+                    La persona crea su contraseña desde la invitación que recibe
+                    por email.
+                  </span>
                 </div>
 
                 <button
@@ -4441,9 +5174,14 @@ function EquipoSection() {
             <div className="glass rounded-2xl p-4 ring-1 ring-white/5 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Usuarios y accesos</div>
+                  <div className="text-sm font-semibold">
+                    Usuarios y accesos
+                  </div>
                   <div className="text-xs text-muted-foreground">
-                    {accessUsers.length} {accessUsers.length === 1 ? "acceso creado" : "accesos creados"}
+                    {accessUsers.length}{" "}
+                    {accessUsers.length === 1
+                      ? "acceso creado"
+                      : "accesos creados"}
                   </div>
                 </div>
               </div>
@@ -4463,7 +5201,9 @@ function EquipoSection() {
                         {(user.name[0] || "A").toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{user.name}</div>
+                        <div className="text-sm font-medium truncate">
+                          {user.name}
+                        </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {user.email} · {ROLE_LABEL_BY_ID[user.role]}
                         </div>
@@ -4515,9 +5255,12 @@ function EquipoSection() {
               <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
                 <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
                   <div>
-                    <div className="font-semibold text-sm">Permisos incluidos</div>
+                    <div className="font-semibold text-sm">
+                      Permisos incluidos
+                    </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      Según el rol seleccionado: {ROLE_LABEL_BY_ID[accessForm.role]}.
+                      Según el rol seleccionado:{" "}
+                      {ROLE_LABEL_BY_ID[accessForm.role]}.
                     </div>
                   </div>
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
@@ -4528,10 +5271,15 @@ function EquipoSection() {
                 <div className="p-4 space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
-                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">Puede acceder</div>
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
+                        Puede acceder
+                      </div>
                       <div className="space-y-1.5">
                         {accessRoleSummary.can.map((item) => (
-                          <div key={item} className="flex items-center gap-2 text-xs text-white/80">
+                          <div
+                            key={item}
+                            className="flex items-center gap-2 text-xs text-white/80"
+                          >
                             <Check className="h-3.5 w-3.5 text-emerald-300" />
                             {item}
                           </div>
@@ -4540,13 +5288,20 @@ function EquipoSection() {
                     </div>
 
                     <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
-                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">No accede</div>
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                        No accede
+                      </div>
                       {accessRoleSummary.cannot.length === 0 ? (
-                        <div className="text-xs text-muted-foreground">Sin restricciones.</div>
+                        <div className="text-xs text-muted-foreground">
+                          Sin restricciones.
+                        </div>
                       ) : (
                         <div className="space-y-1.5">
                           {accessRoleSummary.cannot.map((item) => (
-                            <div key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div
+                              key={item}
+                              className="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
                               <X className="h-3.5 w-3.5 text-white/30" />
                               {item}
                             </div>
@@ -4559,8 +5314,12 @@ function EquipoSection() {
                   <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
                       <span>Personalizar permisos</span>
-                      <span className="text-xs font-medium text-muted-foreground group-open:hidden">Opcional</span>
-                      <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Cerrar</span>
+                      <span className="text-xs font-medium text-muted-foreground group-open:hidden">
+                        Opcional
+                      </span>
+                      <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">
+                        Cerrar
+                      </span>
                     </summary>
                     <div className="border-t border-white/5 p-4 space-y-4">
                       <div>
@@ -4568,39 +5327,52 @@ function EquipoSection() {
                           Accesos recomendados
                         </div>
                         <div className="space-y-2">
-                          {getRecommendedPermissionKeys(accessForm.role).map((key) => {
-                            const item = getPermissionItem(key);
-                            if (!item) return null;
-                            const checked = accessPermissionsForm[key];
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => toggleAccessFormPermission(key)}
-                                className={cn(
-                                  "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                  checked
-                                    ? "bg-white/[0.06] ring-white/15"
-                                    : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                )}
-                              >
-                                <div>
-                                  <div className="text-sm font-medium">{item.label}</div>
-                                  <div className="text-xs text-muted-foreground">{item.desc}</div>
-                                </div>
-                                <span
+                          {getRecommendedPermissionKeys(accessForm.role).map(
+                            (key) => {
+                              const item = getPermissionItem(key);
+                              if (!item) return null;
+                              const checked = accessPermissionsForm[key];
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() =>
+                                    toggleAccessFormPermission(key)
+                                  }
                                   className={cn(
-                                    "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
                                     checked
-                                      ? "bg-emerald-400/90 text-white ring-transparent"
-                                      : "bg-white/5 ring-white/15",
+                                      ? "bg-white/[0.06] ring-white/15"
+                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
                                   )}
                                 >
-                                  {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                                </span>
-                              </button>
-                            );
-                          })}
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {item.label}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {item.desc}
+                                    </div>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                      checked
+                                        ? "bg-emerald-400/90 text-white ring-transparent"
+                                        : "bg-white/5 ring-white/15",
+                                    )}
+                                  >
+                                    {checked && (
+                                      <Check
+                                        className="h-3.5 w-3.5"
+                                        strokeWidth={3}
+                                      />
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            },
+                          )}
                         </div>
                       </div>
 
@@ -4609,39 +5381,52 @@ function EquipoSection() {
                           Adicionales
                         </div>
                         <div className="space-y-2">
-                          {getAdditionalPermissionKeys(accessForm.role).map((key) => {
-                            const item = getPermissionItem(key);
-                            if (!item) return null;
-                            const checked = accessPermissionsForm[key];
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => toggleAccessFormPermission(key)}
-                                className={cn(
-                                  "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                  checked
-                                    ? "bg-white/[0.06] ring-white/15"
-                                    : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                )}
-                              >
-                                <div>
-                                  <div className="text-sm font-medium">{item.label}</div>
-                                  <div className="text-xs text-muted-foreground">{item.desc}</div>
-                                </div>
-                                <span
+                          {getAdditionalPermissionKeys(accessForm.role).map(
+                            (key) => {
+                              const item = getPermissionItem(key);
+                              if (!item) return null;
+                              const checked = accessPermissionsForm[key];
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() =>
+                                    toggleAccessFormPermission(key)
+                                  }
                                   className={cn(
-                                    "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
                                     checked
-                                      ? "bg-emerald-400/90 text-white ring-transparent"
-                                      : "bg-white/5 ring-white/15",
+                                      ? "bg-white/[0.06] ring-white/15"
+                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
                                   )}
                                 >
-                                  {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                                </span>
-                              </button>
-                            );
-                          })}
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {item.label}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {item.desc}
+                                    </div>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                      checked
+                                        ? "bg-emerald-400/90 text-white ring-transparent"
+                                        : "bg-white/5 ring-white/15",
+                                    )}
+                                  >
+                                    {checked && (
+                                      <Check
+                                        className="h-3.5 w-3.5"
+                                        strokeWidth={3}
+                                      />
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            },
+                          )}
                         </div>
                       </div>
                     </div>
@@ -4675,7 +5460,9 @@ function EquipoSection() {
                 <li>Permisos</li>
                 <li>Historial de acceso</li>
               </ul>
-              <p className="text-sm text-red-300/90 mb-5">El usuario ya no podrá iniciar sesión.</p>
+              <p className="text-sm text-red-300/90 mb-5">
+                El usuario ya no podrá iniciar sesión.
+              </p>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -4698,7 +5485,6 @@ function EquipoSection() {
           </div>
         </div>
       )}
-
 
       {open && (
         <div
@@ -4725,7 +5511,9 @@ function EquipoSection() {
                 <div className="font-semibold">
                   {editingEmp ? "Editar profesional" : "Nuevo profesional"}
                 </div>
-                <div className="text-xs text-muted-foreground">{form.role || "Barbero"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {form.role || "Barbero"}
+                </div>
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -4750,7 +5538,9 @@ function EquipoSection() {
                     onClick={() => setDlgTab(id)}
                     className={cn(
                       "relative py-3 text-sm transition-colors",
-                      active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                      active
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {label}
@@ -4779,10 +5569,12 @@ function EquipoSection() {
                         )}
                       </div>
                       <div className="flex-1">
-                        <div className="text-sm font-semibold">Foto del profesional</div>
+                        <div className="text-sm font-semibold">
+                          Foto del profesional
+                        </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          JPG, PNG o WEBP. La app la recorta a 200x200, la convierte a WebP y la
-                          comprime antes de subirla.
+                          JPG, PNG o WEBP. La app la recorta a 200x200, la
+                          convierte a WebP y la comprime antes de subirla.
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-3 py-2 text-xs font-medium">
@@ -4801,7 +5593,9 @@ function EquipoSection() {
                           {form.avatarUrl && (
                             <button
                               type="button"
-                              onClick={() => setForm({ ...form, avatarUrl: "" })}
+                              onClick={() =>
+                                setForm({ ...form, avatarUrl: "" })
+                              }
                               className="rounded-xl bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 px-3 py-2 text-xs text-red-300"
                             >
                               Quitar foto
@@ -4815,7 +5609,9 @@ function EquipoSection() {
                   <Field label="Nombre completo *">
                     <input
                       value={form.fullName}
-                      onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, fullName: e.target.value })
+                      }
                       className={inputCls}
                       placeholder="Ej: Alejandro"
                     />
@@ -4824,7 +5620,9 @@ function EquipoSection() {
                     <Field label="Teléfono">
                       <input
                         value={form.phone}
-                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, phone: e.target.value })
+                        }
                         className={inputCls}
                         placeholder="11..."
                       />
@@ -4832,7 +5630,9 @@ function EquipoSection() {
                     <Field label="Rol">
                       <input
                         value={form.role}
-                        onChange={(e) => setForm({ ...form, role: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, role: e.target.value })
+                        }
                         className={inputCls}
                         placeholder="Barbero"
                       />
@@ -4842,7 +5642,9 @@ function EquipoSection() {
                     <input
                       type="checkbox"
                       checked={form.acceptsOnline}
-                      onChange={(e) => setForm({ ...form, acceptsOnline: e.target.checked })}
+                      onChange={(e) =>
+                        setForm({ ...form, acceptsOnline: e.target.checked })
+                      }
                       className="sr-only"
                     />
                     <span
@@ -4859,16 +5661,21 @@ function EquipoSection() {
                       />
                     </span>
                     <div className="flex-1">
-                      <div className="text-sm font-medium">Acepta reservas en línea</div>
+                      <div className="text-sm font-medium">
+                        Acepta reservas en línea
+                      </div>
                       <div className="text-xs text-muted-foreground">
-                        Este profesional aparecerá disponible para reservas online
+                        Este profesional aparecerá disponible para reservas
+                        online
                       </div>
                     </div>
                   </label>
                   <Field label="Descripción (opcional)">
                     <textarea
                       value={form.description}
-                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
                       className={cn(inputCls, "min-h-[90px] resize-y")}
                       placeholder="Especialidades, experiencia, estilo…"
                     />
@@ -4884,7 +5691,10 @@ function EquipoSection() {
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     return (
-                      <div key={key} className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
+                      <div
+                        key={key}
+                        className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
+                      >
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
                             onClick={() => setDay(key, { enabled: !d.enabled })}
@@ -4900,34 +5710,50 @@ function EquipoSection() {
                               )}
                             />
                           </button>
-                          <div className="text-sm font-medium w-20">{label}</div>
+                          <div className="text-sm font-medium w-20">
+                            {label}
+                          </div>
                           {d.enabled && (
                             <>
                               <input
                                 type="time"
                                 value={d.start}
-                                onChange={(e) => setDay(key, { start: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { start: e.target.value })
+                                }
                                 className={timeCls}
                               />
-                              <span className="text-muted-foreground text-xs">a</span>
+                              <span className="text-muted-foreground text-xs">
+                                a
+                              </span>
                               <input
                                 type="time"
                                 value={d.end}
-                                onChange={(e) => setDay(key, { end: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { end: e.target.value })
+                                }
                                 className={timeCls}
                               />
-                              <div className="text-xs text-muted-foreground ml-2">Descanso:</div>
+                              <div className="text-xs text-muted-foreground ml-2">
+                                Descanso:
+                              </div>
                               <input
                                 type="time"
                                 value={d.breakStart}
-                                onChange={(e) => setDay(key, { breakStart: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { breakStart: e.target.value })
+                                }
                                 className={timeCls}
                               />
-                              <span className="text-muted-foreground text-xs">-</span>
+                              <span className="text-muted-foreground text-xs">
+                                -
+                              </span>
                               <input
                                 type="time"
                                 value={d.breakEnd}
-                                onChange={(e) => setDay(key, { breakEnd: e.target.value })}
+                                onChange={(e) =>
+                                  setDay(key, { breakEnd: e.target.value })
+                                }
                                 className={timeCls}
                               />
                             </>
@@ -4939,7 +5765,9 @@ function EquipoSection() {
 
                   <SpecialHoursEditor
                     value={form.specialDates}
-                    onChange={(next) => setForm((f) => ({ ...f, specialDates: next }))}
+                    onChange={(next) =>
+                      setForm((f) => ({ ...f, specialDates: next }))
+                    }
                     allowBreak
                     closedLabel="No disponible"
                     title="Horario especial"
@@ -4951,18 +5779,23 @@ function EquipoSection() {
               {dlgTab === "comisiones" && (
                 <div className="space-y-5">
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
-                    <div className="font-semibold text-sm">Comisiones y servicios que realiza</div>
+                    <div className="font-semibold text-sm">
+                      Comisiones y servicios que realiza
+                    </div>
                   </div>
 
                   {(["servicios", "catalogo"] as const).map((kind) => {
                     const isServiceKind = kind === "servicios";
                     const filtered = commissionItems.filter((item) =>
-                      isServiceKind ? item.duration_min != null : item.duration_min == null,
+                      isServiceKind
+                        ? item.duration_min != null
+                        : item.duration_min == null,
                     );
                     const grouped = filtered.reduce(
                       (acc, item) => {
                         const category =
-                          item.category || (isServiceKind ? "Servicios" : "Productos");
+                          item.category ||
+                          (isServiceKind ? "Servicios" : "Productos");
                         if (!acc[category]) acc[category] = [];
                         acc[category].push(item);
                         return acc;
@@ -4988,110 +5821,134 @@ function EquipoSection() {
 
                         {Object.keys(grouped).length === 0 ? (
                           <div className="p-4 text-sm text-muted-foreground">
-                            No hay {isServiceKind ? "servicios" : "productos"} cargados.
+                            No hay {isServiceKind ? "servicios" : "productos"}{" "}
+                            cargados.
                           </div>
                         ) : (
                           <div className="divide-y divide-white/5">
-                            {Object.entries(grouped).map(([category, items]) => (
-                              <div key={category} className="p-4 space-y-3">
-                                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                                  {category}
-                                </div>
-                                <div className="space-y-2">
-                                  {items.map((item) => {
-                                    const cfg = form.commissions[item.id] ?? {
-                                      enabled: false,
-                                      mode: "percent" as CommissionMode,
-                                      value: "",
-                                    };
-                                    const updateCfg = (patch: Partial<CommissionConfig>) =>
-                                      setForm({
-                                        ...form,
-                                        commissions: {
-                                          ...form.commissions,
-                                          [item.id]: { ...cfg, ...patch },
-                                        },
-                                      });
+                            {Object.entries(grouped).map(
+                              ([category, items]) => (
+                                <div key={category} className="p-4 space-y-3">
+                                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                                    {category}
+                                  </div>
+                                  <div className="space-y-2">
+                                    {items.map((item) => {
+                                      const cfg = form.commissions[item.id] ?? {
+                                        enabled: false,
+                                        mode: "percent" as CommissionMode,
+                                        value: "",
+                                      };
+                                      const updateCfg = (
+                                        patch: Partial<CommissionConfig>,
+                                      ) =>
+                                        setForm({
+                                          ...form,
+                                          commissions: {
+                                            ...form.commissions,
+                                            [item.id]: { ...cfg, ...patch },
+                                          },
+                                        });
 
-                                    return (
-                                      <div
-                                        key={item.id}
-                                        className={cn(
-                                          "rounded-xl ring-1 p-3 transition-all",
-                                          cfg.enabled
-                                            ? "bg-white/[0.06] ring-white/10"
-                                            : "bg-white/[0.025] ring-white/5 opacity-75",
-                                        )}
-                                      >
-                                        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                                          <button
-                                            type="button"
-                                            onClick={() => updateCfg({ enabled: !cfg.enabled })}
-                                            className={cn(
-                                              "h-6 w-11 rounded-full relative transition-colors shrink-0",
-                                              cfg.enabled
-                                                ? "bg-primary"
-                                                : "bg-white/15",
-                                            )}
-                                          >
-                                            <span
-                                              className={cn(
-                                                "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
-                                                cfg.enabled ? "left-[22px]" : "left-0.5",
-                                              )}
-                                            />
-                                          </button>
-
-                                          <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-medium truncate">
-                                              {item.name}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                              ${Number(item.price ?? 0).toLocaleString("es-AR")}
-                                              {isServiceKind && item.duration_min
-                                                ? ` · ${item.duration_min} min`
-                                                : ""}
-                                            </div>
-                                          </div>
-
-                                          <div className="flex items-center gap-2">
-                                            <select
-                                              value={cfg.mode}
-                                              disabled={!cfg.enabled}
-                                              onChange={(e) =>
+                                      return (
+                                        <div
+                                          key={item.id}
+                                          className={cn(
+                                            "rounded-xl ring-1 p-3 transition-all",
+                                            cfg.enabled
+                                              ? "bg-white/[0.06] ring-white/10"
+                                              : "bg-white/[0.025] ring-white/5 opacity-75",
+                                          )}
+                                        >
+                                          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
                                                 updateCfg({
-                                                  mode: e.target.value as CommissionMode,
+                                                  enabled: !cfg.enabled,
                                                 })
                                               }
-                                              className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                                              className={cn(
+                                                "h-6 w-11 rounded-full relative transition-colors shrink-0",
+                                                cfg.enabled
+                                                  ? "bg-primary"
+                                                  : "bg-white/15",
+                                              )}
                                             >
-                                              <option value="percent">% comisión</option>
-                                              <option value="fixed">Monto fijo</option>
-                                            </select>
-                                            <div className="flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
-                                              <input
-                                                type="number"
-                                                min={0}
-                                                disabled={!cfg.enabled}
-                                                value={cfg.value}
-                                                onChange={(e) =>
-                                                  updateCfg({ value: e.target.value })
-                                                }
-                                                className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
-                                                placeholder="0"
+                                              <span
+                                                className={cn(
+                                                  "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                  cfg.enabled
+                                                    ? "left-[22px]"
+                                                    : "left-0.5",
+                                                )}
                                               />
-                                              <span className="text-xs text-muted-foreground">
-                                                {cfg.mode === "percent" ? "%" : "$"}
-                                              </span>
+                                            </button>
+
+                                            <div className="flex-1 min-w-0">
+                                              <div className="text-sm font-medium truncate">
+                                                {item.name}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground">
+                                                $
+                                                {Number(
+                                                  item.price ?? 0,
+                                                ).toLocaleString("es-AR")}
+                                                {isServiceKind &&
+                                                item.duration_min
+                                                  ? ` · ${item.duration_min} min`
+                                                  : ""}
+                                              </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                              <select
+                                                value={cfg.mode}
+                                                disabled={!cfg.enabled}
+                                                onChange={(e) =>
+                                                  updateCfg({
+                                                    mode: e.target
+                                                      .value as CommissionMode,
+                                                  })
+                                                }
+                                                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                                              >
+                                                <option value="percent">
+                                                  % comisión
+                                                </option>
+                                                <option value="fixed">
+                                                  Monto fijo
+                                                </option>
+                                              </select>
+                                              <div className="flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                <input
+                                                  type="number"
+                                                  min={0}
+                                                  disabled={!cfg.enabled}
+                                                  value={cfg.value}
+                                                  onChange={(e) =>
+                                                    updateCfg({
+                                                      value: e.target.value,
+                                                    })
+                                                  }
+                                                  className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
+                                                  placeholder="0"
+                                                />
+                                                <span className="text-xs text-muted-foreground">
+                                                  {cfg.mode === "percent"
+                                                    ? "%"
+                                                    : "$"}
+                                                </span>
+                                              </div>
                                             </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              ),
+                            )}
                           </div>
                         )}
                       </div>
@@ -5157,7 +6014,10 @@ type PriceForm = {
   criticalStock: string;
 };
 
-const emptyPriceForm = (category = "Servicios", isService = true): PriceForm => ({
+const emptyPriceForm = (
+  category = "Servicios",
+  isService = true,
+): PriceForm => ({
   name: "",
   price: "0",
   discount: "0",
@@ -5186,7 +6046,11 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     name: row.name ?? "",
     price: String(row.price ?? 0),
     discount: String(row.cash_discount ?? 0), // ← read real value
-    duration: row.duration_min ? String(row.duration_min) : isService ? "30" : "",
+    duration: row.duration_min
+      ? String(row.duration_min)
+      : isService
+        ? "30"
+        : "",
     status: row.active === false ? "Inactivo" : "Activo",
     category: row.category || (isService ? "Servicios" : "Productos"),
     description: "",
@@ -5281,7 +6145,9 @@ function PriceEditorModal({
                   type="number"
                   min={0}
                   value={form.duration}
-                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, duration: e.target.value })
+                  }
                   className={inputCls}
                 />
               </Field>
@@ -5305,7 +6171,9 @@ function PriceEditorModal({
               <Field label="Categoría">
                 <select
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, category: e.target.value })
+                  }
                   className={inputCls}
                 >
                   {availableCatalogCategories.map((category) => (
@@ -5318,12 +6186,17 @@ function PriceEditorModal({
 
           <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
             <div>
-              <div className="text-sm font-medium">Se puede reservar online</div>
+              <div className="text-sm font-medium">
+                Se puede reservar online
+              </div>
               <div className="text-xs text-muted-foreground">
                 Disponible para reserva/compra online
               </div>
             </div>
-            <Toggle on={form.reservable} onChange={(v) => setForm({ ...form, reservable: v })} />
+            <Toggle
+              on={form.reservable}
+              onChange={(v) => setForm({ ...form, reservable: v })}
+            />
           </label>
 
           {!isService && (
@@ -5333,7 +6206,9 @@ function PriceEditorModal({
                   <input
                     type="number"
                     value={form.stock}
-                    onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, stock: e.target.value })
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -5341,7 +6216,9 @@ function PriceEditorModal({
                   <input
                     type="number"
                     value={form.warnStock}
-                    onChange={(e) => setForm({ ...form, warnStock: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, warnStock: e.target.value })
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -5349,7 +6226,9 @@ function PriceEditorModal({
                   <input
                     type="number"
                     value={form.criticalStock}
-                    onChange={(e) => setForm({ ...form, criticalStock: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, criticalStock: e.target.value })
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -5360,7 +6239,9 @@ function PriceEditorModal({
           <Field label="Descripción (opcional)">
             <textarea
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
               className={cn(inputCls, "min-h-[100px] resize-y")}
               placeholder={
                 isService
@@ -5398,7 +6279,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const isService = kind === "servicios";
   const { businessId } = useAuth();
   const [rows, setRows] = useState<PriceRow[]>([]);
-  const [serviceReservableMap, setServiceReservableMap] = useState<Record<string, boolean>>({});
+  const [serviceReservableMap, setServiceReservableMap] = useState<
+    Record<string, boolean>
+  >({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
   const [editing, setEditing] = useState<PriceRow | null>(null);
@@ -5409,14 +6292,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   );
   const [confirmDelItem, setConfirmDelItem] = useState<PriceRow | null>(null);
   // Pending changes — written to Supabase only when global Save is pressed
-  type PendingItem = { tempId: string; payload: Record<string, unknown>; isNew: boolean };
+  type PendingItem = {
+    tempId: string;
+    payload: Record<string, unknown>;
+    isNew: boolean;
+  };
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
-  const [customCatalogCategories, setCustomCatalogCategories] =
-    useState<string[]>(defaultCatalogCategories);
-  const [customServiceCategories, setCustomServiceCategories] =
-    useState<string[]>(defaultServiceCategories);
+  const [customCatalogCategories, setCustomCatalogCategories] = useState<
+    string[]
+  >(defaultCatalogCategories);
+  const [customServiceCategories, setCustomServiceCategories] = useState<
+    string[]
+  >(defaultServiceCategories);
 
   // Load categories from Supabase schedule._categories
   useEffect(() => {
@@ -5432,9 +6321,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const visibility = getPublicVisibility(schedule);
         if (isService) {
           setServiceReservableMap(
-            normalizePublicBooleanMap(visibility.services ?? schedule._serviceReservable),
+            normalizePublicBooleanMap(
+              visibility.services ?? schedule._serviceReservable,
+            ),
           );
-          if (Array.isArray(cats.service)) setCustomServiceCategories(cats.service as string[]);
+          if (Array.isArray(cats.service))
+            setCustomServiceCategories(cats.service as string[]);
         }
         if (!isService && Array.isArray(cats.catalog))
           setCustomCatalogCategories(cats.catalog as string[]);
@@ -5449,15 +6341,24 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle();
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const existingCats = (existingSchedule._categories ?? {}) as Record<string, unknown>;
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const existingCats = (existingSchedule._categories ?? {}) as Record<
+      string,
+      unknown
+    >;
     const updatedCats = isService
       ? { ...existingCats, service: customServiceCategories }
       : { ...existingCats, catalog: customCatalogCategories };
     await supabase
       .from("business_settings")
       .upsert(
-        { business_id: businessId, schedule: { ...existingSchedule, _categories: updatedCats } },
+        {
+          business_id: businessId,
+          schedule: { ...existingSchedule, _categories: updatedCats },
+        },
         { onConflict: "business_id" },
       );
   }, [businessId, isService, customServiceCategories, customCatalogCategories]);
@@ -5465,11 +6366,17 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // Local-only category update (no Supabase until global save)
   const saveCategories = useCallback(
     (next: string[], type: "catalog" | "service") => {
-      const clean = Array.from(new Set(next.map((c) => c.trim()).filter(Boolean)));
+      const clean = Array.from(
+        new Set(next.map((c) => c.trim()).filter(Boolean)),
+      );
       if (type === "service") {
-        setCustomServiceCategories(clean.length ? clean : defaultServiceCategories);
+        setCustomServiceCategories(
+          clean.length ? clean : defaultServiceCategories,
+        );
       } else {
-        setCustomCatalogCategories(clean.length ? clean : defaultCatalogCategories);
+        setCustomCatalogCategories(
+          clean.length ? clean : defaultCatalogCategories,
+        );
       }
     },
     [isService],
@@ -5501,12 +6408,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
     const onCatalogStockSaved = (event: Event) => {
       const detail = (event as CustomEvent).detail as
-        | { productId?: string; stock?: number }
-        | undefined;
+        { productId?: string; stock?: number } | undefined;
 
       if (detail?.productId && typeof detail.stock === "number") {
         setRows((prev) =>
-          prev.map((row) => (row.id === detail.productId ? { ...row, stock: detail.stock } : row)),
+          prev.map((row) =>
+            row.id === detail.productId ? { ...row, stock: detail.stock } : row,
+          ),
         );
         return;
       }
@@ -5531,7 +6439,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       .subscribe();
 
     return () => {
-      window.removeEventListener("clippr:catalog-stock-saved", onCatalogStockSaved);
+      window.removeEventListener(
+        "clippr:catalog-stock-saved",
+        onCatalogStockSaved,
+      );
       supabase.removeChannel(channel);
     };
   }, [businessId, load]);
@@ -5567,7 +6478,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
         // Flush deletes
         for (const id of deletes) {
-          const { error } = await supabase.from("price_catalog").delete().eq("id", id);
+          const { error } = await supabase
+            .from("price_catalog")
+            .delete()
+            .eq("id", id);
           if (error) errors.push(error.message);
           if (isService) delete nextServiceReservableMap[id];
         }
@@ -5588,7 +6502,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               nextServiceReservableMap[String(inserted.id)] = reservable;
             }
           } else {
-            const { error } = await supabase.from("price_catalog").update(payload).eq("id", tempId);
+            const { error } = await supabase
+              .from("price_catalog")
+              .update(payload)
+              .eq("id", tempId);
             if (error) errors.push(error.message);
           }
         }
@@ -5601,7 +6518,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             .select("schedule")
             .eq("business_id", businessId)
             .maybeSingle();
-          const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+            string,
+            unknown
+          >;
           const visibility = getPublicVisibility(existingSchedule);
           await supabase.from("business_settings").upsert(
             {
@@ -5627,7 +6547,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           setPendingDeletes(new Set());
           window.dispatchEvent(new CustomEvent("clippr:catalog-stock-saved"));
           toast.success(
-            isService ? "Servicios guardados correctamente" : "Catálogo guardado correctamente",
+            isService
+              ? "Servicios guardados correctamente"
+              : "Catálogo guardado correctamente",
           );
           load();
         }
@@ -5644,10 +6566,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   });
   const categories = isService
     ? Array.from(
-        new Set([...customServiceCategories, ...visibleRows.map((r) => r.category || "Servicios")]),
+        new Set([
+          ...customServiceCategories,
+          ...visibleRows.map((r) => r.category || "Servicios"),
+        ]),
       )
     : Array.from(
-        new Set([...customCatalogCategories, ...visibleRows.map((r) => r.category || "Productos")]),
+        new Set([
+          ...customCatalogCategories,
+          ...visibleRows.map((r) => r.category || "Productos"),
+        ]),
       );
   const filtered = visibleRows.filter(
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === cat,
@@ -5684,36 +6612,57 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
     if (editing) {
       if (isService)
-        setServiceReservableMap((current) => ({ ...current, [editing.id]: form.reservable }));
+        setServiceReservableMap((current) => ({
+          ...current,
+          [editing.id]: form.reservable,
+        }));
       // Update existing row locally
       setRows((prev) =>
-        prev.map((r) => (r.id === editing.id ? ({ ...r, ...payload } as PriceRow) : r)),
+        prev.map((r) =>
+          r.id === editing.id ? ({ ...r, ...payload } as PriceRow) : r,
+        ),
       );
       setPendingItems((prev) => {
         const next = prev.filter((p) => p.tempId !== editing.id);
-        return [...next, { tempId: editing.id, payload: { ...payload }, isNew: false }];
+        return [
+          ...next,
+          { tempId: editing.id, payload: { ...payload }, isNew: false },
+        ];
       });
     } else {
       // New row — temp negative id until saved
       const tempId = `new_${Date.now()}`;
       if (isService)
-        setServiceReservableMap((current) => ({ ...current, [tempId]: form.reservable }));
+        setServiceReservableMap((current) => ({
+          ...current,
+          [tempId]: form.reservable,
+        }));
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
-      setPendingItems((prev) => [...prev, { tempId, payload: { ...payload }, isNew: true }]);
+      setPendingItems((prev) => [
+        ...prev,
+        { tempId, payload: { ...payload }, isNew: true },
+      ]);
     }
     setModalOpen(false);
   }
 
   function toggle(row: PriceRow) {
     const newActive = !row.active;
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, active: newActive } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, active: newActive } : r)),
+    );
     setPendingItems((prev) => {
       const existing = prev.find((p) => p.tempId === row.id);
       if (existing)
         return prev.map((p) =>
-          p.tempId === row.id ? { ...p, payload: { ...p.payload, active: newActive } } : p,
+          p.tempId === row.id
+            ? { ...p, payload: { ...p.payload, active: newActive } }
+            : p,
         );
-      return [...prev, { tempId: row.id, payload: { active: newActive }, isNew: false }];
+      return [
+        ...prev,
+        { tempId: row.id, payload: { active: newActive }, isNew: false },
+      ];
     });
   }
 
@@ -5759,9 +6708,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   }
 
   // Inline input modal for add/rename category (avoids browser prompt())
-  const [catModal, setCatModal] = useState<{ mode: "add" | "rename"; current?: string } | null>(
-    null,
-  );
+  const [catModal, setCatModal] = useState<{
+    mode: "add" | "rename";
+    current?: string;
+  } | null>(null);
   const [catInputVal, setCatInputVal] = useState("");
 
   function addCategory() {
@@ -5781,7 +6731,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       return;
     }
     if (catModal?.mode === "add") {
-      if (isService) saveCategories([...customServiceCategories, clean], "service");
+      if (isService)
+        saveCategories([...customServiceCategories, clean], "service");
       else saveCategories([...customCatalogCategories, clean], "catalog");
       setCat(clean);
     } else if (catModal?.mode === "rename" && catModal.current) {
@@ -5822,7 +6773,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const category = confirmDelCat;
     setConfirmDelCat(null);
     const currentCategories = categories.filter((c) => c !== category);
-    if (currentCategories.length === 0) return toast.error("Debe quedar al menos una categoría");
+    if (currentCategories.length === 0)
+      return toast.error("Debe quedar al menos una categoría");
     const targetCategory = currentCategories[0];
     if (isService)
       saveCategories(
@@ -5921,7 +6873,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         </div>
 
         {loading ? (
-          <div className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+            Cargando…
+          </div>
         ) : filtered.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-muted-foreground">
             No hay ítems en esta sección.
@@ -5952,7 +6906,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   <div className="font-medium text-sm">{row.name}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {row.duration_min ? `${row.duration_min} min` : ""}
-                    {typeof row.stock === "number" && !isService ? `Stock: ${row.stock}` : ""}
+                    {typeof row.stock === "number" && !isService
+                      ? `Stock: ${row.stock}`
+                      : ""}
                   </div>
                 </div>
                 {typeof row.stock === "number" && !isService && (
@@ -5983,7 +6939,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   <span
                     className={cn(
                       "h-1.5 w-1.5 rounded-full",
-                      row.active !== false ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
+                      row.active !== false
+                        ? "bg-[oklch(0.78_0.17_140)]"
+                        : "bg-muted-foreground",
                     )}
                   />{" "}
                   {row.active !== false ? "Activo" : "Inactivo"}
@@ -6042,7 +7000,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
             <div className="font-display font-semibold text-base">
-              {catModal.mode === "add" ? "Nueva categoría" : "Renombrar categoría"}
+              {catModal.mode === "add"
+                ? "Nueva categoría"
+                : "Renombrar categoría"}
             </div>
             <input
               autoFocus
@@ -6110,7 +7070,8 @@ function CajaSection() {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         if (caja.methods) setMethods(caja.methods as typeof defaultMethods);
-        if (typeof caja.autoChange === "boolean") setAutoChange(caja.autoChange);
+        if (typeof caja.autoChange === "boolean")
+          setAutoChange(caja.autoChange);
       });
   }, [businessId]);
 
@@ -6121,7 +7082,10 @@ function CajaSection() {
       .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle();
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
     const { error } = await supabase.from("business_settings").upsert(
       {
         business_id: businessId,
@@ -6187,7 +7151,9 @@ function CajaSection() {
     <>
       <div>
         <h2 className="text-xl font-display font-semibold">Caja</h2>
-        <p className="text-sm text-muted-foreground mt-1">Cobros y medios de pago.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Cobros y medios de pago.
+        </p>
       </div>
 
       <SectionCard label="Métodos de pago habilitados">
@@ -6195,7 +7161,10 @@ function CajaSection() {
           {M.map((m) => {
             const Icon = m.icon;
             return (
-              <div key={m.id} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
+              <div
+                key={m.id}
+                className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0"
+              >
                 <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
                   <Icon className={cn("h-4.5 w-4.5", m.tint)} />
                 </div>
@@ -6216,7 +7185,9 @@ function CajaSection() {
             <ArrowLeftRight className="h-4.5 w-4.5 text-muted-foreground" />
           </div>
           <div className="flex-1">
-            <div className="font-medium text-sm">Calcular vuelto automáticamente</div>
+            <div className="font-medium text-sm">
+              Calcular vuelto automáticamente
+            </div>
             <div className="text-xs text-muted-foreground mt-0.5">
               Muestra el vuelto al ingresar el monto en efectivo
             </div>
@@ -6243,7 +7214,9 @@ function SenasBlock({
     <div className="rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.06] p-6 space-y-4">
       <div>
         <div className="text-sm font-semibold text-foreground">{title}</div>
-        {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
+        {subtitle && (
+          <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>
+        )}
       </div>
       {children}
     </div>
@@ -6290,9 +7263,13 @@ function SenasSection() {
     }[]
   >([]);
   const [selectedSvcs, setSelectedSvcs] = React.useState<string[]>([]);
-  const [amountType, setAmountType] = React.useState<"fixed" | "percent">("fixed");
+  const [amountType, setAmountType] = React.useState<"fixed" | "percent">(
+    "fixed",
+  );
   const [amountValue, setAmountValue] = React.useState("");
-  const [lostDist, setLostDist] = React.useState<"local" | "prof" | "custom">("local");
+  const [lostDist, setLostDist] = React.useState<"local" | "prof" | "custom">(
+    "local",
+  );
   const [lostLocal, setLostLocal] = React.useState("100");
   const [lostProf, setLostProf] = React.useState("0");
   const [msg, setMsg] = React.useState(DEFAULT_SENA_MESSAGE);
@@ -6332,7 +7309,8 @@ function SenasSection() {
         }
 
         const servicesOnly = (data ?? []).filter(
-          (item) => item.duration_min !== null && item.duration_min !== undefined,
+          (item) =>
+            item.duration_min !== null && item.duration_min !== undefined,
         );
 
         setServices(
@@ -6361,7 +7339,8 @@ function SenasSection() {
       }
     }
 
-    const profPct = lostDist === "custom" ? typedProfPct : lostDist === "prof" ? 100 : 0;
+    const profPct =
+      lostDist === "custom" ? typedProfPct : lostDist === "prof" ? 100 : 0;
     const { error } = await supabase.from("business_settings").upsert(
       {
         business_id: businessId,
@@ -6383,7 +7362,16 @@ function SenasSection() {
       return;
     }
     toast.success("Configuración de señas guardada correctamente");
-  }, [businessId, selectedSvcs, amountType, amountValue, lostDist, lostLocal, lostProf, msg]);
+  }, [
+    businessId,
+    selectedSvcs,
+    amountType,
+    amountValue,
+    lostDist,
+    lostLocal,
+    lostProf,
+    msg,
+  ]);
 
   const saveRef = React.useRef(save);
   React.useEffect(() => {
@@ -6393,181 +7381,201 @@ function SenasSection() {
   React.useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "senas" || section === "servicios") saveRef.current();
+      if (!section || section === "senas" || section === "servicios")
+        saveRef.current();
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, []);
 
   if (loading)
-    return <div className="text-sm text-muted-foreground animate-pulse p-6">Cargando…</div>;
+    return (
+      <div className="text-sm text-muted-foreground animate-pulse p-6">
+        Cargando…
+      </div>
+    );
 
   return (
     <div className="space-y-4">
       {/* Servicios con seña: si no hay servicios seleccionados, las señas quedan desactivadas. */}
       <>
-          {/* Bloque 1: Servicios */}
-          <SenasBlock title="Servicios que requieren seña">
-            <div className="space-y-2">
-              {services.length > 0 && (
-                <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
-                  <div className="text-xs text-muted-foreground">
-                    {selectedSvcs.length} de {services.length} servicios seleccionados
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSvcs(services.map((s) => s.id))}
-                      className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-foreground transition"
-                    >
-                      Marcar todos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSvcs([])}
-                      className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-muted-foreground transition"
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {services.map((s) => {
-                  const on = selectedSvcs.includes(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() =>
-                        setSelectedSvcs(
-                          on ? selectedSvcs.filter((x) => x !== s.id) : [...selectedSvcs, s.id],
-                        )
-                      }
-                      className={cn(
-                        "flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left ring-1 transition-all",
-                        on
-                          ? "bg-primary/14 ring-primary/35 shadow-[0_0_14px_-6px_oklch(0.66_0.22_265/0.45)]"
-                          : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.055]",
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{s.name}</div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                          {s.category && <span>{s.category}</span>}
-                          {typeof s.duration_min === "number" && s.duration_min > 0 && (
-                            <span>{s.duration_min} min</span>
-                          )}
-                          {typeof s.price === "number" && s.price > 0 && (
-                            <span>${Number(s.price).toLocaleString("es-AR")}</span>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full ring-1 transition",
-                          on ? "bg-primary ring-primary/40" : "bg-white/10 ring-white/10",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-5 w-5 rounded-full bg-white shadow transition-transform",
-                            on ? "translate-x-5" : "translate-x-0.5",
-                          )}
-                        />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {services.length === 0 && (
-                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground text-center">
-                  Primero cargá servicios en Configuración → Servicios.
-                </div>
-              )}
-            </div>
-          </SenasBlock>
-          {/* Bloque 4: Distribución si se pierde */}
-          <SenasBlock title="Si el cliente pierde la seña">
-            <div className="flex flex-wrap gap-3">
-              {(
-                [
-                  ["local", "🏢 Local"],
-                  ["prof", "👤 Profesional"],
-                  ["custom", "⚙️ Personalizado"],
-                ] as [string, string][]
-              ).map(([v, l]) => (
-                <SenasToggleBtn
-                  key={v}
-                  label={l}
-                  active={lostDist === v}
-                  onClick={() => {
-                    setLostDist(v as "local" | "prof" | "custom");
-                    if (v === "local") {
-                      setLostLocal("100");
-                      setLostProf("0");
-                    } else if (v === "prof") {
-                      setLostLocal("0");
-                      setLostProf("100");
-                    }
-                  }}
-                />
-              ))}
-            </div>
-
-            {lostDist === "custom" && (
-              <div className="mt-2 p-4 rounded-xl bg-white/[0.02] ring-1 ring-white/[0.06] space-y-3">
-                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                  Distribución personalizada
-                </div>
-                <div className="flex items-center gap-6 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground w-24">Local</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={lostLocal}
-                      onChange={(e) => setLostLocal(e.target.value)}
-                      className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground w-24">Profesional</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={lostProf}
-                      onChange={(e) => setLostProf(e.target.value)}
-                      className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                </div>
+        {/* Bloque 1: Servicios */}
+        <SenasBlock title="Servicios que requieren seña">
+          <div className="space-y-2">
+            {services.length > 0 && (
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/5">
                 <div className="text-xs text-muted-foreground">
-                  Podés escribir los porcentajes libremente. Se validan cuando tocás Guardar.
+                  {selectedSvcs.length} de {services.length} servicios
+                  seleccionados
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs(services.map((s) => s.id))}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-foreground transition"
+                  >
+                    Marcar todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSvcs([])}
+                    className="rounded-lg bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/10 px-3 py-1.5 text-[11px] text-muted-foreground transition"
+                  >
+                    Limpiar
+                  </button>
                 </div>
               </div>
             )}
-          </SenasBlock>
 
-          {/* Bloque 4: Mensaje */}
-          <SenasBlock
-            title="Mensaje para el cliente"
-            subtitle="Mensaje que verá el cliente después de reservar un turno con seña."
-          >
-            <div className="relative">
-              <textarea
-                rows={4}
-                value={msg}
-                onChange={(e) => setMsg(e.target.value)}
-                className="min-h-[360px] resize-y w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {services.map((s) => {
+                const on = selectedSvcs.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() =>
+                      setSelectedSvcs(
+                        on
+                          ? selectedSvcs.filter((x) => x !== s.id)
+                          : [...selectedSvcs, s.id],
+                      )
+                    }
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left ring-1 transition-all",
+                      on
+                        ? "bg-primary/14 ring-primary/35 shadow-[0_0_14px_-6px_oklch(0.66_0.22_265/0.45)]"
+                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.055]",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {s.name}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                        {s.category && <span>{s.category}</span>}
+                        {typeof s.duration_min === "number" &&
+                          s.duration_min > 0 && (
+                            <span>{s.duration_min} min</span>
+                          )}
+                        {typeof s.price === "number" && s.price > 0 && (
+                          <span>
+                            ${Number(s.price).toLocaleString("es-AR")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full ring-1 transition",
+                        on
+                          ? "bg-primary ring-primary/40"
+                          : "bg-white/10 ring-white/10",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-5 w-5 rounded-full bg-white shadow transition-transform",
+                          on ? "translate-x-5" : "translate-x-0.5",
+                        )}
+                      />
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="text-xs text-muted-foreground"></div>
-          </SenasBlock>
+
+            {services.length === 0 && (
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-4 text-sm text-muted-foreground text-center">
+                Primero cargá servicios en Configuración → Servicios.
+              </div>
+            )}
+          </div>
+        </SenasBlock>
+        {/* Bloque 4: Distribución si se pierde */}
+        <SenasBlock title="Si el cliente pierde la seña">
+          <div className="flex flex-wrap gap-3">
+            {(
+              [
+                ["local", "🏢 Local"],
+                ["prof", "👤 Profesional"],
+                ["custom", "⚙️ Personalizado"],
+              ] as [string, string][]
+            ).map(([v, l]) => (
+              <SenasToggleBtn
+                key={v}
+                label={l}
+                active={lostDist === v}
+                onClick={() => {
+                  setLostDist(v as "local" | "prof" | "custom");
+                  if (v === "local") {
+                    setLostLocal("100");
+                    setLostProf("0");
+                  } else if (v === "prof") {
+                    setLostLocal("0");
+                    setLostProf("100");
+                  }
+                }}
+              />
+            ))}
+          </div>
+
+          {lostDist === "custom" && (
+            <div className="mt-2 p-4 rounded-xl bg-white/[0.02] ring-1 ring-white/[0.06] space-y-3">
+              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                Distribución personalizada
+              </div>
+              <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground w-24">
+                    Local
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={lostLocal}
+                    onChange={(e) => setLostLocal(e.target.value)}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none"
+                  />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground w-24">
+                    Profesional
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={lostProf}
+                    onChange={(e) => setLostProf(e.target.value)}
+                    className="w-20 rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-center focus:outline-none"
+                  />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Podés escribir los porcentajes libremente. Se validan cuando
+                tocás Guardar.
+              </div>
+            </div>
+          )}
+        </SenasBlock>
+
+        {/* Bloque 4: Mensaje */}
+        <SenasBlock
+          title="Mensaje para el cliente"
+          subtitle="Mensaje que verá el cliente después de reservar un turno con seña."
+        >
+          <div className="relative">
+            <textarea
+              rows={4}
+              value={msg}
+              onChange={(e) => setMsg(e.target.value)}
+              className="min-h-[360px] resize-y w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5 text-sm leading-relaxed focus:outline-none focus:ring-white/25 transition resize-none"
+            />
+          </div>
+          <div className="text-xs text-muted-foreground"></div>
+        </SenasBlock>
       </>
     </div>
   );
@@ -6580,85 +7588,93 @@ function SettingsPage() {
     <AppShell>
       <div className="settings-compact-page -mt-4 sm:-mt-5 lg:-mt-6">
         <Topbar
-        title="Configuración"
-        subtitle="Tu negocio"
-        action={
-          <button
-            onClick={() =>
-              window.dispatchEvent(
-                new CustomEvent("clippr:save-settings", { detail: { section: active } }),
-              )
-            }
-            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
-          >
-            Guardar <Check className="h-4 w-4" strokeWidth={3} />
-          </button>
-        }
-      />
+          title="Configuración"
+          subtitle="Tu negocio"
+          action={
+            <button
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("clippr:save-settings", {
+                    detail: { section: active },
+                  }),
+                )
+              }
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
+            >
+              Guardar <Check className="h-4 w-4" strokeWidth={3} />
+            </button>
+          }
+        />
         <div className="app-premium-shell -mt-3 sm:-mt-4 lg:-mt-5">
-      
-      <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-<div className="space-y-6 animate-fade-up">
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
-          {/* Sidebar */}
-          <aside className="space-y-5">
-            {groups.map((g) => (
-              <div key={g.label}>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 px-3 mb-2">
-                  {g.label}
+          <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
+          <div className="space-y-6 animate-fade-up">
+            <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+              {/* Sidebar */}
+              <aside className="space-y-5">
+                {groups.map((g) => (
+                  <div key={g.label}>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 px-3 mb-2">
+                      {g.label}
+                    </div>
+                    <div className="space-y-1">
+                      {g.items.map((it) => {
+                        const isActive = active === it.id;
+                        const Icon = it.icon;
+                        return (
+                          <button
+                            key={it.id}
+                            onClick={() => setActive(it.id)}
+                            className={cn(
+                              "w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
+                              isActive
+                                ? "bg-white/[0.06] ring-1 ring-white/10 text-foreground"
+                                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "h-8 w-8 rounded-lg grid place-items-center bg-gradient-to-br ring-1 transition-all shrink-0",
+                                it.glow,
+                                isActive
+                                  ? "ring-white/15 shadow-[0_0_18px_-6px_currentColor]"
+                                  : "ring-white/5 group-hover:ring-white/15",
+                                it.tint,
+                              )}
+                            >
+                              <Icon
+                                className={cn("h-4 w-4", it.tint)}
+                                strokeWidth={2}
+                              />
+                            </span>
+                            <span className={cn(isActive && "font-medium")}>
+                              {it.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div className="px-3 pt-3 text-[11px] text-muted-foreground/60">
+                  Clippr v1.0.0
                 </div>
-                <div className="space-y-1">
-                  {g.items.map((it) => {
-                    const isActive = active === it.id;
-                    const Icon = it.icon;
-                    return (
-                      <button
-                        key={it.id}
-                        onClick={() => setActive(it.id)}
-                        className={cn(
-                          "w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
-                          isActive
-                            ? "bg-white/[0.06] ring-1 ring-white/10 text-foreground"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-8 w-8 rounded-lg grid place-items-center bg-gradient-to-br ring-1 transition-all shrink-0",
-                            it.glow,
-                            isActive
-                              ? "ring-white/15 shadow-[0_0_18px_-6px_currentColor]"
-                              : "ring-white/5 group-hover:ring-white/15",
-                            it.tint,
-                          )}
-                        >
-                          <Icon className={cn("h-4 w-4", it.tint)} strokeWidth={2} />
-                        </span>
-                        <span className={cn(isActive && "font-medium")}>{it.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <div className="px-3 pt-3 text-[11px] text-muted-foreground/60">Clippr v1.0.0</div>
-          </aside>
+              </aside>
 
-          {/* Content */}
-          <section className="space-y-6">
-            {active === "branding" && <BrandingSection />}
+              {/* Content */}
+              <section className="space-y-6">
+                {active === "branding" && <BrandingSection />}
 
-            {active === "horarios" && <HorariosSection />}
-            {active === "equipo" && <EquipoSection />}
-            {active === "servicios" && <ServiciosSection />}
-            
-            {active === "catalogo" && <CatalogoSection />}
-            {active === "caja" && <CajaSection />}
-            {active === "plan" && <PlanSection />}
-          </section>
+                {active === "horarios" && <HorariosSection />}
+                {active === "equipo" && <EquipoSection />}
+                {active === "servicios" && <ServiciosSection />}
+
+                {active === "catalogo" && <CatalogoSection />}
+                {active === "caja" && <CajaSection />}
+                {active === "plan" && <PlanSection />}
+              </section>
+            </div>
+          </div>
         </div>
-      </div>
-      </div>
       </div>
     </AppShell>
   );
@@ -6708,7 +7724,13 @@ const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
 
 // ── Helpers outside component — prevents focus loss on re-render ─────────────
 
-function CfgCard({ children, className }: { children: React.ReactNode; className?: string }) {
+function CfgCard({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div
       className={cn(
@@ -6758,7 +7780,9 @@ function CfgNumInput({
     <label className="flex items-center justify-between gap-4">
       <span className="text-sm text-foreground/80">{label}</span>
       <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-        {prefix && <span className="text-sm text-muted-foreground">{prefix}</span>}
+        {prefix && (
+          <span className="text-sm text-muted-foreground">{prefix}</span>
+        )}
         <input
           type="number"
           min={min}
@@ -6773,7 +7797,13 @@ function CfgNumInput({
   );
 }
 
-function CfgToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+function CfgToggle({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
   return (
     <button
       type="button"
@@ -6825,11 +7855,17 @@ function ClientesSection() {
         .select("schedule")
         .eq("business_id", businessId)
         .maybeSingle();
-      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+        string,
+        unknown
+      >;
       const result = await supabase
         .from("business_settings")
         .upsert(
-          { business_id: businessId, schedule: { ...existingSchedule, _clientes: cfg } },
+          {
+            business_id: businessId,
+            schedule: { ...existingSchedule, _clientes: cfg },
+          },
           { onConflict: "business_id" },
         );
       if (result.error) throw new Error(result.error.message);
@@ -6858,7 +7894,9 @@ function ClientesSection() {
 
   if (!loaded)
     return (
-      <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
+      <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">
+        Cargando…
+      </div>
     );
 
   return (
@@ -6880,7 +7918,10 @@ function ClientesSection() {
           {ALL_CLIENT_FIELDS.map((f) => {
             const enabled = cfg.fields[f.key] ?? false;
             return (
-              <div key={f.key} className="flex items-center justify-between gap-4 py-1">
+              <div
+                key={f.key}
+                className="flex items-center justify-between gap-4 py-1"
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     type="button"
@@ -6894,7 +7935,9 @@ function ClientesSection() {
                       f.required && "opacity-60 cursor-not-allowed",
                     )}
                   >
-                    {enabled && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                    {enabled && (
+                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                    )}
                   </button>
                   <span className="text-sm text-foreground/90">{f.label}</span>
                 </div>
@@ -6937,8 +7980,12 @@ function ClientesSection() {
             },
           ].map((s) => (
             <div key={s.label} className={cn("rounded-xl ring-1 p-3", s.ring)}>
-              <div className={cn("text-xs font-semibold", s.color)}>{s.label}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">{s.range}</div>
+              <div className={cn("text-xs font-semibold", s.color)}>
+                {s.label}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {s.range}
+              </div>
             </div>
           ))}
         </div>
@@ -6948,7 +7995,10 @@ function ClientesSection() {
             value={cfg.diasInactivo}
             min={1}
             onChange={(n) =>
-              setCfg((p) => ({ ...p, diasInactivo: Math.min(n, p.diasPerdido - 1) }))
+              setCfg((p) => ({
+                ...p,
+                diasInactivo: Math.min(n, p.diasPerdido - 1),
+              }))
             }
           />
           <CfgNumInput
@@ -6956,7 +8006,10 @@ function ClientesSection() {
             value={cfg.diasPerdido}
             min={2}
             onChange={(n) =>
-              setCfg((p) => ({ ...p, diasPerdido: Math.max(n, p.diasInactivo + 1) }))
+              setCfg((p) => ({
+                ...p,
+                diasPerdido: Math.max(n, p.diasInactivo + 1),
+              }))
             }
           />
         </div>
@@ -6971,14 +8024,21 @@ function ClientesSection() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-foreground">VIP por visitas mensuales</div>
+              <div className="text-sm font-medium text-foreground">
+                VIP por visitas mensuales
+              </div>
               <div className="text-xs text-muted-foreground">
                 Cantidad mínima de visitas en el mes actual
               </div>
             </div>
             <CfgToggle
               enabled={cfg.vipVisitasEnabled}
-              onToggle={() => setCfg((p) => ({ ...p, vipVisitasEnabled: !p.vipVisitasEnabled }))}
+              onToggle={() =>
+                setCfg((p) => ({
+                  ...p,
+                  vipVisitasEnabled: !p.vipVisitasEnabled,
+                }))
+              }
             />
           </div>
           {cfg.vipVisitasEnabled && (
@@ -6994,14 +8054,18 @@ function ClientesSection() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-foreground">VIP por gasto mensual</div>
+              <div className="text-sm font-medium text-foreground">
+                VIP por gasto mensual
+              </div>
               <div className="text-xs text-muted-foreground">
                 Gasto mínimo acumulado en el mes actual
               </div>
             </div>
             <CfgToggle
               enabled={cfg.vipGastoEnabled}
-              onToggle={() => setCfg((p) => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))}
+              onToggle={() =>
+                setCfg((p) => ({ ...p, vipGastoEnabled: !p.vipGastoEnabled }))
+              }
             />
           </div>
           {cfg.vipGastoEnabled && (
@@ -7018,15 +8082,14 @@ function ClientesSection() {
         {(cfg.vipVisitasEnabled || cfg.vipGastoEnabled) && (
           <p className="text-[11px] text-muted-foreground rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-3 py-2">
             Un cliente se marca VIP si cumple{" "}
-            <strong className="text-foreground">cualquiera</strong> de las condiciones activas
-            durante el mes en curso.
+            <strong className="text-foreground">cualquiera</strong> de las
+            condiciones activas durante el mes en curso.
           </p>
         )}
       </CfgCard>
     </div>
   );
 }
-
 
 // ─────────── Plan & facturación ───────────
 const fmtARS = (n: number) =>
@@ -7116,7 +8179,8 @@ function PlanSection() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Planes</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Probá Clippr gratis y después elegí el plan según la cantidad de sucursales.
+            Probá Clippr gratis y después elegí el plan según la cantidad de
+            sucursales.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -7136,9 +8200,12 @@ function PlanSection() {
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[oklch(0.82_0.18_300)]">
                 Prueba gratuita activa
               </div>
-              <h2 className="mt-1 text-xl font-semibold">Todas las funciones de Clippr por 60 días</h2>
+              <h2 className="mt-1 text-xl font-semibold">
+                Todas las funciones de Clippr por 60 días
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Sin tarjeta de crédito. Sin compromisos. Al finalizar la prueba, elegís Pro o Business para continuar.
+                Sin tarjeta de crédito. Sin compromisos. Al finalizar la prueba,
+                elegís Pro o Business para continuar.
               </p>
               <div className="mt-4 h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
                 <div
@@ -7152,7 +8219,9 @@ function PlanSection() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
               Tiempo restante
             </div>
-            <div className="mt-1 text-3xl font-semibold tabular-nums">{trialLeft} días</div>
+            <div className="mt-1 text-3xl font-semibold tabular-nums">
+              {trialLeft} días
+            </div>
             <div className="mt-1 text-xs text-muted-foreground">
               Después se activa el plan que elijas.
             </div>
@@ -7186,7 +8255,9 @@ function PlanSection() {
                     <plan.icon
                       className={cn(
                         "h-5 w-5",
-                        plan.highlight ? "text-[oklch(0.82_0.18_300)]" : "text-muted-foreground",
+                        plan.highlight
+                          ? "text-[oklch(0.82_0.18_300)]"
+                          : "text-muted-foreground",
                       )}
                     />
                   </div>
@@ -7204,7 +8275,9 @@ function PlanSection() {
                         {plan.badge}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground max-w-md">{plan.tagline}</p>
+                    <p className="mt-1 text-sm text-muted-foreground max-w-md">
+                      {plan.tagline}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -7214,10 +8287,18 @@ function PlanSection() {
                   Luego de la prueba
                 </div>
                 <div className="mt-1 flex items-end gap-1">
-                  <span className="text-4xl font-semibold tracking-tight">{fmtARS(plan.monthly)}</span>
-                  <span className="pb-1 text-sm text-muted-foreground">/ mes</span>
+                  <span className="text-4xl font-semibold tracking-tight">
+                    {fmtARS(plan.monthly)}
+                  </span>
+                  <span className="pb-1 text-sm text-muted-foreground">
+                    / mes
+                  </span>
                 </div>
-                {plan.extra && <div className="mt-2 text-sm text-[oklch(0.82_0.18_300)]">{plan.extra}</div>}
+                {plan.extra && (
+                  <div className="mt-2 text-sm text-[oklch(0.82_0.18_300)]">
+                    {plan.extra}
+                  </div>
+                )}
               </div>
 
               <ul className="space-y-2 text-sm">
@@ -7236,9 +8317,14 @@ function PlanSection() {
                   </div>
                   <div className="mt-3 grid gap-2 text-sm">
                     {plan.examples.map((example) => (
-                      <div key={example} className="flex items-center justify-between rounded-xl bg-white/[0.035] px-3 py-2 ring-1 ring-white/5">
+                      <div
+                        key={example}
+                        className="flex items-center justify-between rounded-xl bg-white/[0.035] px-3 py-2 ring-1 ring-white/5"
+                      >
                         <span>{example.split("→")[0].trim()}</span>
-                        <span className="font-semibold text-white/90">{example.split("→")[1].trim()}</span>
+                        <span className="font-semibold text-white/90">
+                          {example.split("→")[1].trim()}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -7249,7 +8335,8 @@ function PlanSection() {
                 {plan.cta} <ChevronRight className="h-4 w-4" />
               </button>
               <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
-                <Lock className="h-3 w-3" /> Sin permanencia. Cancelás cuando quieras.
+                <Lock className="h-3 w-3" /> Sin permanencia. Cancelás cuando
+                quieras.
               </div>
             </div>
           </div>
