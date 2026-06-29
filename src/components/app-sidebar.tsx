@@ -434,13 +434,13 @@ function PublicSiteMenu() {
 
       <DropdownMenuContent
         align="end"
-        className="w-[380px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
+        className="w-[430px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <Globe className="h-6 w-6 shrink-0 text-white/65" />
             <div className="min-w-0">
-              <div className="text-lg font-semibold leading-tight text-white">
+              <div className="whitespace-nowrap text-lg font-semibold leading-tight text-white">
                 Sitio Web Público
               </div>
               <div className="mt-0.5 text-xs text-white/45">
@@ -454,20 +454,33 @@ function PublicSiteMenu() {
             disabled={savingMaintenance || !slug}
             onClick={() => updateMaintenance(!maintenance)}
             className={[
-              "inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 transition disabled:cursor-not-allowed disabled:opacity-45",
+              "inline-flex shrink-0 items-center gap-3 rounded-full px-2 py-1 text-sm font-semibold ring-1 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45",
               maintenance
-                ? "bg-amber-500/15 text-amber-300 ring-amber-500/35"
-                : "bg-emerald-500/15 text-emerald-300 ring-emerald-500/35",
+                ? "bg-amber-500/12 text-amber-200 ring-amber-500/35"
+                : "bg-emerald-500/12 text-emerald-200 ring-emerald-500/35",
             ].join(" ")}
             title={maintenance ? "Pasar sitio a online" : "Poner sitio en mantenimiento"}
           >
             <span
               className={[
-                "h-2 w-2 rounded-full",
-                maintenance ? "bg-amber-400" : "bg-emerald-400",
+                "relative h-7 w-12 rounded-full ring-1 transition",
+                maintenance
+                  ? "bg-amber-500/25 ring-amber-400/35"
+                  : "bg-emerald-500/25 ring-emerald-400/35",
               ].join(" ")}
-            />
-            {maintenance ? "Mantenimiento" : "Online"}
+            >
+              <span
+                className={[
+                  "absolute top-1 h-5 w-5 rounded-full shadow-lg transition-all",
+                  maintenance
+                    ? "left-1 bg-amber-300 shadow-amber-500/35"
+                    : "left-6 bg-emerald-300 shadow-emerald-500/35",
+                ].join(" ")}
+              />
+            </span>
+            <span className="min-w-[104px] text-left">
+              {maintenance ? "Mantenimiento" : "Online"}
+            </span>
           </button>
         </div>
 
