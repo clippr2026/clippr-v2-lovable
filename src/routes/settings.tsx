@@ -599,7 +599,7 @@ function LandingSection() {
       });
   }, [businessId]);
 
-  async function save() {
+  async function save(showToast = true) {
     if (!businessId) return;
     setSaving(true);
     const next = {
@@ -1226,7 +1226,7 @@ function BrandingSection() {
       const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
       if (!url) return;
       setData((d) => ({ ...d, avatar_url: url }));
-      toast.success("Foto cargada. Tocá Guardar para confirmar.");
+      toast.success("Foto cargada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1242,7 +1242,7 @@ function BrandingSection() {
       const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
       if (!url) return;
       setData((d) => ({ ...d, cover_url: url }));
-      toast.success("Portada cargada. Tocá Guardar para confirmar.");
+      toast.success("Portada cargada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1252,11 +1252,11 @@ function BrandingSection() {
 
   async function removeAvatar() {
     setData((d) => ({ ...d, avatar_url: "" }));
-    toast.success("Foto quitada. Tocá Guardar para confirmar.");
+    toast.success("Foto quitada");
   }
   async function removeCover() {
     setData((d) => ({ ...d, cover_url: "" }));
-    toast.success("Portada quitada. Tocá Guardar para confirmar.");
+    toast.success("Portada quitada");
   }
 
   async function handlePortfolioSelect(index: number, file: File | null) {
@@ -1274,7 +1274,7 @@ function BrandingSection() {
       next[index] = url;
       const clean = next.filter(Boolean).slice(0, 3);
       setData((d) => ({ ...d, portfolio_urls: clean }));
-      toast.success("Imagen cargada. Tocá Guardar para confirmar.");
+      toast.success("Imagen cargada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1285,7 +1285,7 @@ function BrandingSection() {
   async function removePortfolioImage(index: number) {
     const next = data.portfolio_urls.filter((_, i) => i !== index).slice(0, 3);
     setData((d) => ({ ...d, portfolio_urls: next }));
-    toast.success("Imagen quitada. Tocá Guardar para confirmar.");
+    toast.success("Imagen quitada");
   }
 
   function addBenefit() {
@@ -1578,7 +1578,7 @@ function BrandingSection() {
     window.dispatchEvent(
       new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }),
     );
-    toast.success("Branding guardado correctamente");
+    if (showToast) toast.success("Guardado");
   }
 
   const saveRef = React.useRef(save);
@@ -1586,10 +1586,27 @@ function BrandingSection() {
     saveRef.current = save;
   }, [businessId, data, logoFile, colors, theme, benefits]);
 
+  const brandingHydratedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (loading || !businessId) return;
+
+    if (!brandingHydratedRef.current) {
+      brandingHydratedRef.current = true;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void save(false);
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [data, logoFile, colors, theme, benefits, loading, businessId]);
+
   useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "branding") void saveRef.current();
+      if (!section || section === "branding") void saveRef.current(false);
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
