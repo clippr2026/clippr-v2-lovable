@@ -2689,7 +2689,6 @@ function HorariosSection() {
   );
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
-  const [businessSpecial, setBusinessSpecial] = useState<SpecialDateMap>({});
   const [saving, setSaving] = useState(false);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
@@ -2747,12 +2746,6 @@ function HorariosSection() {
             ),
           });
         }
-        if (
-          schedule._specialDates &&
-          typeof schedule._specialDates === "object"
-        ) {
-          setBusinessSpecial(schedule._specialDates as SpecialDateMap);
-        }
       });
   }, [businessId]);
 
@@ -2801,8 +2794,6 @@ function HorariosSection() {
       maxAdvance: Number(reservationSettings.maxAdvance) || 30,
       minCancel: Number(reservationSettings.minCancel) || 2,
     };
-    schedule._specialDates = businessSpecial;
-
     const { error } = await supabase
       .from("business_settings")
       .upsert(
@@ -2818,7 +2809,7 @@ function HorariosSection() {
   const saveScheduleRef = useRef(saveSchedule);
   useEffect(() => {
     saveScheduleRef.current = saveSchedule;
-  }, [businessId, days, reservationSettings, businessSpecial]);
+  }, [businessId, days, reservationSettings]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -2953,13 +2944,6 @@ function HorariosSection() {
         </div>
       </div>
 
-      <SpecialHoursEditor
-        value={businessSpecial}
-        onChange={setBusinessSpecial}
-        closedLabel="Cerrado"
-        title="Horario especial del negocio"
-        description="Apertura/cierre distintos o negocio cerrado en una fecha puntual (feriados, etc.). Tocá Guardar para confirmar."
-      />
 
       <SectionCard label="Turnos y reservas">
         <div className="divide-y divide-white/5">
