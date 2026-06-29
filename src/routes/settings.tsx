@@ -6395,8 +6395,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   >({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
-  const [reorderingCategories, setReorderingCategories] = useState(false);
+  const reorderingCategories = true;
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [editing, setEditing] = useState<PriceRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -6825,6 +6826,26 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     markSettingsDirty();
   }
 
+  function reorderItemToTarget(sourceId: string | null, targetId: string) {
+    if (!sourceId || sourceId === targetId) return;
+    const source = rows.find((r) => r.id === sourceId);
+    const target = rows.find((r) => r.id === targetId);
+    if (!source || !target || source.category !== target.category) return;
+
+    setRows((prev) => {
+      const categoryRows = prev.filter((r) => r.category === target.category);
+      const otherRows = prev.filter((r) => r.category !== target.category);
+      const nextCategoryRows = [...categoryRows];
+      const from = nextCategoryRows.findIndex((r) => r.id === sourceId);
+      const to = nextCategoryRows.findIndex((r) => r.id === targetId);
+      if (from < 0 || to < 0) return prev;
+      const [moved] = nextCategoryRows.splice(from, 1);
+      nextCategoryRows.splice(to, 0, moved);
+      return [...otherRows, ...nextCategoryRows];
+    });
+    markSettingsDirty();
+  }
+
   // Inline input modal for add/rename category (avoids browser prompt())
   const [catModal, setCatModal] = useState<{
     mode: "add" | "rename";
@@ -6941,26 +6962,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {categories.length > 1 && (
-            <button
-              type="button"
-              onClick={() => setReorderingCategories((value) => !value)}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ring-1",
-                reorderingCategories
-                  ? "bg-violet-500/15 text-violet-100 ring-violet-300/25"
-                  : "bg-white/5 text-white/75 ring-white/10 hover:bg-white/10 hover:text-white",
-              )}
-            >
-              <GripVertical className="h-4 w-4" />
-              {reorderingCategories ? "Agregar" : "Agregar"}
-            </button>
-          )}
           <button
             onClick={addCategory}
             className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
           >
-            <Plus className="h-4 w-4" /> Agregar
+            <Plus className="h-4 w-4" /> Nueva categoría
           </button>
           <button
             onClick={openNew}
@@ -6979,14 +6985,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             return (
               <div
                 key={category}
-                draggable={reorderingCategories}
+                draggable
                 onDragStart={(event) => {
-                  if (!reorderingCategories) return;
                   setDraggedCategory(category);
                   event.dataTransfer.effectAllowed = "move";
                 }}
                 onDragOver={(event) => {
-                  if (reorderingCategories) event.preventDefault();
+                  event.preventDefault();
                 }}
                 onDrop={(event) => {
                   event.preventDefault();
@@ -6996,27 +7001,22 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 onDragEnd={() => setDraggedCategory(null)}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-t-lg transition-colors whitespace-nowrap",
-                  reorderingCategories && "cursor-grab active:cursor-grabbing",
+                  "cursor-grab active:cursor-grabbing",
                   active
                     ? "bg-white/5 text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                   draggedCategory === category && "opacity-50",
                 )}
               >
-                
-                  <div className="inline-flex items-center gap-2 px-3 py-2 text-sm select-none">
-                    <GripVertical className="h-4 w-4 text-white/40" />
-                    <span>{category}</span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setCat(category)}
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm"
-                  >
-                    {category}
-                  </button>
-                )}
-                {!reorderingCategories && categories.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setCat(category)}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm select-none"
+                >
+                  <GripVertical className="h-4 w-4 text-white/40" />
+                  <span>{category}</span>
+                </button>
+                {categories.length > 1 && (
                   <button
                     type="button"
                     onClick={() => deleteCategory(category)}
@@ -7041,25 +7041,27 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {filtered.map((row, rowIdx) => (
-              <div key={row.id} className="flex items-center gap-3 px-5 py-3">
-                {/* Reorder buttons */}
-                <div className="flex flex-col gap-0.5 shrink-0">
-                  <button
-                    onClick={() => reorderItem(row, "up")}
-                    disabled={rowIdx === 0}
-                    className="h-5 w-5 rounded grid place-items-center text-muted-foreground hover:text-foreground hover:bg-white/10 disabled:opacity-20 transition"
-                  >
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => reorderItem(row, "down")}
-                    disabled={rowIdx === filtered.length - 1}
-                    className="h-5 w-5 rounded grid place-items-center text-muted-foreground hover:text-foreground hover:bg-white/10 disabled:opacity-20 transition"
-                  >
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+            {filtered.map((row) => (
+              <div
+                key={row.id}
+                draggable
+                onDragStart={(event) => {
+                  setDraggedItemId(row.id);
+                  event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  reorderItemToTarget(draggedItemId, row.id);
+                  setDraggedItemId(null);
+                }}
+                onDragEnd={() => setDraggedItemId(null)}
+                className={cn(
+                  "flex cursor-grab items-center gap-3 px-5 py-3 transition active:cursor-grabbing",
+                  draggedItemId === row.id && "opacity-50",
+                )}
+              >
+                <GripVertical className="h-4 w-4 shrink-0 text-white/35" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)] shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{row.name}</div>
@@ -7160,7 +7162,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
             <div className="font-display font-semibold text-base">
               {catModal.mode === "add"
-                ? "Agregar"
+                ? "Nueva categoría"
                 : "Renombrar categoría"}
             </div>
             <input
@@ -7796,7 +7798,7 @@ function SettingsPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
                   Tenés cambios sin guardar
                 </span>
-              
+              ) : null}
               <button
                 onClick={() => saveCurrentSection()}
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
