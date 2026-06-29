@@ -1468,7 +1468,7 @@ function BrandingSection() {
         avatar_url: avatar_url || null,
         cover_url: cover_url || null,
         address: data.address || null,
-        phone: normalizedPhone || null,
+        phone: data.phone || null,
         email: data.email || null,
         instagram: data.instagram || null,
         business_start_date: data.business_start_date || null,
@@ -1568,7 +1568,6 @@ function BrandingSection() {
     if (showToast) {
       setData((d) => ({
         ...d,
-        phone: normalizedPhone,
         logo_url,
         slug: finalSlug,
         avatar_url,
@@ -1671,7 +1670,7 @@ function BrandingSection() {
   }[] = [
     { icon: Building2, label: "Nombre", hint: "", key: "name" },
     { icon: MapPin, label: "Dirección", hint: "", key: "address" },
-    { icon: Phone, label: "WhatsApp", hint: "", key: "phone" },
+    { icon: Phone, label: "WhatsApp", hint: "Escribilo como lo usás. Clippr lo formatea para WhatsApp al enviar.", key: "phone" },
     { icon: Mail, label: "Email", hint: "", key: "email", type: "email" },
     { icon: Instagram, label: "Instagram", hint: "", key: "instagram" },
   ];
@@ -2759,7 +2758,7 @@ function HorariosSection() {
       });
   }, [businessId]);
 
-  async function saveSchedule() {
+  async function saveSchedule(showToast = true) {
     if (!businessId) return toast.error("No se encontró el negocio");
 
     const invalidDay = days.find((day) => {
@@ -2813,7 +2812,7 @@ function HorariosSection() {
 
     setSaving(false);
     if (error) return toast.error("Error guardando horarios: " + error.message);
-    toast.success("Horarios guardados correctamente");
+    if (showToast) toast.success("Guardado");
   }
 
   const saveScheduleRef = useRef(saveSchedule);
@@ -2821,10 +2820,27 @@ function HorariosSection() {
     saveScheduleRef.current = saveSchedule;
   }, [businessId, days, reservationSettings]);
 
+  const horariosHydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!businessId) return;
+
+    if (!horariosHydratedRef.current) {
+      horariosHydratedRef.current = true;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void saveSchedule(false);
+    }, 550);
+
+    return () => window.clearTimeout(timer);
+  }, [businessId, days, reservationSettings]);
+
   useEffect(() => {
     const handler = (event: Event) => {
       const section = (event as CustomEvent).detail?.section;
-      if (!section || section === "horarios") void saveScheduleRef.current();
+      if (!section || section === "horarios") void saveScheduleRef.current(false);
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
