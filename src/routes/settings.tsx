@@ -3264,8 +3264,8 @@ const MAIN_PERMISSION_ITEMS: {
   { key: "caja_cobro", label: "Caja", desc: "Cobros y medios de pago." },
   {
     key: "panel_profesionales",
-    label: "Panel Profesionales",
-    desc: "Vista operativa para profesionales.",
+    label: "Profesionales",
+    desc: "Panel y actividad de profesionales.",
   },
   { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
   {
@@ -3312,11 +3312,6 @@ const CONFIG_PERMISSION_ITEMS: {
   },
   { key: "caja", label: "Caja", desc: "Métodos de pago y reglas de cobro." },
   { key: "senas", label: "Señas", desc: "Reglas de señas para reservas." },
-  {
-    key: "plan_facturacion",
-    label: "Plan & Facturación",
-    desc: "Suscripción y facturación.",
-  },
 ];
 
 const ALL_PERMISSION_KEYS: PermissionKey[] = [
@@ -3325,7 +3320,6 @@ const ALL_PERMISSION_KEYS: PermissionKey[] = [
 ];
 
 // Subsecciones internas que dependen del único permiso "Configuración".
-// (Plan & Facturación queda aparte, no se incluye acá.)
 const CONFIG_SUB_KEYS: PermissionKey[] = [
   "branding",
   "horarios",
@@ -3370,15 +3364,7 @@ const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     "dashboard",
     "agenda",
     "caja_cobro",
-    "panel_profesionales",
     "clientes",
-    "configuracion",
-    "horarios",
-    "equipo",
-    "servicios",
-    "catalogo",
-    "caja",
-    "senas",
   ]),
   recepcionista: buildPermissions(["agenda", "caja_cobro", "clientes"]),
   profesional: buildPermissions(["panel_profesionales"]),
@@ -3437,26 +3423,26 @@ const ROLE_ACCESS_SUMMARY: Record<
   socio: {
     title: "Gestión completa",
     desc: "Ideal para socios o encargados con visión completa del negocio.",
-    can: ["Dashboard", "Agenda", "Caja", "Clientes", "Asesor IA"],
-    cannot: [""],
+    can: ["Dashboard", "Agenda", "Caja", "Profesionales", "Clientes", "Asesor IA", "Configuración"],
+    cannot: [],
   },
   admin_local: {
     title: "Gestión operativa",
     desc: "Para administrar la operación diaria sin tocar datos sensibles del negocio.",
-    can: ["Dashboard", "Agenda", "Caja", "Clientes", "Equipo"],
-    cannot: ["Plan y facturación", "Acceso total de dueño"],
+    can: ["Dashboard", "Agenda", "Caja", "Clientes"],
+    cannot: ["Profesionales", "Configuración", "Asesor IA"],
   },
   recepcionista: {
     title: "Recepción y caja",
     desc: "Para gestionar turnos, clientes y cobros del día.",
     can: ["Agenda", "Caja", "Clientes"],
-    cannot: ["Configuración", "Asesor IA", "Equipo"],
+    cannot: ["Profesionales", "Configuración", "Asesor IA"],
   },
   profesional: {
     title: "Panel profesional",
     desc: "Para que cada profesional vea su actividad y registre su trabajo.",
-    can: ["Mi panel", "Mi agenda", "Mis cobros", "Mi historial"],
-    cannot: ["Caja general", "Configuración", "Asesor IA", "Equipo"],
+    can: ["Profesionales"],
+    cannot: ["Caja", "Configuración", "Asesor IA", "Equipo"],
   },
 };
 
