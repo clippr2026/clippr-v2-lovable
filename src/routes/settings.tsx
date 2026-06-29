@@ -6813,6 +6813,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       setPendingItems((prev) => prev.filter((p) => p.tempId !== row.id));
       setPendingDeletes((prev) => new Set([...prev, row.id]));
     }
+    setEditing(null);
+    setModalOpen(false);
     toast.success(isService ? "Servicio eliminado" : "Producto eliminado");
     markSettingsDirty();
   }
