@@ -220,7 +220,52 @@ function NotificationsButton() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
-        
+        <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {items.length === 0 ? (
+          <div className="px-3 py-6 text-sm text-muted-foreground text-center">
+            Sin reservas ni cancelaciones nuevas.
+          </div>
+        ) : (
+          items.map((item) => (
+            <DropdownMenuItem
+              key={item.id}
+              className={cn(
+                "flex flex-col items-start gap-1 py-2",
+                !item.read && "bg-primary/10 text-foreground",
+              )}
+            >
+              <span className="font-medium inline-flex items-center gap-2">
+                {!item.read && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+                {item.title}
+              </span>
+              <span className="text-xs text-muted-foreground whitespace-normal">{item.detail}</span>
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function UserMenu() {
+  const { profile, signOut } = useAuth();
+  const initials = initialsOf(profile?.full_name, profile?.email);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Cuenta"
+          className="h-8 w-8 rounded-xl grid place-items-center text-sm font-semibold text-white ring-1 ring-white/10 hover:brightness-110 transition"
+          style={{
+            background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
+          }}
+        >
+          {initials}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuItem
           onClick={() => signOut()}
           className="cursor-pointer text-destructive focus:text-destructive"
