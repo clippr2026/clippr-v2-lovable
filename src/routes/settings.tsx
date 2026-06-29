@@ -1493,8 +1493,47 @@ function BrandingSection() {
       </div>
 
       <SectionCard label="Estado">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <div className="flex flex-1 items-start gap-4 min-w-0">
+        <div
+          className={cn(
+            "relative flex flex-col gap-4 pr-0 transition lg:flex-row lg:items-center lg:pr-32",
+            data.profile_note_active && "rounded-2xl",
+          )}
+        >
+          <div className="absolute right-0 top-0 flex items-center gap-2">
+            <span
+              className={cn(
+                "text-[10px] font-semibold transition",
+                data.profile_note_active ? "text-emerald-300" : "text-white/40",
+              )}
+            >
+              {data.profile_note_active ? "Activo" : "Inactivo"}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={data.profile_note_active}
+              onClick={() =>
+                setData((d) => ({ ...d, profile_note_active: !d.profile_note_active }))
+              }
+              className={cn(
+                "relative h-8 w-16 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary/40",
+                data.profile_note_active
+                  ? "border-violet-400/35 bg-violet-500/25 shadow-[0_0_22px_rgba(139,92,246,0.22)]"
+                  : "border-white/8 bg-white/[0.035]",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-1 h-6 w-6 rounded-full transition-all duration-200",
+                  data.profile_note_active
+                    ? "left-9 bg-white shadow-[0_0_14px_rgba(255,255,255,0.35)]"
+                    : "left-1 bg-white/60",
+                )}
+              />
+            </button>
+          </div>
+
+          <div className="flex flex-1 items-start gap-4 min-w-0 pt-2 lg:pt-0">
             <div
               className={cn(
                 "relative h-11 w-11 rounded-2xl ring-1 grid place-items-center shrink-0 transition",
@@ -1519,30 +1558,13 @@ function BrandingSection() {
               />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="font-semibold text-sm">Estado público</div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setData((d) => ({ ...d, profile_note_active: !d.profile_note_active }))
-                  }
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 transition",
-                    data.profile_note_active
-                      ? "bg-emerald-500/15 text-emerald-300 ring-emerald-400/25"
-                      : "bg-white/5 text-white/45 ring-white/10",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 rounded-full",
-                      data.profile_note_active ? "bg-emerald-300" : "bg-white/30",
-                    )}
-                  />
-                  {data.profile_note_active ? "Activo" : "Inactivo"}
-                </button>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <div className="font-semibold text-sm">Estado público</div>
+              <p
+                className={cn(
+                  "mt-1 text-xs transition",
+                  data.profile_note_active ? "text-muted-foreground" : "text-muted-foreground/70",
+                )}
+              >
                 Aparece arriba de tu página pública. Ideal para promociones, avisos o novedades.
               </p>
             </div>
