@@ -1824,180 +1824,191 @@ function BrandingSection() {
       {activeTab === "imagenes" && (
         <>
           <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
-            <div className="space-y-3">
-              {/* Foto de perfil (sitio web público) */}
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <UserIcon className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
+            <div className="space-y-5">
+              {/* Foto de perfil */}
+              <div className="flex items-center gap-4 border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
+                <label
+                  className={cn(
+                    "group relative grid h-16 w-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                    uploadingAvatar && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="Foto de perfil"
+                      className="h-full w-full object-cover"
+                      style={{ objectPosition: data.avatar_position }}
+                    />
+                  ) : (
+                    <UserIcon className="h-5 w-5 text-white/45" />
+                  )}
+                  <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                    <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                      {uploadingAvatar ? "Subiendo" : "Cargar"}
+                    </span>
+                  </div>
+                  {!avatarPreview ? (
+                    <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                      Cargar
+                    </span>
+                  ) : null}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingAvatar}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      e.target.value = "";
+                      handleAvatarSelect(f);
+                    }}
+                  />
+                </label>
+
+                <div className="min-w-0 flex-1">
                   <div className="font-medium text-sm">Foto de perfil</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Se muestra en tu sitio web público. Se optimiza a WebP 512px.
+                    Imagen circular del perfil público. Se optimiza a WebP 512px.
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
-                    {avatarPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                        uploadingAvatar ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                      )}
-                    >
-                      <Upload className="h-3.5 w-3.5" />{" "}
-                      {uploadingAvatar
-                        ? "Subiendo…"
-                        : avatarPreview
-                          ? "Cambiar foto"
-                          : "Subir foto"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={uploadingAvatar}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          e.target.value = "";
-                          handleAvatarSelect(f);
-                        }}
-                      />
-                    </label>
-                    {avatarPreview ? (
-                      <button
-                        type="button"
-                        onClick={removeAvatar}
-                        className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                      >
-                        <X className="h-3.5 w-3.5" /> Eliminar
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+
                 {avatarPreview ? (
-                  <PositionControls
-                    value={data.avatar_position}
-                    onChange={(next) => setData((d) => ({ ...d, avatar_position: next }))}
-                  />
+                  <button
+                    type="button"
+                    onClick={removeAvatar}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                    aria-label="Eliminar foto de perfil"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 ) : null}
               </div>
 
-              {/* Portada (sitio web público) */}
-              <div className="border-t border-white/5 pt-5">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                    <ImageIcon className="h-4.5 w-4.5 text-muted-foreground" />
+              {/* Portada */}
+              <div className="flex items-center gap-4 border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
+                <label
+                  className={cn(
+                    "group relative grid h-16 w-28 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07] sm:w-36",
+                    uploadingCover && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  {coverPreview ? (
+                    <img
+                      src={coverPreview}
+                      alt="Portada"
+                      className="h-full w-full object-cover"
+                      style={{ objectPosition: data.cover_position }}
+                    />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-white/45" />
+                  )}
+                  <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                    <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                      {uploadingCover ? "Subiendo" : "Cargar"}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">Portada</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Banner superior de tu sitio web. Se optimiza a WebP 1600×600.
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10">
-                      {coverPreview ? "✅ Imagen cargada" : "📷 Sin imagen"}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                          uploadingCover ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                        )}
-                      >
-                        <Upload className="h-3.5 w-3.5" />{" "}
-                        {uploadingCover
-                          ? "Subiendo…"
-                          : coverPreview
-                            ? "Cambiar imagen"
-                            : "Subir portada"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingCover}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0] ?? null;
-                            e.target.value = "";
-                            handleCoverSelect(f);
-                          }}
-                        />
-                      </label>
-                      {coverPreview ? (
-                        <button
-                          type="button"
-                          onClick={removeCover}
-                          className="inline-flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                        >
-                          <X className="h-3.5 w-3.5" /> Eliminar
-                        </button>
-                      ) : null}
-                    </div>
+                  {!coverPreview ? (
+                    <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                      Cargar
+                    </span>
+                  ) : null}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingCover}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      e.target.value = "";
+                      handleCoverSelect(f);
+                    }}
+                  />
+                </label>
+
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm">Portada</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Banner superior de tu sitio web. Se optimiza a WebP 1600×600.
                   </div>
                 </div>
+
+                {coverPreview ? (
+                  <button
+                    type="button"
+                    onClick={removeCover}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                    aria-label="Eliminar portada"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
 
-              {/* Portafolio (sitio web público) */}
-              <div className="border-t border-white/5 pt-5">
-                <div className="flex items-start gap-4">
+              {/* Portafolio */}
+              <div>
+                <div className="mb-3 flex items-start gap-4">
                   <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
                     <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm">Portafolio</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      Imágenes destacadas que se mostrarán en tu página pública.
+                      Hasta 3 imágenes destacadas para tu página pública.
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-3">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
                     return (
-                      <div
-                        key={index}
-                        className="rounded-xl border border-white/10 bg-white/[0.03] p-3"
-                      >
-                        <div className="mb-2 text-xs text-muted-foreground">
-                          {url
-                            ? `✅ Imagen ${index + 1} cargada`
-                            : `📷 Imagen ${index + 1} sin cargar`}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label
-                            className={cn(
-                              "inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs",
-                              uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-                            )}
-                          >
-                            <Upload className="h-3.5 w-3.5" />{" "}
-                            {uploading ? "Subiendo…" : url ? "Cambiar" : "Subir"}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploading}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handlePortfolioSelect(index, f);
-                              }}
-                            />
-                          </label>
+                      <div key={index} className="flex items-center gap-3 rounded-2xl bg-white/[0.03] p-2 ring-1 ring-white/10">
+                        <label
+                          className={cn(
+                            "group relative grid h-16 flex-1 cursor-pointer place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            uploading && "cursor-not-allowed opacity-50",
+                          )}
+                        >
                           {url ? (
-                            <button
-                              type="button"
-                              onClick={() => removePortfolioImage(index)}
-                              className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-red-300"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
+                            <img src={url} alt={`Imagen ${index + 1}`} className="h-full w-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-white/45" />
+                          )}
+                          <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                            <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                              {uploading ? "Subiendo" : "Cargar"}
+                            </span>
+                          </div>
+                          {!url ? (
+                            <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                              Cargar
+                            </span>
                           ) : null}
-                        </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] ?? null;
+                              e.target.value = "";
+                              handlePortfolioSelect(index, f);
+                            }}
+                          />
+                        </label>
+
+                        {url ? (
+                          <button
+                            type="button"
+                            onClick={() => removePortfolioImage(index)}
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            aria-label={`Eliminar imagen ${index + 1}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -2012,14 +2023,13 @@ function BrandingSection() {
                 <div>
                   <div className="text-sm font-medium">Clientes destacados</div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Clientes destacados que querés mostrar en tu web. Si no cargás nada activo, esta
-                    sección no aparece.
+                    Logos o fotos de clientes destacados. Si no hay activos, esta sección no aparece.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={addFeaturedClient}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10"
                 >
                   <Plus className="h-4 w-4" /> Agregar
                 </button>
@@ -2030,97 +2040,110 @@ function BrandingSection() {
                   Todavía no cargaste clientes destacados.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {data.featured_clients.map((item, index) => {
                     const uploading = uploadingFeaturedId === item.id;
                     return (
                       <div
                         key={item.id}
-                        className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                        className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 lg:grid-cols-[72px_1fr_170px_auto] lg:items-center"
                       >
-                        <div className="grid gap-3 lg:grid-cols-[1fr_180px_150px_auto] lg:items-center">
+                        <label
+                          className={cn(
+                            "group relative grid h-16 w-16 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            uploading && "cursor-not-allowed opacity-50",
+                          )}
+                        >
+                          {item.image_url ? (
+                            <img src={item.image_url} alt={item.name || "Cliente destacado"} className="h-full w-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-white/45" />
+                          )}
+                          <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                            <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                              {uploading ? "Subiendo" : "Cargar"}
+                            </span>
+                          </div>
+                          {!item.image_url ? (
+                            <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                              Cargar
+                            </span>
+                          ) : null}
                           <input
-                            value={item.name}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, { name: e.target.value })
-                            }
-                            placeholder="Nombre: Nike, Duki, Boca Juniors..."
-                            className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] ?? null;
+                              e.target.value = "";
+                              handleFeaturedImageSelect(item.id, f);
+                            }}
                           />
-                          <select
-                            value={item.category}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, {
-                                category: e.target.value as FeaturedClientCategory,
-                              })
-                            }
-                            className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                          >
-                            {FEATURED_CLIENT_CATEGORIES.map((cat) => (
-                              <option key={cat} value={cat}>
-                                {cat}
-                              </option>
-                            ))}
-                          </select>
-                          <label
+                        </label>
+
+                        <input
+                          value={item.name}
+                          onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                          placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                          className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                        />
+
+                        <select
+                          value={item.category}
+                          onChange={(e) =>
+                            updateFeaturedClient(item.id, {
+                              category: e.target.value as FeaturedClientCategory,
+                            })
+                          }
+                          className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                        >
+                          {FEATURED_CLIENT_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => updateFeaturedClient(item.id, { active: !item.active })}
                             className={cn(
-                              "inline-flex items-center justify-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 transition hover:bg-white/10",
-                              uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+                              "rounded-full px-2.5 py-2 text-xs ring-1 transition",
+                              item.active
+                                ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                                : "bg-white/5 text-muted-foreground ring-white/10",
                             )}
                           >
-                            <Upload className="h-3.5 w-3.5" />{" "}
-                            {uploading ? "Subiendo…" : item.image_url ? "✅ Cambiar" : "📷 Imagen"}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploading}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handleFeaturedImageSelect(item.id, f);
-                              }}
-                            />
-                          </label>
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateFeaturedClient(item.id, { active: !item.active })
-                              }
-                              className={cn(
-                                "rounded-lg px-2.5 py-2 text-xs ring-1",
-                                item.active
-                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                  : "bg-white/5 text-muted-foreground ring-white/10",
-                              )}
-                            >
-                              {item.active ? "Activo" : "Inactivo"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveFeaturedClient(item.id, -1)}
-                              disabled={index === 0}
-                              className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                            >
-                              <ChevronUp className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveFeaturedClient(item.id, 1)}
-                              disabled={index === data.featured_clients.length - 1}
-                              className="rounded-lg bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeFeaturedClient(item.id)}
-                              className="rounded-lg bg-white/5 p-2 text-red-300 ring-1 ring-white/10"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
+                            {item.active ? "Activo" : "Inactivo"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveFeaturedClient(item.id, -1)}
+                            disabled={index === 0}
+                            className="rounded-full bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
+                            aria-label="Subir"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveFeaturedClient(item.id, 1)}
+                            disabled={index === data.featured_clients.length - 1}
+                            className="rounded-full bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
+                            aria-label="Bajar"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFeaturedClient(item.id)}
+                            className="rounded-full bg-white/5 p-2 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            aria-label="Eliminar cliente destacado"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
                     );
