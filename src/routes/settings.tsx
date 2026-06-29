@@ -991,6 +991,9 @@ function BrandingSection() {
   const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(
     null,
   );
+  const [draggedFeaturedId, setDraggedFeaturedId] = useState<string | null>(
+    null,
+  );
   const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">(
     "info",
   );
@@ -1395,6 +1398,24 @@ function BrandingSection() {
       const nextIndex = index + direction;
       if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return d;
       [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
+      return {
+        ...d,
+        featured_clients: list.map((item, order) => ({ ...item, order })),
+      };
+    });
+  }
+
+  function reorderFeaturedClient(dragId: string | null, targetId: string) {
+    if (!dragId || dragId === targetId) return;
+    setData((d) => {
+      const list = [...d.featured_clients];
+      const from = list.findIndex((item) => item.id === dragId);
+      const to = list.findIndex((item) => item.id === targetId);
+      if (from < 0 || to < 0) return d;
+
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+
       return {
         ...d,
         featured_clients: list.map((item, order) => ({ ...item, order })),
@@ -2306,8 +2327,24 @@ function BrandingSection() {
                   return (
                     <div
                       key={item.id}
-                      className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 lg:grid-cols-[72px_1fr_170px_auto] lg:items-center"
+                      draggable
+                      onDragStart={(event) => {
+                        setDraggedFeaturedId(item.id);
+                        event.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        reorderFeaturedClient(draggedFeaturedId, item.id);
+                        setDraggedFeaturedId(null);
+                      }}
+                      onDragEnd={() => setDraggedFeaturedId(null)}
+                      className={cn(
+                        "grid cursor-grab gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition active:cursor-grabbing lg:grid-cols-[22px_72px_1fr_170px_auto] lg:items-center",
+                        draggedFeaturedId === item.id && "opacity-50",
+                      )}
                     >
+                      <GripVertical className="hidden h-4 w-4 text-white/35 lg:block" />
                       <label
                         className={cn(
                           "group relative grid h-16 w-16 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
@@ -2390,24 +2427,7 @@ function BrandingSection() {
                         >
                           {item.active ? "Activo" : "Inactivo"}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => moveFeaturedClient(item.id, -1)}
-                          disabled={index === 0}
-                          className="rounded-full bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                          aria-label="Subir"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveFeaturedClient(item.id, 1)}
-                          disabled={index === data.featured_clients.length - 1}
-                          className="rounded-full bg-white/5 p-2 ring-1 ring-white/10 disabled:opacity-30"
-                          aria-label="Bajar"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </button>
+
                         <button
                           type="button"
                           onClick={() => removeFeaturedClient(item.id)}
