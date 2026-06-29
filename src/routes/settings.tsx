@@ -6953,14 +6953,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               )}
             >
               <GripVertical className="h-4 w-4" />
-              {reorderingCategories ? "Listo" : "Reordenar categorías"}
+              {reorderingCategories ? "Agregar" : "Agregar"}
             </button>
           )}
           <button
             onClick={addCategory}
             className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
           >
-            <Plus className="h-4 w-4" /> Nueva categoría
+            <Plus className="h-4 w-4" /> Agregar
           </button>
           <button
             onClick={openNew}
@@ -7003,7 +7003,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   draggedCategory === category && "opacity-50",
                 )}
               >
-                {reorderingCategories ? (
+                
                   <div className="inline-flex items-center gap-2 px-3 py-2 text-sm select-none">
                     <GripVertical className="h-4 w-4 text-white/40" />
                     <span>{category}</span>
@@ -7160,7 +7160,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
             <div className="font-display font-semibold text-base">
               {catModal.mode === "add"
-                ? "Nueva categoría"
+                ? "Agregar"
                 : "Renombrar categoría"}
             </div>
             <input
@@ -7796,7 +7796,7 @@ function SettingsPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
                   Tenés cambios sin guardar
                 </span>
-              ) : null}
+              
               <button
                 onClick={() => saveCurrentSection()}
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
