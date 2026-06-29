@@ -74,6 +74,9 @@ import {
   Headphones,
   Lock,
   Users,
+  UserPlus,
+  CheckCircle2,
+  XCircle,
   Star,
   ShieldCheck,
   Handshake,
@@ -4561,7 +4564,7 @@ function EquipoSection() {
       accessForm.role === "profesional"
         ? selectedEmployee?.full_name || selectedEmployee?.name || ""
         : ROLE_LABEL_BY_ID[accessForm.role];
-    const name = (accessForm.name.trim() || fallbackName).trim();
+    const name = fallbackName.trim();
     const email = accessForm.email.trim();
 
     if (accessForm.role === "profesional" && !selectedEmployee) {
@@ -4985,7 +4988,7 @@ function EquipoSection() {
                           <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-white/10 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.7)]">
                             <div className="flex items-center gap-2 text-sm">
                               <span className="font-mono text-xs text-white/42">12:00</span>
-                              <span className="min-w-[54px] font-semibold text-white">Juan</span>
+                              <span className="font-semibold text-white">Juan</span>
                               <span className="text-white/35">→</span>
                               <span className="font-semibold text-emerald-400">Cobró</span>
                             </div>
@@ -5093,19 +5096,17 @@ function EquipoSection() {
                           <div className="text-sm font-semibold text-white">
                             Resultado:
                           </div>
-                          <div className="space-y-2">
-                            <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-sky-400/15 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.75)]">
+                          <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-sky-400/15 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.75)]">
+                            <div className="space-y-1.5">
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="font-mono text-xs text-white/42">12:00</span>
-                                <span className="min-w-[54px] font-semibold text-white">Juan</span>
+                                <span className="font-semibold text-white">Juan</span>
                                 <span className="text-white/35">→</span>
                                 <span className="font-semibold text-sky-400">Envió a caja</span>
                               </div>
-                            </div>
-                            <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-emerald-400/15 shadow-[0_14px_35px_-28px_rgba(74,222,128,0.65)]">
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="font-mono text-xs text-white/42">12:01</span>
-                                <span className="min-w-[54px] font-semibold text-white">Caja</span>
+                                <span className="font-semibold text-white">Caja</span>
                                 <span className="text-white/35">→</span>
                                 <span className="font-semibold text-emerald-400">Cobró</span>
                               </div>
@@ -5150,15 +5151,15 @@ function EquipoSection() {
           <div className="grid grid-cols-1 xl:grid-cols-[0.78fr_1fr] gap-3">
             <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
               <div className="flex items-center gap-3 mb-4">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
-                  {accessRoleOption.icon}
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-sky-400/10 ring-1 ring-sky-300/20">
+                  <UserPlus className="h-5 w-5 text-sky-300" />
                 </div>
                 <div>
                   <div className="text-sm font-semibold">Nuevo acceso</div>
                   <div className="text-xs text-muted-foreground">
                     {editingAccessUserId
                       ? "Actualizá el acceso seleccionado."
-                      : "El usuario recibirá una invitación por email."}
+                      : "Invitá a un profesional o colaborador a Clippr."}
                   </div>
                 </div>
               </div>
@@ -5244,27 +5245,6 @@ function EquipoSection() {
                     )}
                   </div>
                 )}
-
-                <Field
-                  label="Nombre"
-                  hint={
-                    accessForm.role === "profesional"
-                      ? "Si lo dejás vacío se toma del profesional."
-                      : undefined
-                  }
-                >
-                  <input
-                    type="text"
-                    autoComplete="off"
-                    name="clippr-access-name"
-                    value={accessForm.name}
-                    onChange={(e) =>
-                      setAccessForm((f) => ({ ...f, name: e.target.value }))
-                    }
-                    className={inputCls}
-                    placeholder="Nombre del usuario"
-                  />
-                </Field>
 
                 <div>
                   <Field label="Correo electrónico">
@@ -5407,8 +5387,8 @@ function EquipoSection() {
                       {ROLE_LABEL_BY_ID[accessForm.role]}.
                     </div>
                   </div>
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10 text-lg">
-                    {accessRoleOption.icon}
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-300/20">
+                    <ShieldCheck className="h-4.5 w-4.5 text-violet-200" />
                   </div>
                 </div>
 
@@ -5424,7 +5404,7 @@ function EquipoSection() {
                             key={item}
                             className="flex items-center gap-2 text-xs text-white/80"
                           >
-                            <Check className="h-3.5 w-3.5 text-emerald-300" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
                             {item}
                           </div>
                         ))}
@@ -5446,7 +5426,7 @@ function EquipoSection() {
                               key={item}
                               className="flex items-center gap-2 text-xs text-muted-foreground"
                             >
-                              <X className="h-3.5 w-3.5 text-white/30" />
+                              <XCircle className="h-3.5 w-3.5 text-white/30" />
                               {item}
                             </div>
                           ))}
