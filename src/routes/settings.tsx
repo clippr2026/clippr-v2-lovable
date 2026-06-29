@@ -6852,6 +6852,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     current?: string;
   } | null>(null);
   const [catInputVal, setCatInputVal] = useState("");
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   function addCategory() {
     setCatInputVal("");
@@ -6961,20 +6962,42 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             {isService ? "Servicios que ofrecés." : "Productos para la venta."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="relative">
           <button
-            onClick={addCategory}
-            className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
+            type="button"
+            onClick={() => setAddMenuOpen((open) => !open)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] transition hover:opacity-95"
+            aria-label="Agregar"
           >
-            <Plus className="h-4 w-4" /> Nueva categoría
+            <Plus className="h-5 w-5" strokeWidth={2.5} />
           </button>
-          <button
-            onClick={openNew}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm"
-          >
-            <Plus className="h-4 w-4" />{" "}
-            {isService ? "Nuevo servicio" : `Nuevo ${cat.toLowerCase()}`}
-          </button>
+
+          {addMenuOpen ? (
+            <div className="absolute right-0 top-12 z-30 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[oklch(0.13_0.035_275/0.96)] p-1.5 shadow-2xl backdrop-blur-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMenuOpen(false);
+                  addCategory();
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+              >
+                <Plus className="h-4 w-4 text-sky-300" />
+                Nueva categoría
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMenuOpen(false);
+                  openNew();
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+              >
+                <Plus className="h-4 w-4 text-violet-300" />
+                {isService ? "Nuevo servicio" : `Nuevo ${cat.toLowerCase()}`}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -7089,13 +7112,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     ${Number(row.price).toLocaleString("es-AR")}
                   </div>
                 </div>
-                <span
+                <button
+                  type="button"
+                  onClick={() => toggle(row)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
+                    "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110",
                     row.active !== false
                       ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-                      : "bg-white/5 ring-white/10 text-muted-foreground",
+                      : "bg-white/5 ring-white/10 text-muted-foreground hover:bg-white/10",
                   )}
+                  title={row.active !== false ? "Desactivar" : "Activar"}
                 >
                   <span
                     className={cn(
@@ -7106,18 +7132,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     )}
                   />{" "}
                   {row.active !== false ? "Activo" : "Inactivo"}
-                </span>
+                </button>
                 <button
                   onClick={() => openEdit(row)}
                   className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                 >
                   Editar
-                </button>
-                <button
-                  onClick={() => toggle(row)}
-                  className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1 text-xs text-muted-foreground"
-                >
-                  {row.active !== false ? "Off" : "On"}
                 </button>
                 <button
                   onClick={() => remove(row)}
@@ -7793,12 +7813,6 @@ function SettingsPage() {
           subtitle="Tu negocio"
           action={
             <div className="flex items-center gap-3">
-              {hasUnsavedChanges ? (
-                <span className="hidden sm:inline-flex items-center gap-2 rounded-full bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 ring-1 ring-amber-300/20">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
-                  Tenés cambios sin guardar
-                </span>
-              ) : null}
               <button
                 onClick={() => saveCurrentSection()}
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
