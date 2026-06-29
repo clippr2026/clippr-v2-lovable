@@ -1495,25 +1495,27 @@ function BrandingSection() {
       <SectionCard label="Estado">
         <div
           className={cn(
-            "relative flex flex-col gap-4 pr-0 transition lg:flex-row lg:items-center lg:pr-32",
+            "relative flex flex-col gap-4 pr-0 transition lg:flex-row lg:items-center lg:pr-24",
             data.profile_note_active && "rounded-2xl",
           )}
         >
-          <div className="absolute right-0 top-0 flex items-center gap-2">
-            <span
-              className={cn(
-                "text-[10px] font-semibold transition",
-                data.profile_note_active ? "text-emerald-300" : "text-white/40",
-              )}
-            >
-              {data.profile_note_active ? "Activo" : "Inactivo"}
-            </span>
+          <div className="absolute right-0 top-0 flex items-center">
             <button
               type="button"
               role="switch"
               aria-checked={data.profile_note_active}
               onClick={() =>
-                setData((d) => ({ ...d, profile_note_active: !d.profile_note_active }))
+                setData((d) => {
+                  const nextActive = !d.profile_note_active;
+                  return {
+                    ...d,
+                    profile_note_active: nextActive,
+                    profile_note:
+                      nextActive && !d.profile_note.trim()
+                        ? "🔥 Últimos turnos para hoy"
+                        : d.profile_note,
+                  };
+                })
               }
               className={cn(
                 "relative h-8 w-16 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary/40",
@@ -1571,24 +1573,41 @@ function BrandingSection() {
           </div>
 
           <div className="w-full lg:w-[420px]">
-            <input
-              type="text"
-              value={data.profile_note}
-              onChange={(e) =>
-                setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
-              }
-              maxLength={80}
-              disabled={!data.profile_note_active}
-              placeholder="🔥 Últimos turnos para hoy"
-              className={cn(
-                "w-full rounded-xl px-3 py-2.5 text-sm transition focus:outline-none",
-                data.profile_note_active
-                  ? "bg-white/5 ring-1 ring-violet-400/40 focus:ring-violet-300/60 text-white"
-                  : "bg-white/[0.035] ring-1 ring-white/10 text-white/45 placeholder:text-white/35 cursor-not-allowed",
-              )}
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={data.profile_note}
+                onChange={(e) =>
+                  setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
+                }
+                maxLength={80}
+                placeholder="🔥 Últimos turnos para hoy"
+                className={cn(
+                  "w-full rounded-xl px-3 py-2.5 pr-10 text-sm transition focus:outline-none",
+                  data.profile_note_active
+                    ? "bg-white/5 ring-1 ring-violet-400/40 focus:ring-violet-300/60 text-white"
+                    : "bg-white/[0.035] ring-1 ring-white/10 text-white/60 placeholder:text-white/35 focus:ring-white/20",
+                )}
+              />
+              {data.profile_note.trim() ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setData((d) => ({
+                      ...d,
+                      profile_note: "",
+                      profile_note_active: false,
+                    }))
+                  }
+                  className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-white/45 transition hover:bg-white/10 hover:text-white"
+                  aria-label="Limpiar estado"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
             <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>{data.profile_note_active ? "Máximo 80 caracteres" : "Activá el estado para editarlo"}</span>
+              <span>{data.profile_note_active ? "Publicado en tu página pública" : "Guardado como borrador. Activá el switch para publicarlo."}</span>
               <span>{data.profile_note.length}/80</span>
             </div>
           </div>
