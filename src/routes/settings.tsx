@@ -7279,7 +7279,11 @@ function CajaSection() {
       });
   }, [businessId]);
 
-  async function saveCajaSettings() {
+  async function saveCajaSettings(
+    nextMethods = methods,
+    nextAutoChange = autoChange,
+    showToast = true,
+  ) {
     if (!businessId) return toast.error("No se encontró el negocio");
     const { data: existingRow } = await supabase
       .from("business_settings")
@@ -7297,8 +7301,8 @@ function CajaSection() {
           ...existingSchedule,
           _caja: {
             ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
-            methods,
-            autoChange,
+            methods: nextMethods,
+            autoChange: nextAutoChange,
           },
         },
       },
@@ -7306,13 +7310,24 @@ function CajaSection() {
     );
     if (error) return toast.error("Error guardando: " + error.message);
     window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
-    toast.success("Configuración de caja guardada correctamente");
+    if (showToast) toast.success("Guardado");
+  }
+
+  function updateMethod(methodId: keyof typeof defaultMethods, value: boolean) {
+    const nextMethods = { ...methods, [methodId]: value };
+    setMethods(nextMethods);
+    void saveCajaSettings(nextMethods, autoChange);
+  }
+
+  function updateAutoChange(value: boolean) {
+    setAutoChange(value);
+    void saveCajaSettings(methods, value);
   }
 
   useEffect(() => {
     const handler = (event: Event) => {
       const section = (event as CustomEvent).detail?.section;
-      if (!section || section === "caja") void saveCajaSettings();
+      if (!section || section === "caja") void saveCajaSettings(methods, autoChange, false);
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
@@ -7375,7 +7390,7 @@ function CajaSection() {
                 <div className="flex-1 font-medium text-sm">{m.label}</div>
                 <Toggle
                   on={methods[m.id]}
-                  onChange={(v) => setMethods((s) => ({ ...s, [m.id]: v }))}
+                  onChange={(v) => updateMethod(m.id, v)}
                 />
               </div>
             );
@@ -7396,7 +7411,7 @@ function CajaSection() {
               Muestra el vuelto al ingresar el monto en efectivo
             </div>
           </div>
-          <Toggle on={autoChange} onChange={setAutoChange} />
+          <Toggle on={autoChange} onChange={updateAutoChange} />
         </div>
       </SectionCard>
     </>
@@ -7834,16 +7849,7 @@ function SettingsPage() {
         <Topbar
           title="Configuración"
           subtitle="Tu negocio"
-          action={
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => saveCurrentSection()}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
-              >
-                Guardar <Check className="h-4 w-4" strokeWidth={3} />
-              </button>
-            </div>
-          }
+          action={null}
         />
         <div className="app-premium-shell -mt-3 sm:-mt-4 lg:-mt-5">
           <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
