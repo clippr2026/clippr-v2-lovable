@@ -427,6 +427,9 @@ type BrandingData = {
   featured_positions: Record<string, string>;
   business_start_date: string;
 };
+const PROFILE_NOTE_MAX_LINES = 3;
+const DEFAULT_PROFILE_NOTE = "🔥 Todos los Miercoles 20% OFF EN EFECTIVO";
+
 const EMPTY_BRANDING: BrandingData = {
   name: "",
   slug: "",
@@ -960,6 +963,20 @@ function formatWhatsAppArgentinaPreview(normalized: string): string {
   return `+54 9 ${area} ${first}${last ? ` ${last}` : ""}`;
 }
 
+function denormalizeStoredPhoneForInput(phone: string): string {
+  const value = String(phone ?? "").trim();
+  const digits = value.replace(/\D/g, "");
+
+  // Compatibilidad con números ya guardados antes como WhatsApp Argentina.
+  // Ej: 5491127900829 -> 1127900829
+  if (digits.startsWith("549") && digits.length >= 12) return digits.slice(3);
+
+  // Ej: 541127900829 -> 1127900829
+  if (digits.startsWith("54") && digits.length >= 11) return digits.slice(2);
+
+  return value;
+}
+
 function BrandingSection() {
   const { businessId } = useAuth();
   const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
@@ -1015,7 +1032,9 @@ function BrandingSection() {
         name: (biz?.name as string) ?? "",
         slug: (biz?.slug as string) ?? "",
         address: (cfg.address as string) ?? (biz?.address as string) ?? "",
-        phone: (cfg.phone as string) ?? (biz?.phone as string) ?? "",
+        phone: denormalizeStoredPhoneForInput(
+          ((cfg.phone as string) ?? (biz?.phone as string) ?? "") as string,
+        ),
         email: (cfg.email as string) ?? (biz?.email as string) ?? "",
         instagram:
           (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
@@ -1706,7 +1725,7 @@ function BrandingSection() {
                     profile_note_active: nextActive,
                     profile_note:
                       nextActive && !d.profile_note.trim()
-                        ? "🔥 Últimos turnos para hoy"
+                        ? "🔥 Todos los Miercoles 20% OFF EN EFECTIVO"
                         : d.profile_note,
                   };
                 })
@@ -1779,11 +1798,11 @@ function BrandingSection() {
                 onChange={(e) =>
                   setData((d) => ({
                     ...d,
-                    profile_note: e.target.value.slice(0, 80),
+                    profile_note: e.target.value.slice(0, 140),
                   }))
                 }
-                maxLength={80}
-                placeholder="🔥 Últimos turnos para hoy"
+                maxLength={140}
+                placeholder="🔥 Todos los Miercoles 20% OFF EN EFECTIVO"
                 className={cn(
                   "w-full rounded-xl px-3 py-2.5 pr-10 text-sm transition focus:outline-none",
                   data.profile_note_active
@@ -1814,7 +1833,7 @@ function BrandingSection() {
                   ? "Publicado en tu página pública"
                   : "Guardado como borrador. Activá el switch para publicarlo."}
               </span>
-              <span>{data.profile_note.length}/80</span>
+              <span>{data.profile_note.length}/140</span>
             </div>
           </div>
         </div>
@@ -3563,16 +3582,20 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate">{displayName}</div>
+          <div className="font-medium text-sm ">{displayName}</div>
           <div className="text-xs text-muted-foreground">Profesional</div>
         </div>
-        <span
+        <button
+          type="button"
+          onClick={() => onToggle(emp)}
+          disabled={deleting}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
+            "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110 disabled:opacity-50",
             active
               ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
               : "bg-white/5 ring-white/10 text-muted-foreground",
           )}
+          title={active ? "Desactivar profesional" : "Activar profesional"}
         >
           <span
             className={cn(
@@ -3581,7 +3604,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
             )}
           />
           {active ? "Activo" : "Inactivo"}
-        </span>
+        </button>
       </div>
       <div className="mt-3 flex items-center gap-2">
         <button
@@ -3590,24 +3613,6 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs disabled:opacity-50"
         >
           Editar
-        </button>
-        <button
-          onClick={() => onToggle(emp)}
-          disabled={deleting}
-          className="inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2.5 py-1.5 text-xs disabled:opacity-50"
-        >
-          {active ? "Off" : "On"}
-        </button>
-        <button
-          onClick={() => onRemove(emp)}
-          disabled={deleting}
-          className="inline-flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5 disabled:opacity-60"
-        >
-          {deleting ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Trash2 className="h-3.5 w-3.5" />
-          )}
         </button>
       </div>
     </div>
@@ -4040,6 +4045,53 @@ function EquipoSection() {
     approvalEnabled,
     approvalMode,
   ]);
+
+  async function saveApprovalSettings(
+    nextEnabled = approvalEnabled,
+    nextMode = approvalMode,
+  ) {
+    if (!businessId) return toast.error("No se encontró el negocio");
+
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        approval_mode: nextMode,
+        schedule: {
+          ...existingSchedule,
+          _caja: {
+            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
+            approvalModeEnabled: nextEnabled,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+
+    if (error) return toast.error("Error guardando: " + error.message);
+    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
+    toast.success("Guardado");
+  }
+
+  function updateApprovalEnabled(value: boolean) {
+    setApprovalEnabled(value);
+    void saveApprovalSettings(value, approvalMode);
+  }
+
+  function updateApprovalMode(value: "auto" | "manual") {
+    setApprovalMode(value);
+    void saveApprovalSettings(approvalEnabled, value);
+  }
 
   async function compressProfessionalAvatar(file: File): Promise<Blob> {
     const imageUrl = URL.createObjectURL(file);
@@ -4530,6 +4582,10 @@ function EquipoSection() {
     // Borrado quirúrgico por id en el estado local (sin recargar la página ni
     // re-fetchear toda la lista). Solo desaparece exactamente este profesional.
     setRows((prev) => prev.filter((e) => e.id !== emp.id));
+    if (editingEmp?.id === emp.id) {
+      setOpen(false);
+      setEditingEmp(null);
+    }
     setDeletingId(null);
     toast.success("Profesional eliminado.");
   }
@@ -4891,7 +4947,7 @@ function EquipoSection() {
                     en Caja o si necesitan revisión.
                   </div>
                 </div>
-                <Toggle on={approvalEnabled} onChange={setApprovalEnabled} />
+                <Toggle on={approvalEnabled} onChange={updateApprovalEnabled} />
               </div>
 
               {approvalEnabled && (
@@ -4899,11 +4955,11 @@ function EquipoSection() {
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => setApprovalMode("auto")}
+                    onClick={() => updateApprovalMode("auto")}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        setApprovalMode("auto");
+                        updateApprovalMode("auto");
                       }
                     }}
                     className={cn(
@@ -5010,11 +5066,11 @@ function EquipoSection() {
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => setApprovalMode("manual")}
+                    onClick={() => updateApprovalMode("manual")}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        setApprovalMode("manual");
+                        updateApprovalMode("manual");
                       }
                     }}
                     className={cn(
@@ -5339,10 +5395,10 @@ function EquipoSection() {
                         {(displayTitle[0] || "A").toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">
+                        <div className="text-sm font-medium ">
                           {displayTitle}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
+                        <div className="text-xs text-muted-foreground ">
                           {user.email}
                         </div>
                       </div>
@@ -6025,7 +6081,7 @@ function EquipoSection() {
                                             </button>
 
                                             <div className="flex-1 min-w-0">
-                                              <div className="text-sm font-medium truncate">
+                                              <div className="text-sm font-medium ">
                                                 {item.name}
                                               </div>
                                               <div className="text-xs text-muted-foreground">
@@ -6098,19 +6154,35 @@ function EquipoSection() {
             </div>
 
             <div className="flex items-center gap-2 p-4 border-t border-white/5">
-              <button
-                onClick={saveProfessional}
-                disabled={saving}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
-              >
-                {saving ? "Guardando…" : "Aceptar"}
-              </button>
+              {editingEmp ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDel(editingEmp)}
+                  disabled={saving || deletingId === editingEmp.id}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/30 transition hover:bg-red-500/20 disabled:opacity-50"
+                >
+                  {deletingId === editingEmp.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Eliminar
+                </button>
+              ) : null}
+              <div className="flex-1" />
               <button
                 onClick={() => setOpen(false)}
                 disabled={saving}
                 className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
               >
                 Cancelar
+              </button>
+              <button
+                onClick={saveProfessional}
+                disabled={saving}
+                className="inline-flex min-w-[160px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+              >
+                {saving ? "Guardando…" : "Guardar"}
               </button>
             </div>
           </div>
@@ -7294,7 +7366,7 @@ function CajaSection() {
     cuentaDni: false,
   };
   const [methods, setMethods] = useState(defaultMethods);
-  const [autoChange, setAutoChange] = useState(true);
+  const autoChange = true;
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
 
@@ -7309,8 +7381,6 @@ function CajaSection() {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
         const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         if (caja.methods) setMethods(caja.methods as typeof defaultMethods);
-        if (typeof caja.autoChange === "boolean")
-          setAutoChange(caja.autoChange);
       });
   }, [businessId]);
 
@@ -7337,7 +7407,7 @@ function CajaSection() {
           _caja: {
             ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
             methods: nextMethods,
-            autoChange: nextAutoChange,
+            autoChange: true,
           },
         },
       },
@@ -7352,11 +7422,6 @@ function CajaSection() {
     const nextMethods = { ...methods, [methodId]: value };
     setMethods(nextMethods);
     void saveCajaSettings(nextMethods, autoChange);
-  }
-
-  function updateAutoChange(value: boolean) {
-    setAutoChange(value);
-    void saveCajaSettings(methods, value);
   }
 
   useEffect(() => {
@@ -7433,22 +7498,7 @@ function CajaSection() {
         </div>
       </SectionCard>
 
-      <SectionCard label="Comportamiento de caja">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center">
-            <ArrowLeftRight className="h-4.5 w-4.5 text-muted-foreground" />
-          </div>
-          <div className="flex-1">
-            <div className="font-medium text-sm">
-              Calcular vuelto automáticamente
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              Muestra el vuelto al ingresar el monto en efectivo
-            </div>
-          </div>
-          <Toggle on={autoChange} onChange={updateAutoChange} />
-        </div>
-      </SectionCard>
+
     </>
   );
 }
@@ -7703,7 +7753,7 @@ function SenasSection() {
                     )}
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium ">
                         {s.name}
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
