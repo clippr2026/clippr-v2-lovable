@@ -320,6 +320,7 @@ function PublicProfilePage() {
   const [showAllFeaturedClients, setShowAllFeaturedClients] = React.useState(false);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
+  const [siteMaintenance, setSiteMaintenance] = React.useState(false);
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
   const [colors, setColors] = React.useState<LandingColors>({});
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
@@ -433,6 +434,11 @@ function PublicProfilePage() {
         const visibility = extractPublicVisibility(settingsSchedule);
 
         if (!cancelled) {
+          const publicStatus =
+            settingsSchedule && typeof settingsSchedule === "object"
+              ? (((settingsSchedule as Record<string, unknown>)._publicSiteStatus ?? {}) as Record<string, unknown>)
+              : {};
+          setSiteMaintenance(publicStatus.maintenance === true);
           setBusiness(mergedBusiness as Business);
           setHeaderStats(statsResult);
           const employeeRoles =
@@ -533,6 +539,30 @@ function PublicProfilePage() {
           <CardContent className="p-8 text-center">
             <h1 className="text-2xl font-semibold">Página no encontrada</h1>
             <p className="mt-2 text-sm text-white/60">No encontramos este local en Clippr.</p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (siteMaintenance) {
+    return (
+      <main
+        className="min-h-dvh grid place-items-center px-4 text-white"
+        style={{
+          background:
+            "radial-gradient(circle at 18% 0%, rgba(124,58,237,0.32), transparent 34%), radial-gradient(circle at 85% 8%, rgba(14,165,233,0.22), transparent 30%), #08070c",
+        }}
+      >
+        <Card className="w-full max-w-lg rounded-3xl border-white/10 bg-white/[0.045] text-white shadow-2xl backdrop-blur-xl">
+          <CardContent className="p-8 text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.06] ring-1 ring-white/10">
+              <Clock3 className="h-7 w-7 text-white/70" />
+            </div>
+            <h1 className="mt-5 text-2xl font-semibold">Sitio en mantenimiento</h1>
+            <p className="mt-3 text-sm leading-relaxed text-white/60">
+              Estamos actualizando la página de reservas de {business.name}. Volvé a intentar más tarde.
+            </p>
           </CardContent>
         </Card>
       </main>
