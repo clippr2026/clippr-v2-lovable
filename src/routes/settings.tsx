@@ -1565,15 +1565,17 @@ function BrandingSection() {
     }
     if (cfgResult.error)
       return toast.error("Error guardando: " + cfgResult.error.message);
-    setData((d) => ({
-      ...d,
-      phone: normalizedPhone,
-      logo_url,
-      slug: finalSlug,
-      avatar_url,
-      cover_url,
-    }));
-    setLogoFile(null);
+    if (showToast) {
+      setData((d) => ({
+        ...d,
+        phone: normalizedPhone,
+        logo_url,
+        slug: finalSlug,
+        avatar_url,
+        cover_url,
+      }));
+      setLogoFile(null);
+    }
     // Avisar al header (botón 🌐) para que actualice el link al instante.
     window.dispatchEvent(
       new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }),
