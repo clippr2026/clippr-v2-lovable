@@ -170,18 +170,6 @@ const groups: { label: string; items: NavItem[] }[] = [
       },
     ],
   },
-  {
-    label: "Cuenta",
-    items: [
-      {
-        id: "plan",
-        label: "Plan & facturación",
-        icon: Crown,
-        tint: "text-[oklch(0.88_0.16_320)]",
-        glow: "from-[oklch(0.88_0.16_320/0.25)] to-[oklch(0.7_0.25_300/0.05)]",
-      },
-    ],
-  },
 ];
 
 // ─────────── Apariencia ───────────
@@ -3381,7 +3369,7 @@ const ROLE_PERMISSION_OPTIONS: {
     id: "admin_general",
     label: "Admin. General",
     icon: "👑",
-    desc: "Dueño principal del negocio. Acceso completo.",
+    desc: "Administrador principal del negocio.",
     locked: true,
   },
   {
@@ -3415,8 +3403,8 @@ const ROLE_ACCESS_SUMMARY: Record<
   { title: string; desc: string; can: string[]; cannot: string[] }
 > = {
   admin_general: {
-    title: "Acceso total",
-    desc: "Dueño principal del negocio. Control completo de Clippr.",
+    title: "Administrador principal",
+    desc: "Control completo del negocio en Clippr.",
     can: ["Todo el negocio", "Configuración", "Caja", "Asesor IA"],
     cannot: [],
   },
@@ -3436,13 +3424,13 @@ const ROLE_ACCESS_SUMMARY: Record<
     title: "Recepción y caja",
     desc: "Para gestionar turnos, clientes y cobros del día.",
     can: ["Agenda", "Caja", "Clientes"],
-    cannot: ["Profesionales", "Configuración", "Asesor IA"],
+    cannot: ["Dashboard", "Profesionales", "Configuración", "Asesor IA"],
   },
   profesional: {
     title: "Panel profesional",
     desc: "Para que cada profesional vea su actividad y registre su trabajo.",
     can: ["Profesionales"],
-    cannot: ["Caja", "Configuración", "Asesor IA", "Equipo"],
+    cannot: ["Dashboard", "Agenda", "Caja", "Clientes", "Configuración", "Asesor IA"],
   },
 };
 
@@ -5302,20 +5290,25 @@ function EquipoSection() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {accessUsers.map((user) => (
+                  {accessUsers.map((user) => {
+                    const displayTitle =
+                      user.role === "profesional"
+                        ? user.name || ROLE_LABEL_BY_ID[user.role]
+                        : ROLE_LABEL_BY_ID[user.role];
+                    return (
                     <div
                       key={user.id}
                       className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
                     >
                       <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
-                        {(user.name[0] || "A").toUpperCase()}
+                        {(displayTitle[0] || "A").toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">
-                          {user.name}
+                          {displayTitle}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {user.email} · {ROLE_LABEL_BY_ID[user.role]}
+                          {user.email}
                         </div>
                       </div>
                       <span
@@ -5358,7 +5351,8 @@ function EquipoSection() {
                         </button>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
