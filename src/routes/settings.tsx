@@ -4978,13 +4978,19 @@ function EquipoSection() {
                           Juan finaliza un servicio de $20.000 y registra el cobro
                           desde su panel.
                         </p>
-                        <p className="mt-3 text-sm leading-relaxed text-white/90">
-                          <span className="font-semibold text-white">
+                        <div className="mt-3 space-y-2">
+                          <div className="text-sm font-semibold text-white">
                             Resultado:
-                          </span>{" "}
-                          el cobro queda registrado, aparece automáticamente en
-                          Caja y se actualizan los ingresos del día.
-                        </p>
+                          </div>
+                          <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-white/10 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.7)]">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="font-mono text-xs text-white/42">12:00</span>
+                              <span className="min-w-[54px] font-semibold text-white">Juan</span>
+                              <span className="text-white/35">→</span>
+                              <span className="font-semibold text-emerald-400">Cobró</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -5083,13 +5089,29 @@ function EquipoSection() {
                           Juan finaliza un servicio de $20.000 y registra el cobro
                           desde su panel.
                         </p>
-                        <p className="mt-3 text-sm leading-relaxed text-white/90">
-                          <span className="font-semibold text-white">
+                        <div className="mt-3 space-y-2">
+                          <div className="text-sm font-semibold text-white">
                             Resultado:
-                          </span>{" "}
-                          el cobro queda pendiente. Caja revisa la información y,
-                          al aprobarlo, el ingreso se registra oficialmente.
-                        </p>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-sky-400/15 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.75)]">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-mono text-xs text-white/42">12:00</span>
+                                <span className="min-w-[54px] font-semibold text-white">Juan</span>
+                                <span className="text-white/35">→</span>
+                                <span className="font-semibold text-sky-400">Envió a caja</span>
+                              </div>
+                            </div>
+                            <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-emerald-400/15 shadow-[0_14px_35px_-28px_rgba(74,222,128,0.65)]">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-mono text-xs text-white/42">12:01</span>
+                                <span className="min-w-[54px] font-semibold text-white">Caja</span>
+                                <span className="text-white/35">→</span>
+                                <span className="font-semibold text-emerald-400">Cobró</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                   </div>
