@@ -6865,9 +6865,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       }
     }
 
-    document.addEventListener("mousedown", handleAddMenuOutsideClick);
+    document.addEventListener("pointerdown", handleAddMenuOutsideClick, true);
     return () =>
-      document.removeEventListener("mousedown", handleAddMenuOutsideClick);
+      document.removeEventListener("pointerdown", handleAddMenuOutsideClick, true);
   }, [addMenuOpen]);
 
 
@@ -6979,8 +6979,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         </p>
       </div>
 
-      <div className="glass rounded-2xl ring-1 ring-white/5">
-        <div className="relative flex items-center gap-1 px-3 pt-3 pr-2 border-b border-white/5 overflow-x-auto">
+      <div className="glass overflow-visible rounded-2xl ring-1 ring-white/5">
+        <div className="relative flex items-center gap-1 px-3 pt-3 pr-1 border-b border-white/5 overflow-visible">
           {categories.map((category) => {
             const active = category === cat;
             return (
@@ -7031,7 +7031,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             );
           })}
 
-          <div className="sticky right-0 ml-auto flex shrink-0 items-center justify-end bg-gradient-to-l from-[oklch(0.09_0.03_275)] via-[oklch(0.09_0.03_275/0.92)] to-transparent pl-10 pr-0">
+          <div className="ml-auto flex shrink-0 items-center justify-end pl-4 pr-0">
             <div ref={addMenuRef} className="relative">
               <button
                 type="button"
@@ -7064,7 +7064,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
                   >
                     <Plus className="h-4 w-4 text-violet-300" />
-                    "Nuevo servicio"
+                    Nuevo servicio
                   </button>
                 </div>
               ) : null}
@@ -7156,12 +7156,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
                 >
                   Editar
-                </button>
-                <button
-                  onClick={() => remove(row)}
-                  className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2 py-1.5"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))}
