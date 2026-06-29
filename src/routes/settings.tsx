@@ -6953,56 +6953,17 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-display font-semibold">
-            {isService ? "Servicios" : "Catálogo"}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isService ? "Servicios que ofrecés." : "Productos para la venta."}
-          </p>
-        </div>
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setAddMenuOpen((open) => !open)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] transition hover:opacity-95"
-            aria-label="Agregar"
-          >
-            <Plus className="h-5 w-5" strokeWidth={2.5} />
-          </button>
-
-          {addMenuOpen ? (
-            <div className="absolute right-0 top-12 z-30 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[oklch(0.13_0.035_275/0.96)] p-1.5 shadow-2xl backdrop-blur-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  setAddMenuOpen(false);
-                  addCategory();
-                }}
-                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
-              >
-                <Plus className="h-4 w-4 text-sky-300" />
-                Nueva categoría
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAddMenuOpen(false);
-                  openNew();
-                }}
-                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
-              >
-                <Plus className="h-4 w-4 text-violet-300" />
-                {isService ? "Nuevo servicio" : `Nuevo ${cat.toLowerCase()}`}
-              </button>
-            </div>
-          ) : null}
-        </div>
+      <div>
+        <h2 className="text-xl font-display font-semibold">
+          {isService ? "Servicios" : "Catálogo"}
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {isService ? "Servicios que ofrecés." : "Productos para la venta."}
+        </p>
       </div>
 
       <div className="glass rounded-2xl ring-1 ring-white/5">
-        <div className="flex items-center gap-1 px-3 pt-3 border-b border-white/5 overflow-x-auto">
+        <div className="relative flex items-center gap-1 px-3 pt-3 pr-14 border-b border-white/5 overflow-x-auto">
           {categories.map((category) => {
             const active = category === cat;
             return (
@@ -7052,6 +7013,46 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               </div>
             );
           })}
+
+          <div className="sticky right-0 ml-auto flex shrink-0 items-center justify-end bg-gradient-to-l from-[oklch(0.09_0.03_275)] via-[oklch(0.09_0.03_275/0.92)] to-transparent pl-6">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setAddMenuOpen((open) => !open)}
+                className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] transition hover:opacity-95"
+                aria-label="Agregar"
+              >
+                <Plus className="h-4.5 w-4.5" strokeWidth={2.5} />
+              </button>
+
+              {addMenuOpen ? (
+                <div className="absolute right-0 top-10 z-30 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[oklch(0.13_0.035_275/0.98)] p-1.5 shadow-2xl backdrop-blur-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddMenuOpen(false);
+                      addCategory();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Plus className="h-4 w-4 text-sky-300" />
+                    Nueva categoría
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddMenuOpen(false);
+                      openNew();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Plus className="h-4 w-4 text-violet-300" />
+                    {isService ? "Nuevo servicio" : `Nuevo ${cat.toLowerCase()}`}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         {loading ? (
