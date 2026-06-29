@@ -397,6 +397,7 @@ type BrandingData = {
   website: string;
   description: string;
   profile_note: string;
+  profile_note_active: boolean;
   logo_url: string;
   avatar_url: string;
   cover_url: string;
@@ -418,6 +419,7 @@ const EMPTY_BRANDING: BrandingData = {
   website: "",
   description: "",
   profile_note: "",
+  profile_note_active: false,
   logo_url: "",
   avatar_url: "",
   cover_url: "",
@@ -927,6 +929,7 @@ function BrandingSection() {
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
         profile_note: (cfg.profile_note as string) ?? "",
+        profile_note_active: cfg.profile_note_active === true,
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
         cover_url: (biz?.cover_url as string) ?? "",
@@ -1354,6 +1357,7 @@ function BrandingSection() {
         website: data.website,
         description: data.description,
         profile_note: data.profile_note,
+        profile_note_active: data.profile_note_active,
         logo_url: logo_url || (existingBranding.logo_url as string | undefined) || "",
         portfolio_urls:
           nextPortfolioUrls.length > 0
@@ -1491,22 +1495,52 @@ function BrandingSection() {
       <SectionCard label="Estado">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
           <div className="flex flex-1 items-start gap-4 min-w-0">
-            <div className="relative h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.95)]" />
-              <Sparkles className="h-5 w-5 text-violet-200" />
+            <div
+              className={cn(
+                "relative h-11 w-11 rounded-2xl ring-1 grid place-items-center shrink-0 transition",
+                data.profile_note_active
+                  ? "bg-violet-500/10 ring-violet-400/25"
+                  : "bg-white/5 ring-white/10",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute right-2 top-2 h-2.5 w-2.5 rounded-full transition",
+                  data.profile_note_active
+                    ? "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.9)]"
+                    : "bg-white/25",
+                )}
+              />
+              <Sparkles
+                className={cn(
+                  "h-5 w-5 transition",
+                  data.profile_note_active ? "text-violet-200" : "text-white/45",
+                )}
+              />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <div className="font-semibold text-sm">Estado público</div>
-                {data.profile_note.trim() ? (
-                  <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200 ring-1 ring-violet-400/20">
-                    Activo
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/45 ring-1 ring-white/10">
-                    Oculto
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setData((d) => ({ ...d, profile_note_active: !d.profile_note_active }))
+                  }
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 transition",
+                    data.profile_note_active
+                      ? "bg-emerald-500/15 text-emerald-300 ring-emerald-400/25"
+                      : "bg-white/5 text-white/45 ring-white/10",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      data.profile_note_active ? "bg-emerald-300" : "bg-white/30",
+                    )}
+                  />
+                  {data.profile_note_active ? "Activo" : "Inactivo"}
+                </button>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 Aparece arriba de tu página pública. Ideal para promociones, avisos o novedades.
@@ -1522,11 +1556,17 @@ function BrandingSection() {
                 setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
               }
               maxLength={80}
+              disabled={!data.profile_note_active}
               placeholder="🔥 Últimos turnos para hoy"
-              className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
+              className={cn(
+                "w-full rounded-xl px-3 py-2.5 text-sm transition focus:outline-none",
+                data.profile_note_active
+                  ? "bg-white/5 ring-1 ring-violet-400/40 focus:ring-violet-300/60 text-white"
+                  : "bg-white/[0.035] ring-1 ring-white/10 text-white/45 placeholder:text-white/35 cursor-not-allowed",
+              )}
             />
             <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>Máximo 80 caracteres</span>
+              <span>{data.profile_note_active ? "Máximo 80 caracteres" : "Activá el estado para editarlo"}</span>
               <span>{data.profile_note.length}/80</span>
             </div>
           </div>
