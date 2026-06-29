@@ -5602,22 +5602,31 @@ function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
   let nivel: keyof typeof nivelMeta;
   let titulo: string;
   let verdict: string;
-  if (best <= 1) {
+  const beforeHasDemand = benefitAntes >= 2;
+  const afterHasDemand = benefitTarde >= 2;
+
+  if (!beforeHasDemand && !afterHasDemand) {
     nivel = "no_recomendado";
     titulo = "No conviene extender horario";
-    verdict = `No detecto clientes rechazados en los bordes de tu jornada (abrís ~${openHour}:00 y cerrás ~${closeHour}:00). La demanda no atendida está dentro del horario actual, no antes ni después.`;
-  } else if (extraClients >= 2 && extraClients === best) {
-    nivel = "recomendado";
-    titulo = opt === "antes" ? "Conviene abrir antes" : "Conviene cerrar más tarde";
     verdict =
       opt === "antes"
-        ? `Detecté ~${benefitAntes} clientes rechazados antes o en tu primera hora (${openHour}:00). Abrir 1 hora antes podría recuperarlos: ${fmtAR(facturacion)} de facturación al mes.`
-        : `Detecté ~${benefitTarde} clientes rechazados al cierre (${closeHour}:00) o después. Cerrar 1 hora más tarde podría recuperarlos: ${fmtAR(facturacion)} de facturación al mes.`;
+        ? "No detectamos clientes rechazados ni una alta demanda durante el primer horario del día. La agenda tiene disponibilidad al inicio de la jornada, por lo que abrir antes no generaría más reservas en este momento."
+        : "No detectamos clientes rechazados ni una alta demanda durante el último horario del día. Los últimos turnos disponibles no están completamente ocupados, por lo que extender el cierre no aportaría más reservas por ahora.";
+  } else if (opt === "antes" && beforeHasDemand) {
+    nivel = "recomendado";
+    titulo = "Conviene abrir 1 hora antes";
+    verdict = `Detectamos una alta demanda durante el primer horario del día. Varios clientes intentaron reservar en ese horario y no encontraron disponibilidad. Abrir una hora antes podría captar aproximadamente ${benefitAntes} clientes más por mes y sumar ${fmtAR(facturacion)} de facturación.`;
+  } else if (opt === "tarde" && afterHasDemand) {
+    nivel = "recomendado";
+    titulo = "Conviene cerrar 1 hora después";
+    verdict = `Detectamos una alta demanda durante el último horario del día. Se registraron clientes rechazados o falta de disponibilidad en el cierre de la jornada. Extender el horario una hora podría sumar aproximadamente ${benefitTarde} clientes más por mes y generar ${fmtAR(facturacion)} de facturación.`;
   } else {
     nivel = "evaluar";
-    titulo =
-      benefitAntes > benefitTarde ? "Mejor abrir antes" : "Mejor cerrar más tarde";
-    verdict = `La opción seleccionada suma ~${extraClients} clientes. La franja con más rechazos es ${benefitAntes >= benefitTarde ? `la apertura (${openHour}:00)` : `el cierre (${closeHour}:00)`}: probá esa primero 3 semanas y medí si se llena.`;
+    titulo = benefitAntes > benefitTarde ? "Mejor abrir 1 hora antes" : "Mejor cerrar 1 hora después";
+    verdict =
+      opt === "antes"
+        ? "No detectamos clientes rechazados ni una alta demanda durante el primer horario del día. La oportunidad más fuerte aparece al final de la jornada, por eso conviene evaluar cerrar más tarde antes que abrir antes."
+        : "No detectamos clientes rechazados ni una alta demanda durante el último horario del día. La oportunidad más fuerte aparece al inicio de la jornada, por eso conviene evaluar abrir antes antes que cerrar más tarde.";
   }
 
   return (
@@ -5652,7 +5661,15 @@ function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
             </span>
             <span className="min-w-0">
               <span className="block text-sm font-bold text-white">{o.label}</span>
-              <span className="block text-[11px] text-white/45">{o.n} rechazados en el borde</span>
+              <span className="block text-[11px] leading-snug text-white/45">
+                {o.key === "antes"
+                  ? o.n > 0
+                    ? `${o.n} rechazados en el primer horario`
+                    : "Sin rechazos ni alta demanda al inicio"
+                  : o.n > 0
+                    ? `${o.n} rechazados en el último horario`
+                    : "Sin rechazos ni alta demanda al cierre"}
+              </span>
             </span>
           </button>
         ))}
