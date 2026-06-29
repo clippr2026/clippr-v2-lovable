@@ -280,39 +280,98 @@ function UserMenu() {
 function PublicSiteMenu() {
   const { businessId } = useAuth();
   const [slug, setSlug] = React.useState<string>("");
+  const [maintenance, setMaintenance] = React.useState(false);
+  const [savingMaintenance, setSavingMaintenance] = React.useState(false);
+
+  const loadSiteState = React.useCallback(() => {
+    if (!businessId) return;
+
+    supabase
+      .from("businesses")
+      .select("slug")
+      .eq("id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setSlug(((data?.slug as string) || "").trim());
+      });
+
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const publicStatus = (schedule._publicSiteStatus ?? {}) as Record<string, unknown>;
+        setMaintenance(publicStatus.maintenance === true);
+      });
+  }, [businessId]);
 
   React.useEffect(() => {
     if (!businessId) return;
-    let cancelled = false;
-
-    const load = () => {
-      supabase
-        .from("businesses")
-        .select("slug")
-        .eq("id", businessId)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (!cancelled) setSlug(((data?.slug as string) || "").trim());
-        });
-    };
-
-    load();
+    loadSiteState();
 
     const onUpdated = (e: Event) => {
       const s = (e as CustomEvent).detail?.slug;
       if (typeof s === "string") setSlug(s);
-      else load();
+      loadSiteState();
     };
 
     window.addEventListener("clippr:slug-updated", onUpdated);
+    window.addEventListener("clippr:public-site-status-updated", loadSiteState);
     return () => {
-      cancelled = true;
       window.removeEventListener("clippr:slug-updated", onUpdated);
+      window.removeEventListener("clippr:public-site-status-updated", loadSiteState);
     };
-  }, [businessId]);
+  }, [businessId, loadSiteState]);
 
   const publicUrl = slug ? `https://myclippr.com/negocio/${slug}` : "";
   const publicUrlShort = slug ? `myclippr.com/negocio/${slug}` : "Configurá la URL pública";
+
+  async function updateMaintenance(nextMaintenance: boolean) {
+    if (!businessId) return toast.error("No se encontró el negocio");
+
+    setMaintenance(nextMaintenance);
+    setSavingMaintenance(true);
+
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+    const existingStatus = (existingSchedule._publicSiteStatus ?? {}) as Record<string, unknown>;
+
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        schedule: {
+          ...existingSchedule,
+          _publicSiteStatus: {
+            ...existingStatus,
+            maintenance: nextMaintenance,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+
+    setSavingMaintenance(false);
+
+    if (error) {
+      setMaintenance(!nextMaintenance);
+      return toast.error("No se pudo actualizar el sitio público");
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("clippr:public-site-status-updated", {
+        detail: { maintenance: nextMaintenance },
+      }),
+    );
+
+    toast.success(nextMaintenance ? "Sitio en mantenimiento" : "Sitio online");
+  }
 
   async function copyLink() {
     if (!slug) return toast.error("Primero configurá la página pública");
@@ -375,7 +434,7 @@ function PublicSiteMenu() {
 
       <DropdownMenuContent
         align="end"
-        className="w-[360px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
+        className="w-[380px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -384,23 +443,42 @@ function PublicSiteMenu() {
               <div className="text-lg font-semibold leading-tight text-white">
                 Sitio Web Público
               </div>
+              <div className="mt-0.5 text-xs text-white/45">
+                Reservas online
+              </div>
             </div>
           </div>
 
-          {slug ? (
-            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-sm font-semibold text-emerald-300 ring-1 ring-emerald-500/35">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              Activo
-            </span>
-          ) : (
-            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/5 px-3 py-1.5 text-sm font-semibold text-white/55 ring-1 ring-white/10">
-              Inactivo
-            </span>
-          )}
+          <button
+            type="button"
+            disabled={savingMaintenance || !slug}
+            onClick={() => updateMaintenance(!maintenance)}
+            className={[
+              "inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 transition disabled:cursor-not-allowed disabled:opacity-45",
+              maintenance
+                ? "bg-amber-500/15 text-amber-300 ring-amber-500/35"
+                : "bg-emerald-500/15 text-emerald-300 ring-emerald-500/35",
+            ].join(" ")}
+            title={maintenance ? "Pasar sitio a online" : "Poner sitio en mantenimiento"}
+          >
+            <span
+              className={[
+                "h-2 w-2 rounded-full",
+                maintenance ? "bg-amber-400" : "bg-emerald-400",
+              ].join(" ")}
+            />
+            {maintenance ? "Mantenimiento" : "Online"}
+          </button>
         </div>
 
         <div className="mt-3 break-all text-base text-white/55">
           {publicUrlShort}
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-white/[0.035] p-3 text-xs leading-relaxed text-white/50 ring-1 ring-white/10">
+          {maintenance
+            ? "La página pública muestra un aviso de mantenimiento y no permite reservar."
+            : "La página pública está activa y permite recibir reservas."}
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-3">
