@@ -93,6 +93,24 @@ import type {
   EmployeeSpecialDateMap,
 } from "@/components/agenda/use-agenda-data";
 
+
+function ReservasOnlineIcon({
+  className,
+  strokeWidth,
+}: {
+  className?: string;
+  strokeWidth?: number;
+}) {
+  return (
+    <span className={cn("relative inline-grid h-5 w-5 place-items-center", className)}>
+      <Globe className="h-5 w-5" strokeWidth={strokeWidth ?? 2} />
+      <span className="absolute -bottom-1 -left-1 rounded-full border-2 border-[oklch(0.11_0.03_260)] bg-emerald-400 px-1 py-[1px] text-[6px] font-black leading-none tracking-[-0.02em] text-white shadow-sm">
+        WWW
+      </span>
+    </span>
+  );
+}
+
 type SectionId =
   | "branding"
   | "landing"
@@ -119,8 +137,8 @@ const groups: { label: string; items: NavItem[] }[] = [
       {
         id: "branding",
         label: "Página de reservas",
-        icon: Sparkles,
-        tint: "text-[oklch(0.82_0.18_300)]",
+        icon: ReservasOnlineIcon,
+        tint: "text-white",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
       },
       {
@@ -8045,291 +8063,6 @@ function SettingsPage() {
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setHasUnsavedChanges(false);
-                  setActive(pendingActive);
-                  setPendingActive(null);
-                }}
-                className="rounded-xl bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 ring-1 ring-red-400/25 transition hover:bg-red-500/15"
-              >
-                Salir sin guardar
-              </button>
-              <button
-                type="button"
-                onClick={() => saveCurrentSection(pendingActive)}
-                className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
-              >
-                Guardar cambios
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </AppShell>
-  );
-}
-
-// ─────────── Clientes ───────────
-
-type ClientField = {
-  key: string;
-  label: string;
-  required: boolean;
-};
-
-const ALL_CLIENT_FIELDS: ClientField[] = [
-  { key: "nombre", label: "Nombre", required: true },
-  { key: "telefono", label: "Teléfono", required: true },
-  { key: "email", label: "Email", required: true },
-  { key: "fecha_nacimiento", label: "Fecha de nacimiento", required: false },
-  { key: "notas", label: "Notas", required: false },
-];
-
-type ClientesConfig = {
-  fields: Record<string, boolean>;
-  diasInactivo: number;
-  diasPerdido: number;
-  vipVisitasEnabled: boolean;
-  vipVisitasMin: number;
-  vipGastoEnabled: boolean;
-  vipGastoMin: number;
-};
-
-const DEFAULT_CLIENTES_CONFIG: ClientesConfig = {
-  fields: {
-    nombre: true,
-    telefono: true,
-    email: true,
-    fecha_nacimiento: true,
-    notas: false,
-  },
-  diasInactivo: 30,
-  diasPerdido: 90,
-  vipVisitasEnabled: true,
-  vipVisitasMin: 4,
-  vipGastoEnabled: true,
-  vipGastoMin: 100000,
-};
-
-// ── Helpers outside component — prevents focus loss on re-render ─────────────
-
-function CfgCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 space-y-4",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function CfgSectionTitle({ label, sub }: { label: string; sub?: string }) {
-  return (
-    <div>
-      <h3 className="text-sm font-semibold text-foreground">{label}</h3>
-      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-function CfgNumInput({
-  label,
-  value,
-  onChange,
-  min = 1,
-  step = 1,
-  prefix,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-  min?: number;
-  step?: number;
-  prefix?: string;
-}) {
-  const [local, setLocal] = React.useState(String(value));
-  React.useEffect(() => {
-    setLocal(String(value));
-  }, [value]);
-  const commit = () => {
-    const n = Math.max(min, Number(local) || min);
-    setLocal(String(n));
-    onChange(n);
-  };
-  return (
-    <label className="flex items-center justify-between gap-4">
-      <span className="text-sm text-foreground/80">{label}</span>
-      <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-        {prefix && (
-          <span className="text-sm text-muted-foreground">{prefix}</span>
-        )}
-        <input
-          type="number"
-          min={min}
-          step={step}
-          value={local}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={commit}
-          className="w-24 bg-transparent text-sm text-right tabular-nums outline-none text-foreground"
-        />
-      </div>
-    </label>
-  );
-}
-
-function CfgToggle({
-  enabled,
-  onToggle,
-}: {
-  enabled: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={cn(
-        "relative h-6 w-11 rounded-full transition-all shrink-0",
-        enabled ? "bg-primary/70" : "bg-white/10",
-      )}
-    >
-      <span
-        className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-          enabled ? "translate-x-5" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
-
-function ClientesSection() {
-  const { businessId } = useAuth();
-  const [cfg, setCfg] = useState<ClientesConfig>(DEFAULT_CLIENTES_CONFIG);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!businessId) return;
-    supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
-        if (schedule._clientes) {
-          setCfg({
-            ...DEFAULT_CLIENTES_CONFIG,
-            ...(schedule._clientes as Partial<ClientesConfig>),
-          });
-        }
-        setLoaded(true);
-      });
-  }, [businessId]);
-
-  const save = useCallback(async () => {
-    if (!businessId) return;
-    try {
-      const { data: existingRow } = await supabase
-        .from("business_settings")
-        .select("schedule")
-        .eq("business_id", businessId)
-        .maybeSingle();
-      const existingSchedule = (existingRow?.schedule ?? {}) as Record<
-        string,
-        unknown
-      >;
-      const result = await supabase
-        .from("business_settings")
-        .upsert(
-          {
-            business_id: businessId,
-            schedule: { ...existingSchedule, _clientes: cfg },
-          },
-          { onConflict: "business_id" },
-        );
-      if (result.error) throw new Error(result.error.message);
-      toast.success("Configuración de clientes guardada");
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }, [businessId, cfg]);
-
-  // Wire up global save button
-  const saveRef = useRef(save);
-  useEffect(() => {
-    saveRef.current = save;
-  }, [save]);
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "clientes") void saveRef.current();
-    };
-    window.addEventListener("clippr:save-settings", handler);
-    return () => window.removeEventListener("clippr:save-settings", handler);
-  }, []);
-
-  const setField = (key: string, val: boolean) =>
-    setCfg((prev) => ({ ...prev, fields: { ...prev.fields, [key]: val } }));
-
-  if (!loaded)
-    return (
-      <div className="py-16 text-center text-sm text-muted-foreground animate-pulse">
-        Cargando…
-      </div>
-    );
-
-  return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h2 className="text-xl font-display font-semibold">Clientes</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Campos del formulario, segmentación automática y criterios VIP.
-        </p>
-      </div>
-
-      {/* ── Campos ── */}
-      <CfgCard>
-        <CfgSectionTitle
-          label="Campos visibles"
-          sub="Los campos activos aparecen al crear o editar clientes y al agendar turnos."
-        />
-        <div className="space-y-2.5 pt-1">
-          {ALL_CLIENT_FIELDS.map((f) => {
-            const enabled = cfg.fields[f.key] ?? false;
-            return (
-              <div
-                key={f.key}
-                className="flex items-center justify-between gap-4 py-1"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    type="button"
-                    disabled={f.required}
-                    onClick={() => !f.required && setField(f.key, !enabled)}
-                    className={cn(
-                      "h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition-all",
-                      enabled
-                        ? "bg-primary/80 border-primary/60"
-                        : "bg-white/[0.03] border-white/15",
-                      f.required && "opacity-60 cursor-not-allowed",
-                    )}
-                  >
-                    {enabled && (
-                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                    )}
-                  </button>
                   <span className="text-sm text-foreground/90">{f.label}</span>
                 </div>
                 {f.required && (
