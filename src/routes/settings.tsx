@@ -3629,6 +3629,8 @@ function EquipoSection() {
   >({});
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
+  const [showAutoApprovalExample, setShowAutoApprovalExample] = useState(false);
+  const [showManualApprovalExample, setShowManualApprovalExample] = useState(false);
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [employeeOnlineMap, setEmployeeOnlineMap] = useState<
     Record<string, boolean>
@@ -4880,11 +4882,18 @@ function EquipoSection() {
 
               {approvalEnabled && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setApprovalMode("auto")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setApprovalMode("auto");
+                      }
+                    }}
                     className={cn(
-                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden",
+                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden cursor-pointer",
                       approvalMode === "auto"
                         ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
                         : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
@@ -4910,29 +4919,56 @@ function EquipoSection() {
                       El profesional cobra desde su panel y el ingreso se
                       registra automáticamente en Caja.
                     </p>
-                    <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
-                        Ejemplo
-                      </div>
-                      <p className="mt-2 text-sm leading-relaxed text-white/78">
-                        Juan finaliza un servicio de $20.000 y registra el cobro
-                        desde su panel.
-                      </p>
-                      <p className="mt-3 text-sm leading-relaxed text-white/90">
-                        <span className="font-semibold text-white">
-                          Resultado:
-                        </span>{" "}
-                        el cobro queda registrado, aparece automáticamente en
-                        Caja y se actualizan los ingresos del día.
-                      </p>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAutoApprovalExample((v) => !v);
+                      }}
+                      className="relative mt-4 inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                    >
+                      <span>❓</span>
+                      <span>¿Cómo funciona?</span>
+                      <ChevronDown
+                        className={cn(
+                          "h-3.5 w-3.5 transition-transform",
+                          showAutoApprovalExample && "rotate-180",
+                        )}
+                      />
+                    </button>
 
-                  <button
-                    type="button"
+                    {showAutoApprovalExample ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Ejemplo
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Juan finaliza un servicio de $20.000 y registra el cobro
+                          desde su panel.
+                        </p>
+                        <p className="mt-3 text-sm leading-relaxed text-white/90">
+                          <span className="font-semibold text-white">
+                            Resultado:
+                          </span>{" "}
+                          el cobro queda registrado, aparece automáticamente en
+                          Caja y se actualizan los ingresos del día.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setApprovalMode("manual")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setApprovalMode("manual");
+                      }
+                    }}
                     className={cn(
-                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden",
+                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden cursor-pointer",
                       approvalMode === "manual"
                         ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
                         : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
@@ -4958,23 +4994,43 @@ function EquipoSection() {
                       El profesional informa el cobro y Caja lo revisa antes de
                       registrarlo oficialmente.
                     </p>
-                    <div className="relative mt-4 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
-                        Ejemplo
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowManualApprovalExample((v) => !v);
+                      }}
+                      className="relative mt-4 inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                    >
+                      <span>❓</span>
+                      <span>¿Cómo funciona?</span>
+                      <ChevronDown
+                        className={cn(
+                          "h-3.5 w-3.5 transition-transform",
+                          showManualApprovalExample && "rotate-180",
+                        )}
+                      />
+                    </button>
+
+                    {showManualApprovalExample ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Ejemplo
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Juan finaliza un servicio de $20.000 y registra el cobro
+                          desde su panel.
+                        </p>
+                        <p className="mt-3 text-sm leading-relaxed text-white/90">
+                          <span className="font-semibold text-white">
+                            Resultado:
+                          </span>{" "}
+                          el cobro queda pendiente. Caja revisa la información y,
+                          al aprobarlo, el ingreso se registra oficialmente.
+                        </p>
                       </div>
-                      <p className="mt-2 text-sm leading-relaxed text-white/78">
-                        Juan finaliza un servicio de $20.000 y registra el cobro
-                        desde su panel.
-                      </p>
-                      <p className="mt-3 text-sm leading-relaxed text-white/90">
-                        <span className="font-semibold text-white">
-                          Resultado:
-                        </span>{" "}
-                        el cobro queda pendiente. Caja revisa la información y,
-                        al aprobarlo, el ingreso se registra oficialmente.
-                      </p>
-                    </div>
-                  </button>
+                    ) : null}
+                  </div>
                 </div>
               )}
             </div>
