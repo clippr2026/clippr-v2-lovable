@@ -3631,6 +3631,8 @@ function EquipoSection() {
   const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
   const [showAutoApprovalExample, setShowAutoApprovalExample] = useState(false);
   const [showManualApprovalExample, setShowManualApprovalExample] = useState(false);
+  const [showAutoApprovalPurpose, setShowAutoApprovalPurpose] = useState(false);
+  const [showManualApprovalPurpose, setShowManualApprovalPurpose] = useState(false);
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [employeeOnlineMap, setEmployeeOnlineMap] = useState<
     Record<string, boolean>
@@ -4919,23 +4921,53 @@ function EquipoSection() {
                       El profesional cobra desde su panel y el ingreso se
                       registra automáticamente en Caja.
                     </p>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowAutoApprovalExample((v) => !v);
-                      }}
-                      className="relative mt-4 inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
-                    >
-                      <span>❓</span>
-                      <span>¿Cómo funciona?</span>
-                      <ChevronDown
-                        className={cn(
-                          "h-3.5 w-3.5 transition-transform",
-                          showAutoApprovalExample && "rotate-180",
-                        )}
-                      />
-                    </button>
+                    <div className="relative mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAutoApprovalPurpose((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>💡</span>
+                        <span>¿Para qué sirve?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showAutoApprovalPurpose && "rotate-180",
+                          )}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAutoApprovalExample((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>❓</span>
+                        <span>¿Cómo funciona?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showAutoApprovalExample && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
+
+                    {showAutoApprovalPurpose ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Para qué sirve
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Ideal si cada profesional cobra directamente a sus clientes. Permite registrar el pago desde su propio panel, sin depender de la recepción, agilizando el cobro y reduciendo los tiempos de espera.
+                        </p>
+                      </div>
+                    ) : null}
 
                     {showAutoApprovalExample ? (
                       <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
@@ -4994,23 +5026,53 @@ function EquipoSection() {
                       El profesional informa el cobro y Caja lo revisa antes de
                       registrarlo oficialmente.
                     </p>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowManualApprovalExample((v) => !v);
-                      }}
-                      className="relative mt-4 inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
-                    >
-                      <span>❓</span>
-                      <span>¿Cómo funciona?</span>
-                      <ChevronDown
-                        className={cn(
-                          "h-3.5 w-3.5 transition-transform",
-                          showManualApprovalExample && "rotate-180",
-                        )}
-                      />
-                    </button>
+                    <div className="relative mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowManualApprovalPurpose((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>💡</span>
+                        <span>¿Para qué sirve?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showManualApprovalPurpose && "rotate-180",
+                          )}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowManualApprovalExample((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>❓</span>
+                        <span>¿Cómo funciona?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showManualApprovalExample && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
+
+                    {showManualApprovalPurpose ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Para qué sirve
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Ideal si preferís que todos los cobros sean revisados por Caja o querés que los profesionales registren cada servicio realizado para llevar un control antes de aprobar el ingreso oficialmente.
+                        </p>
+                      </div>
+                    ) : null}
 
                     {showManualApprovalExample ? (
                       <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
