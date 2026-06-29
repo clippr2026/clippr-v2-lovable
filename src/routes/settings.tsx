@@ -2035,9 +2035,9 @@ function BrandingSection() {
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-sm font-medium">Clientes destacados</div>
+                  <div className="text-sm font-medium">Confían en nosotros</div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Logos o fotos de clientes destacados. Si no hay activos, esta sección no aparece.
+                    Logos o fotos de personas, marcas o equipos que querés mostrar en tu página pública. Si no hay activos, esta sección no aparece.
                   </p>
                 </div>
                 <button
@@ -2051,7 +2051,7 @@ function BrandingSection() {
 
               {data.featured_clients.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-center text-sm text-muted-foreground">
-                  Todavía no cargaste clientes destacados.
+                  Todavía no cargaste nadie en Confían en nosotros.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -2069,7 +2069,7 @@ function BrandingSection() {
                           )}
                         >
                           {item.image_url ? (
-                            <img src={item.image_url} alt={item.name || "Cliente destacado"} className="h-full w-full object-cover" />
+                            <img src={item.image_url} alt={item.name || "Confían en nosotros"} className="h-full w-full object-cover" />
                           ) : (
                             <ImageIcon className="h-5 w-5 text-white/45" />
                           )}
@@ -2154,7 +2154,7 @@ function BrandingSection() {
                             type="button"
                             onClick={() => removeFeaturedClient(item.id)}
                             className="rounded-full bg-white/5 p-2 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                            aria-label="Eliminar cliente destacado"
+                            aria-label="Eliminar de Confían en nosotros"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
