@@ -6139,6 +6139,13 @@ const defaultServiceCategories = ["Servicios"];
 const serviceCategories = defaultServiceCategories;
 const defaultCatalogCategories = ["Productos", "Bebidas", "Indumentaria"];
 
+function markSettingsDirty() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("clippr:settings-dirty"));
+  }
+}
+
+
 function priceToCash(price: string, discount: string) {
   const p = Number(price) || 0;
   const d = Number(discount) || 0;
@@ -6482,6 +6489,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           clean.length ? clean : defaultCatalogCategories,
         );
       }
+      markSettingsDirty();
     },
     [isService],
   );
@@ -6748,6 +6756,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       ]);
     }
     setModalOpen(false);
+    markSettingsDirty();
   }
 
   function toggle(row: PriceRow) {
@@ -6768,6 +6777,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         { tempId: row.id, payload: { active: newActive }, isNew: false },
       ];
     });
+    markSettingsDirty();
   }
 
   async function remove(row: PriceRow) {
@@ -6793,6 +6803,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       setPendingDeletes((prev) => new Set([...prev, row.id]));
     }
     toast.success(isService ? "Servicio eliminado" : "Producto eliminado");
+    markSettingsDirty();
   }
 
   function reorderItem(row: PriceRow, direction: "up" | "down") {
@@ -6809,6 +6820,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       [arr[i], arr[j]] = [arr[j], arr[i]];
       return arr;
     });
+    markSettingsDirty();
   }
 
   // Inline input modal for add/rename category (avoids browser prompt())
@@ -6826,6 +6838,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   async function renameCategory(category: string) {
     setCatInputVal(category);
     setCatModal({ mode: "rename", current: category });
+  }
+
+  function moveCategory(category: string, direction: -1 | 1) {
+    const list = [...categories];
+    const index = list.findIndex((c) => c === category);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return;
+    [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
+    saveCategories(list, isService ? "service" : "catalog");
+    setCat(category);
   }
 
   async function submitCatModal() {
@@ -6899,6 +6921,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     }
     setCat(targetCategory);
     toast.success("Categoría eliminada");
+    markSettingsDirty();
     load();
   }
 
@@ -6934,7 +6957,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
       <div className="glass rounded-2xl ring-1 ring-white/5">
         <div className="flex items-center gap-1 px-3 pt-3 border-b border-white/5 overflow-x-auto">
-          {categories.map((category) => {
+          {categories.map((category, index) => {
             const active = category === cat;
             return (
               <div
@@ -6952,25 +6975,34 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 >
                   {category}
                 </button>
-                {
-                  <>
-                    <button
-                      onClick={() => renameCategory(category)}
-                      className="px-1 text-xs opacity-60 hover:opacity-100"
-                    >
-                      ✎
-                    </button>
-                    {categories.length > 1 && (
-                      <button
-                        onClick={() => deleteCategory(category)}
-                        className="pr-2 text-xs text-red-300/80 hover:text-red-300"
-                        title="Eliminar categoría"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </>
-                }
+                <button
+                  type="button"
+                  onClick={() => moveCategory(category, -1)}
+                  disabled={index === 0}
+                  className="grid h-6 w-6 place-items-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
+                  title="Mover categoría a la izquierda"
+                >
+                  <ChevronUp className="h-3 w-3 -rotate-90" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveCategory(category, 1)}
+                  disabled={index === categories.length - 1}
+                  className="grid h-6 w-6 place-items-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
+                  title="Mover categoría a la derecha"
+                >
+                  <ChevronDown className="h-3 w-3 -rotate-90" />
+                </button>
+                {categories.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => deleteCategory(category)}
+                    className="grid h-6 w-6 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
+                    title="Eliminar categoría"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -7687,6 +7719,46 @@ function SenasSection() {
 
 function SettingsPage() {
   const [active, setActive] = useState<SectionId>("branding");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [pendingActive, setPendingActive] = useState<SectionId | null>(null);
+
+  useEffect(() => {
+    const markDirty = () => setHasUnsavedChanges(true);
+    window.addEventListener("clippr:settings-dirty", markDirty);
+    return () => window.removeEventListener("clippr:settings-dirty", markDirty);
+  }, []);
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [hasUnsavedChanges]);
+
+  function saveCurrentSection(nextSection?: SectionId | null) {
+    window.dispatchEvent(
+      new CustomEvent("clippr:save-settings", {
+        detail: { section: active },
+      }),
+    );
+    setHasUnsavedChanges(false);
+    if (nextSection) {
+      setActive(nextSection);
+      setPendingActive(null);
+    }
+  }
+
+  function requestSectionChange(section: SectionId) {
+    if (section === active) return;
+    if (hasUnsavedChanges) {
+      setPendingActive(section);
+      return;
+    }
+    setActive(section);
+  }
 
   return (
     <AppShell>
@@ -7695,18 +7767,20 @@ function SettingsPage() {
           title="Configuración"
           subtitle="Tu negocio"
           action={
-            <button
-              onClick={() =>
-                window.dispatchEvent(
-                  new CustomEvent("clippr:save-settings", {
-                    detail: { section: active },
-                  }),
-                )
-              }
-              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
-            >
-              Guardar <Check className="h-4 w-4" strokeWidth={3} />
-            </button>
+            <div className="flex items-center gap-3">
+              {hasUnsavedChanges ? (
+                <span className="hidden sm:inline-flex items-center gap-2 rounded-full bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 ring-1 ring-amber-300/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+                  Tenés cambios sin guardar
+                </span>
+              ) : null}
+              <button
+                onClick={() => saveCurrentSection()}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-sky-400 to-sky-500 text-white shadow-[0_8px_30px_-8px_rgba(56,189,248,0.6)] hover:opacity-95 transition"
+              >
+                Guardar <Check className="h-4 w-4" strokeWidth={3} />
+              </button>
+            </div>
           }
         />
         <div className="app-premium-shell -mt-3 sm:-mt-4 lg:-mt-5">
@@ -7727,7 +7801,7 @@ function SettingsPage() {
                         return (
                           <button
                             key={it.id}
-                            onClick={() => setActive(it.id)}
+                            onClick={() => requestSectionChange(it.id)}
                             className={cn(
                               "w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
                               isActive
@@ -7780,6 +7854,46 @@ function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {pendingActive ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[oklch(0.12_0.035_275)] p-5 shadow-2xl">
+            <div className="text-lg font-display font-semibold text-white">
+              Tenés cambios sin guardar
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-white/65">
+              Los cambios que realizaste todavía no fueron guardados. Podés guardarlos antes de salir o cancelar para seguir editando.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingActive(null)}
+                className="rounded-xl bg-white/5 px-4 py-2 text-sm font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHasUnsavedChanges(false);
+                  setActive(pendingActive);
+                  setPendingActive(null);
+                }}
+                className="rounded-xl bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 ring-1 ring-red-400/25 transition hover:bg-red-500/15"
+              >
+                Salir sin guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => saveCurrentSection(pendingActive)}
+                className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
+              >
+                Guardar cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }
