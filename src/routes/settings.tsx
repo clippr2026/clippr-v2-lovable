@@ -715,7 +715,7 @@ function LandingSection() {
         <div className="mt-6 border-t border-white/10 pt-5">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="text-sm font-semibold">Beneficios del negocio</h3>
+              <h3 className="text-sm font-semibold">Destacados</h3>
             </div>
             <span className="text-xs font-medium text-white/45">
               {additionalInfo.length}/{MAX_ADDITIONAL_INFO}
@@ -1483,52 +1483,6 @@ function BrandingSection() {
           Configuración de la página pública de reservas
         </p>
       </div>
-
-      <SectionCard label="Estado">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <div className="flex flex-1 items-start gap-4 min-w-0">
-            <div className="relative h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.95)]" />
-              <Sparkles className="h-5 w-5 text-violet-200" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="font-semibold text-sm">Estado público</div>
-                {data.profile_note.trim() ? (
-                  <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200 ring-1 ring-violet-400/20">
-                    Activo
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/45 ring-1 ring-white/10">
-                    Oculto
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Aparece arriba de tu página pública. Ideal para promociones, avisos o novedades.
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full lg:w-[420px]">
-            <input
-              type="text"
-              value={data.profile_note}
-              onChange={(e) =>
-                setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
-              }
-              maxLength={80}
-              placeholder="Ej: 10% OFF pagando en efectivo"
-              className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
-            />
-            <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>Máximo 80 caracteres</span>
-              <span>{data.profile_note.length}/80</span>
-            </div>
-          </div>
-        </div>
-      </SectionCard>
-
       <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
         {(
           [
@@ -1639,10 +1593,37 @@ function BrandingSection() {
                   className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
                 />
               </div>
+              <div className="flex items-start gap-4 py-3 last:pb-0">
+                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                  <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">Nota destacada</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Mensaje fijo arriba del perfil. Máximo 80 caracteres. Acepta emojis, números y
+                    letras.
+                  </div>
+                </div>
+                <div className="w-72 max-w-[55%]">
+                  <input
+                    type="text"
+                    value={data.profile_note}
+                    onChange={(e) =>
+                      setData((d) => ({ ...d, profile_note: e.target.value.slice(0, 80) }))
+                    }
+                    maxLength={80}
+                    placeholder="Ej: 🔥 10% OFF pagando en efectivo"
+                    className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                  />
+                  <div className="mt-1 text-right text-[10px] text-muted-foreground">
+                    {data.profile_note.length}/80
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionCard>
 
-          <SectionCard label="Beneficios del negocio">
+          <SectionCard label="Destacados">
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <span
