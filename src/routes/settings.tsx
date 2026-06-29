@@ -683,8 +683,8 @@ function LandingSection() {
   const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
     {
       key: "primary",
-      label: "Gradientes y glows",
-      desc: "Gradiente superior, luces, sombras iluminadas y efectos visuales.",
+      label: "Color principal",
+      desc: "Color base de la portada, glows y fondo ambiental.",
     },
     {
       key: "accent",
@@ -2400,13 +2400,13 @@ function BrandingSection() {
                 [
                   {
                     key: "primary",
-                    label: "Color 1 (izquierda)",
-                    desc: "Extremo izquierdo del gradiente de la cabecera, glows y fondo ambiental.",
+                    label: "Color principal",
+                    desc: "Color base de la portada, glows y fondo ambiental.",
                   },
                   {
                     key: "secondary",
-                    label: "Color 2 (derecha)",
-                    desc: "Extremo derecho del gradiente de la cabecera, glows y fondo ambiental.",
+                    label: "Color secundario",
+                    desc: "Color complementario del gradiente y luces ambientales.",
                   },
                   {
                     key: "accent",
