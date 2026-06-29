@@ -6395,6 +6395,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   >({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
+  const [reorderingCategories, setReorderingCategories] = useState(false);
+  const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
   const [editing, setEditing] = useState<PriceRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -6840,14 +6842,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setCatModal({ mode: "rename", current: category });
   }
 
-  function moveCategory(category: string, direction: -1 | 1) {
+  function reorderCategory(fromCategory: string, toCategory: string) {
+    if (!fromCategory || !toCategory || fromCategory === toCategory) return;
     const list = [...categories];
-    const index = list.findIndex((c) => c === category);
-    const nextIndex = index + direction;
-    if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return;
-    [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
+    const fromIndex = list.findIndex((c) => c === fromCategory);
+    const toIndex = list.findIndex((c) => c === toCategory);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [moved] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, moved);
     saveCategories(list, isService ? "service" : "catalog");
-    setCat(category);
+    setCat(fromCategory);
   }
 
   async function submitCatModal() {
@@ -6937,14 +6941,27 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {
+          {categories.length > 1 && (
             <button
-              onClick={addCategory}
-              className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
+              type="button"
+              onClick={() => setReorderingCategories((value) => !value)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ring-1",
+                reorderingCategories
+                  ? "bg-violet-500/15 text-violet-100 ring-violet-300/25"
+                  : "bg-white/5 text-white/75 ring-white/10 hover:bg-white/10 hover:text-white",
+              )}
             >
-              <Plus className="h-4 w-4" /> Nueva categoría
+              <GripVertical className="h-4 w-4" />
+              {reorderingCategories ? "Listo" : "Reordenar categorías"}
             </button>
-          }
+          )}
+          <button
+            onClick={addCategory}
+            className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
+          >
+            <Plus className="h-4 w-4" /> Nueva categoría
+          </button>
           <button
             onClick={openNew}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm"
@@ -6957,43 +6974,49 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
       <div className="glass rounded-2xl ring-1 ring-white/5">
         <div className="flex items-center gap-1 px-3 pt-3 border-b border-white/5 overflow-x-auto">
-          {categories.map((category, index) => {
+          {categories.map((category) => {
             const active = category === cat;
             return (
               <div
                 key={category}
+                draggable={reorderingCategories}
+                onDragStart={(event) => {
+                  if (!reorderingCategories) return;
+                  setDraggedCategory(category);
+                  event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragOver={(event) => {
+                  if (reorderingCategories) event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  reorderCategory(draggedCategory ?? "", category);
+                  setDraggedCategory(null);
+                }}
+                onDragEnd={() => setDraggedCategory(null)}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-t-lg transition-colors whitespace-nowrap",
+                  reorderingCategories && "cursor-grab active:cursor-grabbing",
                   active
                     ? "bg-white/5 text-foreground"
                     : "text-muted-foreground hover:text-foreground",
+                  draggedCategory === category && "opacity-50",
                 )}
               >
-                <button
-                  onClick={() => setCat(category)}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm"
-                >
-                  {category}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveCategory(category, -1)}
-                  disabled={index === 0}
-                  className="grid h-6 w-6 place-items-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
-                  title="Mover categoría a la izquierda"
-                >
-                  <ChevronUp className="h-3 w-3 -rotate-90" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveCategory(category, 1)}
-                  disabled={index === categories.length - 1}
-                  className="grid h-6 w-6 place-items-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
-                  title="Mover categoría a la derecha"
-                >
-                  <ChevronDown className="h-3 w-3 -rotate-90" />
-                </button>
-                {categories.length > 1 && (
+                {reorderingCategories ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-2 text-sm select-none">
+                    <GripVertical className="h-4 w-4 text-white/40" />
+                    <span>{category}</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setCat(category)}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm"
+                  >
+                    {category}
+                  </button>
+                )}
+                {!reorderingCategories && categories.length > 1 && (
                   <button
                     type="button"
                     onClick={() => deleteCategory(category)}
