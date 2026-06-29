@@ -6180,6 +6180,7 @@ function PriceEditorModal({
   setForm,
   onClose,
   onSave,
+  onDelete,
   saving,
   catalogCategories = defaultCatalogCategories,
 }: {
@@ -6190,6 +6191,7 @@ function PriceEditorModal({
   setForm: (form: PriceForm) => void;
   onClose: () => void;
   onSave: () => void;
+  onDelete?: () => void;
   saving: boolean;
   catalogCategories?: string[];
 }) {
@@ -6364,6 +6366,19 @@ function PriceEditorModal({
         </div>
 
         <div className="flex items-center gap-2 px-6 py-5 border-t border-white/5">
+          {mode === "edit" && onDelete && (
+          <button
+            onClick={onDelete}
+            disabled={saving}
+            className="rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-4 py-2.5 text-sm">
+            Eliminar
+          </button>)}
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm">
+            Cancelar
+          </button>
           <button
             onClick={onSave}
             disabled={saving}
@@ -6372,13 +6387,6 @@ function PriceEditorModal({
             {saving
               ? "Guardando…"
               : `Guardar ${isService ? "servicio" : form.category.toLowerCase()}`}
-          </button>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
-          >
-            Cancelar
           </button>
         </div>
       </div>
@@ -7171,6 +7179,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         setForm={setForm}
         onClose={() => setModalOpen(false)}
         onSave={saveItem}
+        onDelete={() => editing && setConfirmDelItem(editing)}
         saving={saving}
         catalogCategories={categories}
       />
