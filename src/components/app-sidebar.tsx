@@ -284,6 +284,7 @@ function PublicSiteMenu() {
   React.useEffect(() => {
     if (!businessId) return;
     let cancelled = false;
+
     const load = () => {
       supabase
         .from("businesses")
@@ -294,12 +295,15 @@ function PublicSiteMenu() {
           if (!cancelled) setSlug(((data?.slug as string) || "").trim());
         });
     };
+
     load();
+
     const onUpdated = (e: Event) => {
       const s = (e as CustomEvent).detail?.slug;
       if (typeof s === "string") setSlug(s);
       else load();
     };
+
     window.addEventListener("clippr:slug-updated", onUpdated);
     return () => {
       cancelled = true;
@@ -307,81 +311,112 @@ function PublicSiteMenu() {
     };
   }, [businessId]);
 
-  const publicUrl = `https://myclippr.com/negocio/${slug}`;
-  const publicUrlShort = `myclippr.com/negocio/${slug}`;
+  const publicUrl = slug ? `https://myclippr.com/negocio/${slug}` : "";
+  const publicUrlShort = slug ? `myclippr.com/negocio/${slug}` : "Configurá la URL pública";
 
   async function copyLink() {
-    if (!slug) return;
+    if (!slug) return toast.error("Primero configurá la página pública");
     try {
       await navigator.clipboard.writeText(publicUrl);
-      toast.success("Link copiado correctamente");
+      toast.success("Link copiado");
     } catch {
       toast.error("No se pudo copiar el link");
     }
   }
+
   function openSite() {
-    if (slug) window.open(publicUrl, "_blank", "noopener,noreferrer");
+    if (!slug) return toast.error("Primero configurá la página pública");
+    window.open(publicUrl, "_blank", "noopener,noreferrer");
   }
+
   async function share() {
-    if (!slug) return;
-    const nav = navigator as Navigator & { share?: (d: { title?: string; url?: string }) => Promise<void> };
+    if (!slug) return toast.error("Primero configurá la página pública");
+
+    const nav = navigator as Navigator & {
+      share?: (data: { title?: string; url?: string }) => Promise<void>;
+    };
+
     if (typeof nav.share === "function") {
       try {
         await nav.share({ title: "Reservá tu turno", url: publicUrl });
       } catch {
-        /* cancelado */
+        // El usuario canceló el menú de compartir.
       }
-    } else {
-      try {
-        await navigator.clipboard.writeText(publicUrl);
-        toast.success("Link copiado correctamente");
-      } catch {
-        toast.error("No se pudo copiar el link");
-      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Link copiado");
+    } catch {
+      toast.error("No se pudo compartir el link");
     }
   }
 
   const actionCls =
-    "flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-2 py-2 text-xs transition disabled:opacity-40 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center gap-2 rounded-2xl bg-white/[0.05] px-4 py-2.5 text-sm font-medium text-white/90 ring-1 ring-white/10 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-45";
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          aria-label="Sitio web público"
-          className="h-8 w-8 rounded-xl grid place-items-center ring-1 ring-white/10 bg-white/[0.04] text-muted-foreground hover:text-white transition"
+          aria-label="Reservas online"
+          className="hidden sm:inline-flex h-9 items-center gap-2 rounded-xl bg-white/[0.04] px-3 text-sm font-medium text-white/85 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
         >
-          <Globe className="h-4.5 w-4.5" />
+          <span className="relative grid h-5 w-5 place-items-center">
+            <Globe className="h-4.5 w-4.5" />
+            <span className="absolute -bottom-1 -left-1 rounded-full border-2 border-black bg-emerald-400 px-1 py-[1px] text-[6px] font-black leading-none tracking-[-0.02em] text-white">
+              WWW
+            </span>
+          </span>
+          <span>Reservas online</span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Globe className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-semibold">Sitio Web Público</span>
+
+      <DropdownMenuContent
+        align="end"
+        className="w-[360px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Globe className="h-6 w-6 shrink-0 text-white/65" />
+            <div className="min-w-0">
+              <div className="text-lg font-semibold leading-tight text-white">
+                Sitio Web Público
+              </div>
+            </div>
           </div>
+
           {slug ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Activo
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-sm font-semibold text-emerald-300 ring-1 ring-emerald-500/35">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Activo
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground ring-1 ring-white/10">
-              Sin configurar
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/5 px-3 py-1.5 text-sm font-semibold text-white/55 ring-1 ring-white/10">
+              Inactivo
             </span>
           )}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground break-all">
-          {slug ? publicUrlShort : "Configurá la URL pública en Branding."}
-        </p>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <button onClick={copyLink} disabled={!slug} className={actionCls}>
-            <Copy className="h-3.5 w-3.5" /> Copiar
+
+        <div className="mt-3 break-all text-base text-white/55">
+          {publicUrlShort}
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          <button type="button" onClick={copyLink} disabled={!slug} className={actionCls}>
+            <Copy className="h-5 w-5" />
+            Copiar
           </button>
-          <button onClick={share} disabled={!slug} className={actionCls}>
-            <Share2 className="h-3.5 w-3.5" /> Compartir
+
+          <button type="button" onClick={share} disabled={!slug} className={actionCls}>
+            <Share2 className="h-5 w-5" />
+            Compartir
           </button>
-          <button onClick={openSite} disabled={!slug} className={actionCls}>
-            <ExternalLink className="h-3.5 w-3.5" /> Abrir
+
+          <button type="button" onClick={openSite} disabled={!slug} className={actionCls}>
+            <ExternalLink className="h-5 w-5" />
+            Abrir
           </button>
         </div>
       </DropdownMenuContent>
