@@ -6853,6 +6853,23 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   } | null>(null);
   const [catInputVal, setCatInputVal] = useState("");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addMenuRef = React.useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!addMenuOpen) return;
+
+    function handleAddMenuOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+      if (addMenuRef.current && !addMenuRef.current.contains(target)) {
+        setAddMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleAddMenuOutsideClick);
+    return () =>
+      document.removeEventListener("mousedown", handleAddMenuOutsideClick);
+  }, [addMenuOpen]);
+
 
   function addCategory() {
     setCatInputVal("");
@@ -6963,7 +6980,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       </div>
 
       <div className="glass rounded-2xl ring-1 ring-white/5">
-        <div className="relative flex items-center gap-1 px-3 pt-3 pr-14 border-b border-white/5 overflow-x-auto">
+        <div className="relative flex items-center gap-1 px-3 pt-3 pr-2 border-b border-white/5 overflow-x-auto">
           {categories.map((category) => {
             const active = category === cat;
             return (
@@ -7014,8 +7031,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             );
           })}
 
-          <div className="sticky right-0 ml-auto flex shrink-0 items-center justify-end bg-gradient-to-l from-[oklch(0.09_0.03_275)] via-[oklch(0.09_0.03_275/0.92)] to-transparent pl-6">
-            <div className="relative">
+          <div className="sticky right-0 ml-auto flex shrink-0 items-center justify-end bg-gradient-to-l from-[oklch(0.09_0.03_275)] via-[oklch(0.09_0.03_275/0.92)] to-transparent pl-10 pr-0">
+            <div ref={addMenuRef} className="relative">
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((open) => !open)}
@@ -7047,7 +7064,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
                   >
                     <Plus className="h-4 w-4 text-violet-300" />
-                    {isService ? "Nuevo servicio" : `Nuevo ${cat.toLowerCase()}`}
+                    "Nuevo servicio"
                   </button>
                 </div>
               ) : null}
