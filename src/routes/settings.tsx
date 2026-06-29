@@ -3438,7 +3438,7 @@ const ROLE_ACCESS_SUMMARY: Record<
     title: "Gestión completa",
     desc: "Ideal para socios o encargados con visión completa del negocio.",
     can: ["Dashboard", "Agenda", "Caja", "Clientes", "Asesor IA"],
-    cannot: ["Plan y facturación principal"],
+    cannot: [""],
   },
   admin_local: {
     title: "Gestión operativa",
