@@ -5264,7 +5264,7 @@ function EquipoSection() {
                     ? "Procesando…"
                     : editingAccessUserId
                       ? "Guardar cambios"
-                      : "Confirmar e invitar"}
+                      : "Invitar y guardar"}
                 </button>
               </div>
             </div>
