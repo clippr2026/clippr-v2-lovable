@@ -13,6 +13,7 @@ import {
   MapPin,
   Phone,
   Scissors,
+  ShoppingBag,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -82,7 +83,19 @@ type Service = {
   is_active?: boolean | null;
 };
 
-type BookingStep = "services" | "professional" | "datetime" | "details" | "done";
+type Product = {
+  id: string;
+  name: string;
+  price: number | null;
+  category?: string | null;
+  active?: boolean | null;
+  stock?: number | null;
+  cash_discount?: number | null;
+  image_url?: string | null;
+  upsellOffer?: "none" | "special" | "10" | "15" | "20" | "25";
+};
+
+type BookingStep = "services" | "professional" | "datetime" | "upsell" | "details" | "done";
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
@@ -169,6 +182,7 @@ function PublicBookingPage() {
   const [business, setBusiness] = React.useState<Business | null>(null);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
+  const [recommendedProducts, setRecommendedProducts] = React.useState<Product[]>([]);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
   const [employeeSchedules, setEmployeeSchedules] = React.useState<Record<string, ScheduleMap>>({});
@@ -178,6 +192,7 @@ function PublicBookingPage() {
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | "any">("any");
   const [professionalLocked, setProfessionalLocked] = React.useState(false);
   const [selectedSlot, setSelectedSlot] = React.useState<{ time: Date; employeeId: string } | null>(null);
@@ -198,6 +213,7 @@ function PublicBookingPage() {
     clientName: string;
     clientPhone: string;
     clientEmail?: string;
+    products?: string;
   } | null>(null);
 
   const selectedServices = React.useMemo(
@@ -206,7 +222,14 @@ function PublicBookingPage() {
   );
   const selectedEmployee = employees.find((employee) => employee.id === selectedSlot?.employeeId || employee.id === selectedEmployeeId) ?? null;
   const totalDuration = selectedServices.reduce((sum, service) => sum + (Number(service.duration_min ?? service.duration ?? 30) || 30), 0) || 30;
-  const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price ?? 0), 0);
+  const selectedProducts = React.useMemo(
+    () => selectedProductIds.map((id) => recommendedProducts.find((product) => product.id === id)).filter(Boolean) as Product[],
+    [selectedProductIds, recommendedProducts],
+  );
+  const servicesTotal = selectedServices.reduce((sum, service) => sum + Number(service.price ?? 0), 0);
+  const productsTotal = selectedProducts.reduce((sum, product) => sum + Number(product.price ?? 0), 0);
+  const totalPrice = servicesTotal + productsTotal;
+  const hasRecommendedProducts = recommendedProducts.length > 0;
   const slots = React.useMemo(
     () =>
       buildSlots(
@@ -274,6 +297,13 @@ function PublicBookingPage() {
             .eq("business_id", businessId)
             .order("name", { ascending: true }),
           supabase
+            .from("price_catalog")
+            .select("id,name,price,category,active,stock,cash_discount")
+            .eq("business_id", businessId)
+            .is("duration_min", null)
+            .eq("active", true)
+            .order("name", { ascending: true }),
+          supabase
             .from("public_booking_appointments")
             .select("id,employee_id,starts_at,ends_at,duration_min,status")
             .eq("business_id", businessId)
@@ -318,6 +348,7 @@ function PublicBookingPage() {
           setBusiness(businessData as Business);
           setEmployees(visibleEmployees);
           setServices(visibleServices);
+          setRecommendedProducts(fallbackProducts);
           setAppointments((appointmentsRes.error ? [] : (appointmentsRes.data ?? [])) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
 
@@ -472,11 +503,13 @@ function PublicBookingPage() {
 
     const serviceName = selectedServices.map((service) => service.name).join(" + ");
     const serviceList = selectedServices.map((service) => `${service.name} (${formatMoney(service.price)})`).join("\n- ");
+    const productList = selectedProducts.map((product) => `${product.name} (${formatMoney(product.price)})`).join("\n- ");
     const publicNotes = [
       notes.trim() ? `Notas del cliente: ${notes.trim()}` : null,
       clientEmail.trim() ? `Email: ${clientEmail.trim()}` : null,
       clientBirthDate ? `Fecha de nacimiento: ${clientBirthDate}` : null,
       selectedServices.length > 1 ? `Servicios seleccionados:\n- ${serviceList}` : null,
+      selectedProducts.length ? `Productos agregados:\n- ${productList}` : null,
       "Origen: reserva online",
     ].filter(Boolean).join("\n\n");
 
@@ -487,6 +520,7 @@ function PublicBookingPage() {
       time: formatTime(selectedSlot.time),
       duration: totalDuration,
       total: totalPrice,
+      products: selectedProducts.map((product) => product.name).join(" + ") || undefined,
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
       clientEmail: clientEmail.trim() || undefined,
@@ -633,7 +667,19 @@ function PublicBookingPage() {
     );
   }
 
-  const stepIndex = step === "services" ? 1 : step === "professional" ? 2 : step === "datetime" ? 3 : step === "details" ? 4 : 4;
+  const totalSteps = hasRecommendedProducts ? 5 : 4;
+  const stepIndex =
+    step === "services"
+      ? 1
+      : step === "professional"
+        ? 2
+        : step === "datetime"
+          ? 3
+          : step === "upsell"
+            ? 4
+            : step === "details"
+              ? totalSteps
+              : totalSteps;
 
   return (
     <main
@@ -698,15 +744,16 @@ function PublicBookingPage() {
               {step !== "done" ? (
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm text-white/50">Paso {stepIndex} de 4</p>
+                    <p className="text-sm text-white/50">Paso {stepIndex} de {totalSteps}</p>
                     <h2 className="text-2xl font-semibold">
                       {step === "services" && "Elegí tus servicios"}
                       {step === "professional" && "Elegí profesional"}
                       {step === "datetime" && "Elegí día y horario"}
+                      {step === "upsell" && "Completá tu visita"}
                       {step === "details" && "Tus datos"}
                     </h2>
                   </div>
-                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/4</div>
+                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/{totalSteps}</div>
                 </div>
               ) : null}
 
@@ -716,7 +763,8 @@ function PublicBookingPage() {
                   onClick={() => {
                     if (step === "professional") setStep("services");
                     if (step === "datetime") setStep("professional");
-                    if (step === "details") setStep("datetime");
+                    if (step === "upsell") setStep("datetime");
+                    if (step === "details") setStep(hasRecommendedProducts ? "upsell" : "datetime");
                   }}
                   className="mt-5 inline-flex items-center gap-1 text-sm text-white/55 hover:text-white"
                 >
@@ -862,7 +910,7 @@ function PublicBookingPage() {
                           <button
                             key={`${slot.employeeId}-${slot.time.toISOString()}`}
                             type="button"
-                            onClick={() => { setSelectedSlot(slot); setStep("details"); }}
+                            onClick={() => { setSelectedSlot(slot); setStep(hasRecommendedProducts ? "upsell" : "details"); }}
                             className="slot-button flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
                           >
                             {formatTime(slot.time)}
@@ -871,6 +919,97 @@ function PublicBookingPage() {
                       </div>
                     </div>
                   ) : null}
+                </div>
+              ) : null}
+
+              {step === "upsell" ? (
+                <div className="mt-5 space-y-5">
+                  <p className="text-sm text-white/60">
+                    Agregá alguno de estos productos a tu turno. Es totalmente opcional.
+                  </p>
+
+                  <div className="grid gap-3">
+                    {recommendedProducts.map((product) => {
+                      const added = selectedProductIds.includes(product.id);
+                      const offer = product.upsellOffer;
+                      const showOffer = offer && offer !== "none";
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() =>
+                            setSelectedProductIds((current) =>
+                              current.includes(product.id)
+                                ? current.filter((id) => id !== product.id)
+                                : [...current, product.id],
+                            )
+                          }
+                          className={cn(
+                            "flex w-full items-center gap-4 rounded-3xl border p-4 text-left transition",
+                            added
+                              ? "border-transparent bg-white/[0.08] shadow-lg"
+                              : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]",
+                          )}
+                          style={added ? { boxShadow: `0 18px 45px -30px ${accent}` } : undefined}
+                        >
+                          <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10">
+                            {product.image_url ? (
+                              <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <ShoppingBag className="h-7 w-7 text-white/55" />
+                            )}
+                          </span>
+
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold">{product.name}</span>
+                              {showOffer ? (
+                                <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-bold text-amber-300 ring-1 ring-amber-300/25">
+                                  {offer === "special" ? "Oferta exclusiva" : `${offer}% OFF`}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="mt-1 block text-sm text-white/50">
+                              Producto recomendado para completar tu visita.
+                            </span>
+                          </span>
+
+                          <span className="text-right">
+                            <span className="block font-bold">{formatMoney(product.price)}</span>
+                            <span
+                              className={cn(
+                                "mt-2 inline-flex rounded-full px-3 py-1 text-xs font-bold",
+                                added
+                                  ? "bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-400/25"
+                                  : "bg-white/[0.06] text-white/70 ring-1 ring-white/10",
+                              )}
+                            >
+                              {added ? "✓ Agregado" : "Agregar"}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setStep("details")}
+                      className="rounded-2xl border-white/10 bg-white/[0.03] py-6 font-bold text-white hover:bg-white/[0.07]"
+                    >
+                      Omitir
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => setStep("details")}
+                      className="rounded-2xl py-6 font-bold text-white hover:brightness-110"
+                      style={{ background: accent, color: accentButtonText }}
+                    >
+                      Continuar
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 
@@ -956,6 +1095,7 @@ function PublicBookingPage() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         {[
                           { label: "Servicio", value: confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + "), icon: Scissors },
+                          { label: "Productos", value: confirmedBooking?.products || selectedProducts.map((product) => product.name).join(" + ") || "Sin productos agregados", icon: ShoppingBag },
                           { label: "Profesional", value: confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia", icon: UserRound },
                           { label: "Cliente", value: confirmedBooking?.clientName || clientName, icon: UsersRound },
                           { label: "Teléfono", value: confirmedBooking?.clientPhone || clientPhone, icon: Phone },
@@ -1041,6 +1181,19 @@ function PublicBookingPage() {
               <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5" style={{ color: accent }} /><h2 className="text-lg font-semibold">Tu reserva</h2></div>
               <div className="mt-5 space-y-4 text-sm text-white/65">
                 <div><p className="text-white/40">Servicios</p><p className="mt-1 font-medium text-white">{selectedServices.length ? selectedServices.map((s) => s.name).join(" + ") : "Sin seleccionar"}</p></div>
+                {selectedProducts.length ? (
+                  <div>
+                    <p className="text-white/40">Productos</p>
+                    <div className="mt-1 space-y-1">
+                      {selectedProducts.map((product) => (
+                        <p key={product.id} className="flex items-center justify-between gap-3 font-medium text-white">
+                          <span>{product.name}</span>
+                          <span>{formatMoney(product.price)}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div><p className="text-white/40">Profesional</p><p className="mt-1 font-medium text-white">{selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin seleccionar")}</p></div>
                 <div><p className="text-white/40">Horario</p><p className="mt-1 font-medium text-white">{selectedSlot ? `${formatShortDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "Sin seleccionar"}</p></div>
                 <div className="flex items-center justify-between border-t border-white/10 pt-4"><span>Total</span><span className="text-lg font-semibold text-white">{formatMoney(totalPrice)}</span></div>
