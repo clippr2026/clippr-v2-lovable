@@ -755,6 +755,7 @@ function PublicBookingPage() {
         </div>
       ) : null}
       {step !== "products" ? (
+      {step !== "products" ? (
       <section className="relative overflow-hidden border-b border-white/10">
         <div
           className="absolute inset-0"
@@ -775,6 +776,7 @@ function PublicBookingPage() {
           </div>
         </div>
       </section>
+      ) : null}
       ) : null}
 
       <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
@@ -963,23 +965,23 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "products" ? (
-                <div className="mt-5">
+                <div className="mt-3">
                   {/* Encabezado */}
                   <div className="text-center">
                     <span
-                      className="mx-auto grid h-12 w-12 place-items-center rounded-2xl"
+                      className="mx-auto grid h-10 w-10 place-items-center rounded-2xl"
                       style={{ background: `color-mix(in oklch, ${accent} 16%, transparent)`, color: accent }}
                     >
-                      <ShoppingBag className="h-6 w-6" />
+                      <ShoppingBag className="h-5 w-5" />
                     </span>
-                    <h3 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Tentate con estos productos</h3>
-                    <p className="mt-1.5 text-sm text-white/55 sm:text-base">Sumalos a tu turno y retiralos en el local.</p>
+                    <h3 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Tentate con estos productos</h3>
+                    <p className="mt-1 text-sm text-white/55 sm:text-base">Sumalos a tu turno y retiralos en el local.</p>
                   </div>
 
                   {/* Píldora de oferta */}
-                  <div className="mt-4 flex justify-center">
+                  <div className="mt-3 flex justify-center">
                     <span
-                      className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium"
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
                       style={{ background: `color-mix(in oklch, ${accent} 12%, transparent)`, color: accent }}
                     >
                       <Gift className="h-4 w-4" /> Oferta exclusiva por reservar tu turno online
@@ -987,7 +989,7 @@ function PublicBookingPage() {
                   </div>
 
                   {/* Tarjetas */}
-                  <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {recommendedProducts.map((product) => {
                       const added = selectedProductIds.includes(product.id);
                       const pct = offerPct(product.offer);
@@ -997,16 +999,16 @@ function PublicBookingPage() {
                         <div
                           key={product.id}
                           className={cn(
-                            "relative flex flex-col rounded-3xl border p-3 transition",
+                            "relative flex flex-col rounded-3xl border p-2.5 transition",
                             added ? "border-transparent bg-white/[0.06]" : "border-white/10 bg-white/[0.03]",
                           )}
                           style={added ? { boxShadow: `0 0 0 1.5px ${accent}` } : undefined}
                         >
                           {/* Badge circular */}
-                          <div className="absolute left-3 top-3 z-10">
+                          <div className="absolute left-2.5 top-2.5 z-10">
                             {pct > 0 ? (
-                              <span className="grid h-14 w-14 place-items-center rounded-full bg-red-500 shadow-lg shadow-red-500/30">
-                                <span className="text-center text-[11px] font-black uppercase leading-none text-white">
+                              <span className="grid h-12 w-12 place-items-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/30">
+                                <span className="text-center text-[10px] font-black uppercase leading-none text-white">
                                   {pct}%
                                   <br />
                                   OFF
@@ -1014,7 +1016,7 @@ function PublicBookingPage() {
                               </span>
                             ) : (
                               <span
-                                className="grid h-14 w-14 place-items-center rounded-full text-white shadow-lg"
+                                className="grid h-12 w-12 place-items-center rounded-full text-white shadow-lg"
                                 style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
                               >
                                 <span className="flex flex-col items-center leading-none">
@@ -1026,14 +1028,14 @@ function PublicBookingPage() {
                           </div>
 
                           {/* Imagen grande */}
-                          <div className="grid aspect-[4/5] w-full place-items-center overflow-hidden rounded-2xl bg-white/[0.04]">
+                          <div className="grid aspect-[1/1] w-full place-items-center overflow-hidden rounded-2xl bg-white/[0.04]">
                             {product.image ? (
                               <img
                                 loading="lazy"
                                 decoding="async"
                                 src={product.image}
                                 alt={product.name}
-                                className="h-full w-full object-contain p-3"
+                                className="h-full w-full object-contain p-2"
                               />
                             ) : (
                               <ShoppingBag className="h-12 w-12 text-white/30" />
@@ -1041,12 +1043,12 @@ function PublicBookingPage() {
                           </div>
 
                           {/* Cuerpo */}
-                          <div className="mt-3 flex flex-1 flex-col px-1">
+                          <div className="mt-2 flex flex-1 flex-col px-1">
                             <p className="font-semibold leading-tight">{product.name}</p>
                             {description ? (
-                              <p className="mt-1 text-sm leading-snug text-white/50">{description}</p>
+                              <p className="mt-1 line-clamp-2 text-xs leading-snug text-white/50">{description}</p>
                             ) : null}
-                            <div className="mt-2 flex flex-1 items-end">
+                            <div className="mt-1.5 flex flex-1 items-end">
                               <div className="flex items-baseline gap-2">
                                 {pct > 0 ? (
                                   <span className="text-sm text-white/40 line-through">{formatMoney(product.price)}</span>
@@ -1061,7 +1063,7 @@ function PublicBookingPage() {
                               type="button"
                               onClick={() => toggleProduct(product.id)}
                               className={cn(
-                                "mt-3 w-full rounded-2xl py-3 text-sm font-bold transition hover:brightness-110",
+                                "mt-2.5 w-full rounded-2xl py-2.5 text-sm font-bold transition hover:brightness-110",
                                 added ? "bg-emerald-500 text-white" : "text-white",
                               )}
                               style={added ? undefined : { background: accent, color: accentButtonText }}
@@ -1075,24 +1077,24 @@ function PublicBookingPage() {
                   </div>
 
                   {/* Mensaje opcional */}
-                  <div className="mt-6 flex justify-center">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/60">
+                  <div className="mt-4 flex justify-center">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60">
                       <ShieldCheck className="h-4 w-4" style={{ color: accent }} />
                       Es totalmente opcional. Podés continuar sin agregar productos.
                     </span>
                   </div>
 
                   {/* Botones */}
-                  <div className="mt-4 flex gap-3">
+                  <div className="mt-3 flex gap-3">
                     <Button
                       onClick={() => { setSelectedProductIds([]); setStep("details"); }}
-                      className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] py-6 font-semibold text-white hover:bg-white/[0.08]"
+                      className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] py-4 font-semibold text-white hover:bg-white/[0.08]"
                     >
                       Omitir
                     </Button>
                     <Button
                       onClick={() => setStep("details")}
-                      className="flex-1 rounded-2xl py-6 font-bold text-white hover:brightness-110"
+                      className="flex-1 rounded-2xl py-4 font-bold text-white hover:brightness-110"
                       style={{ background: accent, color: accentButtonText }}
                     >
                       Continuar
@@ -1245,7 +1247,7 @@ function PublicBookingPage() {
                         style={{ background: `linear-gradient(135deg, color-mix(in oklch, ${cPrimary} 14%, transparent), color-mix(in oklch, ${cSecondary} 14%, transparent))` }}
                       >
                         <span className={cn("text-sm font-medium", isLight ? "text-slate-600" : "text-white/70")}>Total</span>
-                        <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>{formatMoney(confirmedBooking?.total ?? totalPrice)}</span>
+                        <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>{formatMoney(confirmedBooking?.total ?? grandTotal)}</span>
                       </div>
                     </div>
 
