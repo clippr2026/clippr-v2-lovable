@@ -67,17 +67,15 @@ function LoginPage() {
       <div className="relative z-10 min-h-screen grid lg:grid-cols-2 gap-8 px-6 py-10 lg:px-16 lg:py-16">
         {/* Branding */}
         <section className="flex flex-col justify-center max-w-xl mx-auto lg:mx-0 text-center lg:text-left">
-          <div className="flex items-center gap-4 justify-center lg:justify-start">
-            <div
-              className="h-16 w-16 rounded-2xl grid place-items-center font-display text-3xl text-white"
-              style={{
-                background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
-                boxShadow: "0 10px 40px -8px oklch(0.65 0.27 290 / 0.65)",
-              }}
-            >
-              C
-            </div>
-            <span className="font-display text-5xl font-semibold tracking-tight">Clippr</span>
+          <div className="flex items-center gap-5 justify-center lg:justify-start">
+            <img
+              src="/clippr-powered-logo.webp"
+              alt="Clippr"
+              loading="eager"
+              decoding="async"
+              className="h-24 w-24 rounded-[28px] object-cover ring-1 ring-white/10 shadow-[0_18px_60px_-18px_rgba(168,85,247,0.9)] md:h-28 md:w-28"
+            />
+            <span className="font-display text-6xl font-semibold tracking-tight md:text-7xl">Clippr</span>
           </div>
 
           <h1 className="font-display mt-10 text-4xl md:text-5xl font-semibold leading-tight">
