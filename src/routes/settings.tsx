@@ -6377,8 +6377,8 @@ function PriceEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+      <div className="w-full max-w-3xl rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
           <button
             onClick={onClose}
@@ -6388,7 +6388,7 @@ function PriceEditorModal({
           </button>
         </div>
 
-        <div className="p-5 space-y-3 max-h-[85vh] overflow-y-auto">
+        <div className="p-4 space-y-3">
           {isService ? (
             <>
               {/* Servicio · información básica */}
@@ -6617,7 +6617,7 @@ function PriceEditorModal({
                         <label className="flex items-center justify-between gap-4 cursor-pointer">
                           <div>
                             <div className="text-sm font-medium">Mostrar en reservas online</div>
-                            <div className="text-xs text-muted-foreground">Aparece en la reserva online.</div>
+                            <div className="text-xs text-muted-foreground">Aparece en reserva online.</div>
                           </div>
                           <Toggle
                             on={form.bookingShow}
@@ -6639,18 +6639,21 @@ function PriceEditorModal({
                     );
                   })()}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Oferta">
-                      <select
-                        value={form.bookingOffer === "special" ? "none" : form.bookingOffer}
-                        onChange={(e) => setForm({ ...form, bookingOffer: e.target.value })}
+                    <Field label="Oferta %">
+                      <input
+                        type="number"
+                        min={0}
+                        max={90}
+                        value={form.bookingOffer === "none" || form.bookingOffer === "special" ? "" : form.bookingOffer}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            bookingOffer: e.target.value.trim() ? e.target.value : "none",
+                          })
+                        }
                         className={inputCls}
-                      >
-                        <option value="none">Sin oferta</option>
-                        <option value="10">10% OFF</option>
-                        <option value="15">15% OFF</option>
-                        <option value="20">20% OFF</option>
-                        <option value="25">25% OFF</option>
-                      </select>
+                        placeholder="20"
+                      />
                     </Field>
                     <Field label="Mini descripción">
                       <input
@@ -6701,7 +6704,7 @@ function PriceEditorModal({
           )}
         </div>
 
-        <div className="flex items-center gap-2 px-6 py-5 border-t border-white/5">
+        <div className="flex items-center gap-2 px-5 py-4 border-t border-white/5">
           {mode === "edit" && onDelete && (
           <button
             onClick={onDelete}
@@ -7266,7 +7269,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           ...current,
           [editing.id]: {
             show: form.bookingShow,
-            offer: form.bookingOffer,
+            offer: Number(form.bookingOffer) > 0 ? String(Number(form.bookingOffer)) : "none",
             miniDesc: form.miniDesc,
           },
         }));
@@ -7302,7 +7305,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           ...current,
           [tempId]: {
             show: form.bookingShow,
-            offer: form.bookingOffer,
+            offer: Number(form.bookingOffer) > 0 ? String(Number(form.bookingOffer)) : "none",
             miniDesc: form.miniDesc,
           },
         }));
@@ -7316,6 +7319,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     }
     setModalOpen(false);
     markSettingsDirty();
+
+    // Persistencia inmediata: "Guardar producto" debe quedar guardado aunque el usuario recargue la página.
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("clippr:save-settings", {
+          detail: { section: isService ? "servicios" : "catalogo" },
+        }),
+      );
+    }, 150);
   }
 
   function toggle(row: PriceRow) {
@@ -7682,18 +7694,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                       : ""}
                   </div>
                 </div>
-                {typeof row.stock === "number" && !isService && (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1",
-                      row.stock > 0
-                        ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
-                        : "bg-red-500/10 text-red-300 ring-red-400/25",
-                    )}
-                  >
-                    Stock {row.stock}
-                  </span>
-                )}
+
                 <div className="text-right shrink-0">
                   <div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">
                     ${Number(row.price).toLocaleString("es-AR")}
