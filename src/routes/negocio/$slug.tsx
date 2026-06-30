@@ -320,7 +320,6 @@ function PublicProfilePage() {
   const [showAllFeaturedClients, setShowAllFeaturedClients] = React.useState(false);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
-  const [siteMaintenance, setSiteMaintenance] = React.useState(false);
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
   const [colors, setColors] = React.useState<LandingColors>({});
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
@@ -434,11 +433,6 @@ function PublicProfilePage() {
         const visibility = extractPublicVisibility(settingsSchedule);
 
         if (!cancelled) {
-          const publicStatus =
-            settingsSchedule && typeof settingsSchedule === "object"
-              ? (((settingsSchedule as Record<string, unknown>)._publicSiteStatus ?? {}) as Record<string, unknown>)
-              : {};
-          setSiteMaintenance(publicStatus.maintenance === true);
           setBusiness(mergedBusiness as Business);
           setHeaderStats(statsResult);
           const employeeRoles =
@@ -523,10 +517,45 @@ function PublicProfilePage() {
 
   if (loading) {
     return (
-      <main className="min-h-dvh bg-[#08070c] text-white grid place-items-center px-4">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin" style={{ color: accent }} />
-          <p className="mt-4 text-sm text-white/60">Cargando perfil...</p>
+      <main className="min-h-dvh bg-[#050507] text-white grid place-items-center px-4">
+        <style>{`
+          @keyframes clipprLogoFloat {
+            0%, 100% { transform: translateY(0) scale(1); filter: saturate(1.05) brightness(1); }
+            50% { transform: translateY(-4px) scale(1.025); filter: saturate(1.22) brightness(1.12); }
+          }
+          @keyframes clipprInnerGlow {
+            0% { transform: translateX(-120%) rotate(18deg); opacity: 0; }
+            22% { opacity: .42; }
+            50% { opacity: .72; }
+            78% { opacity: .34; }
+            100% { transform: translateX(120%) rotate(18deg); opacity: 0; }
+          }
+          @keyframes clipprAuraPulse {
+            0%, 100% { opacity: .34; transform: scale(.92); }
+            50% { opacity: .72; transform: scale(1.08); }
+          }
+        `}</style>
+
+        <div className="relative flex flex-col items-center justify-center">
+          <div className="pointer-events-none absolute h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" style={{ animation: "clipprAuraPulse 2.8s ease-in-out infinite" }} />
+          <div className="relative grid h-28 w-28 place-items-center overflow-hidden rounded-[2rem]">
+            <img
+              src="/clippr-powered-logo.webp"
+              alt="Clippr"
+              loading="eager"
+              decoding="async"
+              className="relative z-10 h-full w-full object-cover"
+              style={{ animation: "clipprLogoFloat 2.4s ease-in-out infinite" }}
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 z-20 w-10 bg-white/45 blur-md"
+              style={{ animation: "clipprInnerGlow 2.2s ease-in-out infinite" }}
+            />
+          </div>
+          <p className="mt-5 text-sm font-medium tracking-wide text-white/55">
+            Cargando perfil...
+          </p>
         </div>
       </main>
     );
@@ -539,30 +568,6 @@ function PublicProfilePage() {
           <CardContent className="p-8 text-center">
             <h1 className="text-2xl font-semibold">Página no encontrada</h1>
             <p className="mt-2 text-sm text-white/60">No encontramos este local en Clippr.</p>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
-  if (siteMaintenance) {
-    return (
-      <main
-        className="min-h-dvh grid place-items-center px-4 text-white"
-        style={{
-          background:
-            "radial-gradient(circle at 18% 0%, rgba(124,58,237,0.32), transparent 34%), radial-gradient(circle at 85% 8%, rgba(14,165,233,0.22), transparent 30%), #08070c",
-        }}
-      >
-        <Card className="w-full max-w-lg rounded-3xl border-white/10 bg-white/[0.045] text-white shadow-2xl backdrop-blur-xl">
-          <CardContent className="p-8 text-center">
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.06] ring-1 ring-white/10">
-              <Clock3 className="h-7 w-7 text-white/70" />
-            </div>
-            <h1 className="mt-5 text-2xl font-semibold">Sitio en mantenimiento</h1>
-            <p className="mt-3 text-sm leading-relaxed text-white/60">
-              Estamos actualizando la página de reservas de {business.name}. Volvé a intentar más tarde.
-            </p>
           </CardContent>
         </Card>
       </main>
