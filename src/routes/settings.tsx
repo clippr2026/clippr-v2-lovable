@@ -7695,6 +7695,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   </div>
                 </div>
 
+                {!isService && bookingConfig[row.id]?.show && (
+                  <span className="mx-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 ring-1 ring-violet-400/25">
+                    <Star className="h-3 w-3 fill-current" />
+                    Online
+                  </span>
+                )}
+
                 <div className="text-right shrink-0">
                   <div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">
                     ${Number(row.price).toLocaleString("es-AR")}
@@ -7721,11 +7728,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   />{" "}
                   {row.active !== false ? "Activo" : "Inactivo"}
                 </button>
-                {!isService && bookingConfig[row.id]?.show && (
-                  <span className="rounded-full bg-violet-500/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 ring-1 ring-violet-400/25">
-                    Destacado
-                  </span>
-                )}
                 <button
                   onClick={() => openEdit(row)}
                   className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
