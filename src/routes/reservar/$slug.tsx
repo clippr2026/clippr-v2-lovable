@@ -365,9 +365,20 @@ function PublicBookingPage() {
         const settingsSchedule = settingsRes.error ? null : ((settingsRes.data as any)?.schedule ?? null);
         const branding = settingsSchedule && typeof settingsSchedule === "object" ? ((settingsSchedule as Record<string, any>)._branding ?? {}) : {};
         const visibility = extractPublicVisibility(settingsSchedule);
+        const employeeRoles =
+          settingsSchedule &&
+          typeof settingsSchedule === "object" &&
+          (settingsSchedule as Record<string, unknown>)._employeeRoles &&
+          typeof (settingsSchedule as Record<string, unknown>)._employeeRoles === "object"
+            ? ((settingsSchedule as Record<string, unknown>)._employeeRoles as Record<string, string>)
+            : {};
         const visibleEmployees = ((employeesRes.error ? [] : (employeesRes.data ?? [])) as Employee[])
           .filter((employee) => employee.is_active !== false)
-          .filter((employee) => visibility.employees[employee.id] !== false);
+          .filter((employee) => visibility.employees[employee.id] !== false)
+          .map((employee) => ({
+            ...employee,
+            role: employee.role?.trim() || employeeRoles[employee.id]?.trim() || null,
+          }));
         const visibleServices = ((servicesRes.error ? [] : (servicesRes.data ?? [])) as Service[])
           .filter((service) => service.is_active !== false)
           .filter((service) => visibility.services[service.id] !== false);
@@ -754,25 +765,48 @@ function PublicBookingPage() {
           </div>
         </div>
       ) : null}
-      <section className="relative overflow-hidden border-b border-white/10 bg-black">
-        <div className="relative mx-auto flex max-w-5xl items-center justify-center px-4 py-1.5 sm:py-2">
-          <div className="inline-flex items-center justify-center gap-3">
-            <span className="text-xs font-medium text-white/55 sm:text-sm">
-              Impulsado por
-            </span>
+      <section className="relative overflow-hidden border-b border-white/10">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              isLight ? "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 36%, transparent), transparent 42%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 32%, transparent), transparent 42%)" : "radial-gradient(circle at top left, color-mix(in oklch, var(--c-primary) 22%, transparent), transparent 34%), radial-gradient(circle at top right, color-mix(in oklch, var(--c-secondary) 20%, transparent), transparent 34%)",
+          }}
+        />
+        {business.cover_url ? <img loading="lazy" decoding="async" src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
+        <div className="relative mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-2 sm:py-2.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link to="/negocio/$slug" params={{ slug }} className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-white text-base font-bold text-zinc-950">
+              {business.avatar_url || business.logo_url ? <img loading="lazy" decoding="async" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" /> : business.name.slice(0, 1)}
+            </Link>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.28em]" style={{ color: accent }}>Reserva online</p>
+              <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{business.name}</h1>
+              {business.address ? <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-white/55"><MapPin className="h-3.5 w-3.5 shrink-0" />{business.address}</p> : null}
+            </div>
+          </div>
+
+          <div className="hidden shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-medium text-white/60 backdrop-blur sm:inline-flex">
+            <span>Impulsado por</span>
             <img
               src="/clippr-powered-logo.webp"
               alt="Clippr"
               loading="lazy"
               decoding="async"
-              className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10 sm:h-10 sm:w-10"
+              className="h-5 w-5 rounded-md object-cover ring-1 ring-white/10"
             />
-            <span className="text-xl font-bold tracking-tight text-white sm:text-2xl">
-              Clippr
-            </span>
+            <span className="font-semibold text-white/80">Clippr</span>
           </div>
         </div>
       </section>
+
+      <div className="mx-auto mt-3 flex max-w-5xl justify-center px-4 sm:hidden">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/55">
+          <span>Impulsado por</span>
+          <img src="/clippr-powered-logo.webp" alt="Clippr" className="h-5 w-5 rounded-md object-cover" />
+          <span className="font-semibold text-white/75">Clippr</span>
+        </div>
+      </div>
 
       <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
         <div className="space-y-6">
@@ -838,17 +872,53 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "professional" ? (
-                <div className="mt-5 space-y-3">
-                  <button type="button" onClick={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }} className="flex w-full items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-left hover:border-white/30">
-                    <span className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: `${accent}22`, color: accent }}><UsersRound className="h-6 w-6" /></span>
-                    <span><span className="block font-semibold">Sin preferencia</span><span className="text-sm text-white/55">Te asignamos cualquier profesional disponible.</span></span>
+                <div
+                  className={cn(
+                    "mt-5 grid gap-3",
+                    employees.length <= 6 && "grid-cols-1",
+                    employees.length >= 7 && employees.length <= 8 && "grid-cols-2",
+                    employees.length >= 9 && "grid-cols-3",
+                    employees.length >= 19 && "max-h-[58vh] overflow-y-auto pr-1",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
+                    className={cn(
+                      "flex min-w-0 items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:border-white/30",
+                      employees.length >= 7 ? "p-3" : "p-4",
+                    )}
+                  >
+                    <span className={cn("grid shrink-0 place-items-center rounded-2xl", employees.length >= 7 ? "h-10 w-10" : "h-12 w-12")} style={{ background: `${accent}22`, color: accent }}>
+                      <UsersRound className={cn(employees.length >= 7 ? "h-5 w-5" : "h-6 w-6")} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">Sin preferencia</span>
+                      <span className="block truncate text-xs text-white/55 sm:text-sm">Cualquier profesional disponible.</span>
+                    </span>
                   </button>
+
                   {employees.map((employee) => (
-                    <button key={employee.id} type="button" onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }} className="flex w-full items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-left hover:border-white/30">
-                      <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10">
-                        {employee.avatar_url ? <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-6 w-6" />}
+                    <button
+                      key={employee.id}
+                      type="button"
+                      onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
+                      className={cn(
+                        "flex min-w-0 items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:border-white/30",
+                        employees.length >= 7 ? "p-3" : "p-4",
+                      )}
+                    >
+                      <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10", employees.length >= 7 ? "h-10 w-10" : "h-12 w-12")}>
+                        {employee.avatar_url ? (
+                          <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
+                        ) : (
+                          <UserRound className={cn(employees.length >= 7 ? "h-5 w-5" : "h-6 w-6")} />
+                        )}
                       </span>
-                      <span><span className="block font-semibold">{employee.full_name}</span><span className="text-sm text-white/55">{employee.role || "Profesional"}</span></span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">{employee.full_name}</span>
+                        <span className="block truncate text-xs text-white/55 sm:text-sm">{employee.role?.trim() || "Profesional"}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
