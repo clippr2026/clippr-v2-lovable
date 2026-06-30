@@ -754,7 +754,6 @@ function PublicBookingPage() {
           </div>
         </div>
       ) : null}
-      {step !== "products" ? (
       <section className="relative overflow-hidden border-b border-white/10">
         <div
           className="absolute inset-0"
@@ -764,18 +763,39 @@ function PublicBookingPage() {
           }}
         />
         {business.cover_url ? <img loading="lazy" decoding="async" src={business.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm" /> : null}
-        <div className="relative mx-auto flex max-w-5xl items-center gap-4 px-4 py-8 sm:py-10">
-          <Link to="/negocio/$slug" params={{ slug }} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white text-xl font-bold text-zinc-950">
-            {business.avatar_url || business.logo_url ? <img loading="lazy" decoding="async" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" /> : business.name.slice(0, 1)}
-          </Link>
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em]" style={{ color: accent }}>Reserva online</p>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
-            {business.address ? <p className="mt-2 flex items-center gap-1 text-sm text-white/60"><MapPin className="h-4 w-4" />{business.address}</p> : null}
+        <div className="relative mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-2 sm:py-2.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link to="/negocio/$slug" params={{ slug }} className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-white text-base font-bold text-zinc-950">
+              {business.avatar_url || business.logo_url ? <img loading="lazy" decoding="async" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" /> : business.name.slice(0, 1)}
+            </Link>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.28em]" style={{ color: accent }}>Reserva online</p>
+              <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{business.name}</h1>
+              {business.address ? <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-white/55"><MapPin className="h-3.5 w-3.5 shrink-0" />{business.address}</p> : null}
+            </div>
+          </div>
+
+          <div className="hidden shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-medium text-white/60 backdrop-blur sm:inline-flex">
+            <span>Impulsado por</span>
+            <img
+              src="/clippr-powered-logo.webp"
+              alt="Clippr"
+              loading="lazy"
+              decoding="async"
+              className="h-5 w-5 rounded-md object-cover ring-1 ring-white/10"
+            />
+            <span className="font-semibold text-white/80">Clippr</span>
           </div>
         </div>
       </section>
-      ) : null}
+
+      <div className="mx-auto mt-3 flex max-w-5xl justify-center px-4 sm:hidden">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/55">
+          <span>Impulsado por</span>
+          <img src="/clippr-powered-logo.webp" alt="Clippr" className="h-5 w-5 rounded-md object-cover" />
+          <span className="font-semibold text-white/75">Clippr</span>
+        </div>
+      </div>
 
       <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
         <div className="space-y-6">
