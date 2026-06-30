@@ -105,7 +105,7 @@ function ReservasOnlineIcon({
     <span className={cn("relative inline-grid h-5 w-5 place-items-center", className)}>
       <Globe className="h-5 w-5" strokeWidth={strokeWidth ?? 2} />
       <span className="absolute -bottom-1 -left-1 rounded-full border-2 border-[oklch(0.11_0.03_260)] bg-emerald-400 px-1 py-[1px] text-[6px] font-black leading-none tracking-[-0.02em] text-white shadow-sm">
-        WWW
+        
       </span>
     </span>
   );
@@ -136,7 +136,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       {
         id: "branding",
-        label: "Página de reservas",
+        label: "Perfil público",
         icon: ReservasOnlineIcon,
         tint: "text-white",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
@@ -1737,7 +1737,7 @@ function BrandingSection() {
     <>
       <div>
         <h2 className="text-xl font-display font-semibold">
-          Página de reservas
+          Perfil público
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
           Configuración de la página pública de reservas
@@ -3367,7 +3367,7 @@ const CONFIG_PERMISSION_ITEMS: {
 }[] = [
   {
     key: "branding",
-    label: "Página de reservas",
+    label: "Perfil público",
     desc: "Identidad visual y datos del negocio.",
   },
   {
@@ -8525,7 +8525,7 @@ const plans = [
       "Caja y cobros",
       "Clientes",
       "Comisiones",
-      "Página de reservas",
+      "Perfil público",
       "Asesor IA",
       "Estadísticas del negocio",
     ],
