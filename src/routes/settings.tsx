@@ -6269,6 +6269,9 @@ type PriceForm = {
   stock: string;
   warnStock: string;
   criticalStock: string;
+  // Reservas online (solo catálogo)
+  bookingShow: boolean;
+  bookingOffer: string;
 };
 
 const emptyPriceForm = (
@@ -6286,6 +6289,8 @@ const emptyPriceForm = (
   stock: "0",
   warnStock: "0",
   criticalStock: "0",
+  bookingShow: false,
+  bookingOffer: "none",
 });
 
 const defaultServiceCategories = ["Servicios"];
@@ -6322,6 +6327,8 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     stock: String(row.stock ?? 0),
     warnStock: "0",
     criticalStock: "0",
+    bookingShow: false,
+    bookingOffer: "none",
   };
 }
 
@@ -6450,20 +6457,22 @@ function PriceEditorModal({
             }
           </div>
 
-          <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
-            <div>
-              <div className="text-sm font-medium">
-                Se puede reservar online
+          {isService && (
+            <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
+              <div>
+                <div className="text-sm font-medium">
+                  Se puede reservar online
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Disponible para reserva/compra online
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Disponible para reserva/compra online
-              </div>
-            </div>
-            <Toggle
-              on={form.reservable}
-              onChange={(v) => setForm({ ...form, reservable: v })}
-            />
-          </label>
+              <Toggle
+                on={form.reservable}
+                onChange={(v) => setForm({ ...form, reservable: v })}
+              />
+            </label>
+          )}
 
           {!isService && (
             <SectionCard label="Stock">
@@ -6516,6 +6525,44 @@ function PriceEditorModal({
               }
             />
           </Field>
+
+          {!isService && (
+            <SectionCard label="Reservas online">
+              <div className="space-y-3">
+                <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
+                  <div>
+                    <div className="text-sm font-medium">
+                      Mostrar en reservas online
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Si está activado, el producto puede aparecer durante la
+                      reserva online.
+                    </div>
+                  </div>
+                  <Toggle
+                    on={form.bookingShow}
+                    onChange={(v) => setForm({ ...form, bookingShow: v })}
+                  />
+                </label>
+                <Field label="Oferta para reservas online">
+                  <select
+                    value={form.bookingOffer}
+                    onChange={(e) =>
+                      setForm({ ...form, bookingOffer: e.target.value })
+                    }
+                    className={inputCls}
+                  >
+                    <option value="none">Sin oferta</option>
+                    <option value="special">Precio especial</option>
+                    <option value="10">10% OFF</option>
+                    <option value="15">15% OFF</option>
+                    <option value="20">20% OFF</option>
+                    <option value="25">25% OFF</option>
+                  </select>
+                </Field>
+              </div>
+            </SectionCard>
+          )}
         </div>
 
         <div className="flex items-center gap-2 px-6 py-5 border-t border-white/5">
@@ -6553,6 +6600,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [rows, setRows] = useState<PriceRow[]>([]);
   const [serviceReservableMap, setServiceReservableMap] = useState<
     Record<string, boolean>
+  >({});
+  // Reservas online del catálogo: { [productId]: { show, offer } }
+  const [bookingConfig, setBookingConfig] = useState<
+    Record<string, { show: boolean; offer: string }>
   >({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
@@ -6605,6 +6656,24 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         }
         if (!isService && Array.isArray(cats.catalog))
           setCustomCatalogCategories(cats.catalog as string[]);
+        if (!isService) {
+          const bp = (schedule._bookingProducts ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const cfg = (bp.config ?? {}) as Record<string, unknown>;
+          const normalized: Record<string, { show: boolean; offer: string }> =
+            {};
+          for (const [pid, value] of Object.entries(cfg)) {
+            if (!pid.trim()) continue;
+            const v = (value ?? {}) as Record<string, unknown>;
+            normalized[pid] = {
+              show: v.show === true,
+              offer: typeof v.offer === "string" ? v.offer : "none",
+            };
+          }
+          setBookingConfig(normalized);
+        }
       });
   }, [businessId, isService]);
 
@@ -6731,6 +6800,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const pendingItemsRef = useRef(pendingItems);
   const pendingDeletesRef = useRef(pendingDeletes);
   const serviceReservableMapRef = useRef(serviceReservableMap);
+  const bookingConfigRef = useRef(bookingConfig);
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    bookingConfigRef.current = bookingConfig;
+  }, [bookingConfig]);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
   useEffect(() => {
     pendingItemsRef.current = pendingItems;
   }, [pendingItems]);
@@ -6751,6 +6828,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const errors: string[] = [];
 
         let nextServiceReservableMap = { ...serviceReservableMapRef.current };
+        const nextBookingConfig = { ...bookingConfigRef.current };
+        const tempIdToReal: Record<string, string> = {};
 
         // Flush deletes
         for (const id of deletes) {
@@ -6760,6 +6839,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             .eq("id", id);
           if (error) errors.push(error.message);
           if (isService) delete nextServiceReservableMap[id];
+          else delete nextBookingConfig[id];
         }
 
         // Flush upserts
@@ -6776,6 +6856,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               const reservable = nextServiceReservableMap[tempId] !== false;
               delete nextServiceReservableMap[tempId];
               nextServiceReservableMap[String(inserted.id)] = reservable;
+            } else {
+              const realId = String(inserted.id);
+              tempIdToReal[tempId] = realId;
+              if (nextBookingConfig[tempId]) {
+                nextBookingConfig[realId] = nextBookingConfig[tempId];
+                delete nextBookingConfig[tempId];
+              }
             }
           } else {
             const { error } = await supabase
@@ -6807,6 +6894,56 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+
+        if (!isService && businessId) {
+          bookingConfigRef.current = nextBookingConfig;
+          setBookingConfig(nextBookingConfig);
+
+          // Snapshot de recomendados: respeta el orden actual del Catálogo,
+          // toma los primeros 3 productos activos con "Mostrar en reservas
+          // online". Se guarda nombre/precio/oferta para que la reserva pública
+          // (anon) los lea desde business_settings sin acceder a price_catalog.
+          const orderedProducts = rowsRef.current.filter((r) => {
+            const category = (r.category || "Productos").toLowerCase();
+            return r.duration_min == null && !category.includes("servicio");
+          });
+          const recommended = orderedProducts
+            .map((r) => ({ row: r, id: tempIdToReal[r.id] ?? r.id }))
+            .filter(
+              ({ id, row }) =>
+                row.active !== false && nextBookingConfig[id]?.show === true,
+            )
+            .slice(0, 3)
+            .map(({ id, row }) => ({
+              id,
+              name: row.name,
+              price: Number(row.price) || 0,
+              offer: nextBookingConfig[id]?.offer ?? "none",
+            }));
+
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+            string,
+            unknown
+          >;
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _bookingProducts: {
+                  config: nextBookingConfig,
+                  recommended,
                 },
               },
             },
@@ -6865,9 +7002,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   function openEdit(row: PriceRow) {
     setEditing(row);
+    const cfg = bookingConfig[row.id];
     setForm({
       ...rowToForm(row, isService),
       reservable: isService ? serviceReservableMap[row.id] !== false : true,
+      bookingShow: !isService && cfg?.show === true,
+      bookingOffer: !isService ? cfg?.offer ?? "none" : "none",
     });
     setModalOpen(true);
   }
@@ -6892,6 +7032,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           ...current,
           [editing.id]: form.reservable,
         }));
+      else
+        setBookingConfig((current) => ({
+          ...current,
+          [editing.id]: { show: form.bookingShow, offer: form.bookingOffer },
+        }));
       // Update existing row locally
       setRows((prev) =>
         prev.map((r) =>
@@ -6912,6 +7057,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         setServiceReservableMap((current) => ({
           ...current,
           [tempId]: form.reservable,
+        }));
+      else
+        setBookingConfig((current) => ({
+          ...current,
+          [tempId]: { show: form.bookingShow, offer: form.bookingOffer },
         }));
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems((prev) => [
@@ -6955,6 +7105,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setRows((prev) => prev.filter((r) => r.id !== row.id));
     if (isService)
       setServiceReservableMap((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
+    else
+      setBookingConfig((current) => {
         const next = { ...current };
         delete next[row.id];
         return next;
