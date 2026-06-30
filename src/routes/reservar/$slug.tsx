@@ -1005,8 +1005,11 @@ function PublicBookingPage() {
                           {/* Badge circular */}
                           <div className="absolute left-2.5 top-2.5 z-10">
                             {pct > 0 ? (
-                              <span className="grid h-12 w-12 place-items-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/30">
-                                <span className="text-center text-[10px] font-black uppercase leading-none text-white">
+                              <span className="grid h-12 w-12 place-items-center rounded-full bg-red-500 !text-white shadow-lg shadow-red-500/30">
+                                <span
+                                  className="text-center text-[10px] font-black uppercase leading-none !text-white"
+                                  style={{ color: "#fff" }}
+                                >
                                   {pct}%
                                   <br />
                                   OFF
