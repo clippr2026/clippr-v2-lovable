@@ -6272,7 +6272,9 @@ type PriceForm = {
   // Reservas online (solo catálogo)
   bookingShow: boolean;
   bookingOffer: string;
-  bookingImage: string;
+  miniDesc: string;
+  // Imagen general (catálogo y servicios)
+  image: string;
 };
 
 const emptyPriceForm = (
@@ -6292,7 +6294,8 @@ const emptyPriceForm = (
   criticalStock: "0",
   bookingShow: false,
   bookingOffer: "none",
-  bookingImage: "",
+  miniDesc: "",
+  image: "",
 });
 
 const defaultServiceCategories = ["Servicios"];
@@ -6331,7 +6334,8 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     criticalStock: "0",
     bookingShow: false,
     bookingOffer: "none",
-    bookingImage: "",
+    miniDesc: "",
+    image: "",
   };
 }
 
@@ -6347,6 +6351,7 @@ function PriceEditorModal({
   saving,
   catalogCategories = defaultCatalogCategories,
   onUploadImage,
+  featuredOthers = 0,
 }: {
   open: boolean;
   mode: "new" | "edit";
@@ -6359,6 +6364,7 @@ function PriceEditorModal({
   saving: boolean;
   catalogCategories?: string[];
   onUploadImage?: (file: File) => Promise<string | null>;
+  featuredOthers?: number;
 }) {
   const [uploadingImg, setUploadingImg] = useState(false);
   const bookingFileRef = useRef<HTMLInputElement | null>(null);
@@ -6382,237 +6388,200 @@ function PriceEditorModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          <Field label={isService ? "Nombre del servicio" : "Nombre"}>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className={inputCls}
-              placeholder={isService ? "Corte + Barba" : "Nombre del producto"}
-            />
-          </Field>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Precio de lista">
-              <input
-                type="number"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                className={inputCls}
-              />
-            </Field>
-            <Field label="Descuento efectivo (%)">
-              <input
-                type="number"
-                value={form.discount}
-                onChange={(e) => setForm({ ...form, discount: e.target.value })}
-                className={inputCls}
-              />
-            </Field>
-          </div>
-
-          <div className="rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 text-sm text-muted-foreground">
-            💵 Precio en efectivo:{" "}
-            <span className="font-semibold text-[oklch(0.82_0.14_75)]">
-              ${cashPrice.toLocaleString("es-AR")}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {isService && (
-              <Field label="Duración (min)">
+        <div className="p-5 space-y-3 max-h-[78vh] overflow-y-auto">
+          {/* Información básica */}
+          <SectionCard label="Información básica">
+            <div className="space-y-3">
+              <Field label={isService ? "Nombre del servicio" : "Nombre"}>
                 <input
-                  type="number"
-                  min={0}
-                  value={form.duration}
-                  onChange={(e) =>
-                    setForm({ ...form, duration: e.target.value })
-                  }
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className={inputCls}
+                  placeholder={isService ? "Corte + Barba" : "Nombre del producto"}
                 />
               </Field>
-            )}
-            <Field label="Estado">
-              <select
-                value={form.status}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    status: e.target.value as PriceForm["status"],
-                  })
-                }
-                className={inputCls}
-              >
-                <option>Activo</option>
-                <option>Inactivo</option>
-              </select>
-            </Field>
-            {
-              <Field label="Categoría">
-                <select
-                  value={form.category}
-                  onChange={(e) =>
-                    setForm({ ...form, category: e.target.value })
-                  }
-                  className={inputCls}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Precio de lista">
+                  <input
+                    type="number"
+                    value={form.price}
+                    onChange={(e) => setForm({ ...form, price: e.target.value })}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Desc. efectivo (%)">
+                  <input
+                    type="number"
+                    value={form.discount}
+                    onChange={(e) => setForm({ ...form, discount: e.target.value })}
+                    className={inputCls}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {isService ? (
+                  <Field label="Duración (min)">
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.duration}
+                      onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                      className={inputCls}
+                    />
+                  </Field>
+                ) : (
+                  <Field label="Categoría">
+                    <select
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className={inputCls}
+                    >
+                      {availableCatalogCategories.map((category) => (
+                        <option key={category}>{category}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+                <Field label="Estado">
+                  <select
+                    value={form.status}
+                    onChange={(e) =>
+                      setForm({ ...form, status: e.target.value as PriceForm["status"] })
+                    }
+                    className={inputCls}
+                  >
+                    <option>Activo</option>
+                    <option>Inactivo</option>
+                  </select>
+                </Field>
+              </div>
+              {isService ? (
+                <Field label="Categoría">
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    className={inputCls}
+                  >
+                    {availableCatalogCategories.map((category) => (
+                      <option key={category}>{category}</option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Efectivo:{" "}
+                <span className="font-semibold text-[oklch(0.82_0.14_75)]">
+                  ${cashPrice.toLocaleString("es-AR")}
+                </span>
+              </p>
+            </div>
+          </SectionCard>
+
+          {/* Imagen */}
+          <SectionCard label={isService ? "Imagen del servicio" : "Imagen del producto"}>
+            <div className="flex items-center gap-3">
+              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                {form.image ? (
+                  <img
+                    src={form.image}
+                    alt={form.name || "Imagen"}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <ImageIcon className="h-6 w-6 text-muted-foreground/70" />
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={bookingFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file || !onUploadImage) return;
+                    setUploadingImg(true);
+                    const url = await onUploadImage(file);
+                    setUploadingImg(false);
+                    if (url) setForm({ ...form, image: url });
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => bookingFileRef.current?.click()}
+                  disabled={uploadingImg}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm disabled:opacity-50"
                 >
-                  {availableCatalogCategories.map((category) => (
-                    <option key={category}>{category}</option>
-                  ))}
-                </select>
-              </Field>
-            }
-          </div>
-
-          {isService && (
-            <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
-              <div>
-                <div className="text-sm font-medium">
-                  Se puede reservar online
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Disponible para reserva/compra online
-                </div>
+                  {uploadingImg ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {form.image ? "Cambiar" : "Subir"}
+                </button>
+                {form.image ? (
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, image: "" })}
+                    disabled={uploadingImg}
+                    className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-3 py-2 text-sm disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" /> Quitar
+                  </button>
+                ) : null}
               </div>
-              <Toggle
-                on={form.reservable}
-                onChange={(v) => setForm({ ...form, reservable: v })}
-              />
-            </label>
-          )}
+            </div>
+          </SectionCard>
 
-          {!isService && (
-            <SectionCard label="Stock">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label="Stock inicial">
-                  <input
-                    type="number"
-                    value={form.stock}
-                    onChange={(e) =>
-                      setForm({ ...form, stock: e.target.value })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="⚠️ Avisar en">
-                  <input
-                    type="number"
-                    value={form.warnStock}
-                    onChange={(e) =>
-                      setForm({ ...form, warnStock: e.target.value })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="🔴 Crítico en">
-                  <input
-                    type="number"
-                    value={form.criticalStock}
-                    onChange={(e) =>
-                      setForm({ ...form, criticalStock: e.target.value })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-              </div>
+          {/* Reserva online */}
+          {isService ? (
+            <SectionCard label="Reserva online">
+              <label className="flex items-center justify-between gap-4 cursor-pointer">
+                <div className="text-sm font-medium">Se puede reservar online</div>
+                <Toggle
+                  on={form.reservable}
+                  onChange={(v) => setForm({ ...form, reservable: v })}
+                />
+              </label>
             </SectionCard>
-          )}
-
-          <Field label="Descripción (opcional)">
-            <textarea
-              value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
-              className={cn(inputCls, "min-h-[100px] resize-y")}
-              placeholder={
-                isService
-                  ? "Describí el servicio, qué incluye, técnica o detalles…"
-                  : "Descripción, detalles de stock o información del producto…"
-              }
-            />
-          </Field>
-
-          {!isService && (
+          ) : (
             <SectionCard label="Reservas online">
               <div className="space-y-3">
-                <Field label="Foto del producto">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
-                      {form.bookingImage ? (
-                        <img
-                          src={form.bookingImage}
-                          alt={form.name || "Producto"}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
+                {(() => {
+                  const featuredTotal = featuredOthers + (form.bookingShow ? 1 : 0);
+                  const limitReached = !form.bookingShow && featuredOthers >= 3;
+                  return (
+                    <>
+                      <label className="flex items-center justify-between gap-4 cursor-pointer">
+                        <div>
+                          <div className="text-sm font-medium">Mostrar en reservas online</div>
+                          <div className="text-xs text-muted-foreground">Aparece en la reserva online.</div>
+                        </div>
+                        <Toggle
+                          on={form.bookingShow}
+                          onChange={(v) => {
+                            if (v && limitReached) return;
+                            setForm({ ...form, bookingShow: v });
+                          }}
                         />
-                      ) : (
-                        <ImageIcon className="h-6 w-6 text-muted-foreground/70" />
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        ref={bookingFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (!file || !onUploadImage) return;
-                          setUploadingImg(true);
-                          const url = await onUploadImage(file);
-                          setUploadingImg(false);
-                          if (url) setForm({ ...form, bookingImage: url });
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => bookingFileRef.current?.click()}
-                        disabled={uploadingImg}
-                        className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm disabled:opacity-50"
-                      >
-                        {uploadingImg ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Upload className="h-4 w-4" />
-                        )}
-                        {form.bookingImage ? "Cambiar foto" : "Subir foto"}
-                      </button>
-                      {form.bookingImage ? (
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, bookingImage: "" })}
-                          disabled={uploadingImg}
-                          className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-3 py-2 text-sm disabled:opacity-50"
-                        >
-                          <Trash2 className="h-4 w-4" /> Quitar
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </Field>
-                <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium">
-                      Mostrar en reservas online
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Si está activado, el producto puede aparecer durante la
-                      reserva online.
-                    </div>
-                  </div>
-                  <Toggle
-                    on={form.bookingShow}
-                    onChange={(v) => setForm({ ...form, bookingShow: v })}
-                  />
-                </label>
+                      </label>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Productos destacados: {featuredTotal} de 3
+                        </span>
+                        {limitReached ? (
+                          <span className="text-amber-300">Solo podés destacar hasta 3 productos.</span>
+                        ) : null}
+                      </div>
+                    </>
+                  );
+                })()}
                 <Field label="Oferta para reservas online">
                   <select
                     value={form.bookingOffer}
-                    onChange={(e) =>
-                      setForm({ ...form, bookingOffer: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, bookingOffer: e.target.value })}
                     className={inputCls}
                   >
                     <option value="none">Sin oferta</option>
@@ -6623,9 +6592,42 @@ function PriceEditorModal({
                     <option value="25">25% OFF</option>
                   </select>
                 </Field>
+                <Field label="Mini descripción">
+                  <input
+                    value={form.miniDesc}
+                    onChange={(e) => setForm({ ...form, miniDesc: e.target.value })}
+                    className={inputCls}
+                    maxLength={60}
+                    placeholder="Fijación fuerte y acabado mate natural."
+                  />
+                </Field>
               </div>
             </SectionCard>
           )}
+
+          {/* Stock (solo productos) */}
+          {!isService && (
+            <SectionCard label="Stock">
+              <Field label="Stock actual">
+                <input
+                  type="number"
+                  value={form.stock}
+                  onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                  className={inputCls}
+                />
+              </Field>
+            </SectionCard>
+          )}
+
+          {/* Descripción */}
+          <SectionCard label="Descripción">
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className={cn(inputCls, "min-h-[72px] resize-y")}
+              placeholder={isService ? "Detalles del servicio (opcional)" : "Detalles del producto (opcional)"}
+            />
+          </SectionCard>
         </div>
 
         <div className="flex items-center gap-2 px-6 py-5 border-t border-white/5">
@@ -6664,10 +6666,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [serviceReservableMap, setServiceReservableMap] = useState<
     Record<string, boolean>
   >({});
-  // Reservas online del catálogo: { [productId]: { show, offer, image } }
+  // Reservas online del catálogo: { [productId]: { show, offer, miniDesc } }
   const [bookingConfig, setBookingConfig] = useState<
-    Record<string, { show: boolean; offer: string; image?: string }>
+    Record<string, { show: boolean; offer: string; miniDesc?: string }>
   >({});
+  // Imagen general por item (servicios y productos): { [id]: url }
+  const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
   const reorderingCategories = true;
@@ -6719,6 +6723,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         }
         if (!isService && Array.isArray(cats.catalog))
           setCustomCatalogCategories(cats.catalog as string[]);
+        {
+          const imgs = (schedule._catalogImages ?? {}) as Record<string, unknown>;
+          const imgMap: Record<string, string> = {};
+          for (const [pid, url] of Object.entries(imgs)) {
+            if (pid.trim() && typeof url === "string" && url) imgMap[pid] = url;
+          }
+          setImageMap(imgMap);
+        }
         if (!isService) {
           const bp = (schedule._bookingProducts ?? {}) as Record<
             string,
@@ -6727,7 +6739,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           const cfg = (bp.config ?? {}) as Record<string, unknown>;
           const normalized: Record<
             string,
-            { show: boolean; offer: string; image?: string }
+            { show: boolean; offer: string; miniDesc?: string }
           > = {};
           for (const [pid, value] of Object.entries(cfg)) {
             if (!pid.trim()) continue;
@@ -6735,7 +6747,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             normalized[pid] = {
               show: v.show === true,
               offer: typeof v.offer === "string" ? v.offer : "none",
-              image: typeof v.image === "string" ? v.image : "",
+              miniDesc: typeof v.miniDesc === "string" ? v.miniDesc : "",
             };
           }
           setBookingConfig(normalized);
@@ -6868,12 +6880,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const serviceReservableMapRef = useRef(serviceReservableMap);
   const bookingConfigRef = useRef(bookingConfig);
   const rowsRef = useRef(rows);
+  const imageMapRef = useRef(imageMap);
   useEffect(() => {
     bookingConfigRef.current = bookingConfig;
   }, [bookingConfig]);
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
+  useEffect(() => {
+    imageMapRef.current = imageMap;
+  }, [imageMap]);
   useEffect(() => {
     pendingItemsRef.current = pendingItems;
   }, [pendingItems]);
@@ -6895,6 +6911,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
         let nextServiceReservableMap = { ...serviceReservableMapRef.current };
         const nextBookingConfig = { ...bookingConfigRef.current };
+        const nextImageMap = { ...imageMapRef.current };
         const tempIdToReal: Record<string, string> = {};
 
         // Flush deletes
@@ -6906,6 +6923,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           if (error) errors.push(error.message);
           if (isService) delete nextServiceReservableMap[id];
           else delete nextBookingConfig[id];
+          delete nextImageMap[id];
         }
 
         // Flush upserts
@@ -6919,15 +6937,25 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             if (error || !inserted) {
               errors.push(error?.message ?? "No se pudo crear el servicio");
             } else if (isService) {
+              const realId = String(inserted.id);
               const reservable = nextServiceReservableMap[tempId] !== false;
               delete nextServiceReservableMap[tempId];
-              nextServiceReservableMap[String(inserted.id)] = reservable;
+              nextServiceReservableMap[realId] = reservable;
+              tempIdToReal[tempId] = realId;
+              if (nextImageMap[tempId]) {
+                nextImageMap[realId] = nextImageMap[tempId];
+                delete nextImageMap[tempId];
+              }
             } else {
               const realId = String(inserted.id);
               tempIdToReal[tempId] = realId;
               if (nextBookingConfig[tempId]) {
                 nextBookingConfig[realId] = nextBookingConfig[tempId];
                 delete nextBookingConfig[tempId];
+              }
+              if (nextImageMap[tempId]) {
+                nextImageMap[realId] = nextImageMap[tempId];
+                delete nextImageMap[tempId];
               }
             }
           } else {
@@ -6938,6 +6966,45 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             if (error) errors.push(error.message);
           }
         }
+
+        // Imagen general por item: se guarda en schedule._catalogImages.
+        // Cada instancia (servicios/productos) solo toca sus propios ids y
+        // preserva los de la otra para evitar pisarse al guardar.
+        const ownImageIds = () => {
+          const ids = new Set<string>();
+          for (const r of rowsRef.current) {
+            const category = (
+              r.category || (isService ? "Servicios" : "Productos")
+            ).toLowerCase();
+            const mine = isService
+              ? r.duration_min != null
+              : r.duration_min == null && !category.includes("servicio");
+            if (mine) ids.add(tempIdToReal[r.id] ?? r.id);
+          }
+          for (const id of deletes) ids.add(id);
+          return ids;
+        };
+        const mergeCatalogImages = (
+          existingSchedule: Record<string, unknown>,
+        ): Record<string, string> => {
+          const existing = (existingSchedule._catalogImages ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const ids = ownImageIds();
+          const merged: Record<string, string> = {};
+          for (const [k, v] of Object.entries(existing)) {
+            if (!ids.has(k) && typeof v === "string" && v) merged[k] = v;
+          }
+          for (const id of ids) {
+            const url = nextImageMap[id];
+            if (url) merged[id] = url;
+          }
+          return merged;
+        };
+
+        imageMapRef.current = nextImageMap;
+        setImageMap(nextImageMap);
 
         if (isService && businessId) {
           serviceReservableMapRef.current = nextServiceReservableMap;
@@ -6957,6 +7024,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
+                _catalogImages: mergeCatalogImages(existingSchedule),
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
@@ -6991,7 +7059,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               name: row.name,
               price: Number(row.price) || 0,
               offer: nextBookingConfig[id]?.offer ?? "none",
-              image: nextBookingConfig[id]?.image ?? "",
+              image: nextImageMap[id] ?? "",
+              description: nextBookingConfig[id]?.miniDesc ?? "",
             }));
 
           const { data: existingRow } = await supabase
@@ -7008,6 +7077,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
+                _catalogImages: mergeCatalogImages(existingSchedule),
                 _bookingProducts: {
                   config: nextBookingConfig,
                   recommended,
@@ -7095,7 +7165,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       reservable: isService ? serviceReservableMap[row.id] !== false : true,
       bookingShow: !isService && cfg?.show === true,
       bookingOffer: !isService ? cfg?.offer ?? "none" : "none",
-      bookingImage: !isService ? cfg?.image ?? "" : "",
+      miniDesc: !isService ? cfg?.miniDesc ?? "" : "",
+      image: imageMap[row.id] ?? "",
     });
     setModalOpen(true);
   }
@@ -7126,9 +7197,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           [editing.id]: {
             show: form.bookingShow,
             offer: form.bookingOffer,
-            image: form.bookingImage,
+            miniDesc: form.miniDesc,
           },
         }));
+      setImageMap((current) => {
+        const next = { ...current };
+        if (form.image) next[editing.id] = form.image;
+        else delete next[editing.id];
+        return next;
+      });
       // Update existing row locally
       setRows((prev) =>
         prev.map((r) =>
@@ -7156,9 +7233,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           [tempId]: {
             show: form.bookingShow,
             offer: form.bookingOffer,
-            image: form.bookingImage,
+            miniDesc: form.miniDesc,
           },
         }));
+      if (form.image)
+        setImageMap((current) => ({ ...current, [tempId]: form.image }));
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems((prev) => [
         ...prev,
@@ -7211,6 +7290,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         delete next[row.id];
         return next;
       });
+    setImageMap((current) => {
+      const next = { ...current };
+      delete next[row.id];
+      return next;
+    });
     // If it was a new (unsaved) item, just remove from pending
     if (row.id.startsWith("new_")) {
       setPendingItems((prev) => prev.filter((p) => p.tempId !== row.id));
@@ -7590,6 +7674,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         saving={saving}
         catalogCategories={categories}
         onUploadImage={uploadBookingImage}
+        featuredOthers={
+          Object.entries(bookingConfig).filter(
+            ([id, c]) => c.show && id !== editing?.id,
+          ).length
+        }
       />
       <ConfirmDialog
         open={!!confirmDelItem}
