@@ -763,7 +763,10 @@ function PublicBookingPage() {
       <section className="relative overflow-hidden border-b border-white/10 bg-black">
         <div className="relative mx-auto flex max-w-5xl items-center justify-center px-4 py-1.5 sm:py-2">
           <div className="inline-flex items-center justify-center gap-3">
-            <span className="text-xs font-medium text-white/55 sm:text-sm">
+            <span
+              className="text-xs font-medium sm:text-sm"
+              style={{ color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }}
+            >
               Impulsado por
             </span>
             <img
@@ -773,7 +776,10 @@ function PublicBookingPage() {
               decoding="async"
               className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10 sm:h-10 sm:w-10"
             />
-            <span className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+            <span
+              className="text-xl font-bold tracking-tight sm:text-2xl"
+              style={{ color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
+            >
               Clippr
             </span>
           </div>
