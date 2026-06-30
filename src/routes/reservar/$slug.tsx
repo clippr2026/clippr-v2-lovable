@@ -755,7 +755,6 @@ function PublicBookingPage() {
         </div>
       ) : null}
       {step !== "products" ? (
-      {step !== "products" ? (
       <section className="relative overflow-hidden border-b border-white/10">
         <div
           className="absolute inset-0"
@@ -776,7 +775,6 @@ function PublicBookingPage() {
           </div>
         </div>
       </section>
-      ) : null}
       ) : null}
 
       <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
