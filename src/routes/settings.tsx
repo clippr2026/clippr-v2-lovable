@@ -6272,6 +6272,7 @@ type PriceForm = {
   // Reservas online (solo catálogo)
   bookingShow: boolean;
   bookingOffer: string;
+  bookingImage: string;
 };
 
 const emptyPriceForm = (
@@ -6291,6 +6292,7 @@ const emptyPriceForm = (
   criticalStock: "0",
   bookingShow: false,
   bookingOffer: "none",
+  bookingImage: "",
 });
 
 const defaultServiceCategories = ["Servicios"];
@@ -6329,6 +6331,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     criticalStock: "0",
     bookingShow: false,
     bookingOffer: "none",
+    bookingImage: "",
   };
 }
 
@@ -6343,6 +6346,7 @@ function PriceEditorModal({
   onDelete,
   saving,
   catalogCategories = defaultCatalogCategories,
+  onUploadImage,
 }: {
   open: boolean;
   mode: "new" | "edit";
@@ -6354,7 +6358,10 @@ function PriceEditorModal({
   onDelete?: () => void;
   saving: boolean;
   catalogCategories?: string[];
+  onUploadImage?: (file: File) => Promise<string | null>;
 }) {
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const bookingFileRef = useRef<HTMLInputElement | null>(null);
   if (!open) return null;
   const cashPrice = priceToCash(form.price, form.discount);
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : form.category.toLowerCase()}`;
@@ -6529,6 +6536,62 @@ function PriceEditorModal({
           {!isService && (
             <SectionCard label="Reservas online">
               <div className="space-y-3">
+                <Field label="Foto del producto">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                      {form.bookingImage ? (
+                        <img
+                          src={form.bookingImage}
+                          alt={form.name || "Producto"}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <ImageIcon className="h-6 w-6 text-muted-foreground/70" />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        ref={bookingFileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file || !onUploadImage) return;
+                          setUploadingImg(true);
+                          const url = await onUploadImage(file);
+                          setUploadingImg(false);
+                          if (url) setForm({ ...form, bookingImage: url });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => bookingFileRef.current?.click()}
+                        disabled={uploadingImg}
+                        className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        {uploadingImg ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4" />
+                        )}
+                        {form.bookingImage ? "Cambiar foto" : "Subir foto"}
+                      </button>
+                      {form.bookingImage ? (
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, bookingImage: "" })}
+                          disabled={uploadingImg}
+                          className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-3 py-2 text-sm disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4" /> Quitar
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </Field>
                 <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
                   <div>
                     <div className="text-sm font-medium">
@@ -6601,9 +6664,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [serviceReservableMap, setServiceReservableMap] = useState<
     Record<string, boolean>
   >({});
-  // Reservas online del catálogo: { [productId]: { show, offer } }
+  // Reservas online del catálogo: { [productId]: { show, offer, image } }
   const [bookingConfig, setBookingConfig] = useState<
-    Record<string, { show: boolean; offer: string }>
+    Record<string, { show: boolean; offer: string; image?: string }>
   >({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
@@ -6662,14 +6725,17 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             unknown
           >;
           const cfg = (bp.config ?? {}) as Record<string, unknown>;
-          const normalized: Record<string, { show: boolean; offer: string }> =
-            {};
+          const normalized: Record<
+            string,
+            { show: boolean; offer: string; image?: string }
+          > = {};
           for (const [pid, value] of Object.entries(cfg)) {
             if (!pid.trim()) continue;
             const v = (value ?? {}) as Record<string, unknown>;
             normalized[pid] = {
               show: v.show === true,
               offer: typeof v.offer === "string" ? v.offer : "none",
+              image: typeof v.image === "string" ? v.image : "",
             };
           }
           setBookingConfig(normalized);
@@ -6925,6 +6991,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               name: row.name,
               price: Number(row.price) || 0,
               offer: nextBookingConfig[id]?.offer ?? "none",
+              image: nextBookingConfig[id]?.image ?? "",
             }));
 
           const { data: existingRow } = await supabase
@@ -6994,6 +7061,26 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === cat,
   );
 
+  async function uploadBookingImage(file: File): Promise<string | null> {
+    if (!businessId) {
+      toast.error("No se encontró el negocio");
+      return null;
+    }
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `${businessId}/catalog/booking/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("business-assets")
+      .upload(path, file, { upsert: true, contentType: file.type || undefined });
+    if (error) {
+      toast.error("No se pudo subir la imagen: " + error.message);
+      return null;
+    }
+    const { data: urlData } = supabase.storage
+      .from("business-assets")
+      .getPublicUrl(path);
+    return urlData.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
+  }
+
   function openNew() {
     setEditing(null);
     setForm(emptyPriceForm(cat, isService));
@@ -7008,6 +7095,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       reservable: isService ? serviceReservableMap[row.id] !== false : true,
       bookingShow: !isService && cfg?.show === true,
       bookingOffer: !isService ? cfg?.offer ?? "none" : "none",
+      bookingImage: !isService ? cfg?.image ?? "" : "",
     });
     setModalOpen(true);
   }
@@ -7035,7 +7123,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       else
         setBookingConfig((current) => ({
           ...current,
-          [editing.id]: { show: form.bookingShow, offer: form.bookingOffer },
+          [editing.id]: {
+            show: form.bookingShow,
+            offer: form.bookingOffer,
+            image: form.bookingImage,
+          },
         }));
       // Update existing row locally
       setRows((prev) =>
@@ -7061,7 +7153,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       else
         setBookingConfig((current) => ({
           ...current,
-          [tempId]: { show: form.bookingShow, offer: form.bookingOffer },
+          [tempId]: {
+            show: form.bookingShow,
+            offer: form.bookingOffer,
+            image: form.bookingImage,
+          },
         }));
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems((prev) => [
@@ -7493,6 +7589,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onDelete={() => editing && setConfirmDelItem(editing)}
         saving={saving}
         catalogCategories={categories}
+        onUploadImage={uploadBookingImage}
       />
       <ConfirmDialog
         open={!!confirmDelItem}
