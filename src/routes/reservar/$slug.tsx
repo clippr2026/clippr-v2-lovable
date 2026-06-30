@@ -13,6 +13,7 @@ import {
   MapPin,
   Phone,
   Scissors,
+  ShoppingBag,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -82,7 +83,8 @@ type Service = {
   is_active?: boolean | null;
 };
 
-type BookingStep = "services" | "professional" | "datetime" | "details" | "done";
+type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
+type RecommendedProduct = { id: string; name: string; price: number; offer: string };
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
@@ -102,6 +104,48 @@ function formatMoney(value: number | null | undefined) {
     currency: "ARS",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+// Oferta de productos recomendados. Los valores se guardan en
+// business_settings.schedule._bookingProducts (Configuración → Catálogo).
+function offerPct(offer: string | null | undefined): number {
+  const n = Number(offer);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function productFinalPrice(product: RecommendedProduct): number {
+  const pct = offerPct(product.offer);
+  const base = Number(product.price) || 0;
+  return pct > 0 ? Math.round(base - (base * pct) / 100) : base;
+}
+
+function offerBadge(offer: string | null | undefined): string {
+  const pct = offerPct(offer);
+  if (pct > 0) return `🔥 ${pct}% OFF`;
+  if (offer === "special") return "🔥 Oferta exclusiva";
+  return "⭐ Recomendado";
+}
+
+function normalizeRecommendedProducts(schedule: unknown): RecommendedProduct[] {
+  if (!schedule || typeof schedule !== "object") return [];
+  const bp = (schedule as Record<string, any>)._bookingProducts;
+  const list = bp && typeof bp === "object" ? bp.recommended : null;
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => {
+      const v = (item ?? {}) as Record<string, unknown>;
+      const id = typeof v.id === "string" ? v.id : "";
+      const name = typeof v.name === "string" ? v.name : "";
+      if (!id || !name) return null;
+      return {
+        id,
+        name,
+        price: Number(v.price) || 0,
+        offer: typeof v.offer === "string" ? v.offer : "none",
+      } as RecommendedProduct;
+    })
+    .filter(Boolean)
+    .slice(0, 3) as RecommendedProduct[];
 }
 
 function formatDay(date: Date) {
@@ -175,6 +219,8 @@ function PublicBookingPage() {
   const [businessSpecial, setBusinessSpecial] = React.useState<SpecialDateMap>({});
   const [employeeSpecial, setEmployeeSpecial] = React.useState<EmployeeSpecialDateMap>({});
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
+  const [recommendedProducts, setRecommendedProducts] = React.useState<RecommendedProduct[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
@@ -198,6 +244,7 @@ function PublicBookingPage() {
     clientName: string;
     clientPhone: string;
     clientEmail?: string;
+    products?: { name: string; price: number }[];
   } | null>(null);
 
   const selectedServices = React.useMemo(
@@ -207,6 +254,12 @@ function PublicBookingPage() {
   const selectedEmployee = employees.find((employee) => employee.id === selectedSlot?.employeeId || employee.id === selectedEmployeeId) ?? null;
   const totalDuration = selectedServices.reduce((sum, service) => sum + (Number(service.duration_min ?? service.duration ?? 30) || 30), 0) || 30;
   const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price ?? 0), 0);
+  const selectedProducts = React.useMemo(
+    () => selectedProductIds.map((id) => recommendedProducts.find((p) => p.id === id)).filter(Boolean) as RecommendedProduct[],
+    [selectedProductIds, recommendedProducts],
+  );
+  const productsTotal = selectedProducts.reduce((sum, p) => sum + productFinalPrice(p), 0);
+  const grandTotal = totalPrice + productsTotal;
   const slots = React.useMemo(
     () =>
       buildSlots(
@@ -367,6 +420,7 @@ function PublicBookingPage() {
           setEmployeeSpecial(empSpecial);
 
           setClientFields(extractClientFields(settingsSchedule));
+          setRecommendedProducts(normalizeRecommendedProducts(settingsSchedule));
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setLandingTheme(branding.theme === "light" ? "light" : "dark");
 
@@ -405,6 +459,19 @@ function PublicBookingPage() {
   function nextFromServices() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
     setStep("professional");
+  }
+
+  // Tras elegir el horario: si hay productos recomendados, mostramos el paso
+  // opcional "Completá tu visita"; si no, vamos directo a los datos.
+  function selectSlot(slot: { time: Date; employeeId: string }) {
+    setSelectedSlot(slot);
+    setStep(recommendedProducts.length > 0 ? "products" : "details");
+  }
+
+  function toggleProduct(productId: string) {
+    setSelectedProductIds((current) =>
+      current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId],
+    );
   }
 
   // Re-lee la disponibilidad real desde la base (misma ventana que la carga
@@ -472,11 +539,14 @@ function PublicBookingPage() {
 
     const serviceName = selectedServices.map((service) => service.name).join(" + ");
     const serviceList = selectedServices.map((service) => `${service.name} (${formatMoney(service.price)})`).join("\n- ");
+    const addedProducts = selectedProducts.map((p) => ({ name: p.name, price: productFinalPrice(p) }));
+    const productList = addedProducts.map((p) => `${p.name} (${formatMoney(p.price)})`).join("\n- ");
     const publicNotes = [
       notes.trim() ? `Notas del cliente: ${notes.trim()}` : null,
       clientEmail.trim() ? `Email: ${clientEmail.trim()}` : null,
       clientBirthDate ? `Fecha de nacimiento: ${clientBirthDate}` : null,
       selectedServices.length > 1 ? `Servicios seleccionados:\n- ${serviceList}` : null,
+      addedProducts.length ? `Productos agregados:\n- ${productList}` : null,
       "Origen: reserva online",
     ].filter(Boolean).join("\n\n");
 
@@ -486,10 +556,11 @@ function PublicBookingPage() {
       date: formatDay(selectedSlot.time),
       time: formatTime(selectedSlot.time),
       duration: totalDuration,
-      total: totalPrice,
+      total: grandTotal,
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
       clientEmail: clientEmail.trim() || undefined,
+      products: addedProducts,
       startIso: selectedSlot.time.toISOString(),
       appointmentId: undefined as string | undefined,
       manageToken: undefined as string | undefined,
@@ -633,7 +704,15 @@ function PublicBookingPage() {
     );
   }
 
-  const stepIndex = step === "services" ? 1 : step === "professional" ? 2 : step === "datetime" ? 3 : step === "details" ? 4 : 4;
+  const hasProducts = recommendedProducts.length > 0;
+  const totalSteps = hasProducts ? 5 : 4;
+  const stepIndex =
+    step === "services" ? 1 :
+    step === "professional" ? 2 :
+    step === "datetime" ? 3 :
+    step === "products" ? 4 :
+    step === "details" ? (hasProducts ? 5 : 4) :
+    totalSteps;
 
   return (
     <main
@@ -698,15 +777,16 @@ function PublicBookingPage() {
               {step !== "done" ? (
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm text-white/50">Paso {stepIndex} de 4</p>
+                    <p className="text-sm text-white/50">Paso {stepIndex} de {totalSteps}</p>
                     <h2 className="text-2xl font-semibold">
                       {step === "services" && "Elegí tus servicios"}
                       {step === "professional" && "Elegí profesional"}
                       {step === "datetime" && "Elegí día y horario"}
+                      {step === "products" && "Completá tu visita"}
                       {step === "details" && "Tus datos"}
                     </h2>
                   </div>
-                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/4</div>
+                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-white/60">{stepIndex}/{totalSteps}</div>
                 </div>
               ) : null}
 
@@ -716,7 +796,8 @@ function PublicBookingPage() {
                   onClick={() => {
                     if (step === "professional") setStep("services");
                     if (step === "datetime") setStep("professional");
-                    if (step === "details") setStep("datetime");
+                    if (step === "products") setStep("datetime");
+                    if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
                   }}
                   className="mt-5 inline-flex items-center gap-1 text-sm text-white/55 hover:text-white"
                 >
@@ -862,7 +943,7 @@ function PublicBookingPage() {
                           <button
                             key={`${slot.employeeId}-${slot.time.toISOString()}`}
                             type="button"
-                            onClick={() => { setSelectedSlot(slot); setStep("details"); }}
+                            onClick={() => { selectSlot(slot); }}
                             className="slot-button flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
                           >
                             {formatTime(slot.time)}
@@ -871,6 +952,86 @@ function PublicBookingPage() {
                       </div>
                     </div>
                   ) : null}
+                </div>
+              ) : null}
+
+              {step === "products" ? (
+                <div className="mt-5 space-y-5">
+                  <p className="text-sm text-white/60">
+                    Antes de confirmar tu turno podés agregar alguno de estos productos. Es totalmente opcional.
+                  </p>
+
+                  <div className="space-y-3">
+                    {recommendedProducts.map((product) => {
+                      const added = selectedProductIds.includes(product.id);
+                      const pct = offerPct(product.offer);
+                      const finalPrice = productFinalPrice(product);
+                      const hasOffer = pct > 0 || product.offer === "special";
+                      return (
+                        <div
+                          key={product.id}
+                          className={cn(
+                            "flex items-center gap-4 rounded-3xl border p-4 transition",
+                            added ? "border-transparent bg-white/[0.07]" : "border-white/10 bg-white/[0.03]",
+                          )}
+                          style={added ? { boxShadow: `0 0 0 1.5px ${accent}` } : undefined}
+                        >
+                          <span
+                            className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl text-white"
+                            style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                          >
+                            <ShoppingBag className="h-7 w-7" />
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                                hasOffer ? "bg-amber-400/15 text-amber-300" : "bg-white/10 text-white/70",
+                              )}
+                            >
+                              {offerBadge(product.offer)}
+                            </span>
+                            <p className="mt-1.5 truncate font-semibold">{product.name}</p>
+                            <p className="text-sm">
+                              <span className="font-semibold">{formatMoney(finalPrice)}</span>
+                              {pct > 0 ? (
+                                <span className="ml-2 text-white/40 line-through">{formatMoney(product.price)}</span>
+                              ) : null}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleProduct(product.id)}
+                            className={cn(
+                              "shrink-0 rounded-2xl px-4 py-2.5 text-sm font-bold transition",
+                              added ? "text-white" : "border border-white/15 bg-white/[0.06] text-white hover:bg-white/[0.1]",
+                            )}
+                            style={added ? { background: accent, color: accentButtonText } : undefined}
+                          >
+                            {added ? "✓ Agregado" : "Agregar"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => { setSelectedProductIds([]); setStep("details"); }}
+                      className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] py-6 font-semibold text-white hover:bg-white/[0.08]"
+                    >
+                      Omitir
+                    </Button>
+                    <Button
+                      onClick={() => setStep("details")}
+                      className="flex-1 rounded-2xl py-6 font-bold text-white hover:brightness-110"
+                      style={{ background: accent, color: accentButtonText }}
+                    >
+                      Continuar
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 
@@ -996,6 +1157,20 @@ function PublicBookingPage() {
                         </div>
                       ) : null}
 
+                      {confirmedBooking?.products && confirmedBooking.products.length > 0 ? (
+                        <div className={cn("mt-3 rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
+                          <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Productos agregados</p>
+                          <div className="mt-2 space-y-1.5">
+                            {confirmedBooking.products.map((product, index) => (
+                              <div key={`${product.name}-${index}`} className="flex items-center justify-between gap-3">
+                                <span className={cn("min-w-0 truncate text-sm font-medium", isLight ? "text-slate-900" : "text-white")}>{product.name}</span>
+                                <span className={cn("shrink-0 text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{formatMoney(product.price)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div
                         className={cn(
                           "mt-3 flex items-center justify-between rounded-2xl px-5 py-4",
@@ -1043,7 +1218,20 @@ function PublicBookingPage() {
                 <div><p className="text-white/40">Servicios</p><p className="mt-1 font-medium text-white">{selectedServices.length ? selectedServices.map((s) => s.name).join(" + ") : "Sin seleccionar"}</p></div>
                 <div><p className="text-white/40">Profesional</p><p className="mt-1 font-medium text-white">{selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin seleccionar")}</p></div>
                 <div><p className="text-white/40">Horario</p><p className="mt-1 font-medium text-white">{selectedSlot ? `${formatShortDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "Sin seleccionar"}</p></div>
-                <div className="flex items-center justify-between border-t border-white/10 pt-4"><span>Total</span><span className="text-lg font-semibold text-white">{formatMoney(totalPrice)}</span></div>
+                {selectedProducts.length ? (
+                  <div className="border-t border-white/10 pt-4">
+                    <p className="text-white/40">Productos</p>
+                    <div className="mt-1 space-y-1">
+                      {selectedProducts.map((product) => (
+                        <div key={product.id} className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate font-medium text-white">{product.name}</span>
+                          <span className="shrink-0 font-medium text-white">{formatMoney(productFinalPrice(product))}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between border-t border-white/10 pt-4"><span>Total</span><span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span></div>
                 <div className="flex items-center justify-between"><span>Duración</span><span className="font-semibold text-white">{totalDuration} min</span></div>
               </div>
             </CardContent>
