@@ -87,7 +87,7 @@ type Service = {
 };
 
 type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
-type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string };
+type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string; description?: string };
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
@@ -146,6 +146,7 @@ function normalizeRecommendedProducts(schedule: unknown): RecommendedProduct[] {
         price: Number(v.price) || 0,
         offer: typeof v.offer === "string" ? v.offer : "none",
         image: typeof v.image === "string" ? v.image : "",
+        description: typeof v.description === "string" ? v.description : "",
       } as RecommendedProduct;
     })
     .filter(Boolean)
@@ -753,6 +754,7 @@ function PublicBookingPage() {
           </div>
         </div>
       ) : null}
+      {step !== "products" ? (
       <section className="relative overflow-hidden border-b border-white/10">
         <div
           className="absolute inset-0"
@@ -773,6 +775,7 @@ function PublicBookingPage() {
           </div>
         </div>
       </section>
+      ) : null}
 
       <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
         <div className="space-y-6">
@@ -989,7 +992,7 @@ function PublicBookingPage() {
                       const added = selectedProductIds.includes(product.id);
                       const pct = offerPct(product.offer);
                       const finalPrice = productFinalPrice(product);
-                      const description = (product as { description?: string }).description;
+                      const description = product.description;
                       return (
                         <div
                           key={product.id}
@@ -1002,8 +1005,8 @@ function PublicBookingPage() {
                           {/* Badge circular */}
                           <div className="absolute left-3 top-3 z-10">
                             {pct > 0 ? (
-                              <span className="grid h-14 w-14 place-items-center rounded-full bg-red-500 text-center text-[11px] font-extrabold leading-none text-white shadow-lg shadow-red-500/30">
-                                <span>
+                              <span className="grid h-14 w-14 place-items-center rounded-full bg-red-500 shadow-lg shadow-red-500/30">
+                                <span className="text-center text-[11px] font-black uppercase leading-none text-white">
                                   {pct}%
                                   <br />
                                   OFF
@@ -1080,19 +1083,19 @@ function PublicBookingPage() {
                   </div>
 
                   {/* Botones */}
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <div className="mt-4 flex gap-3">
                     <Button
                       onClick={() => { setSelectedProductIds([]); setStep("details"); }}
                       className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] py-6 font-semibold text-white hover:bg-white/[0.08]"
                     >
-                      Omitir y continuar <ChevronRight className="ml-1 h-4 w-4" />
+                      Omitir
                     </Button>
                     <Button
                       onClick={() => setStep("details")}
                       className="flex-1 rounded-2xl py-6 font-bold text-white hover:brightness-110"
                       style={{ background: accent, color: accentButtonText }}
                     >
-                      Agregar productos y continuar <ChevronRight className="ml-1 h-4 w-4" />
+                      Continuar
                     </Button>
                   </div>
                 </div>
