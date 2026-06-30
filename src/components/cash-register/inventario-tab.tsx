@@ -22,6 +22,7 @@ type Product = {
   stock_critical: number | null;
   active: boolean;
   duration_min?: number | null;
+  image?: string | null;
 };
 
 type Movement = {
@@ -63,7 +64,11 @@ export function InventarioTab({
     if (!businessId) return;
     setLoading(true);
 
-    const [{ data: items, error: itemsError }, { data: movs, error: movsError }] = await Promise.all([
+    const [
+      { data: items, error: itemsError },
+      { data: movs, error: movsError },
+      { data: settingsRow },
+    ] = await Promise.all([
       supabase
         .from("price_catalog")
         .select("id,name,category,price,duration_min,stock,stock_min,stock_critical,active")
@@ -76,17 +81,30 @@ export function InventarioTab({
         .eq("business_id", businessId)
         .order("created_at", { ascending: false })
         .limit(50),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
     ]);
 
     if (itemsError) toast.error("Error cargando catálogo: " + itemsError.message);
     if (movsError) toast.error("Error cargando movimientos: " + movsError.message);
 
+    const schedule = (settingsRow?.schedule ?? {}) as Record<string, unknown>;
+    const catalogImages = (schedule._catalogImages ?? {}) as Record<string, unknown>;
+
     // Inventario debe mostrar exactamente los productos de Configuración → Catálogo.
     // Servicios quedan afuera porque tienen duration_min.
-    const catalogProducts = ((items ?? []) as Product[]).filter((item) => {
-      const category = (item.category ?? "").toLowerCase();
-      return item.duration_min == null && !category.includes("servicio");
-    });
+    const catalogProducts = ((items ?? []) as Product[])
+      .filter((item) => {
+        const category = (item.category ?? "").toLowerCase();
+        return item.duration_min == null && !category.includes("servicio");
+      })
+      .map((item) => ({
+        ...item,
+        image: typeof catalogImages[item.id] === "string" ? (catalogImages[item.id] as string) : null,
+      }));
 
     setProducts(catalogProducts);
     setMovements((movs ?? []) as Movement[]);
@@ -190,8 +208,24 @@ export function InventarioTab({
               else { badge = { cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20", label: "OK" }; }
               return (
                 <div key={p.id} className="grid grid-cols-[minmax(220px,1fr)_54px_70px_72px] px-4 py-2.5 items-center hover:bg-white/[0.02] transition-colors">
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-foreground truncate">{p.name}</div>
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/[0.05] ring-1 ring-white/10">
+                      {p.image ? (
+                        <img
+                          src={p.image}
+                          alt={p.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-foreground truncate">{p.name}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">{p.category ?? "Productos"}</div>
+                    </div>
                   </div>
                   <div className={cn("text-center text-base font-bold tabular-nums", stockCls)}>{stock}</div>
                   <div className="flex justify-center">
