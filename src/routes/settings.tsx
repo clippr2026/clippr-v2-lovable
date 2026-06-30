@@ -5911,7 +5911,68 @@ function EquipoSection() {
                       </div>
                     </div>
                   </label>
-                  <Field label="Descripción (opcional)">
+                  {!isService && (
+            <SectionCard label="Reservas online">
+              <div className="space-y-3">
+                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-white/5 px-4 py-3 ring-1 ring-white/5">
+                  <div>
+                    <div className="text-sm font-medium">
+                      Mostrar como producto recomendado
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Puede aparecer después de elegir día y horario, antes de los datos del cliente.
+                    </div>
+                  </div>
+                  <Toggle
+                    on={form.upsell}
+                    onChange={(v) => setForm({ ...form, upsell: v })}
+                  />
+                </label>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Prioridad">
+                    <select
+                      value={form.upsellPriority}
+                      onChange={(e) =>
+                        setForm({ ...form, upsellPriority: e.target.value })
+                      }
+                      className={inputCls}
+                    >
+                      <option value="1">1 · Alta</option>
+                      <option value="2">2 · Media</option>
+                      <option value="3">3 · Baja</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Oferta exclusiva">
+                    <select
+                      value={form.upsellOffer}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          upsellOffer: e.target.value as PriceForm["upsellOffer"],
+                        })
+                      }
+                      className={inputCls}
+                    >
+                      <option value="none">Sin oferta</option>
+                      <option value="special">Precio especial</option>
+                      <option value="10">10% OFF</option>
+                      <option value="15">15% OFF</option>
+                      <option value="20">20% OFF</option>
+                      <option value="25">25% OFF</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Solo se muestran hasta 3 productos activos con mayor prioridad.
+                </p>
+              </div>
+            </SectionCard>
+          )}
+
+          <Field label="Descripción (opcional)">
                     <textarea
                       value={form.description}
                       onChange={(e) =>
@@ -6257,6 +6318,12 @@ type PriceRow = {
   cash_discount?: number | null;
 };
 
+type BookingUpsellItem = {
+  enabled: boolean;
+  priority: number;
+  offer: "none" | "special" | "10" | "15" | "20" | "25";
+};
+
 type PriceForm = {
   name: string;
   price: string;
@@ -6269,6 +6336,9 @@ type PriceForm = {
   stock: string;
   warnStock: string;
   criticalStock: string;
+  upsell: boolean;
+  upsellPriority: string;
+  upsellOffer: "none" | "special" | "10" | "15" | "20" | "25";
 };
 
 const emptyPriceForm = (
@@ -6286,6 +6356,9 @@ const emptyPriceForm = (
   stock: "0",
   warnStock: "0",
   criticalStock: "0",
+  upsell: false,
+  upsellPriority: "1",
+  upsellOffer: "none",
 });
 
 const defaultServiceCategories = ["Servicios"];
@@ -6322,6 +6395,9 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     stock: String(row.stock ?? 0),
     warnStock: "0",
     criticalStock: "0",
+    upsell: false,
+    upsellPriority: "1",
+    upsellOffer: "none",
   };
 }
 
@@ -6554,6 +6630,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [serviceReservableMap, setServiceReservableMap] = useState<
     Record<string, boolean>
   >({});
+  const [catalogUpsellMap, setCatalogUpsellMap] = useState<
+    Record<string, BookingUpsellItem>
+  >({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
   const reorderingCategories = true;
@@ -6603,8 +6682,24 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           if (Array.isArray(cats.service))
             setCustomServiceCategories(cats.service as string[]);
         }
-        if (!isService && Array.isArray(cats.catalog))
-          setCustomCatalogCategories(cats.catalog as string[]);
+        if (!isService) {
+          if (Array.isArray(cats.catalog))
+            setCustomCatalogCategories(cats.catalog as string[]);
+          const upsell = (schedule._bookingUpsell ?? {}) as Record<string, unknown>;
+          const products = (upsell.products ?? {}) as Record<string, unknown>;
+          const nextUpsell: Record<string, BookingUpsellItem> = {};
+          Object.entries(products).forEach(([id, value]) => {
+            const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+            nextUpsell[id] = {
+              enabled: row.enabled === true,
+              priority: Number(row.priority ?? 1) || 1,
+              offer: ["special", "10", "15", "20", "25"].includes(String(row.offer))
+                ? (String(row.offer) as BookingUpsellItem["offer"])
+                : "none",
+            };
+          });
+          setCatalogUpsellMap(nextUpsell);
+        }
       });
   }, [businessId, isService]);
 
@@ -6731,6 +6826,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const pendingItemsRef = useRef(pendingItems);
   const pendingDeletesRef = useRef(pendingDeletes);
   const serviceReservableMapRef = useRef(serviceReservableMap);
+  const catalogUpsellMapRef = useRef(catalogUpsellMap);
   useEffect(() => {
     pendingItemsRef.current = pendingItems;
   }, [pendingItems]);
@@ -6740,6 +6836,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   useEffect(() => {
     serviceReservableMapRef.current = serviceReservableMap;
   }, [serviceReservableMap]);
+  useEffect(() => {
+    catalogUpsellMapRef.current = catalogUpsellMap;
+  }, [catalogUpsellMap]);
 
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -6751,6 +6850,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const errors: string[] = [];
 
         let nextServiceReservableMap = { ...serviceReservableMapRef.current };
+        let nextCatalogUpsellMap = { ...catalogUpsellMapRef.current };
 
         // Flush deletes
         for (const id of deletes) {
@@ -6760,6 +6860,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             .eq("id", id);
           if (error) errors.push(error.message);
           if (isService) delete nextServiceReservableMap[id];
+          if (!isService) delete nextCatalogUpsellMap[id];
         }
 
         // Flush upserts
@@ -6776,6 +6877,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               const reservable = nextServiceReservableMap[tempId] !== false;
               delete nextServiceReservableMap[tempId];
               nextServiceReservableMap[String(inserted.id)] = reservable;
+            } else {
+              const upsell = nextCatalogUpsellMap[tempId];
+              if (upsell) {
+                delete nextCatalogUpsellMap[tempId];
+                nextCatalogUpsellMap[String(inserted.id)] = upsell;
+              }
             }
           } else {
             const { error } = await supabase
@@ -6807,6 +6914,37 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+
+        if (!isService && businessId) {
+          catalogUpsellMapRef.current = nextCatalogUpsellMap;
+          setCatalogUpsellMap(nextCatalogUpsellMap);
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const existingUpsell = (existingSchedule._bookingUpsell ?? {}) as Record<
+            string,
+            unknown
+          >;
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _bookingUpsell: {
+                  ...existingUpsell,
+                  products: nextCatalogUpsellMap,
                 },
               },
             },
@@ -6865,9 +7003,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   function openEdit(row: PriceRow) {
     setEditing(row);
+    const upsell = catalogUpsellMap[row.id];
     setForm({
       ...rowToForm(row, isService),
       reservable: isService ? serviceReservableMap[row.id] !== false : true,
+      upsell: !isService ? upsell?.enabled === true : false,
+      upsellPriority: !isService ? String(upsell?.priority ?? 1) : "1",
+      upsellOffer: !isService ? (upsell?.offer ?? "none") : "none",
     });
     setModalOpen(true);
   }
@@ -6892,6 +7034,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           ...current,
           [editing.id]: form.reservable,
         }));
+      if (!isService)
+        setCatalogUpsellMap((current) => ({
+          ...current,
+          [editing.id]: {
+            enabled: form.upsell,
+            priority: Number(form.upsellPriority) || 1,
+            offer: form.upsellOffer,
+          },
+        }));
       // Update existing row locally
       setRows((prev) =>
         prev.map((r) =>
@@ -6912,6 +7063,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         setServiceReservableMap((current) => ({
           ...current,
           [tempId]: form.reservable,
+        }));
+      if (!isService)
+        setCatalogUpsellMap((current) => ({
+          ...current,
+          [tempId]: {
+            enabled: form.upsell,
+            priority: Number(form.upsellPriority) || 1,
+            offer: form.upsellOffer,
+          },
         }));
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems((prev) => [
@@ -6955,6 +7115,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setRows((prev) => prev.filter((r) => r.id !== row.id));
     if (isService)
       setServiceReservableMap((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
+    if (!isService)
+      setCatalogUpsellMap((current) => {
         const next = { ...current };
         delete next[row.id];
         return next;
@@ -7403,163 +7569,89 @@ function CatalogoSection() {
 
 // ─────────── Caja ───────────
 
-
 function CuentaSection() {
-  const BASE_PRICE = 10000;
-  const INCLUDED_PROS = 1;
-  const INCLUDED_BRANCHES = 1;
-  const EXTRA_PRO_PRICE = 3500;
-  const EXTRA_BRANCH_PRICE = 8000;
+  const [showPlans, setShowPlans] = useState(false);
 
-  const [professionals, setProfessionals] = useState(1);
-  const [branches, setBranches] = useState(1);
+  const plans = [
+    {
+      name: "Clippr Individual",
+      price: "$19.900",
+      limit: "1 sucursal · hasta 3 profesionales",
+      desc: "Para profesionales independientes o locales chicos.",
+      current: false,
+    },
+    {
+      name: "Clippr Business",
+      price: "$29.900",
+      limit: "Hasta 3 sucursales · hasta 20 profesionales",
+      desc: "El plan ideal para barberías en crecimiento.",
+      current: true,
+      badge: "Plan actual",
+    },
+    {
+      name: "Clippr Enterprise",
+      price: "$59.900",
+      limit: "Sucursales y profesionales ilimitados",
+      desc: "Para marcas con varias sucursales y equipos grandes.",
+      current: false,
+    },
+  ];
 
-  const extraPros = Math.max(0, professionals - INCLUDED_PROS);
-  const extraBranches = Math.max(0, branches - INCLUDED_BRANCHES);
-  const prosTotal = extraPros * EXTRA_PRO_PRICE;
-  const branchesTotal = extraBranches * EXTRA_BRANCH_PRICE;
-  const monthlyTotal = BASE_PRICE + prosTotal + branchesTotal;
-  const renewalDate = new Date(2026, 6, 29);
-  const today = new Date();
-  const billingCycleDays = 30;
-  const daysRemaining = Math.max(
-    0,
-    Math.min(
-      billingCycleDays,
-      Math.ceil((renewalDate.getTime() - today.getTime()) / 86_400_000),
-    ),
-  );
-  const prorationRatio = daysRemaining / billingCycleDays;
-  const todayProsProration = Math.round(prosTotal * prorationRatio);
-  const todayBranchesProration = Math.round(branchesTotal * prorationRatio);
-  const todayTotal = todayProsProration + todayBranchesProration;
-
-  const money = (value: number) =>
-    new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-      maximumFractionDigits: 0,
-    }).format(value);
-
-  const included = [
-    "Agenda",
-    "Caja",
-    "Clientes",
-    "Reservas online",
-    "Perfil público",
-    "Asesor IA",
-    "Inventario",
-    "Roles y permisos",
-    "Marketing",
-    "Reportes",
-    "Todas las futuras funciones",
+  const usage = [
+    { label: "Profesionales", value: "7 / 20", pct: 35 },
+    { label: "Sucursales", value: "1 / 3", pct: 33 },
   ];
 
   const payments = [
-    ["Junio 2026", monthlyTotal, "Pagado"],
-    ["Mayo 2026", monthlyTotal, "Pagado"],
-    ["Abril 2026", Math.max(BASE_PRICE, monthlyTotal - EXTRA_BRANCH_PRICE), "Pagado"],
-  ] as const;
-
-  function CounterCard({
-    title,
-    subtitle,
-    value,
-    onMinus,
-    onPlus,
-    priceLabel,
-  }: {
-    title: string;
-    subtitle: string;
-    value: number;
-    onMinus: () => void;
-    onPlus: () => void;
-    priceLabel: string;
-  }) {
-    return (
-      <div className="rounded-3xl bg-white/[0.03] p-5 ring-1 ring-white/10">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-sm font-semibold">{title}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{subtitle}</div>
-          </div>
-          <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-xs font-semibold text-white/70 ring-1 ring-white/10">
-            Incluye 1
-          </span>
-        </div>
-
-        <div className="mt-5 flex items-center justify-between rounded-2xl bg-white/[0.035] p-2 ring-1 ring-white/10">
-          <button
-            type="button"
-            onClick={onMinus}
-            className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.05] text-lg font-semibold ring-1 ring-white/10 transition hover:bg-white/[0.09]"
-          >
-            −
-          </button>
-          <div className="text-center">
-            <div className="text-3xl font-display font-semibold">{value}</div>
-            <div className="text-[11px] text-muted-foreground">total</div>
-          </div>
-          <button
-            type="button"
-            onClick={onPlus}
-            className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-[0_10px_30px_-14px_rgba(56,189,248,0.8)] transition hover:opacity-95"
-          >
-            +
-          </button>
-        </div>
-
-        <div className="mt-4 rounded-2xl bg-white/[0.025] px-4 py-3 text-sm text-muted-foreground ring-1 ring-white/8">
-          {priceLabel}
-        </div>
-      </div>
-    );
-  }
+    ["Junio 2026", "$29.900", "Pagado"],
+    ["Mayo 2026", "$29.900", "Pagado"],
+    ["Abril 2026", "$29.900", "Pagado"],
+  ];
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-display font-semibold">Cuenta</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Suscripción, facturación y estado de tu cuenta.
+          Plan, suscripción, facturación y estado de tu cuenta.
         </p>
       </div>
 
       <div className="glass relative overflow-hidden rounded-3xl p-5 ring-1 ring-white/10">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-sky-400/14 blur-3xl" />
-        <div className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-violet-500/12 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-400/12 blur-3xl" />
+        <div className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-sky-500/12 blur-3xl" />
 
-        <div className="relative grid gap-5 lg:grid-cols-[1fr_430px] lg:items-center">
+        <div className="relative grid gap-5 lg:grid-cols-[1fr_420px] lg:items-center">
           <div className="flex items-start gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-sky-400/10 text-sky-200 ring-1 ring-sky-300/20">
-              <CreditCard className="h-6 w-6" />
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-400/10 text-emerald-200 ring-1 ring-emerald-300/20">
+              <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                Tu suscripción
+                Estado de la cuenta
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <h3 className="text-2xl font-display font-semibold">Clippr</h3>
+                <h3 className="text-2xl font-display font-semibold">Cuenta al día</h3>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                   Activa
                 </span>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                Una sola suscripción con todas las funciones. Pagás según la
-                cantidad de profesionales y sucursales que necesitás.
+                Tu próxima renovación será el <span className="text-white/85">29 Jul 2026</span>.
+                Todo está funcionando correctamente.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-2xl bg-white/[0.035] p-4 ring-1 ring-white/10">
-              <div className="text-xs text-muted-foreground">Próximo pago</div>
-              <div className="mt-1 font-semibold">29 Jul 2026</div>
+              <div className="text-xs text-muted-foreground">Plan actual</div>
+              <div className="mt-1 font-semibold">Business</div>
             </div>
             <div className="rounded-2xl bg-white/[0.035] p-4 ring-1 ring-white/10">
-              <div className="text-xs text-muted-foreground">Total mensual</div>
-              <div className="mt-1 font-semibold">{money(monthlyTotal)}</div>
+              <div className="text-xs text-muted-foreground">Importe</div>
+              <div className="mt-1 font-semibold">$29.900</div>
             </div>
             <div className="rounded-2xl bg-white/[0.035] p-4 ring-1 ring-white/10">
               <div className="text-xs text-muted-foreground">Pago</div>
@@ -7569,139 +7661,35 @@ function CuentaSection() {
         </div>
       </div>
 
-      <SectionCard label="Personalizá tu plan">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <CounterCard
-            title="Profesionales"
-            subtitle="Barberos o miembros del equipo que usan Clippr."
-            value={professionals}
-            onMinus={() => setProfessionals((value) => Math.max(1, value - 1))}
-            onPlus={() => setProfessionals((value) => value + 1)}
-            priceLabel={`+ ${money(EXTRA_PRO_PRICE)} por profesional adicional`}
-          />
-
-          <CounterCard
-            title="Sucursales"
-            subtitle="Locales o puntos de atención de tu negocio."
-            value={branches}
-            onMinus={() => setBranches((value) => Math.max(1, value - 1))}
-            onPlus={() => setBranches((value) => value + 1)}
-            priceLabel={`+ ${money(EXTRA_BRANCH_PRICE)} por sucursal adicional`}
-          />
-        </div>
-      </SectionCard>
-
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <SectionCard label="Resumen de suscripción">
+      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+        <SectionCard label="Uso del plan">
           <div className="space-y-4">
-            <div className="rounded-3xl bg-white/[0.03] p-4 ring-1 ring-white/10">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Nuevo total mensual
-              </div>
-
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-muted-foreground">Plan base</span>
-                  <span className="font-semibold">{money(BASE_PRICE)}</span>
+            {usage.map((item) => (
+              <div key={item.label} className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/8">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-muted-foreground">{item.label}</span>
+                  <span className="text-sm font-semibold">{item.value}</span>
                 </div>
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-muted-foreground">
-                    {extraPros} profesionales adicionales
-                  </span>
-                  <span className="font-semibold">{money(prosTotal)}</span>
+                <div className="mt-3 h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500"
+                    style={{ width: `${item.pct}%` }}
+                  />
                 </div>
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-muted-foreground">
-                    {extraBranches} sucursales adicionales
-                  </span>
-                  <span className="font-semibold">{money(branchesTotal)}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-end justify-between border-t border-white/10 pt-4">
-                <span className="text-sm text-muted-foreground">Total mensual</span>
-                <div className="text-right">
-                  <div className="text-2xl font-display font-semibold">
-                    {money(monthlyTotal)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">desde la próxima renovación</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-3xl bg-gradient-to-br from-sky-400/12 to-violet-500/12 p-4 ring-1 ring-sky-300/20">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200/80">
-                    Hoy pagarás
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Proporcional por los {daysRemaining} días restantes del período.
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-display font-semibold">
-                    {money(todayTotal)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    proporcional
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-muted-foreground">
-                    {extraPros} profesionales · proporcional
-                  </span>
-                  <span className="font-semibold">{money(todayProsProration)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-muted-foreground">
-                    {extraBranches} sucursales · proporcional
-                  </span>
-                  <span className="font-semibold">{money(todayBranchesProration)}</span>
-                </div>
-              </div>
-
-              <p className="mt-4 rounded-2xl bg-black/15 px-3 py-2 text-xs leading-relaxed text-white/60 ring-1 ring-white/10">
-                El nuevo valor mensual de {money(monthlyTotal)} comenzará a cobrarse automáticamente en tu próxima renovación.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="w-full rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
-            >
-              Actualizar suscripción
-            </button>
-          </div>
-        </SectionCard>
-
-        <SectionCard label="Todo incluido">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {included.map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-2 rounded-2xl bg-white/[0.03] px-3 py-2 ring-1 ring-white/8"
-              >
-                <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                <span className="text-sm">{item}</span>
               </div>
             ))}
+            <p className="text-xs text-muted-foreground">
+              Todas las funciones están incluidas. Los planes solo cambian por
+              cantidad de sucursales y profesionales.
+            </p>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            No existen límites de uso. Solo pagás por el tamaño de tu negocio.
-          </p>
         </SectionCard>
-      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         <SectionCard label="Facturación">
           <div className="space-y-3">
             {[
               ["Método de pago", "Visa terminada en 4821"],
-              ["Próximo cobro", "29 Jul 2026"],
+              ["Próxima factura", "29 Jul 2026"],
               ["Estado", "Pagos al día"],
             ].map(([label, value]) => (
               <div
@@ -7712,7 +7700,6 @@ function CuentaSection() {
                 <span className="text-sm font-medium">{value}</span>
               </div>
             ))}
-
             <button
               type="button"
               className="w-full rounded-2xl bg-white/[0.05] px-4 py-2.5 text-sm font-semibold ring-1 ring-white/10 transition hover:bg-white/[0.09]"
@@ -7721,28 +7708,79 @@ function CuentaSection() {
             </button>
           </div>
         </SectionCard>
+      </div>
 
-        <SectionCard label="Historial de pagos">
-          <div className="overflow-hidden rounded-2xl ring-1 ring-white/10">
-            {payments.map(([month, amount, status], index) => (
+      <SectionCard label="Historial de pagos">
+        <div className="overflow-hidden rounded-2xl ring-1 ring-white/10">
+          {payments.map(([month, amount, status], index) => (
+            <div
+              key={month}
+              className={cn(
+                "grid grid-cols-[1fr_auto_auto] items-center gap-4 bg-white/[0.025] px-4 py-3 text-sm",
+                index > 0 && "border-t border-white/5",
+              )}
+            >
+              <span className="font-medium">{month}</span>
+              <span className="text-muted-foreground">{amount}</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/25">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard label="Planes">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-medium">Comparar planes</div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              No bloqueamos funciones. Solo cambia la capacidad del negocio.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPlans((v) => !v)}
+            className="rounded-2xl bg-white/[0.05] px-4 py-2.5 text-sm font-semibold ring-1 ring-white/10 transition hover:bg-white/[0.09]"
+          >
+            {showPlans ? "Ocultar planes" : "Ver planes"}
+          </button>
+        </div>
+
+        {showPlans ? (
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            {plans.map((plan) => (
               <div
-                key={month}
+                key={plan.name}
                 className={cn(
-                  "grid grid-cols-[1fr_auto_auto] items-center gap-4 bg-white/[0.025] px-4 py-3 text-sm",
-                  index > 0 && "border-t border-white/5",
+                  "relative rounded-3xl bg-white/[0.03] p-5 ring-1 transition",
+                  plan.current
+                    ? "ring-violet-300/40 shadow-[0_0_70px_-42px_rgba(139,92,246,0.95)]"
+                    : "ring-white/10",
                 )}
               >
-                <span className="font-medium">{month}</span>
-                <span className="text-muted-foreground">{money(amount)}</span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/25">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  {status}
-                </span>
+                {plan.badge ? (
+                  <span className="absolute right-4 top-4 rounded-full bg-violet-400/15 px-2.5 py-1 text-[11px] font-semibold text-violet-200 ring-1 ring-violet-300/25">
+                    {plan.badge}
+                  </span>
+                ) : null}
+                <div className="text-lg font-display font-semibold">{plan.name}</div>
+                <div className="mt-3 flex items-end gap-1">
+                  <span className="text-3xl font-display font-semibold">{plan.price}</span>
+                  <span className="pb-1 text-sm text-muted-foreground">/mes</span>
+                </div>
+                <p className="mt-3 min-h-[44px] text-sm leading-relaxed text-muted-foreground">
+                  {plan.desc}
+                </p>
+                <div className="mt-4 rounded-2xl bg-white/[0.035] p-3 text-sm font-medium ring-1 ring-white/10">
+                  {plan.limit}
+                </div>
               </div>
             ))}
           </div>
-        </SectionCard>
-      </div>
+        ) : null}
+      </SectionCard>
     </div>
   );
 }
