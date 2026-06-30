@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 export const Route = createFileRoute("/negocio/$slug")({
   head: () => ({
@@ -516,49 +517,7 @@ function PublicProfilePage() {
   };
 
   if (loading) {
-    return (
-      <main className="min-h-dvh bg-[#050507] text-white grid place-items-center px-4">
-        <style>{`
-          @keyframes clipprLogoFloat {
-            0%, 100% { transform: translateY(0) scale(1); filter: saturate(1.05) brightness(1); }
-            50% { transform: translateY(-4px) scale(1.025); filter: saturate(1.22) brightness(1.12); }
-          }
-          @keyframes clipprInnerGlow {
-            0% { transform: translateX(-120%) rotate(18deg); opacity: 0; }
-            22% { opacity: .42; }
-            50% { opacity: .72; }
-            78% { opacity: .34; }
-            100% { transform: translateX(120%) rotate(18deg); opacity: 0; }
-          }
-          @keyframes clipprAuraPulse {
-            0%, 100% { opacity: .34; transform: scale(.92); }
-            50% { opacity: .72; transform: scale(1.08); }
-          }
-        `}</style>
-
-        <div className="relative flex flex-col items-center justify-center">
-          <div className="pointer-events-none absolute h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" style={{ animation: "clipprAuraPulse 2.8s ease-in-out infinite" }} />
-          <div className="relative grid h-28 w-28 place-items-center overflow-hidden rounded-[2rem]">
-            <img
-              src="/clippr-powered-logo.webp"
-              alt="Clippr"
-              loading="eager"
-              decoding="async"
-              className="relative z-10 h-full w-full object-cover"
-              style={{ animation: "clipprLogoFloat 2.4s ease-in-out infinite" }}
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 z-20 w-10 bg-white/45 blur-md"
-              style={{ animation: "clipprInnerGlow 2.2s ease-in-out infinite" }}
-            />
-          </div>
-          <p className="mt-5 text-sm font-medium tracking-wide text-white/55">
-            Cargando perfil...
-          </p>
-        </div>
-      </main>
-    );
+    return <ClipprLoader fullScreen size="lg" />;
   }
 
   if (!business) {
