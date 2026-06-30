@@ -73,6 +73,7 @@ export type Service = {
   is_active?: boolean;
   stock?: number | null;
   is_catalog?: boolean;
+  image?: string | null;
 };
 
 export type Employee = {
@@ -247,6 +248,17 @@ export function useCajaData() {
 
     // Services
     const svcRaw = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
+    // Imagen del producto (solo catálogo) desde business_settings.schedule._catalogImages
+    const catalogImages: Record<string, string> = (() => {
+      const bsData = bsRes.status === "fulfilled" && !bsRes.value.error ? bsRes.value.data : null;
+      const schedule = (bsData?.schedule ?? {}) as Record<string, unknown>;
+      const imgs = (schedule._catalogImages ?? {}) as Record<string, unknown>;
+      const map: Record<string, string> = {};
+      for (const [k, v] of Object.entries(imgs)) {
+        if (k.trim() && typeof v === "string" && v) map[k] = v;
+      }
+      return map;
+    })();
     setServices(
       (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null }>)
         .map((r) => ({
@@ -258,6 +270,7 @@ export function useCajaData() {
           is_active: r.active !== false,
           stock: r.stock,
           is_catalog: r.duration_min == null,
+          image: r.duration_min == null ? catalogImages[r.id] ?? null : null,
         })),
     );
 
