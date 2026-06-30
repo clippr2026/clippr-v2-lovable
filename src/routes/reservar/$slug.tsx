@@ -8,12 +8,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Gift,
   Loader2,
   Mail,
   MapPin,
   Phone,
   Scissors,
+  ShieldCheck,
   ShoppingBag,
+  Star,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -83,20 +86,8 @@ type Service = {
   is_active?: boolean | null;
 };
 
-type Product = {
-  id: string;
-  name: string;
-  price: number | null;
-  category?: string | null;
-  active?: boolean | null;
-  stock?: number | null;
-  cash_discount?: number | null;
-  image_url?: string | null;
-  description?: string | null;
-  upsellOffer?: "none" | "special" | "10" | "15" | "20" | "25";
-};
-
-type BookingStep = "services" | "professional" | "datetime" | "upsell" | "details" | "done";
+type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
+type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string };
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
@@ -116,6 +107,49 @@ function formatMoney(value: number | null | undefined) {
     currency: "ARS",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+// Oferta de productos recomendados. Los valores se guardan en
+// business_settings.schedule._bookingProducts (Configuración → Catálogo).
+function offerPct(offer: string | null | undefined): number {
+  const n = Number(offer);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function productFinalPrice(product: RecommendedProduct): number {
+  const pct = offerPct(product.offer);
+  const base = Number(product.price) || 0;
+  return pct > 0 ? Math.round(base - (base * pct) / 100) : base;
+}
+
+function offerBadge(offer: string | null | undefined): string {
+  const pct = offerPct(offer);
+  if (pct > 0) return `🔥 ${pct}% OFF`;
+  if (offer === "special") return "🔥 Oferta exclusiva";
+  return "⭐ Recomendado";
+}
+
+function normalizeRecommendedProducts(schedule: unknown): RecommendedProduct[] {
+  if (!schedule || typeof schedule !== "object") return [];
+  const bp = (schedule as Record<string, any>)._bookingProducts;
+  const list = bp && typeof bp === "object" ? bp.recommended : null;
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => {
+      const v = (item ?? {}) as Record<string, unknown>;
+      const id = typeof v.id === "string" ? v.id : "";
+      const name = typeof v.name === "string" ? v.name : "";
+      if (!id || !name) return null;
+      return {
+        id,
+        name,
+        price: Number(v.price) || 0,
+        offer: typeof v.offer === "string" ? v.offer : "none",
+        image: typeof v.image === "string" ? v.image : "",
+      } as RecommendedProduct;
+    })
+    .filter(Boolean)
+    .slice(0, 3) as RecommendedProduct[];
 }
 
 function formatDay(date: Date) {
@@ -183,17 +217,17 @@ function PublicBookingPage() {
   const [business, setBusiness] = React.useState<Business | null>(null);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
-  const [recommendedProducts, setRecommendedProducts] = React.useState<Product[]>([]);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
   const [employeeSchedules, setEmployeeSchedules] = React.useState<Record<string, ScheduleMap>>({});
   const [businessSpecial, setBusinessSpecial] = React.useState<SpecialDateMap>({});
   const [employeeSpecial, setEmployeeSpecial] = React.useState<EmployeeSpecialDateMap>({});
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
+  const [recommendedProducts, setRecommendedProducts] = React.useState<RecommendedProduct[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
-  const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | "any">("any");
   const [professionalLocked, setProfessionalLocked] = React.useState(false);
   const [selectedSlot, setSelectedSlot] = React.useState<{ time: Date; employeeId: string } | null>(null);
@@ -214,7 +248,7 @@ function PublicBookingPage() {
     clientName: string;
     clientPhone: string;
     clientEmail?: string;
-    products?: string;
+    products?: { name: string; price: number }[];
   } | null>(null);
 
   const selectedServices = React.useMemo(
@@ -223,20 +257,13 @@ function PublicBookingPage() {
   );
   const selectedEmployee = employees.find((employee) => employee.id === selectedSlot?.employeeId || employee.id === selectedEmployeeId) ?? null;
   const totalDuration = selectedServices.reduce((sum, service) => sum + (Number(service.duration_min ?? service.duration ?? 30) || 30), 0) || 30;
+  const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price ?? 0), 0);
   const selectedProducts = React.useMemo(
-    () => selectedProductIds.map((id) => recommendedProducts.find((product) => product.id === id)).filter(Boolean) as Product[],
+    () => selectedProductIds.map((id) => recommendedProducts.find((p) => p.id === id)).filter(Boolean) as RecommendedProduct[],
     [selectedProductIds, recommendedProducts],
   );
-  const servicesTotal = selectedServices.reduce((sum, service) => sum + Number(service.price ?? 0), 0);
-  const getProductFinalPrice = React.useCallback((product: Product) => {
-    const offer = product.upsellOffer;
-    const discount = offer && ["10", "15", "20", "25"].includes(String(offer)) ? Number(offer) : 0;
-    const price = Number(product.price ?? 0);
-    return discount > 0 ? Math.round(price * (1 - discount / 100)) : price;
-  }, []);
-  const productsTotal = selectedProducts.reduce((sum, product) => sum + getProductFinalPrice(product), 0);
-  const totalPrice = servicesTotal + productsTotal;
-  const hasRecommendedProducts = recommendedProducts.length > 0;
+  const productsTotal = selectedProducts.reduce((sum, p) => sum + productFinalPrice(p), 0);
+  const grandTotal = totalPrice + productsTotal;
   const slots = React.useMemo(
     () =>
       buildSlots(
@@ -292,7 +319,7 @@ function PublicBookingPage() {
         const businessId = businessData.id as string;
         const start = startOfDay(new Date()).toISOString();
         const end = addMinutes(startOfDay(new Date()), 14 * 24 * 60).toISOString();
-        const [employeesWithRoleRes, servicesRes, productsRes, appointmentsRes, settingsRes] = await Promise.all([
+        const [employeesWithRoleRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
             .select("id,full_name,avatar_url,is_active,role")
@@ -302,13 +329,6 @@ function PublicBookingPage() {
             .from("public_booking_services")
             .select("id,name,price,duration_min,is_active")
             .eq("business_id", businessId)
-            .order("name", { ascending: true }),
-          supabase
-            .from("price_catalog")
-            .select("id,name,price,category,active,stock,cash_discount")
-            .eq("business_id", businessId)
-            .is("duration_min", null)
-            .eq("active", true)
             .order("name", { ascending: true }),
           supabase
             .from("public_booking_appointments")
@@ -351,33 +371,10 @@ function PublicBookingPage() {
           .filter((service) => service.is_active !== false)
           .filter((service) => visibility.services[service.id] !== false);
 
-        const upsellSource =
-          settingsSchedule && typeof settingsSchedule === "object"
-            ? (((settingsSchedule as Record<string, unknown>)._bookingUpsell ?? {}) as Record<string, unknown>)
-            : {};
-        const upsellProducts = (upsellSource.products ?? {}) as Record<string, Record<string, unknown>>;
-        const activeProducts = ((productsRes.error ? [] : (productsRes.data ?? [])) as Product[])
-          .filter((product) => product.active !== false)
-          .filter((product) => product.stock == null || Number(product.stock) > 0);
-        const configuredProducts = activeProducts
-          .map((product) => {
-            const config = upsellProducts[product.id];
-            return {
-              ...product,
-              upsellOffer: (["special", "10", "15", "20", "25"].includes(String(config?.offer)) ? String(config?.offer) : "none") as Product["upsellOffer"],
-              priority: Number(config?.priority ?? 99),
-              enabled: config?.enabled === true,
-            };
-          })
-          .filter((product) => product.enabled)
-          .sort((a, b) => Number(a.priority ?? 99) - Number(b.priority ?? 99))
-          .slice(0, 3);
-
         if (!cancelled) {
           setBusiness(businessData as Business);
           setEmployees(visibleEmployees);
           setServices(visibleServices);
-          setRecommendedProducts(configuredProducts);
           setAppointments((appointmentsRes.error ? [] : (appointmentsRes.data ?? [])) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
 
@@ -427,6 +424,7 @@ function PublicBookingPage() {
           setEmployeeSpecial(empSpecial);
 
           setClientFields(extractClientFields(settingsSchedule));
+          setRecommendedProducts(normalizeRecommendedProducts(settingsSchedule));
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setLandingTheme(branding.theme === "light" ? "light" : "dark");
 
@@ -465,6 +463,19 @@ function PublicBookingPage() {
   function nextFromServices() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
     setStep("professional");
+  }
+
+  // Tras elegir el horario: si hay productos recomendados, mostramos el paso
+  // opcional "Completá tu visita"; si no, vamos directo a los datos.
+  function selectSlot(slot: { time: Date; employeeId: string }) {
+    setSelectedSlot(slot);
+    setStep(recommendedProducts.length > 0 ? "products" : "details");
+  }
+
+  function toggleProduct(productId: string) {
+    setSelectedProductIds((current) =>
+      current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId],
+    );
   }
 
   // Re-lee la disponibilidad real desde la base (misma ventana que la carga
@@ -532,13 +543,14 @@ function PublicBookingPage() {
 
     const serviceName = selectedServices.map((service) => service.name).join(" + ");
     const serviceList = selectedServices.map((service) => `${service.name} (${formatMoney(service.price)})`).join("\n- ");
-    const productList = selectedProducts.map((product) => `${product.name} (${formatMoney(getProductFinalPrice(product))})`).join("\n- ");
+    const addedProducts = selectedProducts.map((p) => ({ name: p.name, price: productFinalPrice(p) }));
+    const productList = addedProducts.map((p) => `${p.name} (${formatMoney(p.price)})`).join("\n- ");
     const publicNotes = [
       notes.trim() ? `Notas del cliente: ${notes.trim()}` : null,
       clientEmail.trim() ? `Email: ${clientEmail.trim()}` : null,
       clientBirthDate ? `Fecha de nacimiento: ${clientBirthDate}` : null,
       selectedServices.length > 1 ? `Servicios seleccionados:\n- ${serviceList}` : null,
-      selectedProducts.length ? `Productos agregados:\n- ${productList}` : null,
+      addedProducts.length ? `Productos agregados:\n- ${productList}` : null,
       "Origen: reserva online",
     ].filter(Boolean).join("\n\n");
 
@@ -548,11 +560,11 @@ function PublicBookingPage() {
       date: formatDay(selectedSlot.time),
       time: formatTime(selectedSlot.time),
       duration: totalDuration,
-      total: totalPrice,
-      products: selectedProducts.map((product) => product.name).join(" + ") || undefined,
+      total: grandTotal,
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
       clientEmail: clientEmail.trim() || undefined,
+      products: addedProducts,
       startIso: selectedSlot.time.toISOString(),
       appointmentId: undefined as string | undefined,
       manageToken: undefined as string | undefined,
@@ -696,19 +708,15 @@ function PublicBookingPage() {
     );
   }
 
-  const totalSteps = hasRecommendedProducts ? 5 : 4;
+  const hasProducts = recommendedProducts.length > 0;
+  const totalSteps = hasProducts ? 5 : 4;
   const stepIndex =
-    step === "services"
-      ? 1
-      : step === "professional"
-        ? 2
-        : step === "datetime"
-          ? 3
-          : step === "upsell"
-            ? 4
-            : step === "details"
-              ? totalSteps
-              : totalSteps;
+    step === "services" ? 1 :
+    step === "professional" ? 2 :
+    step === "datetime" ? 3 :
+    step === "products" ? 4 :
+    step === "details" ? (hasProducts ? 5 : 4) :
+    totalSteps;
 
   return (
     <main
@@ -778,7 +786,7 @@ function PublicBookingPage() {
                       {step === "services" && "Elegí tus servicios"}
                       {step === "professional" && "Elegí profesional"}
                       {step === "datetime" && "Elegí día y horario"}
-                      {step === "upsell" && "Completá tu visita"}
+                      {step === "products" && "Productos recomendados"}
                       {step === "details" && "Tus datos"}
                     </h2>
                   </div>
@@ -792,8 +800,8 @@ function PublicBookingPage() {
                   onClick={() => {
                     if (step === "professional") setStep("services");
                     if (step === "datetime") setStep("professional");
-                    if (step === "upsell") setStep("datetime");
-                    if (step === "details") setStep(hasRecommendedProducts ? "upsell" : "datetime");
+                    if (step === "products") setStep("datetime");
+                    if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
                   }}
                   className="mt-5 inline-flex items-center gap-1 text-sm text-white/55 hover:text-white"
                 >
@@ -939,7 +947,7 @@ function PublicBookingPage() {
                           <button
                             key={`${slot.employeeId}-${slot.time.toISOString()}`}
                             type="button"
-                            onClick={() => { setSelectedSlot(slot); setStep(hasRecommendedProducts ? "upsell" : "details"); }}
+                            onClick={() => { selectSlot(slot); }}
                             className="slot-button flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
                           >
                             {formatTime(slot.time)}
@@ -951,135 +959,140 @@ function PublicBookingPage() {
                 </div>
               ) : null}
 
-              {step === "upsell" ? (
-                <div className="mt-6 space-y-6">
+              {step === "products" ? (
+                <div className="mt-5">
+                  {/* Encabezado */}
                   <div className="text-center">
-                    <div
-                      className="mx-auto grid h-16 w-16 place-items-center rounded-full"
-                      style={{ background: `${accent}16`, color: accent }}
+                    <span
+                      className="mx-auto grid h-12 w-12 place-items-center rounded-2xl"
+                      style={{ background: `color-mix(in oklch, ${accent} 16%, transparent)`, color: accent }}
                     >
-                      <ShoppingBag className="h-8 w-8" />
-                    </div>
-                    <h3 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                      Tentate con estos productos
-                    </h3>
-                    <p className="mt-2 text-base text-white/60">
-                      Sumalos a tu turno y retiralos en el local.
-                    </p>
-
-                    <div
-                      className="mx-auto mt-6 inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold"
-                      style={{ background: `${accent}12`, color: accent }}
-                    >
-                      <span className="text-lg">🎁</span>
-                      Oferta exclusiva por reservar tu turno online
-                    </div>
+                      <ShoppingBag className="h-6 w-6" />
+                    </span>
+                    <h3 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Tentate con estos productos</h3>
+                    <p className="mt-1.5 text-sm text-white/55 sm:text-base">Sumalos a tu turno y retiralos en el local.</p>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
+                  {/* Píldora de oferta */}
+                  <div className="mt-4 flex justify-center">
+                    <span
+                      className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium"
+                      style={{ background: `color-mix(in oklch, ${accent} 12%, transparent)`, color: accent }}
+                    >
+                      <Gift className="h-4 w-4" /> Oferta exclusiva por reservar tu turno online
+                    </span>
+                  </div>
+
+                  {/* Tarjetas */}
+                  <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     {recommendedProducts.map((product) => {
                       const added = selectedProductIds.includes(product.id);
-                      const offer = product.upsellOffer;
-                      const discount = offer && ["10", "15", "20", "25"].includes(String(offer)) ? Number(offer) : 0;
-                      const originalPrice = Number(product.price ?? 0);
-                      const finalPrice = getProductFinalPrice(product);
-                      const hasOffer = offer && offer !== "none";
-                      const badgeText = discount > 0 ? `${discount}%\nOFF` : hasOffer ? "OFERTA" : "★\nRECOMENDADO";
-
+                      const pct = offerPct(product.offer);
+                      const finalPrice = productFinalPrice(product);
+                      const description = (product as { description?: string }).description;
                       return (
                         <div
                           key={product.id}
                           className={cn(
-                            "relative overflow-hidden rounded-3xl border bg-white p-4 text-zinc-950 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl",
-                            added ? "border-emerald-300 ring-2 ring-emerald-300/45" : "border-zinc-200",
+                            "relative flex flex-col rounded-3xl border p-3 transition",
+                            added ? "border-transparent bg-white/[0.06]" : "border-white/10 bg-white/[0.03]",
                           )}
+                          style={added ? { boxShadow: `0 0 0 1.5px ${accent}` } : undefined}
                         >
-                          <div
-                            className={cn(
-                              "absolute left-4 top-4 z-10 grid h-14 w-14 place-items-center whitespace-pre-line rounded-full text-center text-[11px] font-black leading-tight text-white shadow-lg",
-                              hasOffer ? "bg-red-500" : "bg-violet-700",
+                          {/* Badge circular */}
+                          <div className="absolute left-3 top-3 z-10">
+                            {pct > 0 ? (
+                              <span className="grid h-14 w-14 place-items-center rounded-full bg-red-500 text-center text-[11px] font-extrabold leading-none text-white shadow-lg shadow-red-500/30">
+                                <span>
+                                  {pct}%
+                                  <br />
+                                  OFF
+                                </span>
+                              </span>
+                            ) : (
+                              <span
+                                className="grid h-14 w-14 place-items-center rounded-full text-white shadow-lg"
+                                style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                              >
+                                <span className="flex flex-col items-center leading-none">
+                                  <Star className="h-4 w-4 fill-current" />
+                                  <span className="mt-0.5 text-[7px] font-bold tracking-wide">RECOMENDADO</span>
+                                </span>
+                              </span>
                             )}
-                          >
-                            {badgeText}
                           </div>
 
-                          <div className="flex h-44 items-center justify-center rounded-2xl bg-gradient-to-b from-zinc-50 to-white p-3">
-                            {product.image_url ? (
+                          {/* Imagen grande */}
+                          <div className="grid aspect-[4/5] w-full place-items-center overflow-hidden rounded-2xl bg-white/[0.04]">
+                            {product.image ? (
                               <img
-                                src={product.image_url}
+                                loading="lazy"
+                                decoding="async"
+                                src={product.image}
                                 alt={product.name}
-                                className="max-h-full max-w-full object-contain"
+                                className="h-full w-full object-contain p-3"
                               />
                             ) : (
-                              <div className="grid h-28 w-28 place-items-center rounded-3xl bg-violet-50 text-violet-700">
-                                <ShoppingBag className="h-12 w-12" />
-                              </div>
+                              <ShoppingBag className="h-12 w-12 text-white/30" />
                             )}
                           </div>
 
-                          <div className="mt-4 min-h-[118px]">
-                            <h4 className="text-lg font-black tracking-tight">{product.name}</h4>
-                            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-zinc-500">
-                              {product.description || "Producto recomendado para completar tu visita."}
-                            </p>
-
-                            <div className="mt-5 flex items-end gap-3">
-                              {discount > 0 ? (
-                                <span className="text-base font-semibold text-zinc-400 line-through">
-                                  {formatMoney(originalPrice)}
+                          {/* Cuerpo */}
+                          <div className="mt-3 flex flex-1 flex-col px-1">
+                            <p className="font-semibold leading-tight">{product.name}</p>
+                            {description ? (
+                              <p className="mt-1 text-sm leading-snug text-white/50">{description}</p>
+                            ) : null}
+                            <div className="mt-2 flex flex-1 items-end">
+                              <div className="flex items-baseline gap-2">
+                                {pct > 0 ? (
+                                  <span className="text-sm text-white/40 line-through">{formatMoney(product.price)}</span>
+                                ) : null}
+                                <span className={cn("text-lg font-bold", pct > 0 ? "text-red-400" : "text-white")}>
+                                  {formatMoney(finalPrice)}
                                 </span>
-                              ) : null}
-                              <span className={cn("text-xl font-black", discount > 0 ? "text-red-500" : "text-zinc-950")}>
-                                {formatMoney(finalPrice)}
-                              </span>
+                              </div>
                             </div>
-                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedProductIds((current) =>
-                                current.includes(product.id)
-                                  ? current.filter((id) => id !== product.id)
-                                  : [...current, product.id],
-                              )
-                            }
-                            className={cn(
-                              "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-4 text-sm font-black text-white transition",
-                              added ? "bg-emerald-500 hover:bg-emerald-600" : "hover:brightness-110",
-                            )}
-                            style={added ? undefined : { background: accent }}
-                          >
-                            <span className="text-xl">{added ? "✓" : "+"}</span>
-                            {added ? "Agregado" : "Agregar"}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleProduct(product.id)}
+                              className={cn(
+                                "mt-3 w-full rounded-2xl py-3 text-sm font-bold transition hover:brightness-110",
+                                added ? "bg-emerald-500 text-white" : "text-white",
+                              )}
+                              style={added ? undefined : { background: accent, color: accentButtonText }}
+                            >
+                              {added ? "✓ Agregado" : "+ Agregar"}
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center text-sm text-white/65">
-                    Es totalmente opcional. Podés continuar sin agregar productos.
+                  {/* Mensaje opcional */}
+                  <div className="mt-6 flex justify-center">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/60">
+                      <ShieldCheck className="h-4 w-4" style={{ color: accent }} />
+                      Es totalmente opcional. Podés continuar sin agregar productos.
+                    </span>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  {/* Botones */}
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                     <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setStep("details")}
-                      className="rounded-2xl border-white/10 bg-white/[0.03] py-6 font-bold text-white hover:bg-white/[0.07]"
+                      onClick={() => { setSelectedProductIds([]); setStep("details"); }}
+                      className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] py-6 font-semibold text-white hover:bg-white/[0.08]"
                     >
-                      Omitir y continuar
-                      <ChevronRight className="ml-2 h-4 w-4" />
+                      Omitir y continuar <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>
                     <Button
-                      type="button"
                       onClick={() => setStep("details")}
-                      className="rounded-2xl py-6 font-bold text-white hover:brightness-110"
+                      className="flex-1 rounded-2xl py-6 font-bold text-white hover:brightness-110"
                       style={{ background: accent, color: accentButtonText }}
                     >
-                      Agregar productos y continuar
-                      <ChevronRight className="ml-2 h-4 w-4" />
+                      Agregar productos y continuar <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -1167,7 +1180,6 @@ function PublicBookingPage() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         {[
                           { label: "Servicio", value: confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + "), icon: Scissors },
-                          { label: "Productos", value: confirmedBooking?.products || selectedProducts.map((product) => product.name).join(" + ") || "Sin productos agregados", icon: ShoppingBag },
                           { label: "Profesional", value: confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia", icon: UserRound },
                           { label: "Cliente", value: confirmedBooking?.clientName || clientName, icon: UsersRound },
                           { label: "Teléfono", value: confirmedBooking?.clientPhone || clientPhone, icon: Phone },
@@ -1204,6 +1216,20 @@ function PublicBookingPage() {
                               <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Email</p>
                               <p className={cn("mt-0.5 break-words text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{confirmedBooking?.clientEmail || clientEmail}</p>
                             </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {confirmedBooking?.products && confirmedBooking.products.length > 0 ? (
+                        <div className={cn("mt-3 rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
+                          <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Productos agregados</p>
+                          <div className="mt-2 space-y-1.5">
+                            {confirmedBooking.products.map((product, index) => (
+                              <div key={`${product.name}-${index}`} className="flex items-center justify-between gap-3">
+                                <span className={cn("min-w-0 truncate text-sm font-medium", isLight ? "text-slate-900" : "text-white")}>{product.name}</span>
+                                <span className={cn("shrink-0 text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{formatMoney(product.price)}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       ) : null}
@@ -1253,22 +1279,22 @@ function PublicBookingPage() {
               <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5" style={{ color: accent }} /><h2 className="text-lg font-semibold">Tu reserva</h2></div>
               <div className="mt-5 space-y-4 text-sm text-white/65">
                 <div><p className="text-white/40">Servicios</p><p className="mt-1 font-medium text-white">{selectedServices.length ? selectedServices.map((s) => s.name).join(" + ") : "Sin seleccionar"}</p></div>
+                <div><p className="text-white/40">Profesional</p><p className="mt-1 font-medium text-white">{selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin seleccionar")}</p></div>
+                <div><p className="text-white/40">Horario</p><p className="mt-1 font-medium text-white">{selectedSlot ? `${formatShortDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "Sin seleccionar"}</p></div>
                 {selectedProducts.length ? (
-                  <div>
+                  <div className="border-t border-white/10 pt-4">
                     <p className="text-white/40">Productos</p>
                     <div className="mt-1 space-y-1">
                       {selectedProducts.map((product) => (
-                        <p key={product.id} className="flex items-center justify-between gap-3 font-medium text-white">
-                          <span>{product.name}</span>
-                          <span>{formatMoney(getProductFinalPrice(product))}</span>
-                        </p>
+                        <div key={product.id} className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate font-medium text-white">{product.name}</span>
+                          <span className="shrink-0 font-medium text-white">{formatMoney(productFinalPrice(product))}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
                 ) : null}
-                <div><p className="text-white/40">Profesional</p><p className="mt-1 font-medium text-white">{selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin seleccionar")}</p></div>
-                <div><p className="text-white/40">Horario</p><p className="mt-1 font-medium text-white">{selectedSlot ? `${formatShortDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "Sin seleccionar"}</p></div>
-                <div className="flex items-center justify-between border-t border-white/10 pt-4"><span>Total</span><span className="text-lg font-semibold text-white">{formatMoney(totalPrice)}</span></div>
+                <div className="flex items-center justify-between border-t border-white/10 pt-4"><span>Total</span><span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span></div>
                 <div className="flex items-center justify-between"><span>Duración</span><span className="font-semibold text-white">{totalDuration} min</span></div>
               </div>
             </CardContent>
