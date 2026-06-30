@@ -7419,6 +7419,20 @@ function CuentaSection() {
   const prosTotal = extraPros * EXTRA_PRO_PRICE;
   const branchesTotal = extraBranches * EXTRA_BRANCH_PRICE;
   const monthlyTotal = BASE_PRICE + prosTotal + branchesTotal;
+  const renewalDate = new Date(2026, 6, 29);
+  const today = new Date();
+  const billingCycleDays = 30;
+  const daysRemaining = Math.max(
+    0,
+    Math.min(
+      billingCycleDays,
+      Math.ceil((renewalDate.getTime() - today.getTime()) / 86_400_000),
+    ),
+  );
+  const prorationRatio = daysRemaining / billingCycleDays;
+  const todayProsProration = Math.round(prosTotal * prorationRatio);
+  const todayBranchesProration = Math.round(branchesTotal * prorationRatio);
+  const todayTotal = todayProsProration + todayBranchesProration;
 
   const money = (value: number) =>
     new Intl.NumberFormat("es-AR", {
@@ -7578,42 +7592,89 @@ function CuentaSection() {
       </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <SectionCard label="Resumen mensual">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-3 ring-1 ring-white/8">
-              <span className="text-sm text-muted-foreground">Plan base</span>
-              <span className="text-sm font-semibold">{money(BASE_PRICE)}</span>
-            </div>
+        <SectionCard label="Resumen de suscripción">
+          <div className="space-y-4">
+            <div className="rounded-3xl bg-white/[0.03] p-4 ring-1 ring-white/10">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Nuevo total mensual
+              </div>
 
-            <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-3 ring-1 ring-white/8">
-              <span className="text-sm text-muted-foreground">
-                {extraPros} profesionales adicionales
-              </span>
-              <span className="text-sm font-semibold">{money(prosTotal)}</span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-3 ring-1 ring-white/8">
-              <span className="text-sm text-muted-foreground">
-                {extraBranches} sucursales adicionales
-              </span>
-              <span className="text-sm font-semibold">{money(branchesTotal)}</span>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-sky-400/12 to-violet-500/12 px-5 py-4 ring-1 ring-sky-300/20">
-              <div>
-                <div className="text-xs text-muted-foreground">Total</div>
-                <div className="text-2xl font-display font-semibold">
-                  {money(monthlyTotal)}
-                  <span className="text-sm text-muted-foreground"> / mes</span>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">Plan base</span>
+                  <span className="font-semibold">{money(BASE_PRICE)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {extraPros} profesionales adicionales
+                  </span>
+                  <span className="font-semibold">{money(prosTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {extraBranches} sucursales adicionales
+                  </span>
+                  <span className="font-semibold">{money(branchesTotal)}</span>
                 </div>
               </div>
-              <button
-                type="button"
-                className="rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
-              >
-                Actualizar suscripción
-              </button>
+
+              <div className="mt-4 flex items-end justify-between border-t border-white/10 pt-4">
+                <span className="text-sm text-muted-foreground">Total mensual</span>
+                <div className="text-right">
+                  <div className="text-2xl font-display font-semibold">
+                    {money(monthlyTotal)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">desde la próxima renovación</div>
+                </div>
+              </div>
             </div>
+
+            <div className="rounded-3xl bg-gradient-to-br from-sky-400/12 to-violet-500/12 p-4 ring-1 ring-sky-300/20">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200/80">
+                    Hoy pagarás
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Proporcional por los {daysRemaining} días restantes del período.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-display font-semibold">
+                    {money(todayTotal)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    proporcional
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {extraPros} profesionales · proporcional
+                  </span>
+                  <span className="font-semibold">{money(todayProsProration)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {extraBranches} sucursales · proporcional
+                  </span>
+                  <span className="font-semibold">{money(todayBranchesProration)}</span>
+                </div>
+              </div>
+
+              <p className="mt-4 rounded-2xl bg-black/15 px-3 py-2 text-xs leading-relaxed text-white/60 ring-1 ring-white/10">
+                El nuevo valor mensual de {money(monthlyTotal)} comenzará a cobrarse automáticamente en tu próxima renovación.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="w-full rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+            >
+              Actualizar suscripción
+            </button>
           </div>
         </SectionCard>
 
