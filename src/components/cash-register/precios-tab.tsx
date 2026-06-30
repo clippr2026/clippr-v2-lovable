@@ -20,6 +20,7 @@ type Row = {
   category: string | null;
   active: boolean | null;
   stock: number | null;
+  image?: string | null;
 };
 
 function cashPrice(price: number, discount: number | null) {
@@ -55,10 +56,16 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
         .maybeSingle(),
     ]);
 
-    setRows((rowsRes.data ?? []) as Row[]);
-
     // Exact same category loading as PriceCatalogSection
     const schedule = (scheduleRes.data?.schedule ?? {}) as Record<string, unknown>;
+    const catalogImages = (schedule._catalogImages ?? {}) as Record<string, unknown>;
+
+    setRows(
+      ((rowsRes.data ?? []) as Row[]).map((row) => ({
+        ...row,
+        image: typeof catalogImages[row.id] === "string" ? (catalogImages[row.id] as string) : null,
+      })),
+    );
     const cats = (schedule._categories ?? {}) as Record<string, unknown>;
     if (Array.isArray(cats.service) && cats.service.length > 0)
       setServiceCats(cats.service as string[]);
