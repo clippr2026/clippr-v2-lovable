@@ -72,15 +72,13 @@ export function useSidebarToggle() {
 function Brand() {
   return (
     <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
-      <div
-        className="h-8 w-8 rounded-xl grid place-items-center font-display text-base text-white"
-        style={{
-          background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
-          boxShadow: "0 8px 24px -6px oklch(0.65 0.27 290 / 0.55)",
-        }}
-      >
-        C
-      </div>
+      <img
+        src="/clippr-powered-logo.webp"
+        alt="Clippr"
+        loading="eager"
+        decoding="async"
+        className="h-8 w-8 rounded-xl object-cover ring-1 ring-white/10"
+      />
       <div className="font-display text-base font-semibold leading-none tracking-tight">Clippr</div>
     </Link>
   );
