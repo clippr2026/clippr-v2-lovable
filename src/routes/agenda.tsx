@@ -41,6 +41,7 @@ import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { RejectedClientsButton, RejectedClientCaptureModal } from "@/components/agenda/rejected-clients";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 /**
  * Stable callback identity that always invokes the latest closure.
@@ -893,8 +894,8 @@ function AgendaPage() {
   if (authLoading || !session) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-32 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin mr-2" /> Cargando…
+        <div className="grid place-items-center py-32">
+          <ClipprLoader size="md" />
         </div>
       </AppShell>
     );
@@ -985,7 +986,9 @@ function AgendaPage() {
           )}
 
           {data.loading && (
-            <span className="text-xs text-muted-foreground shrink-0">Cargando…</span>
+            <span className="grid h-7 w-7 shrink-0 place-items-center">
+              <ClipprLoader size="sm" />
+            </span>
           )}
 
           {/* Realtime sync indicator (does not alter layout — sits in the empty gap) */}
@@ -1218,24 +1221,30 @@ function AgendaPage() {
         />
 
         {/* Always day view */}
-        <DayView
-          date={cursor}
-          data={memoData}
-          schedule={daySchedule}
-          enabledBreaks={enabledBreaks}
-          onSlotClick={handleSlotClick}
-          onApptClick={handleApptClick}
-          onChangeStatus={handleChangeStatus}
-          onCobrar={handleCobrar}
-          onBreakClick={(item) => {
-            setBreakModal({
-              employeeId: item.employeeId === "__none__" ? null : item.employeeId,
-              date: cursor,
-              breakStart: minToHHMM(item.startMin),
-              breakEnd: minToHHMM(item.endMin),
-            });
-          }}
-        />
+        {data.loading ? (
+          <div className="grid min-h-[330px] place-items-center rounded-3xl border border-white/10 bg-white/[0.03]">
+            <ClipprLoader size="lg" />
+          </div>
+        ) : (
+          <DayView
+            date={cursor}
+            data={memoData}
+            schedule={daySchedule}
+            enabledBreaks={enabledBreaks}
+            onSlotClick={handleSlotClick}
+            onApptClick={handleApptClick}
+            onChangeStatus={handleChangeStatus}
+            onCobrar={handleCobrar}
+            onBreakClick={(item) => {
+              setBreakModal({
+                employeeId: item.employeeId === "__none__" ? null : item.employeeId,
+                date: cursor,
+                breakStart: minToHHMM(item.startMin),
+                breakEnd: minToHHMM(item.endMin),
+              });
+            }}
+          />
+        )}
 
         {slotMenu ? (
           <>

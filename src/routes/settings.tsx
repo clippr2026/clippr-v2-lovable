@@ -92,6 +92,7 @@ import type {
   SpecialDateMap,
   EmployeeSpecialDateMap,
 } from "@/components/agenda/use-agenda-data";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 
 function ReservasOnlineIcon({
@@ -721,7 +722,7 @@ function LandingSection() {
   if (loading) {
     return (
       <div className="grid place-items-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+        <ClipprLoader size="md" />
       </div>
     );
   }
@@ -1681,8 +1682,8 @@ function BrandingSection() {
 
   if (loading)
     return (
-      <div className="text-sm text-muted-foreground animate-pulse p-6">
-        Cargando…
+      <div className="grid place-items-center py-24">
+        <ClipprLoader size="md" />
       </div>
     );
 
@@ -8505,8 +8506,8 @@ function SenasSection() {
 
   if (loading)
     return (
-      <div className="text-sm text-muted-foreground animate-pulse p-6">
-        Cargando…
+      <div className="grid place-items-center py-24">
+        <ClipprLoader size="md" />
       </div>
     );
 

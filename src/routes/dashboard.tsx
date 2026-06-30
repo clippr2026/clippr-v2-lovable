@@ -32,6 +32,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -56,8 +57,8 @@ function DashboardRoute() {
 
   if (loading || !session) {
     return (
-      <div className="min-h-screen grid place-items-center bg-background">
-        <div className="text-sm text-muted-foreground">Cargando…</div>
+      <div className="grid min-h-screen place-items-center bg-background">
+        <ClipprLoader size="lg" />
       </div>
     );
   }
