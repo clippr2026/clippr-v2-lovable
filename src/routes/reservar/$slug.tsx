@@ -350,7 +350,7 @@ function PublicBookingPage() {
             ? (((settingsSchedule as Record<string, unknown>)._bookingUpsell ?? {}) as Record<string, unknown>)
             : {};
         const upsellProducts = (upsellSource.products ?? {}) as Record<string, Record<string, unknown>>;
-        const activeProducts = (((productsRes.error ? [] : (productsRes.data ?? [])) as Product[])
+        const activeProducts = ((productsRes.error ? [] : (productsRes.data ?? [])) as Product[])
           .filter((product) => product.active !== false)
           .filter((product) => product.stock == null || Number(product.stock) > 0);
         const configuredProducts = activeProducts
