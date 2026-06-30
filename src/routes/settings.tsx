@@ -5911,7 +5911,68 @@ function EquipoSection() {
                       </div>
                     </div>
                   </label>
-                  <Field label="Descripción (opcional)">
+                  {!isService && (
+            <SectionCard label="Reservas online">
+              <div className="space-y-3">
+                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-white/5 px-4 py-3 ring-1 ring-white/5">
+                  <div>
+                    <div className="text-sm font-medium">
+                      Mostrar como producto recomendado
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Puede aparecer después de elegir día y horario, antes de los datos del cliente.
+                    </div>
+                  </div>
+                  <Toggle
+                    on={form.upsell}
+                    onChange={(v) => setForm({ ...form, upsell: v })}
+                  />
+                </label>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Prioridad">
+                    <select
+                      value={form.upsellPriority}
+                      onChange={(e) =>
+                        setForm({ ...form, upsellPriority: e.target.value })
+                      }
+                      className={inputCls}
+                    >
+                      <option value="1">1 · Alta</option>
+                      <option value="2">2 · Media</option>
+                      <option value="3">3 · Baja</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Oferta exclusiva">
+                    <select
+                      value={form.upsellOffer}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          upsellOffer: e.target.value as PriceForm["upsellOffer"],
+                        })
+                      }
+                      className={inputCls}
+                    >
+                      <option value="none">Sin oferta</option>
+                      <option value="special">Precio especial</option>
+                      <option value="10">10% OFF</option>
+                      <option value="15">15% OFF</option>
+                      <option value="20">20% OFF</option>
+                      <option value="25">25% OFF</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Solo se muestran hasta 3 productos activos con mayor prioridad.
+                </p>
+              </div>
+            </SectionCard>
+          )}
+
+          <Field label="Descripción (opcional)">
                     <textarea
                       value={form.description}
                       onChange={(e) =>
@@ -6257,6 +6318,12 @@ type PriceRow = {
   cash_discount?: number | null;
 };
 
+type BookingUpsellItem = {
+  enabled: boolean;
+  priority: number;
+  offer: "none" | "special" | "10" | "15" | "20" | "25";
+};
+
 type PriceForm = {
   name: string;
   price: string;
@@ -6269,10 +6336,9 @@ type PriceForm = {
   stock: string;
   warnStock: string;
   criticalStock: string;
-  // Reservas online (solo catálogo)
-  bookingShow: boolean;
-  bookingOffer: string;
-  bookingImage: string;
+  upsell: boolean;
+  upsellPriority: string;
+  upsellOffer: "none" | "special" | "10" | "15" | "20" | "25";
 };
 
 const emptyPriceForm = (
@@ -6290,9 +6356,9 @@ const emptyPriceForm = (
   stock: "0",
   warnStock: "0",
   criticalStock: "0",
-  bookingShow: false,
-  bookingOffer: "none",
-  bookingImage: "",
+  upsell: false,
+  upsellPriority: "1",
+  upsellOffer: "none",
 });
 
 const defaultServiceCategories = ["Servicios"];
@@ -6329,9 +6395,9 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     stock: String(row.stock ?? 0),
     warnStock: "0",
     criticalStock: "0",
-    bookingShow: false,
-    bookingOffer: "none",
-    bookingImage: "",
+    upsell: false,
+    upsellPriority: "1",
+    upsellOffer: "none",
   };
 }
 
@@ -6346,7 +6412,6 @@ function PriceEditorModal({
   onDelete,
   saving,
   catalogCategories = defaultCatalogCategories,
-  onUploadImage,
 }: {
   open: boolean;
   mode: "new" | "edit";
@@ -6358,10 +6423,7 @@ function PriceEditorModal({
   onDelete?: () => void;
   saving: boolean;
   catalogCategories?: string[];
-  onUploadImage?: (file: File) => Promise<string | null>;
 }) {
-  const [uploadingImg, setUploadingImg] = useState(false);
-  const bookingFileRef = useRef<HTMLInputElement | null>(null);
   if (!open) return null;
   const cashPrice = priceToCash(form.price, form.discount);
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : form.category.toLowerCase()}`;
@@ -6464,22 +6526,20 @@ function PriceEditorModal({
             }
           </div>
 
-          {isService && (
-            <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
-              <div>
-                <div className="text-sm font-medium">
-                  Se puede reservar online
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Disponible para reserva/compra online
-                </div>
+          <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
+            <div>
+              <div className="text-sm font-medium">
+                Se puede reservar online
               </div>
-              <Toggle
-                on={form.reservable}
-                onChange={(v) => setForm({ ...form, reservable: v })}
-              />
-            </label>
-          )}
+              <div className="text-xs text-muted-foreground">
+                Disponible para reserva/compra online
+              </div>
+            </div>
+            <Toggle
+              on={form.reservable}
+              onChange={(v) => setForm({ ...form, reservable: v })}
+            />
+          </label>
 
           {!isService && (
             <SectionCard label="Stock">
@@ -6532,100 +6592,6 @@ function PriceEditorModal({
               }
             />
           </Field>
-
-          {!isService && (
-            <SectionCard label="Reservas online">
-              <div className="space-y-3">
-                <Field label="Foto del producto">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
-                      {form.bookingImage ? (
-                        <img
-                          src={form.bookingImage}
-                          alt={form.name || "Producto"}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <ImageIcon className="h-6 w-6 text-muted-foreground/70" />
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        ref={bookingFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (!file || !onUploadImage) return;
-                          setUploadingImg(true);
-                          const url = await onUploadImage(file);
-                          setUploadingImg(false);
-                          if (url) setForm({ ...form, bookingImage: url });
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => bookingFileRef.current?.click()}
-                        disabled={uploadingImg}
-                        className="inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm disabled:opacity-50"
-                      >
-                        {uploadingImg ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Upload className="h-4 w-4" />
-                        )}
-                        {form.bookingImage ? "Cambiar foto" : "Subir foto"}
-                      </button>
-                      {form.bookingImage ? (
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, bookingImage: "" })}
-                          disabled={uploadingImg}
-                          className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-3 py-2 text-sm disabled:opacity-50"
-                        >
-                          <Trash2 className="h-4 w-4" /> Quitar
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </Field>
-                <label className="flex items-center justify-between gap-4 rounded-xl bg-white/5 ring-1 ring-white/5 px-4 py-3 cursor-pointer">
-                  <div>
-                    <div className="text-sm font-medium">
-                      Mostrar en reservas online
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Si está activado, el producto puede aparecer durante la
-                      reserva online.
-                    </div>
-                  </div>
-                  <Toggle
-                    on={form.bookingShow}
-                    onChange={(v) => setForm({ ...form, bookingShow: v })}
-                  />
-                </label>
-                <Field label="Oferta para reservas online">
-                  <select
-                    value={form.bookingOffer}
-                    onChange={(e) =>
-                      setForm({ ...form, bookingOffer: e.target.value })
-                    }
-                    className={inputCls}
-                  >
-                    <option value="none">Sin oferta</option>
-                    <option value="special">Precio especial</option>
-                    <option value="10">10% OFF</option>
-                    <option value="15">15% OFF</option>
-                    <option value="20">20% OFF</option>
-                    <option value="25">25% OFF</option>
-                  </select>
-                </Field>
-              </div>
-            </SectionCard>
-          )}
         </div>
 
         <div className="flex items-center gap-2 px-6 py-5 border-t border-white/5">
@@ -6664,9 +6630,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [serviceReservableMap, setServiceReservableMap] = useState<
     Record<string, boolean>
   >({});
-  // Reservas online del catálogo: { [productId]: { show, offer, image } }
-  const [bookingConfig, setBookingConfig] = useState<
-    Record<string, { show: boolean; offer: string; image?: string }>
+  const [catalogUpsellMap, setCatalogUpsellMap] = useState<
+    Record<string, BookingUpsellItem>
   >({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
@@ -6717,28 +6682,23 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           if (Array.isArray(cats.service))
             setCustomServiceCategories(cats.service as string[]);
         }
-        if (!isService && Array.isArray(cats.catalog))
-          setCustomCatalogCategories(cats.catalog as string[]);
         if (!isService) {
-          const bp = (schedule._bookingProducts ?? {}) as Record<
-            string,
-            unknown
-          >;
-          const cfg = (bp.config ?? {}) as Record<string, unknown>;
-          const normalized: Record<
-            string,
-            { show: boolean; offer: string; image?: string }
-          > = {};
-          for (const [pid, value] of Object.entries(cfg)) {
-            if (!pid.trim()) continue;
-            const v = (value ?? {}) as Record<string, unknown>;
-            normalized[pid] = {
-              show: v.show === true,
-              offer: typeof v.offer === "string" ? v.offer : "none",
-              image: typeof v.image === "string" ? v.image : "",
+          if (Array.isArray(cats.catalog))
+            setCustomCatalogCategories(cats.catalog as string[]);
+          const upsell = (schedule._bookingUpsell ?? {}) as Record<string, unknown>;
+          const products = (upsell.products ?? {}) as Record<string, unknown>;
+          const nextUpsell: Record<string, BookingUpsellItem> = {};
+          Object.entries(products).forEach(([id, value]) => {
+            const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+            nextUpsell[id] = {
+              enabled: row.enabled === true,
+              priority: Number(row.priority ?? 1) || 1,
+              offer: ["special", "10", "15", "20", "25"].includes(String(row.offer))
+                ? (String(row.offer) as BookingUpsellItem["offer"])
+                : "none",
             };
-          }
-          setBookingConfig(normalized);
+          });
+          setCatalogUpsellMap(nextUpsell);
         }
       });
   }, [businessId, isService]);
@@ -6866,14 +6826,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const pendingItemsRef = useRef(pendingItems);
   const pendingDeletesRef = useRef(pendingDeletes);
   const serviceReservableMapRef = useRef(serviceReservableMap);
-  const bookingConfigRef = useRef(bookingConfig);
-  const rowsRef = useRef(rows);
-  useEffect(() => {
-    bookingConfigRef.current = bookingConfig;
-  }, [bookingConfig]);
-  useEffect(() => {
-    rowsRef.current = rows;
-  }, [rows]);
+  const catalogUpsellMapRef = useRef(catalogUpsellMap);
   useEffect(() => {
     pendingItemsRef.current = pendingItems;
   }, [pendingItems]);
@@ -6883,6 +6836,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   useEffect(() => {
     serviceReservableMapRef.current = serviceReservableMap;
   }, [serviceReservableMap]);
+  useEffect(() => {
+    catalogUpsellMapRef.current = catalogUpsellMap;
+  }, [catalogUpsellMap]);
 
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -6894,8 +6850,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const errors: string[] = [];
 
         let nextServiceReservableMap = { ...serviceReservableMapRef.current };
-        const nextBookingConfig = { ...bookingConfigRef.current };
-        const tempIdToReal: Record<string, string> = {};
+        let nextCatalogUpsellMap = { ...catalogUpsellMapRef.current };
 
         // Flush deletes
         for (const id of deletes) {
@@ -6905,7 +6860,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             .eq("id", id);
           if (error) errors.push(error.message);
           if (isService) delete nextServiceReservableMap[id];
-          else delete nextBookingConfig[id];
+          if (!isService) delete nextCatalogUpsellMap[id];
         }
 
         // Flush upserts
@@ -6923,11 +6878,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               delete nextServiceReservableMap[tempId];
               nextServiceReservableMap[String(inserted.id)] = reservable;
             } else {
-              const realId = String(inserted.id);
-              tempIdToReal[tempId] = realId;
-              if (nextBookingConfig[tempId]) {
-                nextBookingConfig[realId] = nextBookingConfig[tempId];
-                delete nextBookingConfig[tempId];
+              const upsell = nextCatalogUpsellMap[tempId];
+              if (upsell) {
+                delete nextCatalogUpsellMap[tempId];
+                nextCatalogUpsellMap[String(inserted.id)] = upsell;
               }
             }
           } else {
@@ -6968,32 +6922,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         }
 
         if (!isService && businessId) {
-          bookingConfigRef.current = nextBookingConfig;
-          setBookingConfig(nextBookingConfig);
-
-          // Snapshot de recomendados: respeta el orden actual del Catálogo,
-          // toma los primeros 3 productos activos con "Mostrar en reservas
-          // online". Se guarda nombre/precio/oferta para que la reserva pública
-          // (anon) los lea desde business_settings sin acceder a price_catalog.
-          const orderedProducts = rowsRef.current.filter((r) => {
-            const category = (r.category || "Productos").toLowerCase();
-            return r.duration_min == null && !category.includes("servicio");
-          });
-          const recommended = orderedProducts
-            .map((r) => ({ row: r, id: tempIdToReal[r.id] ?? r.id }))
-            .filter(
-              ({ id, row }) =>
-                row.active !== false && nextBookingConfig[id]?.show === true,
-            )
-            .slice(0, 3)
-            .map(({ id, row }) => ({
-              id,
-              name: row.name,
-              price: Number(row.price) || 0,
-              offer: nextBookingConfig[id]?.offer ?? "none",
-              image: nextBookingConfig[id]?.image ?? "",
-            }));
-
+          catalogUpsellMapRef.current = nextCatalogUpsellMap;
+          setCatalogUpsellMap(nextCatalogUpsellMap);
           const { data: existingRow } = await supabase
             .from("business_settings")
             .select("schedule")
@@ -7003,14 +6933,18 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             string,
             unknown
           >;
+          const existingUpsell = (existingSchedule._bookingUpsell ?? {}) as Record<
+            string,
+            unknown
+          >;
           await supabase.from("business_settings").upsert(
             {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
-                _bookingProducts: {
-                  config: nextBookingConfig,
-                  recommended,
+                _bookingUpsell: {
+                  ...existingUpsell,
+                  products: nextCatalogUpsellMap,
                 },
               },
             },
@@ -7061,26 +6995,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === cat,
   );
 
-  async function uploadBookingImage(file: File): Promise<string | null> {
-    if (!businessId) {
-      toast.error("No se encontró el negocio");
-      return null;
-    }
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-    const path = `${businessId}/catalog/booking/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from("business-assets")
-      .upload(path, file, { upsert: true, contentType: file.type || undefined });
-    if (error) {
-      toast.error("No se pudo subir la imagen: " + error.message);
-      return null;
-    }
-    const { data: urlData } = supabase.storage
-      .from("business-assets")
-      .getPublicUrl(path);
-    return urlData.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
-  }
-
   function openNew() {
     setEditing(null);
     setForm(emptyPriceForm(cat, isService));
@@ -7089,13 +7003,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   function openEdit(row: PriceRow) {
     setEditing(row);
-    const cfg = bookingConfig[row.id];
+    const upsell = catalogUpsellMap[row.id];
     setForm({
       ...rowToForm(row, isService),
       reservable: isService ? serviceReservableMap[row.id] !== false : true,
-      bookingShow: !isService && cfg?.show === true,
-      bookingOffer: !isService ? cfg?.offer ?? "none" : "none",
-      bookingImage: !isService ? cfg?.image ?? "" : "",
+      upsell: !isService ? upsell?.enabled === true : false,
+      upsellPriority: !isService ? String(upsell?.priority ?? 1) : "1",
+      upsellOffer: !isService ? (upsell?.offer ?? "none") : "none",
     });
     setModalOpen(true);
   }
@@ -7120,13 +7034,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           ...current,
           [editing.id]: form.reservable,
         }));
-      else
-        setBookingConfig((current) => ({
+      if (!isService)
+        setCatalogUpsellMap((current) => ({
           ...current,
           [editing.id]: {
-            show: form.bookingShow,
-            offer: form.bookingOffer,
-            image: form.bookingImage,
+            enabled: form.upsell,
+            priority: Number(form.upsellPriority) || 1,
+            offer: form.upsellOffer,
           },
         }));
       // Update existing row locally
@@ -7150,13 +7064,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           ...current,
           [tempId]: form.reservable,
         }));
-      else
-        setBookingConfig((current) => ({
+      if (!isService)
+        setCatalogUpsellMap((current) => ({
           ...current,
           [tempId]: {
-            show: form.bookingShow,
-            offer: form.bookingOffer,
-            image: form.bookingImage,
+            enabled: form.upsell,
+            priority: Number(form.upsellPriority) || 1,
+            offer: form.upsellOffer,
           },
         }));
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
@@ -7205,8 +7119,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         delete next[row.id];
         return next;
       });
-    else
-      setBookingConfig((current) => {
+    if (!isService)
+      setCatalogUpsellMap((current) => {
         const next = { ...current };
         delete next[row.id];
         return next;
@@ -7589,7 +7503,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onDelete={() => editing && setConfirmDelItem(editing)}
         saving={saving}
         catalogCategories={categories}
-        onUploadImage={uploadBookingImage}
       />
       <ConfirmDialog
         open={!!confirmDelItem}
@@ -7655,7 +7568,6 @@ function CatalogoSection() {
 }
 
 // ─────────── Caja ───────────
-
 
 function CuentaSection() {
   const BASE_PRICE = 10000;
