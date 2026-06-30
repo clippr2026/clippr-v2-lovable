@@ -84,7 +84,7 @@ type Service = {
 };
 
 type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
-type RecommendedProduct = { id: string; name: string; price: number; offer: string };
+type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string };
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
@@ -142,6 +142,7 @@ function normalizeRecommendedProducts(schedule: unknown): RecommendedProduct[] {
         name,
         price: Number(v.price) || 0,
         offer: typeof v.offer === "string" ? v.offer : "none",
+        image: typeof v.image === "string" ? v.image : "",
       } as RecommendedProduct;
     })
     .filter(Boolean)
@@ -978,9 +979,19 @@ function PublicBookingPage() {
                         >
                           <span
                             className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl text-white"
-                            style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                            style={product.image ? undefined : { background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
                           >
-                            <ShoppingBag className="h-7 w-7" />
+                            {product.image ? (
+                              <img
+                                loading="lazy"
+                                decoding="async"
+                                src={product.image}
+                                alt={product.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <ShoppingBag className="h-7 w-7" />
+                            )}
                           </span>
 
                           <div className="min-w-0 flex-1">
