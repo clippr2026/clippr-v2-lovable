@@ -105,7 +105,7 @@ function ReservasOnlineIcon({
     <span className={cn("relative inline-grid h-5 w-5 place-items-center", className)}>
       <Globe className="h-5 w-5" strokeWidth={strokeWidth ?? 2} />
       <span className="absolute -bottom-1 -left-1 rounded-full border-2 border-[oklch(0.11_0.03_260)] bg-emerald-400 px-1 py-[1px] text-[6px] font-black leading-none tracking-[-0.02em] text-white shadow-sm">
-        
+        WWW
       </span>
     </span>
   );
@@ -119,6 +119,7 @@ type SectionId =
   | "servicios"
   | "catalogo"
   | "caja"
+  | "cuenta"
   | "senas"
   | "plan";
 
@@ -136,7 +137,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       {
         id: "branding",
-        label: "Perfil público",
+        label: "Página de reservas",
         icon: ReservasOnlineIcon,
         tint: "text-white",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
@@ -179,6 +180,13 @@ const groups: { label: string; items: NavItem[] }[] = [
   {
     label: "Sistema",
     items: [
+      {
+        id: "cuenta" as const,
+        label: "Cuenta",
+        icon: CreditCard,
+        tint: "text-[oklch(0.82_0.16_210)]",
+        glow: "from-[oklch(0.82_0.16_210/0.25)] to-[oklch(0.68_0.20_230/0.05)]",
+      },
       {
         id: "caja" as const,
         label: "Caja",
@@ -1737,7 +1745,7 @@ function BrandingSection() {
     <>
       <div>
         <h2 className="text-xl font-display font-semibold">
-          Perfil público
+          Página de reservas
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
           Configuración de la página pública de reservas
@@ -3367,7 +3375,7 @@ const CONFIG_PERMISSION_ITEMS: {
 }[] = [
   {
     key: "branding",
-    label: "Perfil público",
+    label: "Página de reservas",
     desc: "Identidad visual y datos del negocio.",
   },
   {
@@ -7394,6 +7402,200 @@ function CatalogoSection() {
 }
 
 // ─────────── Caja ───────────
+
+function CuentaSection() {
+  const plans = [
+    {
+      name: "Individual",
+      price: "$19.900",
+      desc: "Para profesionales independientes o locales chicos.",
+      limit: "1 sucursal · hasta 3 profesionales",
+      accent: "from-sky-400/18 to-white/[0.03]",
+      ring: "ring-sky-300/20",
+      badge: "",
+    },
+    {
+      name: "Negocio",
+      price: "$29.900",
+      desc: "El plan ideal para barberías en crecimiento.",
+      limit: "Hasta 3 sucursales · hasta 20 profesionales",
+      accent: "from-violet-500/22 via-sky-500/10 to-white/[0.03]",
+      ring: "ring-violet-300/40",
+      badge: "Más elegido",
+      current: true,
+    },
+    {
+      name: "Cadena",
+      price: "$59.900",
+      desc: "Para marcas con varias sucursales y equipos grandes.",
+      limit: "Sucursales y profesionales ilimitados",
+      accent: "from-amber-400/16 to-white/[0.03]",
+      ring: "ring-amber-300/25",
+      badge: "",
+    },
+  ];
+
+  const included = [
+    "Agenda",
+    "Caja",
+    "Clientes",
+    "Reservas online",
+    "Perfil público",
+    "Asesor IA",
+    "Roles y permisos",
+    "Reportes",
+    "Inventario",
+    "Marketing",
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-display font-semibold">Cuenta</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Plan, suscripción, facturación y estado de tu cuenta.
+        </p>
+      </div>
+
+      <div className="glass rounded-3xl p-5 ring-1 ring-white/10 overflow-hidden relative">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 -bottom-24 h-56 w-56 rounded-full bg-violet-500/12 blur-3xl" />
+
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-sky-400/10 text-sky-200 ring-1 ring-sky-300/20">
+              <CreditCard className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Estado de la cuenta
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h3 className="text-2xl font-display font-semibold">
+                  Plan Negocio
+                </h3>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Activa
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Todas las funciones incluidas. El plan cambia solo por cantidad
+                de sucursales y profesionales.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:w-[460px]">
+            <div className="rounded-2xl bg-white/[0.035] p-4 ring-1 ring-white/10">
+              <div className="text-xs text-muted-foreground">Próximo pago</div>
+              <div className="mt-1 font-semibold">29 Jul 2026</div>
+            </div>
+            <div className="rounded-2xl bg-white/[0.035] p-4 ring-1 ring-white/10">
+              <div className="text-xs text-muted-foreground">Importe</div>
+              <div className="mt-1 font-semibold">$29.900/mes</div>
+            </div>
+            <div className="rounded-2xl bg-white/[0.035] p-4 ring-1 ring-white/10">
+              <div className="text-xs text-muted-foreground">Pago</div>
+              <div className="mt-1 font-semibold">Visa ****4821</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <SectionCard label="Planes disponibles">
+        <div className="grid gap-4 lg:grid-cols-3">
+          {plans.map((plan) => (
+            <div
+              key={plan.name}
+              className={cn(
+                "relative rounded-3xl bg-gradient-to-br p-5 ring-1 transition",
+                plan.accent,
+                plan.ring,
+                plan.current && "shadow-[0_0_70px_-42px_rgba(139,92,246,0.95)]",
+              )}
+            >
+              {plan.badge ? (
+                <span className="absolute right-4 top-4 rounded-full bg-violet-400/15 px-2.5 py-1 text-[11px] font-semibold text-violet-200 ring-1 ring-violet-300/25">
+                  {plan.badge}
+                </span>
+              ) : null}
+
+              <div className="text-lg font-display font-semibold">{plan.name}</div>
+              <div className="mt-3 flex items-end gap-1">
+                <span className="text-3xl font-display font-semibold">
+                  {plan.price}
+                </span>
+                <span className="pb-1 text-sm text-muted-foreground">/mes</span>
+              </div>
+              <p className="mt-3 min-h-[44px] text-sm leading-relaxed text-muted-foreground">
+                {plan.desc}
+              </p>
+
+              <div className="mt-4 rounded-2xl bg-white/[0.035] p-3 text-sm font-medium ring-1 ring-white/10">
+                {plan.limit}
+              </div>
+
+              <button
+                type="button"
+                className={cn(
+                  "mt-4 w-full rounded-2xl px-4 py-2.5 text-sm font-semibold ring-1 transition",
+                  plan.current
+                    ? "bg-white/[0.06] text-white/65 ring-white/10"
+                    : "bg-white/[0.05] text-white hover:bg-white/[0.09] ring-white/10",
+                )}
+              >
+                {plan.current ? "Plan actual" : "Cambiar a este plan"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <SectionCard label="Todo incluido en todos los planes">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {included.map((item) => (
+              <div
+                key={item}
+                className="flex items-center gap-2 rounded-2xl bg-white/[0.03] px-3 py-2 ring-1 ring-white/8"
+              >
+                <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                <span className="text-sm">{item}</span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard label="Facturación">
+          <div className="space-y-3">
+            {[
+              ["Método de pago", "Visa terminada en 4821"],
+              ["Próxima factura", "29 Jul 2026"],
+              ["Estado", "Pagos al día"],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-4 py-3 ring-1 ring-white/8"
+              >
+                <span className="text-sm text-muted-foreground">{label}</span>
+                <span className="text-sm font-medium">{value}</span>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              className="mt-2 w-full rounded-2xl bg-white/[0.05] px-4 py-2.5 text-sm font-semibold ring-1 ring-white/10 transition hover:bg-white/[0.09]"
+            >
+              Ver historial de pagos
+            </button>
+          </div>
+        </SectionCard>
+      </div>
+    </div>
+  );
+}
+
 function CajaSection() {
   const { businessId } = useAuth();
   const defaultMethods = {
@@ -8038,6 +8240,7 @@ function SettingsPage() {
                 {active === "servicios" && <ServiciosSection />}
 
                 {active === "catalogo" && <CatalogoSection />}
+                {active === "cuenta" && <CuentaSection />}
                 {active === "caja" && <CajaSection />}
                 {active === "plan" && <PlanSection />}
               </section>
@@ -8525,7 +8728,7 @@ const plans = [
       "Caja y cobros",
       "Clientes",
       "Comisiones",
-      "Perfil público",
+      "Página de reservas",
       "Asesor IA",
       "Estadísticas del negocio",
     ],
