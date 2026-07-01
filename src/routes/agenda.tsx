@@ -3090,24 +3090,30 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         <div className="space-y-3 p-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Turno</div>
-                <div className="mt-1 text-base font-semibold leading-tight truncate">
-                  {appointment.service_name || "Servicio"}
+                <div className="mt-1 flex min-w-0 items-center justify-between gap-3">
+                  <div className="truncate text-base font-semibold leading-tight">
+                    {appointment.service_name || "Servicio"}
+                  </div>
+                  {appointment.service_price ? (
+                    <div className="shrink-0 text-right text-xl font-display font-semibold tracking-tight">
+                      ${Number(appointment.service_price).toLocaleString("es-AR")}
+                    </div>
+                  ) : null}
                 </div>
-                <div className="mt-1.5 text-sm text-white/70">{dateText}</div>
-                <div className="mt-0.5 text-sm text-white/45">
-                  Profesional:{" "}
-                  <span className="text-white/85">
-                    {employee?.full_name ?? employee?.name ?? "Sin asignar"}
-                  </span>
+
+                <div className="mt-3 grid gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-white/72">
+                    <Clock className="h-4 w-4 shrink-0 text-white/38" />
+                    <span className="tabular-nums">{fmtTime(start)} – {fmtTime(end)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <UserRound className="h-4 w-4 shrink-0 text-white/35" />
+                    <span className="truncate">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+                  </div>
                 </div>
               </div>
-              {appointment.service_price ? (
-                <div className="shrink-0 text-right text-xl font-display font-semibold tracking-tight">
-                  ${Number(appointment.service_price).toLocaleString("es-AR")}
-                </div>
-              ) : null}
             </div>
 
             {appointment.deposit_status &&
@@ -3201,11 +3207,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           <div className="space-y-2 text-sm">
             {phone && (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
-                <div className="min-w-0">
-                  <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">
-                    Teléfono
-                  </div>
-                  <div className="mt-0.5 truncate text-white/85 text-[13px]">{phone}</div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <MessageCircle className="h-4 w-4 shrink-0 text-emerald-300/70" />
+                  <div className="truncate text-white/85 text-[13px]">{phone}</div>
                 </div>
                 {whatsappHref && (
                   <a
@@ -3215,15 +3219,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     aria-label="WhatsApp"
                     className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition px-3 text-[12px] font-medium"
                   >
-                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                    WhatsApp
                   </a>
                 )}
               </div>
             )}
             {email && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
-                <div className="text-[9px] uppercase tracking-[0.16em] text-white/35">Email</div>
-                <div className="mt-0.5 truncate text-white/85 text-[13px]">{email}</div>
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
+                <span className="shrink-0 text-white/35">@</span>
+                <div className="truncate text-white/85 text-[13px]">{email}</div>
               </div>
             )}
             {noteText && (
@@ -3262,7 +3266,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 const dot = STATUS_META.charged.dot;
                 return (
                   <div
-                    className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                    className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
                     style={{
                       background: withAlpha(dot, 0.16),
                       color: dot,
@@ -3299,7 +3303,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     return (
                       <button
                         onClick={() => onChangeStatus(appointment, "pending")}
-                        className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
                         style={{
                           background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
                           color: dot,
@@ -3326,7 +3330,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     return (
                       <button
                         onClick={() => onChangeStatus(appointment, "confirmed")}
-                        className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
                         style={{
                           background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
                           color: dot,
@@ -3354,7 +3358,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 const cancelled = appointment.status === "cancelled";
                 return cancelled ? (
                   <div
-                    className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                    className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
                     style={{
                       background: withAlpha(dot, 0.16),
                       color: dot,
@@ -3428,14 +3432,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 ) : (
                   <button
                     onClick={() => setConfirmCancel(true)}
-                    className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                    className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
                     style={{
                       background: "rgba(255,255,255,0.03)",
                       color: dot,
                       boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
                     }}
                   >
-                    Cancelar
+                    Cancelado
                   </button>
                 );
               })()}
@@ -3466,7 +3470,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                           style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
                         />
                       )}
-                      Cobrar
+                      Cobrado
                     </button>
                   );
                 })()}
