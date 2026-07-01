@@ -324,6 +324,10 @@ function PublicProfilePage() {
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
   const [colors, setColors] = React.useState<LandingColors>({});
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
+  // Tema real del negocio, conocido ANTES de renderizar el loader. Nunca arranca en
+  // "dark" ni "light" por defecto: hasta que no se resuelve desde business_settings, el
+  // loader no se muestra, para que jamás aparezca con el tema contrario al configurado.
+  const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark" | null>(null);
   const [selectedPortfolioIndex, setSelectedPortfolioIndex] = React.useState<number | null>(null);
   const [headerStats, setHeaderStats] = React.useState<{
     clientsAttended: number;
@@ -351,6 +355,28 @@ function PublicProfilePage() {
         }
 
         const businessId = businessData.id as string;
+
+        // El tema real (_branding.theme) se resuelve primero que cualquier otro dato.
+        // Así el loader conoce el fondo correcto antes de que termine de cargar el resto
+        // de la página, y nunca aparece con el tema contrario al configurado.
+        let settingsSchedule: unknown = null;
+        const publicSettingsRes = await supabase
+          .from("public_booking_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle();
+        if (!publicSettingsRes.error) {
+          settingsSchedule = (publicSettingsRes.data as any)?.schedule ?? null;
+        } else {
+          const fallbackSettingsRes = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          if (!fallbackSettingsRes.error) settingsSchedule = (fallbackSettingsRes.data as any)?.schedule ?? null;
+        }
+        const branding = extractBranding(settingsSchedule);
+        if (!cancelled) setResolvedTheme(branding.theme === "light" ? "light" : "dark");
 
         // Métricas reales de cabecera (agregados sin PII vía RPC dedicada).
         // Aislado en su propio try/catch: si la RPC no existe o falla, la página igual carga.
@@ -398,23 +424,6 @@ function PublicProfilePage() {
               .order("full_name", { ascending: true })
           : employeesWithRoleRes;
 
-        let settingsSchedule: unknown = null;
-        const publicSettingsRes = await supabase
-          .from("public_booking_settings")
-          .select("schedule")
-          .eq("business_id", businessId)
-          .maybeSingle();
-        if (!publicSettingsRes.error) {
-          settingsSchedule = (publicSettingsRes.data as any)?.schedule ?? null;
-        } else {
-          const fallbackSettingsRes = await supabase
-            .from("business_settings")
-            .select("schedule")
-            .eq("business_id", businessId)
-            .maybeSingle();
-          if (!fallbackSettingsRes.error) settingsSchedule = (fallbackSettingsRes.data as any)?.schedule ?? null;
-        }
-
         // La página pública no debe caer completa si una vista secundaria falla.
         // Primero mostramos el negocio y degradamos servicios/equipo con elegancia.
         console.warn("Public profile secondary data", {
@@ -422,7 +431,6 @@ function PublicProfilePage() {
           servicesError: servicesRes.error?.message,
         });
 
-        const branding = extractBranding(settingsSchedule);
         const mergedBusiness = {
           ...(businessData as Business),
           address: branding.address || (businessData as Business).address,
@@ -517,7 +525,10 @@ function PublicProfilePage() {
   };
 
   if (loading) {
-    return <ClipprLoader fullScreen size="lg" />;
+    // Mientras no se conoce el tema real del negocio, no se dibuja el loader con
+    // un color adivinado: se espera a que se resuelva desde business_settings.
+    if (resolvedTheme === null) return null;
+    return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
   }
 
   if (!business) {
