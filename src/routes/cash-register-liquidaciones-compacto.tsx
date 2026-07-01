@@ -41,6 +41,7 @@ import {
   CalendarDays
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
+import { ServiceImage } from "@/components/ui/service-image";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -176,7 +177,7 @@ function getManualPendingNote(notes?: string | null) {
   return value;
 }
 
-export const Route = createFileRoute("/cash-register")({
+export const Route = createFileRoute("/cash-register-liquidaciones-compacto")({
   validateSearch: (search: Record<string, unknown>) => ({
     depositAppointmentId: (search.depositAppointmentId as string) ?? null,
     depositAmount: (search.depositAmount as string) ?? null,
@@ -953,14 +954,15 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
     </div>
   );
 
-  const Thumb = ({ item, fallback }: { item: any; fallback: string }) => {
-    const src = itemImage(item);
-    return (
-      <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-2xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
-        {src ? <img src={src} alt={item.name ?? ""} className="h-full w-full object-cover" /> : <span>{fallback}</span>}
-      </div>
-    );
-  };
+  const Thumb = ({ item, fallback }: { item: any; fallback: string }) => (
+    <ServiceImage
+      src={itemImage(item)}
+      alt={item.name ?? ""}
+      position={item.image_position ?? item.imagePosition}
+      className="size-14 rounded-2xl border border-violet-300/12 bg-violet-500/10 text-2xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
+      fallback={<span>{fallback}</span>}
+    />
+  );
 
   const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) => (
     <div className="relative w-full">
@@ -1187,14 +1189,15 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
     </span>
   );
 
-  const Thumb = ({ item }: { item: any }) => {
-    const src = itemImage(item);
-    return (
-      <div className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
-        {src ? <img src={src} alt={item.name ?? ""} className="h-full w-full object-cover" /> : <span>□</span>}
-      </div>
-    );
-  };
+  const Thumb = ({ item }: { item: any }) => (
+    <ServiceImage
+      src={itemImage(item)}
+      alt={item.name ?? ""}
+      position={item.image_position ?? item.imagePosition}
+      className="size-12 rounded-2xl border border-violet-300/12 bg-violet-500/10 text-xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
+      fallback={<span>□</span>}
+    />
+  );
 
   const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) => (
     <div className="relative w-full">
