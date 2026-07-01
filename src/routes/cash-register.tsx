@@ -49,6 +49,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -658,8 +659,8 @@ function CashRegisterPage() {
   if (authLoading || !session) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-32 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin mr-2" /> Cargando…
+        <div className="grid place-items-center py-32">
+          <ClipprLoader size="md" />
         </div>
       </AppShell>
     );

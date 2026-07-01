@@ -2,6 +2,7 @@ import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
@@ -369,7 +370,7 @@ function AdvisorRoute() {
   if (loading || !session) {
     return (
       <div className="min-h-screen grid place-items-center bg-background">
-        <div className="text-sm text-muted-foreground">Cargando…</div>
+        <ClipprLoader size="md" />
       </div>
     );
   }

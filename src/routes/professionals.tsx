@@ -24,6 +24,7 @@ import {
   type ProfPayment, type ProfTurno,
 } from "@/hooks/use-professionals-data";
 import { toast } from "sonner";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 export const Route = createFileRoute("/professionals")({
   component: ProfessionalsPage,
@@ -376,7 +377,9 @@ function ProfessionalsPage() {
 
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
-      <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando profesionales…</div>
+      <div className="grid place-items-center py-32">
+        <ClipprLoader size="md" />
+      </div>
     </AppShell>
   );
   if (!active) return (
