@@ -735,7 +735,7 @@ function PublicProfilePage() {
                   {services.map((service) => (
                     <div key={service.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/[0.06] ring-1 ring-white/10">
+                        <div className="grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/[0.06] ring-1 ring-white/10">
                           {service.image_url ? (
                             <img
                               src={service.image_url}
