@@ -1544,7 +1544,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const timelineHeight = (dayBounds.endHour - dayBounds.startHour) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
   return (
-    <div className="space-y-2 animate-fade-up max-w-4xl mx-auto">
+    <div className="w-full space-y-2 animate-fade-up">
 
       {/* El rango se elige arriba con el calendario tipo Dashboard */}
 
@@ -1628,55 +1628,56 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
                 >
-                  <div className="grid grid-cols-[106px_1fr_auto] gap-3 h-full items-start">
-                    <div className="min-w-0">
-                      <div className={cn("text-xs font-semibold tabular-nums", style.labelColor)}>
-                        {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.starts_at)}</div>
+                  <div className="grid h-full grid-cols-[112px_minmax(120px,0.9fr)_auto_minmax(180px,1.4fr)_auto] items-center gap-3">
+                    <div className={cn("min-w-0 text-xs font-semibold tabular-nums", style.labelColor)}>
+                      {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-xs text-foreground">{t.client_name ?? "Sin cliente"}</span>
-                        <span className={cn(
-                          "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1",
-                          style.bg, style.ring, style.labelColor
-                        )}>
-                          {style.label}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5 truncate">{t.service_name ?? "—"}</div>
+                    <div className="min-w-0 truncate text-xs font-semibold text-foreground">
+                      {t.client_name ?? "Sin cliente"}
+                    </div>
+
+                    <span className={cn(
+                      "justify-self-start whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
+                      style.bg, style.ring, style.labelColor
+                    )}>
+                      {style.label}
+                    </span>
+
+                    <div className="min-w-0">
+                      <div className="truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</div>
                       {noteText && (
                         <button
                           type="button"
                           onClick={() => setNotaTurno(t)}
-                          className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
+                          className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
                         >
                           📄 Ver nota
                         </button>
                       )}
                     </div>
 
-                    <div className="min-w-[92px] max-w-[150px] space-y-1.5 justify-self-end text-right">
+                    <div className="min-w-[92px] max-w-[260px] justify-self-end text-right">
                       {historialDisplay.length > 0 ? (
-                        historialDisplay.map((ev, ei) => {
-                          const actionColor =
-                            ev.action === "Envió a caja" ? "text-sky-300" :
-                            ev.action === "Cobró"        ? "text-emerald-300" :
-                            ev.action === "Canceló"      ? "text-rose-300" :
-                            ev.action === "Anuló cobro"  ? "text-orange-300" :
-                            ev.action === "Reembolsó"    ? "text-violet-300" :
-                            "text-muted-foreground";
-                          return (
-                            <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
-                              <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                              <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                              <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                              <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                            </div>
-                          );
-                        })
+                        <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
+                          {historialDisplay.map((ev, ei) => {
+                            const actionColor =
+                              ev.action === "Envió a caja" ? "text-sky-300" :
+                              ev.action === "Cobró"        ? "text-emerald-300" :
+                              ev.action === "Canceló"      ? "text-rose-300" :
+                              ev.action === "Anuló cobro"  ? "text-orange-300" :
+                              ev.action === "Reembolsó"    ? "text-violet-300" :
+                              "text-muted-foreground";
+                            return (
+                              <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
+                                <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                                <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                                <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       ) : showActionBtn ? (
                         <button
                           onClick={() => setCobroTurno(t)}
