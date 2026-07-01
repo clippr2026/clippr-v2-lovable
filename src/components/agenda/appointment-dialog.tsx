@@ -757,7 +757,7 @@ export function AppointmentDialog({
                     <img
                       src={services.find(s => s.id === serviceId)?.image_url ?? ""}
                       alt={serviceName || "Servicio"}
-                      className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
+                      className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-white/10"
                       style={{ objectPosition: services.find(s => s.id === serviceId)?.image_position ?? "50% 50%" }}
                       loading="lazy"
                     />
