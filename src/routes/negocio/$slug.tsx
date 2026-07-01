@@ -525,8 +525,6 @@ function PublicProfilePage() {
   };
 
   if (loading) {
-    // Mientras no se conoce el tema real del negocio, no se dibuja el loader con
-    // un color adivinado: se espera a que se resuelva desde business_settings.
     if (resolvedTheme === null) return null;
     return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
   }
