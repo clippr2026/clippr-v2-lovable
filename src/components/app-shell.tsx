@@ -7,11 +7,22 @@ export function AppShell({ children, fullWidth = false }: { children: React.Reac
   const { loading, session } = useAuth();
   const navigate = useNavigate();
 
+  // Una vez que la sesión se estableció con éxito, el shell (y todo lo que
+  // haya adentro, como la Agenda) NUNCA debe desmontarse por un parpadeo
+  // transitorio de `loading`/`session` — por ejemplo cuando Supabase
+  // refresca el token en segundo plano o revalida la sesión al volver a la
+  // pestaña. Eso es lo que hacía que la Agenda se "recargara sola": este
+  // gate reemplazaba todo el árbol por la pantalla de "Cargando…" y al
+  // volver a montar, useAgendaData arrancaba de cero (loader + refetch).
+  // Ahora solo mostramos "Cargando…" antes del primer ingreso real.
+  const hasSessionRef = React.useRef(false);
+  if (session) hasSessionRef.current = true;
+
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
 
-  if (loading || !session) {
+  if ((loading || !session) && !hasSessionRef.current) {
     return (
       <div className="min-h-dvh grid place-items-center">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -21,6 +32,11 @@ export function AppShell({ children, fullWidth = false }: { children: React.Reac
       </div>
     );
   }
+
+  // Sesión real cerrada (logout) después de haber estado autenticado: el
+  // efecto de arriba ya está redirigiendo a /login. No volvemos a mostrar
+  // el shell viejo con datos stale mientras eso ocurre.
+  if (!session) return null;
 
   return (
     <SidebarProvider>
