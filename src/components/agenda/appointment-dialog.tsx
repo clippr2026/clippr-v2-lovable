@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, X, CalendarDays, Repeat2,
-  Scissors, UserPlus } from "lucide-react";
+  Scissors, UserPlus, UserRound, Clock3, Phone, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   saveAppointment,
@@ -588,8 +588,8 @@ export function AppointmentDialog({
       title={isEdit ? "Editar reserva" : "Nueva reserva"}
       footer={
         <>
-          <Button variant="ghost" className="h-9" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
-          <Button className="h-9" onClick={() => submit(false)} disabled={busy}>
+          <Button variant="ghost" className="h-10" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
+          <Button className="h-10 px-5" onClick={() => submit(false)} disabled={busy}>
             {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
             {isEdit ? "Guardar cambios" : "Guardar reserva"}
           </Button>
@@ -701,21 +701,27 @@ export function AppointmentDialog({
           {/* Profesional y servicio */}
           <section className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.03] p-3 space-y-3">
             <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider"><Scissors className="h-3.5 w-3.5 text-emerald-300" /> Profesional y servicio</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <Select value={employeeId} onValueChange={setEmployeeId}>
-                <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Profesional" /></SelectTrigger>
-                <SelectContent>
-                  {employees
-                    .filter((e) => e.is_active !== false || e.id === employeeId)
-                    .map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={serviceId} onValueChange={pickService}>
-                <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Servicio" /></SelectTrigger>
-                <SelectContent>
-                  {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Profesional</Label>
+                <Select value={employeeId} onValueChange={setEmployeeId}>
+                  <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Profesional" /></SelectTrigger>
+                  <SelectContent>
+                    {employees
+                      .filter((e) => e.is_active !== false || e.id === employeeId)
+                      .map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Servicio</Label>
+                <Select value={serviceId} onValueChange={pickService}>
+                  <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Servicio" /></SelectTrigger>
+                  <SelectContent>
+                    {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — {Number(s.duration_min ?? 30)} min · ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             {requiresDeposit && (
               <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs">
@@ -733,19 +739,57 @@ export function AppointmentDialog({
             )}
           </section>
 
-          {/* Nota — simple, no details */}
+          {/* Nota — simple, expands only if needed */}
           <div>
-            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Nota (opcional)" className="text-sm resize-none" />
+            <Textarea rows={1} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Agregar nota..." className="min-h-10 text-sm resize-none" />
           </div>
         </div>
 
-        {/* Compact summary — only when enough data */}
+        {/* Premium summary — only when enough data */}
         {(serviceName || previewClientName) && (
-          <div className="rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2.5 text-xs text-muted-foreground flex flex-col gap-1">
-            {serviceName && <span>Servicio: <span className="text-foreground font-medium">{serviceName}{price ? ` — $${Number(price).toLocaleString("es-AR")}` : ""}</span></span>}
-            {previewClientName && <span>Cliente: <span className="text-foreground font-medium">{previewClientName}</span></span>}
-            {employees.find(e => e.id === employeeId) && <span>Prof.: <span className="text-foreground font-medium">{employees.find(e => e.id === employeeId)?.full_name ?? ""}</span></span>}
-            {dateValue && <span>Fecha: <span className="text-foreground font-medium">{dateValue} {hourValue}:{minuteValue}</span></span>}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Resumen</div>
+
+            {serviceName && (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Scissors className="h-4 w-4 shrink-0 text-emerald-300/75" />
+                  <span className="truncate font-medium text-foreground">{serviceName}</span>
+                </div>
+                {price ? (
+                  <span className="shrink-0 font-semibold text-foreground">${Number(price).toLocaleString("es-AR")}</span>
+                ) : null}
+              </div>
+            )}
+
+            <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+              {previewClientName && (
+                <div className="flex items-center gap-2">
+                  <UserRound className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate text-foreground/85">{previewClientName}</span>
+                </div>
+              )}
+
+              {employees.find(e => e.id === employeeId) && (
+                <div className="flex items-center gap-2">
+                  <UserPlus className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate text-foreground/85">{employees.find(e => e.id === employeeId)?.full_name ?? employees.find(e => e.id === employeeId)?.name ?? ""}</span>
+                </div>
+              )}
+
+              {dateValue && (
+                <div className="flex items-center gap-2">
+                  <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="text-foreground/85">{dateValue} · {hourValue}:{minuteValue}</span>
+                </div>
+              )}
+
+              {serviceId && services.find(s => s.id === serviceId) && (
+                <div className="pt-1 text-[11px] text-muted-foreground">
+                  Duración {Number(services.find(s => s.id === serviceId)?.duration_min ?? 30)} min
+                </div>
+              )}
+            </div>
           </div>
         )}
 
