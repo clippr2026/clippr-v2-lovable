@@ -2555,6 +2555,30 @@ function getServiceImageByName(
   return loose?.image_url ?? null;
 }
 
+function getServiceImagePositionByName(
+  serviceName: string | null | undefined,
+  services: ReturnType<typeof useAgendaData>["services"],
+): string {
+  const name = serviceName?.trim();
+  if (!name) return "50% 50%";
+
+  const segments = name
+    .split("+")
+    .map((segment) => segment.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const segment of segments) {
+    const match = services.find((service) => service.name.trim().toLowerCase() === segment);
+    if (match?.image_url) return match.image_position ?? "50% 50%";
+  }
+
+  const loose = services.find((service) =>
+    name.toLowerCase().includes(service.name.trim().toLowerCase()),
+  );
+
+  return loose?.image_position ?? "50% 50%";
+}
+
 const ApptCard = React.memo(function ApptCard({
   a,
   onClick,
@@ -2589,7 +2613,6 @@ const ApptCard = React.memo(function ApptCard({
     if (employeeCount <= 8) return parts.join(" ");
     return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
   })();
-  const serviceImageUrl = getServiceImageByName(a.service_name, services);
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   // Gap vertical mínimo (1px arriba + 1px abajo): turnos consecutivos quedan
@@ -2657,15 +2680,6 @@ const ApptCard = React.memo(function ApptCard({
       {/* Línea 2: servicio + producto online — pegado al horario, legible y sin cortarse */}
       {a.service_name && (
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
-          {serviceImageUrl ? (
-            <img
-              src={serviceImageUrl}
-              alt={a.service_name}
-              className="h-5 w-8 shrink-0 rounded-md object-cover ring-1 ring-white/10"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : null}
           <span className="truncate text-[11px] text-foreground/85">
             {a.service_name}
           </span>
@@ -3086,6 +3100,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   // buscando el primer servicio del catálogo cuyo nombre matchee alguno de
   // los segmentos del texto guardado.
   const serviceImageUrl = getServiceImageByName(appointment.service_name, services);
+  const serviceImagePosition = getServiceImagePositionByName(appointment.service_name, services);
   const start = new Date(appointment.starts_at);
   const end = appointment.ends_at
     ? new Date(appointment.ends_at)
@@ -3210,7 +3225,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     <img
                       src={serviceImageUrl}
                       alt={appointment.service_name || "Servicio"}
-                      className="h-12 w-20 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
+                      className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
+                      style={{ objectPosition: serviceImagePosition }}
                       loading="lazy"
                     />
                   ) : (

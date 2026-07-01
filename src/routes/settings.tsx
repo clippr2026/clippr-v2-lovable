@@ -6276,6 +6276,7 @@ type PriceForm = {
   miniDesc: string;
   // Imagen general (catálogo y servicios)
   image: string;
+  imagePosition: string;
 };
 
 const emptyPriceForm = (
@@ -6297,6 +6298,7 @@ const emptyPriceForm = (
   bookingOffer: "none",
   miniDesc: "",
   image: "",
+  imagePosition: "50% 50%",
 });
 
 const defaultServiceCategories = ["Servicios"];
@@ -6337,7 +6339,57 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     bookingOffer: "none",
     miniDesc: "",
     image: "",
+    imagePosition: "50% 50%",
   };
+}
+
+
+function clampImagePositionValue(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function parseImagePosition(position?: string | null): { x: number; y: number } {
+  const fallback = { x: 50, y: 50 };
+  if (!position) return fallback;
+  const [xRaw, yRaw] = position.split(/\s+/);
+  const x = Number(String(xRaw ?? "").replace("%", ""));
+  const y = Number(String(yRaw ?? "").replace("%", ""));
+  return {
+    x: Number.isFinite(x) ? clampImagePositionValue(x) : fallback.x,
+    y: Number.isFinite(y) ? clampImagePositionValue(y) : fallback.y,
+  };
+}
+
+function moveImagePosition(position: string, dx: number, dy: number) {
+  const current = parseImagePosition(position);
+  return `${clampImagePositionValue(current.x + dx)}% ${clampImagePositionValue(current.y + dy)}%`;
+}
+
+function ImagePositionControls({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const move = (dx: number, dy: number) => onChange(moveImagePosition(value, dx, dy));
+  const btnCls = "grid h-7 w-7 place-items-center rounded-lg bg-white/6 text-xs font-bold text-white/80 ring-1 ring-white/10 transition hover:bg-white/12 hover:text-white";
+  return (
+    <div className="mt-2 rounded-xl border border-white/10 bg-black/15 p-2">
+      <div className="mb-1 text-[10px] font-medium text-muted-foreground">Acomodar imagen</div>
+      <div className="grid grid-cols-3 justify-items-center gap-1">
+        <span />
+        <button type="button" className={btnCls} onClick={() => move(0, -10)} aria-label="Mover imagen arriba">↑</button>
+        <span />
+        <button type="button" className={btnCls} onClick={() => move(-10, 0)} aria-label="Mover imagen izquierda">←</button>
+        <button type="button" className={btnCls} onClick={() => onChange("50% 50%")} aria-label="Centrar imagen">•</button>
+        <button type="button" className={btnCls} onClick={() => move(10, 0)} aria-label="Mover imagen derecha">→</button>
+        <span />
+        <button type="button" className={btnCls} onClick={() => move(0, 10)} aria-label="Mover imagen abajo">↓</button>
+        <span />
+      </div>
+    </div>
+  );
 }
 
 function PriceEditorModal({
@@ -6476,7 +6528,7 @@ function PriceEditorModal({
                           setUploadingImg(true);
                           const url = await onUploadImage(file);
                           setUploadingImg(false);
-                          if (url) setForm({ ...form, image: url });
+                          if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
                         }}
                       />
                       <button
@@ -6490,6 +6542,7 @@ function PriceEditorModal({
                             src={form.image}
                             alt={form.name || "Servicio"}
                             className="h-full w-full object-cover"
+                            style={{ objectPosition: form.imagePosition }}
                             loading="lazy"
                           />
                         ) : uploadingImg ? (
@@ -6504,7 +6557,7 @@ function PriceEditorModal({
                       {form.image ? (
                         <button
                           type="button"
-                          onClick={() => setForm({ ...form, image: "" })}
+                          onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
                           disabled={uploadingImg}
                           className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-red-500 text-white shadow-lg disabled:opacity-50"
                           title="Quitar imagen"
@@ -6513,6 +6566,12 @@ function PriceEditorModal({
                         </button>
                       ) : null}
                     </div>
+                    {form.image ? (
+                      <ImagePositionControls
+                        value={form.imagePosition}
+                        onChange={(imagePosition) => setForm({ ...form, imagePosition })}
+                      />
+                    ) : null}
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -6619,7 +6678,7 @@ function PriceEditorModal({
                           setUploadingImg(true);
                           const url = await onUploadImage(file);
                           setUploadingImg(false);
-                          if (url) setForm({ ...form, image: url });
+                          if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
                         }}
                       />
                       <button
@@ -6633,6 +6692,7 @@ function PriceEditorModal({
                             src={form.image}
                             alt={form.name || "Producto"}
                             className="h-full w-full object-cover"
+                            style={{ objectPosition: form.imagePosition }}
                             loading="lazy"
                           />
                         ) : uploadingImg ? (
@@ -6647,7 +6707,7 @@ function PriceEditorModal({
                       {form.image ? (
                         <button
                           type="button"
-                          onClick={() => setForm({ ...form, image: "" })}
+                          onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
                           disabled={uploadingImg}
                           className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-red-500 text-white shadow-lg disabled:opacity-50"
                           title="Quitar imagen"
@@ -6656,6 +6716,12 @@ function PriceEditorModal({
                         </button>
                       ) : null}
                     </div>
+                    {form.image ? (
+                      <ImagePositionControls
+                        value={form.imagePosition}
+                        onChange={(imagePosition) => setForm({ ...form, imagePosition })}
+                      />
+                    ) : null}
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -6806,6 +6872,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   >({});
   // Imagen general por item (servicios y productos): { [id]: url }
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
+  // Posición del recorte de cada imagen: { [id]: "50% 50%" }
+  const [imagePositionMap, setImagePositionMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
   const reorderingCategories = true;
@@ -6864,6 +6932,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             if (pid.trim() && typeof url === "string" && url) imgMap[pid] = url;
           }
           setImageMap(imgMap);
+          const positions = (schedule._catalogImagePositions ?? {}) as Record<string, unknown>;
+          const posMap: Record<string, string> = {};
+          for (const [pid, value] of Object.entries(positions)) {
+            if (pid.trim() && typeof value === "string" && value.trim()) posMap[pid] = value;
+          }
+          setImagePositionMap(posMap);
         }
         if (!isService) {
           const bp = (schedule._bookingProducts ?? {}) as Record<
@@ -7015,6 +7089,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const bookingConfigRef = useRef(bookingConfig);
   const rowsRef = useRef(rows);
   const imageMapRef = useRef(imageMap);
+  const imagePositionMapRef = useRef(imagePositionMap);
   useEffect(() => {
     bookingConfigRef.current = bookingConfig;
   }, [bookingConfig]);
@@ -7024,6 +7099,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   useEffect(() => {
     imageMapRef.current = imageMap;
   }, [imageMap]);
+  useEffect(() => {
+    imagePositionMapRef.current = imagePositionMap;
+  }, [imagePositionMap]);
   useEffect(() => {
     pendingItemsRef.current = pendingItems;
   }, [pendingItems]);
@@ -7046,6 +7124,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         let nextServiceReservableMap = { ...serviceReservableMapRef.current };
         const nextBookingConfig = { ...bookingConfigRef.current };
         const nextImageMap = { ...imageMapRef.current };
+        const nextImagePositionMap = { ...imagePositionMapRef.current };
         const tempIdToReal: Record<string, string> = {};
 
         // Flush deletes
@@ -7058,6 +7137,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           if (isService) delete nextServiceReservableMap[id];
           else delete nextBookingConfig[id];
           delete nextImageMap[id];
+          delete nextImagePositionMap[id];
         }
 
         // Flush upserts
@@ -7080,6 +7160,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 nextImageMap[realId] = nextImageMap[tempId];
                 delete nextImageMap[tempId];
               }
+              if (nextImagePositionMap[tempId]) {
+                nextImagePositionMap[realId] = nextImagePositionMap[tempId];
+                delete nextImagePositionMap[tempId];
+              }
             } else {
               const realId = String(inserted.id);
               tempIdToReal[tempId] = realId;
@@ -7090,6 +7174,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               if (nextImageMap[tempId]) {
                 nextImageMap[realId] = nextImageMap[tempId];
                 delete nextImageMap[tempId];
+              }
+              if (nextImagePositionMap[tempId]) {
+                nextImagePositionMap[realId] = nextImagePositionMap[tempId];
+                delete nextImagePositionMap[tempId];
               }
             }
           } else {
@@ -7137,8 +7225,27 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           return merged;
         };
 
+        const mergeCatalogImagePositions = (
+          existingSchedule: Record<string, unknown>,
+        ): Record<string, string> => {
+          const existing = (existingSchedule._catalogImagePositions ?? {}) as Record<string, unknown>;
+          const ids = ownImageIds();
+          const merged: Record<string, string> = {};
+          for (const [k, v] of Object.entries(existing)) {
+            if (!ids.has(k) && typeof v === "string" && v.trim()) merged[k] = v;
+          }
+          for (const id of ids) {
+            const position = nextImagePositionMap[id];
+            const hasImage = Boolean(nextImageMap[id]);
+            if (hasImage && position) merged[id] = position;
+          }
+          return merged;
+        };
+
         imageMapRef.current = nextImageMap;
         setImageMap(nextImageMap);
+        imagePositionMapRef.current = nextImagePositionMap;
+        setImagePositionMap(nextImagePositionMap);
 
         if (isService && businessId) {
           serviceReservableMapRef.current = nextServiceReservableMap;
@@ -7159,6 +7266,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               schedule: {
                 ...existingSchedule,
                 _catalogImages: mergeCatalogImages(existingSchedule),
+                _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
@@ -7212,6 +7320,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               schedule: {
                 ...existingSchedule,
                 _catalogImages: mergeCatalogImages(existingSchedule),
+                _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
                 _bookingProducts: {
                   config: nextBookingConfig,
                   recommended,
@@ -7301,6 +7410,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       bookingOffer: !isService ? cfg?.offer ?? "none" : "none",
       miniDesc: !isService ? cfg?.miniDesc ?? "" : "",
       image: imageMap[row.id] ?? "",
+      imagePosition: imagePositionMap[row.id] ?? "50% 50%",
     });
     setModalOpen(true);
   }
@@ -7340,6 +7450,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         else delete next[editing.id];
         return next;
       });
+      setImagePositionMap((current) => {
+        const next = { ...current };
+        if (form.image) next[editing.id] = form.imagePosition || "50% 50%";
+        else delete next[editing.id];
+        return next;
+      });
       // Update existing row locally
       setRows((prev) =>
         prev.map((r) =>
@@ -7370,8 +7486,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             miniDesc: form.miniDesc,
           },
         }));
-      if (form.image)
+      if (form.image) {
         setImageMap((current) => ({ ...current, [tempId]: form.image }));
+        setImagePositionMap((current) => ({ ...current, [tempId]: form.imagePosition || "50% 50%" }));
+      }
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems((prev) => [
         ...prev,
@@ -7745,7 +7863,19 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 )}
               >
                 <GripVertical className="h-4 w-4 shrink-0 text-white/35" />
-                <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)] shrink-0" />
+                <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+                  {imageMap[row.id] ? (
+                    <img
+                      src={imageMap[row.id]}
+                      alt={row.name}
+                      className="h-full w-full object-cover"
+                      style={{ objectPosition: imagePositionMap[row.id] ?? "50% 50%" }}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{row.name}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">

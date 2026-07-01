@@ -1657,6 +1657,7 @@ function PreciosTab({
             src={src}
             alt={item.name ?? ""}
             className="h-full w-full object-cover"
+            style={{ objectPosition: item.image_position ?? item.imagePosition ?? "50% 50%" }}
           />
         ) : (
           <span>{fallback}</span>
@@ -2042,6 +2043,7 @@ function InventarioTab({
             src={src}
             alt={item.name ?? ""}
             className="h-full w-full object-cover"
+            style={{ objectPosition: item.image_position ?? item.imagePosition ?? "50% 50%" }}
           />
         ) : (
           <span>□</span>
@@ -6604,6 +6606,7 @@ function NuevaVentaTab({
                               src={imageSrc}
                               alt={it.name ?? "Ítem"}
                               className="h-full w-full object-cover"
+                              style={{ objectPosition: it.image_position ?? it.imagePosition ?? "50% 50%" }}
                             />
                           ) : (
                             <span>{it.is_catalog ? "□" : "✂"}</span>
