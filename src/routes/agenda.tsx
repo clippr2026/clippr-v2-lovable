@@ -1,10 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import * as React from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { AppShell } from "@/components/app-shell";
 import {
-  ChevronLeft,
+  createFileRoute,
+  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft,
   ChevronRight,
   Plus,
   Calendar as CalendarIcon,
@@ -17,7 +13,10 @@ import {
   MessageCircle,
   UserRound,
   XCircle,
-  Clock3, UserX } from "lucide-react";
+  Clock3,
+  UserX,
+  Clock
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import {
