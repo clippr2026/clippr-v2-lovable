@@ -279,6 +279,16 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
 
+  // Recuerda para qué combinación de negocio + rango visible ya se mostró el
+  // loader de pantalla completa. Así, el loader SOLO aparece quando:
+  //   1) se entra a la Agenda por primera vez,
+  //   2) cambia el día/semana/mes (rango visible),
+  //   3) cambia el negocio activo.
+  // Cualquier otro refetch (realtime, auto-refresh de sesión, mutaciones del
+  // propio usuario) siempre entra en modo silencioso y nunca vuelve a mostrar
+  // el loader ni desmonta la vista.
+  const loadedKeyRef = React.useRef<string | null>(null);
+
   const load = React.useCallback(async (options?: { silent?: boolean }) => {
     if (!businessId) {
       setLoading(false);
@@ -438,7 +448,10 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   }, [businessId]);
 
   React.useEffect(() => {
-    load({ silent: true });
+    const rangeKey = `${businessId ?? ""}|${startIso}|${endIso}`;
+    const isGenuineRangeChange = loadedKeyRef.current !== rangeKey;
+    loadedKeyRef.current = rangeKey;
+    load({ silent: !isGenuineRangeChange });
   }, [load]);
 
   React.useEffect(() => {
