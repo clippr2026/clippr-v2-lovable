@@ -58,7 +58,7 @@ function DashboardRoute() {
   if (loading || !session) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
-        <ClipprLoader size="md" />
+        <ClipprLoader size="screen" delayMs={130} />
       </div>
     );
   }
@@ -133,8 +133,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
     return (
       <div className="space-y-4">
         {dateBar}
-        <div className="glass rounded-2xl p-6 text-sm text-muted-foreground">
-          Cargando datos del rango…
+        <div className="grid place-items-center py-32">
+          <ClipprLoader size="screen" delayMs={130} />
         </div>
       </div>
     );

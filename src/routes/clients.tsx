@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
   AlertTriangle,
   ArrowRight,
@@ -391,6 +392,16 @@ function ClientsPage() {
     toast.success("Nota guardada");
   }
 
+  if (isLoading && clients.length === 0) {
+    return (
+      <AppShell>
+        <div className="grid place-items-center py-32">
+          <ClipprLoader size="screen" delayMs={130} />
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="app-premium-shell">
@@ -532,8 +543,8 @@ function ClientsPage() {
                 );
               })}
               {isLoading && (
-                <div className="text-center text-sm text-muted-foreground py-10 animate-pulse">
-                  Cargando clientes…
+                <div className="grid place-items-center py-10">
+                  <ClipprLoader size="screen" delayMs={130} />
                 </div>
               )}
               {!isLoading && filtered.length === 0 && (

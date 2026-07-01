@@ -378,7 +378,7 @@ function ProfessionalsPage() {
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
       <div className="grid place-items-center py-32">
-        <ClipprLoader size="md" />
+        <ClipprLoader size="screen" delayMs={130} />
       </div>
     </AppShell>
   );

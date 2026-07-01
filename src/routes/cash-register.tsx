@@ -660,7 +660,7 @@ function CashRegisterPage() {
     return (
       <AppShell>
         <div className="grid place-items-center py-32">
-          <ClipprLoader size="md" />
+          <ClipprLoader size="screen" delayMs={130} />
         </div>
       </AppShell>
     );

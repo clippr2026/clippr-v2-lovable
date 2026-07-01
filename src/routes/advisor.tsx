@@ -370,7 +370,7 @@ function AdvisorRoute() {
   if (loading || !session) {
     return (
       <div className="min-h-screen grid place-items-center bg-background">
-        <ClipprLoader size="md" />
+        <ClipprLoader size="screen" delayMs={130} />
       </div>
     );
   }
