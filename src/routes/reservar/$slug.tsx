@@ -329,6 +329,26 @@ function PublicBookingPage() {
         const businessId = businessData.id as string;
         const start = startOfDay(new Date()).toISOString();
         const end = addMinutes(startOfDay(new Date()), 14 * 24 * 60).toISOString();
+
+        const settingsPromise = supabase
+          .from("public_booking_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle();
+
+        // El tema real (_branding.theme) se resuelve apenas responde esta consulta,
+        // sin esperar a empleados/servicios/turnos. Así el loader nunca queda mostrando
+        // un tema adivinado mientras el resto de los datos sigue en camino.
+        settingsPromise
+          .then((settingsRes) => {
+            if (cancelled) return;
+            const earlySchedule = settingsRes.error ? null : ((settingsRes.data as any)?.schedule ?? null);
+            const earlyBranding =
+              earlySchedule && typeof earlySchedule === "object" ? ((earlySchedule as Record<string, any>)._branding ?? {}) : {};
+            setResolvedTheme(earlyBranding.theme === "light" ? "light" : "dark");
+          })
+          .catch(() => {});
+
         const [employeesWithRoleRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
@@ -346,11 +366,7 @@ function PublicBookingPage() {
             .eq("business_id", businessId)
             .gte("starts_at", start)
             .lte("starts_at", end),
-          supabase
-            .from("public_booking_settings")
-            .select("schedule")
-            .eq("business_id", businessId)
-            .maybeSingle(),
+          settingsPromise,
         ]);
 
         // Algunas bases todavía tienen la vista public_booking_employees sin la columna role.
@@ -711,13 +727,10 @@ function PublicBookingPage() {
   const accentButtonText = landingColors.buttonText || "#ffffff";
 
   if (loading) {
-    return (
-      <ClipprLoader
-        fullScreen
-        size="lg"
-        background={resolvedTheme === "light" ? "light" : "dark"}
-      />
-    );
+    // Mientras no se conoce el tema real del negocio, no se dibuja el loader con
+    // un color adivinado: se espera a que se resuelva desde business_settings.
+    if (resolvedTheme === null) return null;
+    return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
   }
 
   if (!business) {
