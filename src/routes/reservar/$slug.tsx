@@ -720,7 +720,7 @@ function PublicBookingPage() {
 
   if (loading) {
     if (resolvedTheme === null) return null;
-    return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
+    return <ClipprLoader fullScreen size="xl" background={resolvedTheme} />;
   }
 
   if (!business) {
