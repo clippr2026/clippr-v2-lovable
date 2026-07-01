@@ -45,6 +45,7 @@ import {
 } from "@/lib/availability";
 import clipprMark from "@/assets/clippr-mark.png";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { ServiceImage } from "@/components/ui/service-image";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -876,20 +877,13 @@ function PublicBookingPage() {
                       return (
                         <button key={service.id} type="button" onClick={() => toggleService(service.id)} className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-white/[0.04]">
                           <span className="flex min-w-0 items-center gap-3">
-                            <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/[0.06] ring-1 ring-white/10">
-                              {service.image_url ? (
-                                <img
-                                  src={service.image_url}
-                                  alt={service.name}
-                                  className="h-full w-full object-cover"
-                                  style={{ objectPosition: service.image_position ?? "50% 50%" }}
-                                  loading="lazy"
-                                  decoding="async"
-                                />
-                              ) : (
-                                <Scissors className="h-4 w-4 text-white/30" />
-                              )}
-                            </span>
+                            <ServiceImage
+                              src={service.image_url}
+                              alt={service.name}
+                              position={service.image_position}
+                              className="h-20 w-20 rounded-2xl bg-white/[0.06] ring-1 ring-white/10"
+                              fallback={<Scissors className="h-4 w-4 text-white/30" />}
+                            />
                             <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent text-white" : "border-white/20")} style={checked ? { background: accent } : undefined}>
                               {checked ? <CheckCircle2 className="h-4 w-4" /> : null}
                             </span>
