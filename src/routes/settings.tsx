@@ -6392,76 +6392,135 @@ function PriceEditorModal({
         <div className="p-4 space-y-3">
           {isService ? (
             <>
-              {/* Servicio · información básica */}
+              {/* Servicio · información básica + imagen en una fila */}
               <SectionCard label="Información básica">
-                <div className="space-y-3">
-                  <Field label="Nombre del servicio">
-                    <input
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className={inputCls}
-                      placeholder="Corte + Barba"
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Precio de lista">
+                <div className="flex gap-3">
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <Field label="Nombre del servicio">
                       <input
-                        type="number"
-                        value={form.price}
-                        onChange={(e) => setForm({ ...form, price: e.target.value })}
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
                         className={inputCls}
+                        placeholder="Corte + Barba"
                       />
                     </Field>
-                    <Field label="Desc. efectivo (%)">
-                      <input
-                        type="number"
-                        value={form.discount}
-                        onChange={(e) => setForm({ ...form, discount: e.target.value })}
-                        className={inputCls}
-                      />
-                    </Field>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Precio de lista">
+                        <input
+                          type="number"
+                          value={form.price}
+                          onChange={(e) => setForm({ ...form, price: e.target.value })}
+                          className={inputCls}
+                        />
+                      </Field>
+                      <Field label="Desc. efectivo (%)">
+                        <input
+                          type="number"
+                          value={form.discount}
+                          onChange={(e) => setForm({ ...form, discount: e.target.value })}
+                          className={inputCls}
+                        />
+                      </Field>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field label="Duración (min)">
+                        <input
+                          type="number"
+                          min={0}
+                          value={form.duration}
+                          onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                          className={inputCls}
+                        />
+                      </Field>
+                      <Field label="Categoría">
+                        <select
+                          value={form.category}
+                          onChange={(e) => setForm({ ...form, category: e.target.value })}
+                          className={inputCls}
+                        >
+                          {availableCatalogCategories.map((category) => (
+                            <option key={category}>{category}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Estado">
+                        <select
+                          value={form.status}
+                          onChange={(e) =>
+                            setForm({ ...form, status: e.target.value as PriceForm["status"] })
+                          }
+                          className={inputCls}
+                        >
+                          <option>Activo</option>
+                          <option>Inactivo</option>
+                        </select>
+                      </Field>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <Field label="Duración (min)">
+
+                  {/* Imagen del servicio */}
+                  <div className="w-28 shrink-0 sm:w-32">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1.5">
+                      Imagen del servicio
+                    </div>
+                    <div className="relative">
                       <input
-                        type="number"
-                        min={0}
-                        value={form.duration}
-                        onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                        className={inputCls}
+                        ref={bookingFileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file || !onUploadImage) return;
+                          setUploadingImg(true);
+                          const url = await onUploadImage(file);
+                          setUploadingImg(false);
+                          if (url) setForm({ ...form, image: url });
+                        }}
                       />
-                    </Field>
-                    <Field label="Categoría">
-                      <select
-                        value={form.category}
-                        onChange={(e) => setForm({ ...form, category: e.target.value })}
-                        className={inputCls}
+                      <button
+                        type="button"
+                        onClick={() => bookingFileRef.current?.click()}
+                        disabled={uploadingImg}
+                        className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
                       >
-                        {availableCatalogCategories.map((category) => (
-                          <option key={category}>{category}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Estado">
-                      <select
-                        value={form.status}
-                        onChange={(e) =>
-                          setForm({ ...form, status: e.target.value as PriceForm["status"] })
-                        }
-                        className={inputCls}
-                      >
-                        <option>Activo</option>
-                        <option>Inactivo</option>
-                      </select>
-                    </Field>
+                        {form.image ? (
+                          <img
+                            src={form.image}
+                            alt={form.name || "Servicio"}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : uploadingImg ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        ) : (
+                          <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
+                            <Upload className="h-5 w-5" />
+                            <span className="text-[11px]">Subir imagen</span>
+                          </span>
+                        )}
+                      </button>
+                      {form.image ? (
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, image: "" })}
+                          disabled={uploadingImg}
+                          className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-red-500 text-white shadow-lg disabled:opacity-50"
+                          title="Quitar imagen"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Efectivo:{" "}
-                    <span className="font-semibold text-[oklch(0.82_0.14_75)]">
-                      ${cashPrice.toLocaleString("es-AR")}
-                    </span>
-                  </p>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Efectivo:{" "}
+                  <span className="font-semibold text-[oklch(0.82_0.14_75)]">
+                    ${cashPrice.toLocaleString("es-AR")}
+                  </span>
+                </p>
               </SectionCard>
 
               <SectionCard label="Reserva online">

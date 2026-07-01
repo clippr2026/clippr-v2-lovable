@@ -1435,6 +1435,7 @@ function AgendaPage() {
           appointment={selected}
           employees={memoData.employees}
           clients={memoData.clients}
+          services={memoData.services}
           onEdit={handleEdit}
           onCancel={handleCancel}
           onCobrar={handleCobrar}
@@ -3009,6 +3010,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   appointment,
   employees,
   clients,
+  services,
   onEdit,
   onCancel,
   onCobrar,
@@ -3023,6 +3025,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   appointment: Appointment | null;
   employees: ReturnType<typeof useAgendaData>["employees"];
   clients: ReturnType<typeof useAgendaData>["clients"];
+  services: ReturnType<typeof useAgendaData>["services"];
   onEdit: (a: Appointment) => void;
   onCancel: (a: Appointment) => void;
   onCobrar: (a: Appointment) => void;
@@ -3041,6 +3044,21 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 
   const employee = employees.find((e) => e.id === appointment.employee_id);
   const client = clients.find((c) => c.id === appointment.client_id);
+  // El turno guarda service_name como texto libre (puede combinar varios
+  // servicios con " + "), no hay FK a price_catalog. Resolvemos la imagen
+  // buscando el primer servicio del catálogo cuyo nombre matchee alguno de
+  // los segmentos del texto guardado.
+  const serviceImageUrl = (() => {
+    const name = appointment.service_name?.trim();
+    if (!name) return null;
+    const segments = name.split("+").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    for (const segment of segments) {
+      const match = services.find((s) => s.name.trim().toLowerCase() === segment);
+      if (match?.image_url) return match.image_url;
+    }
+    const loose = services.find((s) => name.toLowerCase().includes(s.name.trim().toLowerCase()));
+    return loose?.image_url ?? null;
+  })();
   const start = new Date(appointment.starts_at);
   const end = appointment.ends_at
     ? new Date(appointment.ends_at)
@@ -3161,7 +3179,16 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <div className="space-y-2.5">
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Scissors className="h-4 w-4 shrink-0 text-white/45" />
+                  {serviceImageUrl ? (
+                    <img
+                      src={serviceImageUrl}
+                      alt={appointment.service_name || "Servicio"}
+                      className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <Scissors className="h-4 w-4 shrink-0 text-white/45" />
+                  )}
                   <div className="truncate text-base font-semibold leading-tight">
                     {appointment.service_name || "Servicio"}
                   </div>
