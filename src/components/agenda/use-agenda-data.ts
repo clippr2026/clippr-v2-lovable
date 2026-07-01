@@ -67,6 +67,7 @@ export type Service = {
   name: string;
   price: number;
   duration: number | null;
+  image_url?: string | null;
 };
 export type Client = {
   id: string;
