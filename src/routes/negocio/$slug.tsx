@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { ServiceImage } from "@/components/ui/service-image";
 
 export const Route = createFileRoute("/negocio/$slug")({
   head: () => ({
@@ -748,20 +749,13 @@ function PublicProfilePage() {
                   {services.map((service) => (
                     <div key={service.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/[0.06] ring-1 ring-white/10">
-                          {service.image_url ? (
-                            <img
-                              src={service.image_url}
-                              alt={service.name}
-                              className="h-full w-full object-cover"
-                              style={{ objectPosition: service.image_position ?? "50% 50%" }}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <Sparkles className="h-5 w-5 text-white/30" />
-                          )}
-                        </div>
+                        <ServiceImage
+                          src={service.image_url}
+                          alt={service.name}
+                          position={service.image_position}
+                          className="h-20 w-20 rounded-2xl bg-white/[0.06] ring-1 ring-white/10"
+                          fallback={<Sparkles className="h-5 w-5 text-white/30" />}
+                        />
                         <div className="min-w-0">
                           <p className="font-medium">{service.name}</p>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
