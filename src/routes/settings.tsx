@@ -6346,7 +6346,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
 
 
 function clampImagePositionValue(value: number) {
-  return Math.max(0, Math.min(100, value));
+  return Math.max(-100, Math.min(200, value));
 }
 
 function parseImagePosition(position?: string | null): { x: number; y: number } {
@@ -6396,8 +6396,8 @@ function DraggableImageCrop({
     if (!drag) return;
     // Movimiento natural: al arrastrar la imagen hacia un lado, la foto acompaña el dedo/mouse.
     // object-position funciona al revés del gesto, por eso restamos el desplazamiento.
-    const dx = ((clientX - drag.startX) / Math.max(drag.width, 1)) * 120;
-    const dy = ((clientY - drag.startY) / Math.max(drag.height, 1)) * 120;
+    const dx = ((clientX - drag.startX) / Math.max(drag.width, 1)) * 200;
+    const dy = ((clientY - drag.startY) / Math.max(drag.height, 1)) * 200;
     onChange(
       `${clampImagePositionValue(drag.imageX - dx)}% ${clampImagePositionValue(drag.imageY - dy)}%`,
     );
