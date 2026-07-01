@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 type ClipprLoaderProps = {
   fullScreen?: boolean;
   size?: "sm" | "md" | "lg";
+  background?: "dark" | "light" | "transparent";
   className?: string;
 };
 
@@ -13,7 +14,12 @@ const sizeClass = {
   lg: "h-28 w-28 rounded-[2rem]",
 };
 
-export function ClipprLoader({ fullScreen = false, size = "md", className }: ClipprLoaderProps) {
+export function ClipprLoader({
+  fullScreen = false,
+  size = "md",
+  background = "dark",
+  className,
+}: ClipprLoaderProps) {
   const mark = (
     <div className={cn("relative grid place-items-center", className)}>
       <style>{`
@@ -66,7 +72,14 @@ export function ClipprLoader({ fullScreen = false, size = "md", className }: Cli
   if (!fullScreen) return mark;
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-[#050507] px-4 text-white">
+    <main
+      className={cn(
+        "grid min-h-dvh place-items-center px-4",
+        background === "light" && "bg-white text-slate-950",
+        background === "dark" && "bg-[#050507] text-white",
+        background === "transparent" && "bg-transparent",
+      )}
+    >
       {mark}
     </main>
   );
