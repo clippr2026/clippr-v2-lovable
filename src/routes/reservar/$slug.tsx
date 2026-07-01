@@ -239,7 +239,11 @@ function PublicBookingPage() {
   const [clientBirthDate, setClientBirthDate] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [landingColors, setLandingColors] = React.useState<LandingColors>({});
-  const [landingTheme, setLandingTheme] = React.useState<LandingTheme>("dark");
+  const [landingTheme, setLandingTheme] = React.useState<LandingTheme>(() => {
+    if (typeof window === "undefined") return "light";
+    const cachedTheme = window.localStorage.getItem(`clippr_booking_theme:${slug}`);
+    return cachedTheme === "dark" || cachedTheme === "light" ? (cachedTheme as LandingTheme) : "light";
+  });
   const [confirmedBooking, setConfirmedBooking] = React.useState<{
     services: string;
     professional: string;
@@ -439,7 +443,11 @@ function PublicBookingPage() {
           setClientFields(extractClientFields(settingsSchedule));
           setRecommendedProducts(normalizeRecommendedProducts(settingsSchedule));
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
-          setLandingTheme(branding.theme === "light" ? "light" : "dark");
+          const resolvedLandingTheme: LandingTheme = branding.theme === "light" ? "light" : "dark";
+          setLandingTheme(resolvedLandingTheme);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(`clippr_booking_theme:${slug}`, resolvedLandingTheme);
+          }
 
           const params = new URLSearchParams(window.location.search);
           const serviceId = params.get("service");
