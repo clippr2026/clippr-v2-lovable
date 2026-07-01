@@ -7099,6 +7099,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
+                _catalogImages: mergeCatalogImages(existingSchedule),
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,

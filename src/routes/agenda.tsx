@@ -2963,6 +2963,7 @@ function BlockHoursDialog({
 type AppointmentProduct = {
   name: string;
   priceLabel?: string;
+  image?: string;
 };
 
 function appointmentProductsFromNotes(raw?: string | null): AppointmentProduct[] {
@@ -2977,10 +2978,12 @@ function appointmentProductsFromNotes(raw?: string | null): AppointmentProduct[]
     .map((line) => line.trim().replace(/^[-•]\s*/, ""))
     .filter(Boolean)
     .map((line) => {
-      const parsed = line.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+      const imageMatch = line.match(/\s*\[img:([^\]]+)\]\s*$/);
+      const cleanLine = imageMatch ? line.replace(/\s*\[img:[^\]]+\]\s*$/, "").trim() : line;
+      const parsed = cleanLine.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
       return parsed
-        ? { name: parsed[1].trim(), priceLabel: parsed[2].trim() }
-        : { name: line.trim() };
+        ? { name: parsed[1].trim(), priceLabel: parsed[2].trim(), image: imageMatch?.[1]?.trim() }
+        : { name: cleanLine.trim(), image: imageMatch?.[1]?.trim() };
     })
     .filter((product) => product.name.length > 0);
 }
@@ -3238,7 +3241,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     key={`${product.name}-${index}`}
                     className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
                   >
-                    <div className="min-w-0">
+                    {product.image ? (
+                      <img src={product.image} alt={product.name} className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/10" loading="lazy" />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold text-white/90">{product.name}</div>
                       <div className="text-[11px] text-white/40">Producto reservado online</div>
                     </div>
