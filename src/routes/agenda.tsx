@@ -2576,10 +2576,18 @@ const ApptCard = React.memo(function ApptCard({
           {clientDisplay}
         </span>
       </div>
-      {/* Línea 2: servicio — pegado al horario, legible y sin cortarse */}
+      {/* Línea 2: servicio + producto online — pegado al horario, legible y sin cortarse */}
       {a.service_name && (
-        <div className="text-[11px] text-foreground/85 truncate leading-none mt-0.5">
-          {a.service_name}
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
+          <span className="truncate text-[11px] text-foreground/85">
+            {a.service_name}
+          </span>
+          {appointmentProductsFromNotes(a.notes).length > 0 && (
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-semibold leading-none text-amber-300">
+              <span aria-hidden>⭐</span>
+              <span>Producto</span>
+            </span>
+          )}
         </div>
       )}
       {/se(ñ|n)a/i.test(a.notes || "") && (
@@ -2903,13 +2911,38 @@ function BlockHoursDialog({
  * reserva online"); the email/origin are NOT notes and are shown elsewhere, so we
  * strip them here and keep just the client's text.
  */
+type AppointmentProduct = {
+  name: string;
+  priceLabel?: string;
+};
+
+function appointmentProductsFromNotes(raw?: string | null): AppointmentProduct[] {
+  if (!raw) return [];
+
+  const match = raw.match(/Productos agregados:\s*([\s\S]*?)(?:\n\s*\n|$)/i);
+  const block = match?.[1]?.trim();
+  if (!block) return [];
+
+  return block
+    .split(/\n+/)
+    .map((line) => line.trim().replace(/^[-•]\s*/, ""))
+    .filter(Boolean)
+    .map((line) => {
+      const parsed = line.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+      return parsed
+        ? { name: parsed[1].trim(), priceLabel: parsed[2].trim() }
+        : { name: line.trim() };
+    })
+    .filter((product) => product.name.length > 0);
+}
+
 function clientNoteOnly(raw?: string | null): string {
   if (!raw) return "";
   let s = raw;
   const m = s.match(/Notas del cliente:\s*([\s\S]*)/i);
   if (m) s = m[1];
   // Cut at the first booking-metadata marker.
-  s = s.split(/\s*(?:Email|Origen|Tel[eé]fono)\s*:/i)[0];
+  s = s.split(/\s*(?:Productos agregados|Email|Origen|Tel[eé]fono)\s*:/i)[0];
   return s.trim();
 }
 
@@ -2980,6 +3013,13 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
   const noteText = clientNoteOnly(appointment.notes);
+  const appointmentProducts = appointmentProductsFromNotes(appointment.notes);
+  const productsSubtotal = appointmentProducts.reduce((sum, product) => {
+    const amount = Number(String(product.priceLabel ?? "").replace(/[^0-9,-]/g, "").replace(",", "."));
+    return Number.isFinite(amount) ? sum + amount : sum;
+  }, 0);
+  const serviceTotal = Number(appointment.service_price ?? 0);
+  const appointmentTotal = serviceTotal + productsSubtotal;
   // Turno pasado (no bloqueo): solo lectura. Se ocultan todas las acciones.
   const isPast = appointment.status !== "blocked" && isPastAppointment(appointment);
 
@@ -3052,8 +3092,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Turno</div>
-                <div className="mt-1 text-base font-semibold leading-tight truncate">
-                  {appointment.service_name || "Servicio"}
+                <div className="mt-1 flex min-w-0 items-center gap-2 text-base font-semibold leading-tight">
+                  <span className="truncate">{appointment.service_name || "Servicio"}</span>
+                  {appointmentProducts.length > 0 && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300 ring-1 ring-amber-300/25">
+                      <span aria-hidden>⭐</span>
+                      <span>Producto</span>
+                    </span>
+                  )}
                 </div>
                 <div className="mt-1.5 text-sm text-white/70">{dateText}</div>
                 <div className="mt-0.5 text-sm text-white/45">
@@ -3110,6 +3156,53 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 );
               })()}
           </div>
+
+          {appointmentProducts.length > 0 && (
+            <div className="rounded-2xl border border-amber-300/35 bg-amber-400/[0.055] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">
+                  Productos agregados
+                </div>
+                <span className="text-amber-300" aria-hidden>⭐</span>
+              </div>
+
+              <div className="space-y-2">
+                {appointmentProducts.map((product, index) => (
+                  <div
+                    key={`${product.name}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white/90">{product.name}</div>
+                      <div className="text-[11px] text-white/40">Producto reservado online</div>
+                    </div>
+                    {product.priceLabel && (
+                      <div className="shrink-0 text-sm font-semibold text-white/90">
+                        {product.priceLabel}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {productsSubtotal > 0 && (
+                <div className="mt-3 space-y-1 border-t border-amber-300/20 pt-3 text-sm">
+                  <div className="flex items-center justify-between text-white/55">
+                    <span>Subtotal servicios</span>
+                    <span>${serviceTotal.toLocaleString("es-AR")}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-white/55">
+                    <span>Subtotal productos</span>
+                    <span>${productsSubtotal.toLocaleString("es-AR")}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 text-base font-semibold text-white">
+                    <span>Total del turno</span>
+                    <span className="text-amber-300">${appointmentTotal.toLocaleString("es-AR")}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2 text-sm">
             {phone && (
