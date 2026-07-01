@@ -85,6 +85,7 @@ type Service = {
   duration_min?: number | null;
   duration?: number | null;
   is_active?: boolean | null;
+  image_url?: string | null;
 };
 
 type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
@@ -399,9 +400,14 @@ function PublicBookingPage() {
             ...employee,
             role: employee.role?.trim() || employeeRoles[employee.id]?.trim() || null,
           }));
+        const serviceImageMap =
+          settingsSchedule && typeof settingsSchedule === "object"
+            ? (((settingsSchedule as Record<string, unknown>)._catalogImages ?? {}) as Record<string, string>)
+            : {};
         const visibleServices = ((servicesRes.error ? [] : (servicesRes.data ?? [])) as Service[])
           .filter((service) => service.is_active !== false)
-          .filter((service) => visibility.services[service.id] !== false);
+          .filter((service) => visibility.services[service.id] !== false)
+          .map((service) => ({ ...service, image_url: serviceImageMap[service.id] ?? null }));
 
         if (!cancelled) {
           setBusiness(businessData as Business);
@@ -577,8 +583,8 @@ function PublicBookingPage() {
 
     const serviceName = selectedServices.map((service) => service.name).join(" + ");
     const serviceList = selectedServices.map((service) => `${service.name} (${formatMoney(service.price)})`).join("\n- ");
-    const addedProducts = selectedProducts.map((p) => ({ name: p.name, price: productFinalPrice(p) }));
-    const productList = addedProducts.map((p) => `${p.name} (${formatMoney(p.price)})`).join("\n- ");
+    const addedProducts = selectedProducts.map((p) => ({ name: p.name, price: productFinalPrice(p), image: p.image || "" }));
+    const productList = addedProducts.map((p) => `${p.name} (${formatMoney(p.price)})${p.image ? ` [img:${p.image}]` : ""}`).join("\n- ");
     const publicNotes = [
       notes.trim() ? `Notas del cliente: ${notes.trim()}` : null,
       clientEmail.trim() ? `Email: ${clientEmail.trim()}` : null,
