@@ -37,7 +37,8 @@ export type ApptStatus =
   | "completed"
   | "cancelled"
   | "charged"
-  | "blocked";
+  | "blocked"
+  | "no_show";
 
 export type Appointment = {
   id: string;
