@@ -59,6 +59,7 @@ type Service = {
   duration_min?: number | null;
   is_active?: boolean | null;
   image_url?: string | null;
+  image_position?: string | null;
 };
 
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
@@ -131,6 +132,17 @@ function extractCatalogImages(schedule: unknown): Record<string, string> {
   const map: Record<string, string> = {};
   for (const [id, url] of Object.entries(imgs as Record<string, unknown>)) {
     if (id.trim() && typeof url === "string" && url) map[id] = url;
+  }
+  return map;
+}
+
+function extractCatalogImagePositions(schedule: unknown): Record<string, string> {
+  if (!schedule || typeof schedule !== "object") return {};
+  const positions = (schedule as Record<string, unknown>)._catalogImagePositions;
+  if (!positions || typeof positions !== "object") return {};
+  const map: Record<string, string> = {};
+  for (const [id, value] of Object.entries(positions as Record<string, unknown>)) {
+    if (id.trim() && typeof value === "string" && value.trim()) map[id] = value;
   }
   return map;
 }
@@ -453,6 +465,7 @@ function PublicProfilePage() {
 
         const visibility = extractPublicVisibility(settingsSchedule);
         const serviceImages = extractCatalogImages(settingsSchedule);
+        const serviceImagePositions = extractCatalogImagePositions(settingsSchedule);
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
@@ -471,7 +484,7 @@ function PublicProfilePage() {
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
               .filter((service) => visibility.services[service.id] !== false)
-              .map((service) => ({ ...service, image_url: serviceImages[service.id] ?? null })),
+              .map((service) => ({ ...service, image_url: serviceImages[service.id] ?? null, image_position: serviceImagePositions[service.id] ?? "50% 50%" })),
           );
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
@@ -735,12 +748,13 @@ function PublicProfilePage() {
                   {services.map((service) => (
                     <div key={service.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/[0.06] ring-1 ring-white/10">
+                        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/[0.06] ring-1 ring-white/10">
                           {service.image_url ? (
                             <img
                               src={service.image_url}
                               alt={service.name}
                               className="h-full w-full object-cover"
+                              style={{ objectPosition: service.image_position ?? "50% 50%" }}
                               loading="lazy"
                               decoding="async"
                             />
