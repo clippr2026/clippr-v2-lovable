@@ -279,12 +279,12 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
 
-  const load = React.useCallback(async () => {
+  const load = React.useCallback(async (options?: { silent?: boolean }) => {
     if (!businessId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
 
     const [aRes, eRes, sRes, cRes, bsRes] = await Promise.allSettled([
       supabase
@@ -438,7 +438,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   }, [businessId]);
 
   React.useEffect(() => {
-    load();
+    load({ silent: true });
   }, [load]);
 
   React.useEffect(() => {
@@ -508,7 +508,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     businessSpecialDates,
     employeeSpecialDates,
     realtimeStatus,
-    refresh: load,
+    refresh: () => load({ silent: true }),
   };
 }
 
