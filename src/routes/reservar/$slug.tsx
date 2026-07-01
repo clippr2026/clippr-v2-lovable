@@ -698,7 +698,7 @@ function PublicBookingPage() {
   const accentButtonText = landingColors.buttonText || "#ffffff";
 
   if (loading) {
-    return <ClipprLoader fullScreen size="lg" />;
+    return <ClipprLoader fullScreen size="lg" background={landingTheme === "light" ? "light" : "dark"} />;
   }
 
   if (!business) {
