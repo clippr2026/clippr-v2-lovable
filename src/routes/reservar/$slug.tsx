@@ -779,12 +779,27 @@ function PublicBookingPage() {
           </div>
         </div>
       ) : null}
-      <section className="relative overflow-hidden border-b border-white/10 bg-black">
+      <section
+        className={cn(
+          "relative overflow-hidden",
+          isLight ? "border-b border-white/10 bg-black" : "border-b-0 bg-transparent",
+        )}
+      >
         <div className="relative mx-auto flex max-w-5xl items-center justify-center px-4 py-1.5 sm:py-2">
-          <div className="inline-flex items-center justify-center gap-3">
+          <div
+            className={cn(
+              "inline-flex items-center justify-center gap-3",
+              !isLight && "rounded-full px-4 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]",
+            )}
+            style={!isLight ? { backgroundColor: "rgba(255,255,255,0.95)" } : undefined}
+          >
             <span
               className="text-xs font-medium sm:text-sm"
-              style={{ color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }}
+              style={
+                isLight
+                  ? { color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }
+                  : { color: "#4B5563", WebkitTextFillColor: "#4B5563" }
+              }
             >
               Impulsado por
             </span>
@@ -797,7 +812,11 @@ function PublicBookingPage() {
             />
             <span
               className="text-xl font-bold tracking-tight sm:text-2xl"
-              style={{ color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
+              style={
+                isLight
+                  ? { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
+                  : { color: "#111827", WebkitTextFillColor: "#111827" }
+              }
             >
               Clippr
             </span>
