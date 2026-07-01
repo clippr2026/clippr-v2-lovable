@@ -99,15 +99,15 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
     },
     cancelled: {
       label: "Cancelar",
-      bg: "oklch(0.3 0.05 25 / 0.4)",
-      border: "oklch(0.6 0.18 25)",
-      dot: "oklch(0.65 0.2 25)",
+      bg: "oklch(0.3 0.02 270 / 0.38)",
+      border: "oklch(0.62 0.03 270)",
+      dot: "oklch(0.76 0.02 270)",
     },
     no_show: {
       label: "No asistió",
-      bg: "oklch(0.32 0.19 25 / 0.55)",
-      border: "oklch(0.62 0.24 25)",
-      dot: "oklch(0.68 0.25 25)",
+      bg: "oklch(0.34 0.2 25 / 0.58)",
+      border: "oklch(0.68 0.22 25)",
+      dot: "oklch(0.68 0.22 25)",
     },
     blocked: {
       label: "Bloqueado",
@@ -141,7 +141,7 @@ const PAST_SLOT_MESSAGE = "No podés crear turnos en horarios que ya pasaron.";
 // Los turnos pasados quedan SOLO como historial: no se editan, mueven, cancelan,
 // cobran ni eliminan. `getApptEnd` está declarado más abajo (función hoisteada).
 const isPastAppointment = (a: Appointment) => getApptEnd(a).getTime() < Date.now();
-const PAST_APPT_MESSAGE = "Este turno ya pasó: solo se puede ver o cancelar.";
+const PAST_APPT_MESSAGE = "Este turno ya pasó: solo se puede ver o marcar como no asistió.";
 const AGENDA_EMPLOYEE_COL_PX = 160;
 const AGENDA_VIRTUALIZE_AFTER = 12;
 const AGENDA_VIRTUAL_OVERSCAN = 4;
@@ -707,11 +707,9 @@ function AgendaPage() {
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
-    // Turno pasado: ya no tiene sentido cancelarlo (nunca se llegó a atender
-    // "a futuro"). En su lugar se usa "No asistió". El resto de los cambios
-    // de estado (pendiente/confirmado/cobrar) siguen disponibles como historial.
-    if (a.status !== "blocked" && isPastAppointment(a) && status === "cancelled") {
-      toast.error("Un turno que ya pasó no se puede cancelar. Marcalo como \"No asistió\" si el cliente no se presentó.");
+    // Turno pasado: no se cancela; se marca como "No asistió" para conservar historial.
+    if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show") {
+      toast.error(PAST_APPT_MESSAGE);
       return;
     }
     // Un turno cobrado es estado final: no se permite ningún cambio de estado.
@@ -760,6 +758,11 @@ function AgendaPage() {
   };
 
   const goToCobro = async (a: Appointment) => {
+    // No se cobra retroactivamente: un turno pasado queda como historial.
+    if (isPastAppointment(a)) {
+      toast.error(PAST_APPT_MESSAGE);
+      return;
+    }
     if (a.status === "cancelled") {
       toast.error("No se puede cobrar un turno cancelado.");
       return;
@@ -1050,16 +1053,16 @@ function AgendaPage() {
                 [
                   "cancelled",
                   "Cancelados",
-                  "oklch(0.65 0.2 25)",
-                  "oklch(0.65 0.2 25 / 0.12)",
-                  "oklch(0.65 0.2 25 / 0.3)",
+                  "oklch(0.76 0.02 270)",
+                  "oklch(0.76 0.02 270 / 0.10)",
+                  "oklch(0.76 0.02 270 / 0.25)",
                 ],
                 [
                   "no_show",
                   "No asistió",
-                  "oklch(0.68 0.25 25)",
-                  "oklch(0.68 0.25 25 / 0.12)",
-                  "oklch(0.68 0.25 25 / 0.3)",
+                  "oklch(0.68 0.22 25)",
+                  "oklch(0.68 0.22 25 / 0.12)",
+                  "oklch(0.68 0.22 25 / 0.30)",
                 ],
               ] as [string, string, string, string, string][]
             ).map(([k, label, color, bg, ring]) => (
@@ -1146,7 +1149,7 @@ function AgendaPage() {
         {/* Filter modal */}
         {filterModal &&
           (() => {
-            const statusMap: Record<string, string> = {
+            const statusMap: Record<string, ApptStatus> = {
               pending: "pending",
               confirmed: "confirmed",
               charged: "charged",
@@ -1156,7 +1159,7 @@ function AgendaPage() {
             const labels: Record<string, string> = {
               pending: "Pendientes",
               confirmed: "Confirmados",
-              charged: "Finalizados",
+              charged: "Cobrados",
               cancelled: "Cancelados",
               no_show: "No asistió",
             };
@@ -1179,8 +1182,10 @@ function AgendaPage() {
                 }}
                 lockOutside={false}
                 title={`${labels[filterModal] ?? "Turnos"} (${filtered.length})`}
-                subtitle={descriptions[filterModal]}
               >
+                <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[12px] text-white/60">
+                  {descriptions[filterModal] ?? "Turnos del estado seleccionado."}
+                </div>
                 <div className="space-y-1">
                   {filtered.length === 0 ? (
                     <div className="text-center text-sm text-muted-foreground py-8">
@@ -2546,7 +2551,7 @@ const ApptCard = React.memo(function ApptCard({
   const height = Math.max(18, dur * rowPx - 2);
   if (top < 0 || top > (hourEnd - hourStart) * rowPx) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
-  const isMovable = a.status !== "charged";
+  const isMovable = a.status !== "charged" && a.status !== "no_show";
   const laneCount = layout?.laneCount ?? 1;
   const lane = layout?.lane ?? 0;
   const gapPx = 6;
@@ -3035,9 +3040,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           ? "Cancelar"
           : appointment.status === "no_show"
             ? "No asistió"
-            : appointment.status === "in_service"
-              ? "En servicio"
-              : "Pendiente";
+          : appointment.status === "in_service"
+            ? "En servicio"
+            : "Pendiente";
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
   const noteText = clientNoteOnly(appointment.notes);
@@ -3317,69 +3322,81 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 Estado
               </div>
 
-              {/* Pendiente */}
-              {(() => {
-                const dot = STATUS_META.pending.dot;
-                const active = appointment.status === "pending";
-                return (
-                  <button
-                    onClick={() => onChangeStatus(appointment, "pending")}
-                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                    style={{
-                      background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                      color: dot,
-                      boxShadow: active
-                        ? `inset 0 0 0 1.5px ${dot}`
-                        : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                    }}
-                  >
-                    {active && (
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                      />
-                    )}
-                    Pendiente
-                  </button>
-                );
-              })()}
+              {isPast && appointment.status !== "cancelled" && appointment.status !== "no_show" && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] text-white/55">
+                  Este turno ya pasó. Podés marcarlo como no asistió.
+                </div>
+              )}
 
-              {/* Confirmado */}
-              {(() => {
-                const dot = STATUS_META.confirmed.dot;
-                const active = appointment.status === "confirmed";
-                return (
-                  <button
-                    onClick={() => onChangeStatus(appointment, "confirmed")}
-                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                    style={{
-                      background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                      color: dot,
-                      boxShadow: active
-                        ? `inset 0 0 0 1.5px ${dot}`
-                        : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                    }}
-                  >
-                    {active && (
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                      />
-                    )}
-                    Confirmado
-                  </button>
-                );
-              })()}
+              {!isPast && (
+                <>
+                  {/* Pendiente */}
+                  {(() => {
+                    const dot = STATUS_META.pending.dot;
+                    const active = appointment.status === "pending";
+                    return (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "pending")}
+                        className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        style={{
+                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                          color: dot,
+                          boxShadow: active
+                            ? `inset 0 0 0 1.5px ${dot}`
+                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                        }}
+                      >
+                        {active && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                          />
+                        )}
+                        Pendiente
+                      </button>
+                    );
+                  })()}
+
+                  {/* Confirmado */}
+                  {(() => {
+                    const dot = STATUS_META.confirmed.dot;
+                    const active = appointment.status === "confirmed";
+                    return (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "confirmed")}
+                        className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        style={{
+                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                          color: dot,
+                          boxShadow: active
+                            ? `inset 0 0 0 1.5px ${dot}`
+                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                        }}
+                      >
+                        {active && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                          />
+                        )}
+                        Confirmado
+                      </button>
+                    );
+                  })()}
+                </>
+              )}
 
               <div className="my-2 h-px bg-white/10" />
 
-              {/* Cancelado / No asistió — mutuamente excluyentes.
-                  Turno futuro → se puede cancelar (con confirmación).
-                  Turno que ya pasó y sigue pendiente/confirmado → ya no
-                  tiene sentido cancelarlo, se ofrece marcarlo "No asistió". */}
+              {/* Cancelar / No asistió */}
               {(() => {
-                if (appointment.status === "cancelled") {
-                  const dot = STATUS_META.cancelled.dot;
+                const isNoShowAction = isPast && appointment.status !== "cancelled";
+                const statusKey = isNoShowAction ? "no_show" : "cancelled";
+                const dot = STATUS_META[statusKey].dot;
+                const cancelled = appointment.status === "cancelled";
+                const noShow = appointment.status === "no_show";
+
+                if (cancelled || noShow) {
                   return (
                     <div
                       className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
@@ -3393,33 +3410,12 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                         className="h-1.5 w-1.5 rounded-full"
                         style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
                       />
-                      Cancelar
+                      {noShow ? "No asistió" : "Cancelar"}
                     </div>
                   );
                 }
 
-                if (appointment.status === "no_show") {
-                  const dot = STATUS_META.no_show.dot;
-                  return (
-                    <div
-                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                      style={{
-                        background: withAlpha(dot, 0.16),
-                        color: dot,
-                        boxShadow: `inset 0 0 0 1.5px ${dot}`,
-                      }}
-                    >
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                      />
-                      No asistió
-                    </div>
-                  );
-                }
-
-                if (isPast) {
-                  const dot = STATUS_META.no_show.dot;
+                if (isNoShowAction) {
                   return (
                     <button
                       onClick={() => onChangeStatus(appointment, "no_show")}
@@ -3435,7 +3431,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   );
                 }
 
-                const dot = STATUS_META.cancelled.dot;
                 return confirmCancel ? (
                   <div
                     className="rounded-xl p-2.5 space-y-2"
@@ -3510,34 +3505,35 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               })()}
 
               {/* Cobrado */}
-              {(() => {
-                const dot = STATUS_META.charged.dot;
-                const charged = appointment.status === "charged";
-                return (
-                  <button
-                    onClick={() => {
-                      if (!charged) onCobrar(appointment);
-                    }}
-                    disabled={charged}
-                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
-                    style={{
-                      background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                      color: dot,
-                      boxShadow: charged
-                        ? `inset 0 0 0 1.5px ${dot}`
-                        : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                    }}
-                  >
-                    {charged && (
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                      />
-                    )}
-                    Cobrar
-                  </button>
-                );
-              })()}
+              {!isPast &&
+                (() => {
+                  const dot = STATUS_META.charged.dot;
+                  const charged = appointment.status === "charged";
+                  return (
+                    <button
+                      onClick={() => {
+                        if (!charged) onCobrar(appointment);
+                      }}
+                      disabled={charged}
+                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
+                      style={{
+                        background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                        color: dot,
+                        boxShadow: charged
+                          ? `inset 0 0 0 1.5px ${dot}`
+                          : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                      }}
+                    >
+                      {charged && (
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                        />
+                      )}
+                      Cobrar
+                    </button>
+                  );
+                })()}
 
               {/* Cobrar seña (si aplica) */}
               {!isPast &&
