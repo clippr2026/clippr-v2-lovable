@@ -239,14 +239,9 @@ function PublicBookingPage() {
   const [clientBirthDate, setClientBirthDate] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [landingColors, setLandingColors] = React.useState<LandingColors>({});
-  const [landingTheme, setLandingTheme] = React.useState<LandingTheme>(() => {
-    if (typeof window === "undefined") return "light";
-    const cachedTheme = window.localStorage.getItem(`clippr_booking_theme:${slug}`);
-    return cachedTheme === "dark" || cachedTheme === "light" ? (cachedTheme as LandingTheme) : "light";
-  });
+  const [landingTheme, setLandingTheme] = React.useState<LandingTheme>("dark");
   // Tema real del negocio, resuelto únicamente desde business_settings.schedule._branding.theme.
-  // Se usa solo para el fondo del loader inicial: nunca se lee de localStorage ni de un
-  // valor cacheado, para evitar un flash de color incorrecto mientras carga el negocio.
+  // Se usa solo para el fondo del loader inicial y evita un flash de color incorrecto.
   const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark" | null>(null);
   const [confirmedBooking, setConfirmedBooking] = React.useState<{
     services: string;
@@ -466,9 +461,6 @@ function PublicBookingPage() {
           const resolvedLandingTheme: LandingTheme = branding.theme === "light" ? "light" : "dark";
           setLandingTheme(resolvedLandingTheme);
           setResolvedTheme(resolvedLandingTheme);
-          if (typeof window !== "undefined") {
-            window.localStorage.setItem(`clippr_booking_theme:${slug}`, resolvedLandingTheme);
-          }
 
           const params = new URLSearchParams(window.location.search);
           const serviceId = params.get("service");
@@ -727,8 +719,6 @@ function PublicBookingPage() {
   const accentButtonText = landingColors.buttonText || "#ffffff";
 
   if (loading) {
-    // Mientras no se conoce el tema real del negocio, no se dibuja el loader con
-    // un color adivinado: se espera a que se resuelva desde business_settings.
     if (resolvedTheme === null) return null;
     return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
   }
