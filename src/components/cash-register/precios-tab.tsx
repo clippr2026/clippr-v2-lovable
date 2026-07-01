@@ -21,6 +21,7 @@ type Row = {
   active: boolean | null;
   stock: number | null;
   image?: string | null;
+  image_position?: string | null;
 };
 
 function cashPrice(price: number, discount: number | null) {
@@ -59,11 +60,13 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
     // Exact same category loading as PriceCatalogSection
     const schedule = (scheduleRes.data?.schedule ?? {}) as Record<string, unknown>;
     const catalogImages = (schedule._catalogImages ?? {}) as Record<string, unknown>;
+    const catalogImagePositions = (schedule._catalogImagePositions ?? {}) as Record<string, unknown>;
 
     setRows(
       ((rowsRes.data ?? []) as Row[]).map((row) => ({
         ...row,
         image: typeof catalogImages[row.id] === "string" ? (catalogImages[row.id] as string) : null,
+        image_position: typeof catalogImagePositions[row.id] === "string" ? (catalogImagePositions[row.id] as string) : "50% 50%",
       })),
     );
     const cats = (schedule._categories ?? {}) as Record<string, unknown>;
@@ -124,11 +127,27 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                   const cash = cashPrice(r.price, r.cash_discount);
                   return (
                     <div key={r.id} className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-white/[0.025] transition-colors">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+                          {r.image ? (
+                            <img
+                              src={r.image}
+                              alt={r.name}
+                              className="h-full w-full object-cover"
+                              style={{ objectPosition: r.image_position ?? "50% 50%" }}
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          ) : (
+                            <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
                         {r.duration_min && (
                           <div className="text-[11px] text-muted-foreground mt-0.5">{r.duration_min} min</div>
                         )}
+                        </div>
                       </div>
                       <div className="shrink-0 min-w-[155px] rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
                         <div className="flex items-center justify-between gap-3 text-sm tabular-nums">
@@ -172,14 +191,30 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                   const cash = cashPrice(r.price, r.cash_discount);
                   return (
                     <div key={r.id} className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-white/[0.025] transition-colors">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+                          {r.image ? (
+                            <img
+                              src={r.image}
+                              alt={r.name}
+                              className="h-full w-full object-cover"
+                              style={{ objectPosition: r.image_position ?? "50% 50%" }}
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          ) : (
+                            <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
                         {typeof r.stock === "number" && (
                           <div className={cn("text-[11px] mt-0.5",
                             r.stock === 0 ? "text-rose-300" : r.stock <= 3 ? "text-blue-300" : "text-muted-foreground")}>
                             Stock: {r.stock}
                           </div>
                         )}
+                        </div>
                       </div>
                       <div className="shrink-0 min-w-[155px] rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
                         <div className="flex items-center justify-between gap-3 text-sm tabular-nums">
