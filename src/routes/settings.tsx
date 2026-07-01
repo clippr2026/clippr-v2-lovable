@@ -6393,10 +6393,12 @@ function DraggableImageCrop({
   const setPositionFromDrag = (clientX: number, clientY: number) => {
     const drag = dragRef.current;
     if (!drag) return;
-    const dx = ((clientX - drag.startX) / Math.max(drag.width, 1)) * 70;
-    const dy = ((clientY - drag.startY) / Math.max(drag.height, 1)) * 70;
+    // Movimiento natural: al arrastrar la imagen hacia un lado, la foto acompaña el dedo/mouse.
+    // object-position funciona al revés del gesto, por eso restamos el desplazamiento.
+    const dx = ((clientX - drag.startX) / Math.max(drag.width, 1)) * 120;
+    const dy = ((clientY - drag.startY) / Math.max(drag.height, 1)) * 120;
     onChange(
-      `${clampImagePositionValue(drag.imageX + dx)}% ${clampImagePositionValue(drag.imageY + dy)}%`,
+      `${clampImagePositionValue(drag.imageX - dx)}% ${clampImagePositionValue(drag.imageY - dy)}%`,
     );
   };
 
@@ -6406,7 +6408,7 @@ function DraggableImageCrop({
         role="button"
         tabIndex={0}
         className={cn(
-          "relative grid aspect-square w-full cursor-grab touch-none select-none place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
+          "relative grid aspect-square w-full cursor-move touch-none select-none place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
           className,
         )}
         title="Arrastrá la imagen para acomodarla"
