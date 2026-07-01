@@ -3435,7 +3435,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
                     }}
                   >
-                    Cancelado
+                    Cancelar
                   </button>
                 );
               })()}
@@ -3466,7 +3466,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                           style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
                         />
                       )}
-                      Cobrado
+                      Cobrar
                     </button>
                   );
                 })()}
