@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus, X, Pencil } from "lucide-react";
+import { Plus, X, Pencil, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { toDateKey, type SpecialDateMap, type DaySchedule } from "@/components/agenda/use-agenda-data";
@@ -165,6 +165,10 @@ export function SpecialDayEditor({
   allowBreak = false,
   closedLabel = "Cerrado",
   saving = false,
+  professionals,
+  selectedEmployeeId,
+  onSelectEmployee,
+  onBlock,
   onSave,
   onCancel,
 }: {
@@ -173,6 +177,10 @@ export function SpecialDayEditor({
   allowBreak?: boolean;
   closedLabel?: string;
   saving?: boolean;
+  professionals?: { id: string; full_name?: string | null; name?: string | null }[];
+  selectedEmployeeId?: string | null;
+  onSelectEmployee?: (employeeId: string) => void;
+  onBlock?: () => void;
   onSave: (day: DaySchedule) => void;
   onCancel: () => void;
 }) {
@@ -202,9 +210,42 @@ export function SpecialDayEditor({
           {date.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit" })}
         </p>
 
+        {professionals && professionals.length > 0 && (
+          <label className="mt-4 block space-y-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+              Profesional
+            </span>
+            <select
+              value={selectedEmployeeId ?? ""}
+              onChange={(event) => onSelectEmployee?.(event.target.value)}
+              disabled={saving}
+              className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none transition focus:border-violet-300/45 disabled:opacity-50"
+            >
+              <option value="">Seleccionar profesional</option>
+              {professionals.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.full_name ?? employee.name ?? "Sin nombre"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <div className="mt-4">
           <SpecialDayFields state={state} onChange={patch} allowBreak={allowBreak} closedLabel={closedLabel} />
         </div>
+
+        {onBlock && (
+          <button
+            type="button"
+            onClick={onBlock}
+            disabled={saving}
+            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/15 disabled:opacity-50"
+          >
+            <XCircle className="h-4 w-4" />
+            Bloquear horario
+          </button>
+        )}
 
         <div className="mt-5 flex items-center gap-2">
           <button
