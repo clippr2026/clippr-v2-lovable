@@ -781,24 +781,18 @@ function PublicBookingPage() {
       ) : null}
       <section
         className={cn(
-          "relative overflow-hidden",
-          isLight ? "border-b border-white/10 bg-black" : "border-b-0 bg-transparent",
+          "relative w-full overflow-hidden border-b",
+          isLight ? "border-gray-200 bg-white" : "border-white/10 bg-black",
         )}
       >
-        <div className="relative mx-auto flex max-w-5xl items-center justify-center px-4 py-1.5 sm:py-2">
-          <div
-            className={cn(
-              "inline-flex items-center justify-center gap-3",
-              !isLight && "rounded-full px-4 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.18)]",
-            )}
-            style={!isLight ? { backgroundColor: "rgba(255,255,255,0.95)" } : undefined}
-          >
+        <div className="relative flex w-full items-center justify-center px-4 py-1.5 sm:py-2">
+          <div className="inline-flex items-center justify-center gap-3">
             <span
               className="text-xs font-medium sm:text-sm"
               style={
                 isLight
-                  ? { color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }
-                  : { color: "#4B5563", WebkitTextFillColor: "#4B5563" }
+                  ? { color: "#4B5563", WebkitTextFillColor: "#4B5563" }
+                  : { color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }
               }
             >
               Impulsado por
@@ -808,14 +802,14 @@ function PublicBookingPage() {
               alt="Clippr"
               loading="eager"
               decoding="async"
-              className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10 sm:h-10 sm:w-10"
+              className="h-9 w-9 rounded-xl object-contain sm:h-10 sm:w-10"
             />
             <span
               className="text-xl font-bold tracking-tight sm:text-2xl"
               style={
                 isLight
-                  ? { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
-                  : { color: "#111827", WebkitTextFillColor: "#111827" }
+                  ? { color: "#111827", WebkitTextFillColor: "#111827" }
+                  : { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
               }
             >
               Clippr
