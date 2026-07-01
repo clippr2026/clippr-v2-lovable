@@ -17,7 +17,7 @@ const sizeClass = {
 export function ClipprLoader({
   fullScreen = false,
   size = "md",
-  background = "dark",
+  background = "transparent",
   className,
 }: ClipprLoaderProps) {
   const mark = (
