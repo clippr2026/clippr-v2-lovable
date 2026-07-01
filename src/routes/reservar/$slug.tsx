@@ -782,7 +782,7 @@ function PublicBookingPage() {
       <section
         className={cn(
           "relative w-full overflow-hidden border-b",
-          isLight ? "border-gray-200 bg-white" : "border-white/10 bg-black",
+          isLight ? "border-white/10 bg-black" : "border-gray-200 bg-white",
         )}
       >
         <div className="relative flex w-full items-center justify-center px-4 py-1.5 sm:py-2">
@@ -791,8 +791,8 @@ function PublicBookingPage() {
               className="text-xs font-medium sm:text-sm"
               style={
                 isLight
-                  ? { color: "#4B5563", WebkitTextFillColor: "#4B5563" }
-                  : { color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }
+                  ? { color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }
+                  : { color: "#4B5563", WebkitTextFillColor: "#4B5563" }
               }
             >
               Impulsado por
@@ -808,8 +808,8 @@ function PublicBookingPage() {
               className="text-xl font-bold tracking-tight sm:text-2xl"
               style={
                 isLight
-                  ? { color: "#111827", WebkitTextFillColor: "#111827" }
-                  : { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
+                  ? { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
+                  : { color: "#111827", WebkitTextFillColor: "#111827" }
               }
             >
               Clippr
