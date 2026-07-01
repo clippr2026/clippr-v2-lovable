@@ -248,7 +248,7 @@ export function useCajaData() {
 
     // Services
     const svcRaw = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
-    // Imagen del producto (solo catálogo) desde business_settings.schedule._catalogImages
+    // Imagen del ítem (servicios y catálogo comparten el mismo mapa) desde business_settings.schedule._catalogImages
     const catalogImages: Record<string, string> = (() => {
       const bsData = bsRes.status === "fulfilled" && !bsRes.value.error ? bsRes.value.data : null;
       const schedule = (bsData?.schedule ?? {}) as Record<string, unknown>;
@@ -270,7 +270,7 @@ export function useCajaData() {
           is_active: r.active !== false,
           stock: r.stock,
           is_catalog: r.duration_min == null,
-          image: r.duration_min == null ? catalogImages[r.id] ?? null : null,
+          image: catalogImages[r.id] ?? null,
         })),
     );
 
