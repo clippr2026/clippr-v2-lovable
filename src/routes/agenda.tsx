@@ -103,6 +103,12 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
       border: "oklch(0.6 0.18 25)",
       dot: "oklch(0.65 0.2 25)",
     },
+    no_show: {
+      label: "No asistió",
+      bg: "oklch(0.32 0.19 25 / 0.55)",
+      border: "oklch(0.62 0.24 25)",
+      dot: "oklch(0.68 0.25 25)",
+    },
     blocked: {
       label: "Bloqueado",
       bg: "oklch(0.3 0 0 / 0.4)",
@@ -701,10 +707,11 @@ function AgendaPage() {
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
-    // Turno pasado: la ÚNICA acción permitida es cancelar. Cualquier otro cambio
-    // de estado se bloquea (queda como historial).
-    if (a.status !== "blocked" && isPastAppointment(a) && status !== "cancelled") {
-      toast.error(PAST_APPT_MESSAGE);
+    // Turno pasado: ya no tiene sentido cancelarlo (nunca se llegó a atender
+    // "a futuro"). En su lugar se usa "No asistió". El resto de los cambios
+    // de estado (pendiente/confirmado/cobrar) siguen disponibles como historial.
+    if (a.status !== "blocked" && isPastAppointment(a) && status === "cancelled") {
+      toast.error("Un turno que ya pasó no se puede cancelar. Marcalo como \"No asistió\" si el cliente no se presentó.");
       return;
     }
     // Un turno cobrado es estado final: no se permite ningún cambio de estado.
@@ -753,13 +760,12 @@ function AgendaPage() {
   };
 
   const goToCobro = async (a: Appointment) => {
-    // No se cobra retroactivamente: un turno pasado queda como historial.
-    if (isPastAppointment(a)) {
-      toast.error(PAST_APPT_MESSAGE);
-      return;
-    }
     if (a.status === "cancelled") {
       toast.error("No se puede cobrar un turno cancelado.");
+      return;
+    }
+    if (a.status === "no_show") {
+      toast.error("No se puede cobrar un turno marcado como no asistió.");
       return;
     }
     const depositPaid = Number(a.deposit_paid ?? 0);
@@ -909,6 +915,7 @@ function AgendaPage() {
     seña: data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || "")).length,
     charged: data.appointments.filter((a) => a.status === "charged").length,
     cancelled: data.appointments.filter((a) => a.status === "cancelled").length,
+    no_show: data.appointments.filter((a) => a.status === "no_show").length,
   };
 
   // Always day view — navigation via the banner arrows
@@ -1047,6 +1054,13 @@ function AgendaPage() {
                   "oklch(0.65 0.2 25 / 0.12)",
                   "oklch(0.65 0.2 25 / 0.3)",
                 ],
+                [
+                  "no_show",
+                  "No asistió",
+                  "oklch(0.68 0.25 25)",
+                  "oklch(0.68 0.25 25 / 0.12)",
+                  "oklch(0.68 0.25 25 / 0.3)",
+                ],
               ] as [string, string, string, string, string][]
             ).map(([k, label, color, bg, ring]) => (
               <button
@@ -1137,12 +1151,21 @@ function AgendaPage() {
               confirmed: "confirmed",
               charged: "charged",
               cancelled: "cancelled",
+              no_show: "no_show",
             };
             const labels: Record<string, string> = {
               pending: "Pendientes",
               confirmed: "Confirmados",
               charged: "Finalizados",
               cancelled: "Cancelados",
+              no_show: "No asistió",
+            };
+            const descriptions: Record<string, string> = {
+              pending: "Espera confirmación.",
+              confirmed: "Turnos confirmados.",
+              charged: "Servicios finalizados y cobrados.",
+              cancelled: "Turnos cancelados antes de ser atendidos.",
+              no_show: "El cliente tenía turno pero no se presentó.",
             };
             const filtered =
               filterModal === "seña"
@@ -1156,6 +1179,7 @@ function AgendaPage() {
                 }}
                 lockOutside={false}
                 title={`${labels[filterModal] ?? "Turnos"} (${filtered.length})`}
+                subtitle={descriptions[filterModal]}
               >
                 <div className="space-y-1">
                   {filtered.length === 0 ? (
@@ -3009,9 +3033,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         ? "Confirmado"
         : appointment.status === "cancelled"
           ? "Cancelar"
-          : appointment.status === "in_service"
-            ? "En servicio"
-            : "Pendiente";
+          : appointment.status === "no_show"
+            ? "No asistió"
+            : appointment.status === "in_service"
+              ? "En servicio"
+              : "Pendiente";
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
   const noteText = clientNoteOnly(appointment.notes);
@@ -3291,92 +3317,126 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 Estado
               </div>
 
-              {isPast && appointment.status !== "cancelled" && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] text-white/55">
-                  Este turno ya pasó. Solo se puede cancelar.
-                </div>
-              )}
+              {/* Pendiente */}
+              {(() => {
+                const dot = STATUS_META.pending.dot;
+                const active = appointment.status === "pending";
+                return (
+                  <button
+                    onClick={() => onChangeStatus(appointment, "pending")}
+                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                    style={{
+                      background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                      color: dot,
+                      boxShadow: active
+                        ? `inset 0 0 0 1.5px ${dot}`
+                        : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                    }}
+                  >
+                    {active && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                      />
+                    )}
+                    Pendiente
+                  </button>
+                );
+              })()}
 
-              {!isPast && (
-                <>
-                  {/* Pendiente */}
-                  {(() => {
-                    const dot = STATUS_META.pending.dot;
-                    const active = appointment.status === "pending";
-                    return (
-                      <button
-                        onClick={() => onChangeStatus(appointment, "pending")}
-                        className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                        style={{
-                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                          color: dot,
-                          boxShadow: active
-                            ? `inset 0 0 0 1.5px ${dot}`
-                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                        }}
-                      >
-                        {active && (
-                          <span
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                          />
-                        )}
-                        Pendiente
-                      </button>
-                    );
-                  })()}
-
-                  {/* Confirmado */}
-                  {(() => {
-                    const dot = STATUS_META.confirmed.dot;
-                    const active = appointment.status === "confirmed";
-                    return (
-                      <button
-                        onClick={() => onChangeStatus(appointment, "confirmed")}
-                        className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                        style={{
-                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                          color: dot,
-                          boxShadow: active
-                            ? `inset 0 0 0 1.5px ${dot}`
-                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                        }}
-                      >
-                        {active && (
-                          <span
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                          />
-                        )}
-                        Confirmado
-                      </button>
-                    );
-                  })()}
-                </>
-              )}
+              {/* Confirmado */}
+              {(() => {
+                const dot = STATUS_META.confirmed.dot;
+                const active = appointment.status === "confirmed";
+                return (
+                  <button
+                    onClick={() => onChangeStatus(appointment, "confirmed")}
+                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                    style={{
+                      background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                      color: dot,
+                      boxShadow: active
+                        ? `inset 0 0 0 1.5px ${dot}`
+                        : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                    }}
+                  >
+                    {active && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                      />
+                    )}
+                    Confirmado
+                  </button>
+                );
+              })()}
 
               <div className="my-2 h-px bg-white/10" />
 
-              {/* Cancelado — único, con confirmación */}
+              {/* Cancelado / No asistió — mutuamente excluyentes.
+                  Turno futuro → se puede cancelar (con confirmación).
+                  Turno que ya pasó y sigue pendiente/confirmado → ya no
+                  tiene sentido cancelarlo, se ofrece marcarlo "No asistió". */}
               {(() => {
+                if (appointment.status === "cancelled") {
+                  const dot = STATUS_META.cancelled.dot;
+                  return (
+                    <div
+                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                      style={{
+                        background: withAlpha(dot, 0.16),
+                        color: dot,
+                        boxShadow: `inset 0 0 0 1.5px ${dot}`,
+                      }}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                      />
+                      Cancelar
+                    </div>
+                  );
+                }
+
+                if (appointment.status === "no_show") {
+                  const dot = STATUS_META.no_show.dot;
+                  return (
+                    <div
+                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                      style={{
+                        background: withAlpha(dot, 0.16),
+                        color: dot,
+                        boxShadow: `inset 0 0 0 1.5px ${dot}`,
+                      }}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                      />
+                      No asistió
+                    </div>
+                  );
+                }
+
+                if (isPast) {
+                  const dot = STATUS_META.no_show.dot;
+                  return (
+                    <button
+                      onClick={() => onChangeStatus(appointment, "no_show")}
+                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                      style={{
+                        background: "rgba(255,255,255,0.03)",
+                        color: dot,
+                        boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                      }}
+                    >
+                      No asistió
+                    </button>
+                  );
+                }
+
                 const dot = STATUS_META.cancelled.dot;
-                const cancelled = appointment.status === "cancelled";
-                return cancelled ? (
-                  <div
-                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                    style={{
-                      background: withAlpha(dot, 0.16),
-                      color: dot,
-                      boxShadow: `inset 0 0 0 1.5px ${dot}`,
-                    }}
-                  >
-                    <span
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                    />
-                    Cancelar
-                  </div>
-                ) : confirmCancel ? (
+                return confirmCancel ? (
                   <div
                     className="rounded-xl p-2.5 space-y-2"
                     style={{
@@ -3450,35 +3510,34 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               })()}
 
               {/* Cobrado */}
-              {!isPast &&
-                (() => {
-                  const dot = STATUS_META.charged.dot;
-                  const charged = appointment.status === "charged";
-                  return (
-                    <button
-                      onClick={() => {
-                        if (!charged) onCobrar(appointment);
-                      }}
-                      disabled={charged}
-                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
-                      style={{
-                        background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                        color: dot,
-                        boxShadow: charged
-                          ? `inset 0 0 0 1.5px ${dot}`
-                          : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                      }}
-                    >
-                      {charged && (
-                        <span
-                          className="h-1.5 w-1.5 rounded-full"
-                          style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                        />
-                      )}
-                      Cobrar
-                    </button>
-                  );
-                })()}
+              {(() => {
+                const dot = STATUS_META.charged.dot;
+                const charged = appointment.status === "charged";
+                return (
+                  <button
+                    onClick={() => {
+                      if (!charged) onCobrar(appointment);
+                    }}
+                    disabled={charged}
+                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
+                    style={{
+                      background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                      color: dot,
+                      boxShadow: charged
+                        ? `inset 0 0 0 1.5px ${dot}`
+                        : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                    }}
+                  >
+                    {charged && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                      />
+                    )}
+                    Cobrar
+                  </button>
+                );
+              })()}
 
               {/* Cobrar seña (si aplica) */}
               {!isPast &&
