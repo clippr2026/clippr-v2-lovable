@@ -21,6 +21,7 @@ import {
   Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ServiceImage } from "@/components/ui/service-image";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAgendaData,
@@ -3221,17 +3222,13 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <div className="space-y-2.5">
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  {serviceImageUrl ? (
-                    <img
-                      src={serviceImageUrl}
-                      alt={appointment.service_name || "Servicio"}
-                      className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-white/10"
-                      style={{ objectPosition: serviceImagePosition }}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <Scissors className="h-4 w-4 shrink-0 text-white/45" />
-                  )}
+                  <ServiceImage
+                    src={serviceImageUrl}
+                    alt={appointment.service_name || "Servicio"}
+                    position={serviceImagePosition}
+                    className="h-14 w-14 rounded-2xl ring-1 ring-white/10"
+                    fallback={<Scissors className="h-4 w-4 shrink-0 text-white/45" />}
+                  />
                   <div className="truncate text-base font-semibold leading-tight">
                     {appointment.service_name || "Servicio"}
                   </div>
@@ -3312,7 +3309,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
                   >
                     {product.image ? (
-                      <img src={product.image} alt={product.name} className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/10" loading="lazy" />
+                      <ServiceImage
+                        src={product.image}
+                        alt={product.name}
+                        className="h-10 w-10 rounded-2xl ring-1 ring-white/10"
+                      />
                     ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold text-white/90">{product.name}</div>

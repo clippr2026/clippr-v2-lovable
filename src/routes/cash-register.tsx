@@ -7,6 +7,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { ServiceImage } from "@/components/ui/service-image";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -1648,23 +1649,15 @@ function PreciosTab({
     </div>
   );
 
-  const Thumb = ({ item, fallback }: { item: any; fallback: string }) => {
-    const src = itemImage(item);
-    return (
-      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]">
-        {src ? (
-          <img
-            src={src}
-            alt={item.name ?? ""}
-            className="h-full w-full object-cover"
-            style={{ objectPosition: item.image_position ?? item.imagePosition ?? "50% 50%" }}
-          />
-        ) : (
-          <span>{fallback}</span>
-        )}
-      </div>
-    );
-  };
+  const Thumb = ({ item, fallback }: { item: any; fallback: string }) => (
+    <ServiceImage
+      src={itemImage(item)}
+      alt={item.name ?? ""}
+      position={item.image_position ?? item.imagePosition}
+      className="size-10 rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]"
+      fallback={<span>{fallback}</span>}
+    />
+  );
 
   const SearchBox = ({
     value,
@@ -2034,23 +2027,15 @@ function InventarioTab({
     </span>
   );
 
-  const Thumb = ({ item }: { item: any }) => {
-    const src = itemImage(item);
-    return (
-      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
-        {src ? (
-          <img
-            src={src}
-            alt={item.name ?? ""}
-            className="h-full w-full object-cover"
-            style={{ objectPosition: item.image_position ?? item.imagePosition ?? "50% 50%" }}
-          />
-        ) : (
-          <span>□</span>
-        )}
-      </div>
-    );
-  };
+  const Thumb = ({ item }: { item: any }) => (
+    <ServiceImage
+      src={itemImage(item)}
+      alt={item.name ?? ""}
+      position={item.image_position ?? item.imagePosition}
+      className="size-10 rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
+      fallback={<span>□</span>}
+    />
+  );
 
   const SearchBox = ({
     value,
@@ -6600,18 +6585,13 @@ function NuevaVentaTab({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
-                        <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(96,165,250,0.10),rgba(139,92,246,0.10))] text-lg text-blue-100 shadow-[0_0_22px_rgba(96,165,250,0.10)]">
-                          {imageSrc ? (
-                            <img
-                              src={imageSrc}
-                              alt={it.name ?? "Ítem"}
-                              className="h-full w-full object-cover"
-                              style={{ objectPosition: it.image_position ?? it.imagePosition ?? "50% 50%" }}
-                            />
-                          ) : (
-                            <span>{it.is_catalog ? "□" : "✂"}</span>
-                          )}
-                        </div>
+                        <ServiceImage
+                          src={imageSrc}
+                          alt={it.name ?? "Ítem"}
+                          position={it.image_position}
+                          className="size-11 rounded-2xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(96,165,250,0.10),rgba(139,92,246,0.10))] text-lg text-blue-100 shadow-[0_0_22px_rgba(96,165,250,0.10)]"
+                          fallback={<span>{it.is_catalog ? "□" : "✂"}</span>}
+                        />
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">
                             {it.name}

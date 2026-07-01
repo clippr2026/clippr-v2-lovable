@@ -87,6 +87,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ServiceImage } from "@/components/ui/service-image";
 import { SpecialHoursEditor } from "@/components/settings/special-hours-editor";
 import type {
   SpecialDateMap,
@@ -7936,19 +7937,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 )}
               >
                 <GripVertical className="h-4 w-4 shrink-0 text-white/35" />
-                <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
-                  {imageMap[row.id] ? (
-                    <img
-                      src={imageMap[row.id]}
-                      alt={row.name}
-                      className="h-full w-full object-cover"
-                      style={{ objectPosition: imagePositionMap[row.id] ?? "50% 50%" }}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />
-                  )}
-                </div>
+                <ServiceImage
+                  src={imageMap[row.id]}
+                  alt={row.name}
+                  position={imagePositionMap[row.id]}
+                  className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10"
+                  fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
+                />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{row.name}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
