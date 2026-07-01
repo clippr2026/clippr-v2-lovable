@@ -86,6 +86,7 @@ type Service = {
   duration?: number | null;
   is_active?: boolean | null;
   image_url?: string | null;
+  image_position?: string | null;
 };
 
 type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
@@ -404,10 +405,14 @@ function PublicBookingPage() {
           settingsSchedule && typeof settingsSchedule === "object"
             ? (((settingsSchedule as Record<string, unknown>)._catalogImages ?? {}) as Record<string, string>)
             : {};
+        const serviceImagePositionMap =
+          settingsSchedule && typeof settingsSchedule === "object"
+            ? (((settingsSchedule as Record<string, unknown>)._catalogImagePositions ?? {}) as Record<string, string>)
+            : {};
         const visibleServices = ((servicesRes.error ? [] : (servicesRes.data ?? [])) as Service[])
           .filter((service) => service.is_active !== false)
           .filter((service) => visibility.services[service.id] !== false)
-          .map((service) => ({ ...service, image_url: serviceImageMap[service.id] ?? null }));
+          .map((service) => ({ ...service, image_url: serviceImageMap[service.id] ?? null, image_position: serviceImagePositionMap[service.id] ?? "50% 50%" }));
 
         if (!cancelled) {
           setBusiness(businessData as Business);
@@ -871,12 +876,13 @@ function PublicBookingPage() {
                       return (
                         <button key={service.id} type="button" onClick={() => toggleService(service.id)} className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-white/[0.04]">
                           <span className="flex min-w-0 items-center gap-3">
-                            <span className="grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/[0.06] ring-1 ring-white/10">
+                            <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/[0.06] ring-1 ring-white/10">
                               {service.image_url ? (
                                 <img
                                   src={service.image_url}
                                   alt={service.name}
                                   className="h-full w-full object-cover"
+                                  style={{ objectPosition: service.image_position ?? "50% 50%" }}
                                   loading="lazy"
                                   decoding="async"
                                 />
