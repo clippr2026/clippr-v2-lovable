@@ -23,7 +23,7 @@ IMPORTANTE:
 ¡Muchas gracias! Te esperamos. 🙌`;
 
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import React from "react";
@@ -6346,7 +6346,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
 
 
 function clampImagePositionValue(value: number) {
-  return Math.max(-100, Math.min(200, value));
+  return Math.max(0, Math.min(100, value));
 }
 
 function parseImagePosition(position?: string | null): { x: number; y: number } {
@@ -6361,11 +6361,66 @@ function parseImagePosition(position?: string | null): { x: number; y: number } 
   };
 }
 
-function moveImagePosition(position: string, dx: number, dy: number) {
-  const current = parseImagePosition(position);
-  return `${clampImagePositionValue(current.x + dx)}% ${clampImagePositionValue(current.y + dy)}%`;
+/**
+ * Geometría real del recorte: a partir del tamaño natural de la foto y el
+ * tamaño real del marco, calcula cuánto "sobra" de imagen (overflow) en cada
+ * eje una vez aplicado object-fit: cover. Ese sobrante es el único rango
+ * válido de arrastre — no un porcentaje inventado.
+ */
+type CropGeometry = {
+  scale: number;
+  scaledW: number;
+  scaledH: number;
+  overflowX: number;
+  overflowY: number;
+};
+
+function computeCropGeometry(
+  container: { w: number; h: number },
+  natural: { w: number; h: number },
+): CropGeometry | null {
+  if (!container.w || !container.h || !natural.w || !natural.h) return null;
+  const scale = Math.max(container.w / natural.w, container.h / natural.h);
+  const scaledW = natural.w * scale;
+  const scaledH = natural.h * scale;
+  return {
+    scale,
+    scaledW,
+    scaledH,
+    overflowX: Math.max(0, scaledW - container.w),
+    overflowY: Math.max(0, scaledH - container.h),
+  };
 }
 
+// object-position "X% Y%" <-> transform: translate(x px, y px) real, según la geometría.
+function offsetToTranslate(position: string, geometry: CropGeometry) {
+  const { x: px, y: py } = parseImagePosition(position);
+  return {
+    x: -geometry.overflowX * (px / 100),
+    y: -geometry.overflowY * (py / 100),
+  };
+}
+
+function translateToOffset(translate: { x: number; y: number }, geometry: CropGeometry) {
+  const x = geometry.overflowX > 0 ? clampImagePositionValue((-translate.x / geometry.overflowX) * 100) : 50;
+  const y = geometry.overflowY > 0 ? clampImagePositionValue((-translate.y / geometry.overflowY) * 100) : 50;
+  // Redondeo a 1 decimal: precisión de sobra para el recorte, strings más cortos para persistir.
+  return `${Math.round(x * 10) / 10}% ${Math.round(y * 10) / 10}%`;
+}
+
+function clampTranslate(translate: { x: number; y: number }, geometry: CropGeometry) {
+  return {
+    x: Math.max(-geometry.overflowX, Math.min(0, translate.x)),
+    y: Math.max(-geometry.overflowY, Math.min(0, translate.y)),
+  };
+}
+
+/**
+ * Editor de imagen tipo Instagram / Mercado Libre: el marco nunca se mueve,
+ * solo la fotografía, arrastrada con transform: translate() y con límites
+ * calculados con el tamaño real de la imagen y del marco (no con porcentajes
+ * fijos). Se puede llevar hasta los bordes reales de la foto, sin rebote.
+ */
 function DraggableImageCrop({
   src,
   alt,
@@ -6381,81 +6436,167 @@ function DraggableImageCrop({
   onPickImage?: () => void;
   className?: string;
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const initializedForRef = useRef<string>("");
+
   const dragRef = useRef<{
     pointerId: number;
-    startX: number;
-    startY: number;
-    imageX: number;
-    imageY: number;
-    width: number;
-    height: number;
+    startClientX: number;
+    startClientY: number;
+    startTranslateX: number;
+    startTranslateY: number;
   } | null>(null);
 
-  const setPositionFromDrag = (clientX: number, clientY: number) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    // Movimiento natural: al arrastrar la imagen hacia un lado, la foto acompaña el dedo/mouse.
-    // object-position funciona al revés del gesto, por eso restamos el desplazamiento.
-    const dx = ((clientX - drag.startX) / Math.max(drag.width, 1)) * 200;
-    const dy = ((clientY - drag.startY) / Math.max(drag.height, 1)) * 200;
-    onChange(
-      `${clampImagePositionValue(drag.imageX - dx)}% ${clampImagePositionValue(drag.imageY - dy)}%`,
-    );
+  // Mide el marco real (no un porcentaje asumido) y reacciona si cambia de tamaño.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ w: rect.width, h: rect.height });
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Si la imagen ya está cargada desde caché al montar, captura su tamaño natural igual.
+  useLayoutEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth) {
+      setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    }
+  }, [src]);
+
+  const geometry = useMemo(
+    () => computeCropGeometry(containerSize, naturalSize),
+    [containerSize, naturalSize],
+  );
+
+  // Al cambiar de foto (o apenas se conoce la geometría real por primera vez),
+  // arranca desde la posición guardada — nunca recentra si ya había una guardada.
+  useEffect(() => {
+    if (!geometry) return;
+    const key = `${src}|${Math.round(geometry.scaledW)}x${Math.round(geometry.scaledH)}`;
+    if (initializedForRef.current === key) return;
+    initializedForRef.current = key;
+    setTranslate(clampTranslate(offsetToTranslate(value, geometry), geometry));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geometry, src]);
+
+  const applyTranslate = (next: { x: number; y: number }) => {
+    if (!geometry) return;
+    const clamped = clampTranslate(next, geometry);
+    setTranslate(clamped);
+    return clamped;
+  };
+
+  const commit = (next: { x: number; y: number }) => {
+    if (!geometry) return;
+    onChange(translateToOffset(next, geometry));
   };
 
   return (
     <div className="space-y-2">
       <div
+        ref={containerRef}
         role="button"
         tabIndex={0}
         className={cn(
-          "relative grid aspect-square w-full cursor-move touch-none select-none place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
+          "relative aspect-square w-full cursor-grab touch-none select-none overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
+          dragging && "ring-2 ring-primary/50",
           className,
         )}
         title="Arrastrá la imagen para acomodarla"
         onPointerDown={(event) => {
-          const target = event.currentTarget;
-          const rect = target.getBoundingClientRect();
-          const current = parseImagePosition(value);
+          if (!geometry) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setDragging(true);
           dragRef.current = {
             pointerId: event.pointerId,
-            startX: event.clientX,
-            startY: event.clientY,
-            imageX: current.x,
-            imageY: current.y,
-            width: rect.width,
-            height: rect.height,
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+            startTranslateX: translate.x,
+            startTranslateY: translate.y,
           };
-          target.setPointerCapture(event.pointerId);
         }}
-        onPointerMove={(event) => setPositionFromDrag(event.clientX, event.clientY)}
+        onPointerMove={(event) => {
+          const drag = dragRef.current;
+          if (!drag || !geometry) return;
+          // 1:1 real: la foto acompaña el cursor/dedo exactamente, sin multiplicadores artificiales.
+          const dx = event.clientX - drag.startClientX;
+          const dy = event.clientY - drag.startClientY;
+          applyTranslate({ x: drag.startTranslateX + dx, y: drag.startTranslateY + dy });
+        }}
         onPointerUp={(event) => {
-          setPositionFromDrag(event.clientX, event.clientY);
+          const drag = dragRef.current;
           dragRef.current = null;
+          setDragging(false);
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
           }
+          if (!drag || !geometry) return;
+          const dx = event.clientX - drag.startClientX;
+          const dy = event.clientY - drag.startClientY;
+          const final = applyTranslate({ x: drag.startTranslateX + dx, y: drag.startTranslateY + dy });
+          if (final) commit(final);
         }}
         onPointerCancel={() => {
           dragRef.current = null;
+          setDragging(false);
         }}
         onDoubleClick={onPickImage}
         onKeyDown={(event) => {
-          const current = parseImagePosition(value);
-          if (event.key === "ArrowLeft") onChange(`${clampImagePositionValue(current.x - 5)}% ${current.y}%`);
-          if (event.key === "ArrowRight") onChange(`${clampImagePositionValue(current.x + 5)}% ${current.y}%`);
-          if (event.key === "ArrowUp") onChange(`${current.x}% ${clampImagePositionValue(current.y - 5)}%`);
-          if (event.key === "ArrowDown") onChange(`${current.x}% ${clampImagePositionValue(current.y + 5)}%`);
-          if (event.key === "Enter" && onPickImage) onPickImage();
+          if (!geometry) return;
+          const step = 12; // px reales por pulsación de flecha
+          let next = translate;
+          if (event.key === "ArrowLeft") next = { x: translate.x + step, y: translate.y };
+          else if (event.key === "ArrowRight") next = { x: translate.x - step, y: translate.y };
+          else if (event.key === "ArrowUp") next = { x: translate.x, y: translate.y + step };
+          else if (event.key === "ArrowDown") next = { x: translate.x, y: translate.y - step };
+          else if (event.key === "Enter" && onPickImage) return onPickImage();
+          else return;
+          event.preventDefault();
+          const clamped = applyTranslate(next);
+          if (clamped) commit(clamped);
         }}
       >
         <img
+          ref={imgRef}
           src={src}
           alt={alt}
-          className="h-full w-full object-cover"
-          style={{ objectPosition: value }}
-          loading="lazy"
           draggable={false}
+          loading="lazy"
+          onLoad={(event) => {
+            const img = event.currentTarget;
+            setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+          }}
+          style={
+            geometry
+              ? {
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: geometry.scaledW,
+                  height: geometry.scaledH,
+                  maxWidth: "none",
+                  transform: `translate(${translate.x}px, ${translate.y}px)`,
+                  willChange: "transform",
+                }
+              : {
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition: value,
+                }
+          }
         />
       </div>
       <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
@@ -6463,7 +6604,12 @@ function DraggableImageCrop({
         <button
           type="button"
           className="font-medium text-white/75 transition hover:text-white"
-          onClick={() => onChange("50% 50%")}
+          onClick={() => {
+            if (!geometry) return onChange("50% 50%");
+            const centered = { x: -geometry.overflowX / 2, y: -geometry.overflowY / 2 };
+            setTranslate(centered);
+            commit(centered);
+          }}
         >
           Centrar
         </button>
@@ -7316,6 +7462,31 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           return merged;
         };
 
+        // Coordenadas de recorte explícitas (no solo el string CSS de object-position),
+        // para que el recorte se pueda reconstruir con la geometría real de cada pantalla.
+        const mergeCatalogImageOffsets = (
+          existingSchedule: Record<string, unknown>,
+        ): Record<string, { image_offset_x: number; image_offset_y: number }> => {
+          const existing = (existingSchedule._catalogImageOffsets ?? {}) as Record<string, unknown>;
+          const ids = ownImageIds();
+          const merged: Record<string, { image_offset_x: number; image_offset_y: number }> = {};
+          for (const [k, v] of Object.entries(existing)) {
+            if (ids.has(k)) continue;
+            const entry = v as Record<string, unknown>;
+            const ox = Number(entry?.image_offset_x);
+            const oy = Number(entry?.image_offset_y);
+            if (Number.isFinite(ox) && Number.isFinite(oy)) merged[k] = { image_offset_x: ox, image_offset_y: oy };
+          }
+          for (const id of ids) {
+            const position = nextImagePositionMap[id];
+            const hasImage = Boolean(nextImageMap[id]);
+            if (!hasImage || !position) continue;
+            const { x, y } = parseImagePosition(position);
+            merged[id] = { image_offset_x: x / 100, image_offset_y: y / 100 };
+          }
+          return merged;
+        };
+
         imageMapRef.current = nextImageMap;
         setImageMap(nextImageMap);
         imagePositionMapRef.current = nextImagePositionMap;
@@ -7341,6 +7512,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 ...existingSchedule,
                 _catalogImages: mergeCatalogImages(existingSchedule),
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
+                _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
@@ -7395,6 +7567,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 ...existingSchedule,
                 _catalogImages: mergeCatalogImages(existingSchedule),
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
+                _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
                 _bookingProducts: {
                   config: nextBookingConfig,
                   recommended,
