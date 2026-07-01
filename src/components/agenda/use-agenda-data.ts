@@ -36,9 +36,9 @@ export type ApptStatus =
   | "confirmed"
   | "completed"
   | "cancelled"
+  | "no_show"
   | "charged"
-  | "blocked"
-  | "no_show";
+  | "blocked";
 
 export type Appointment = {
   id: string;
@@ -343,6 +343,10 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       bsRes.status === "fulfilled" && !bsRes.value.error
         ? ((bsRes.value.data?.schedule ?? null) as Record<string, unknown> | null)
         : null;
+    const serviceImageMap =
+      rawSchedule && typeof rawSchedule._catalogImages === "object" && rawSchedule._catalogImages
+        ? (rawSchedule._catalogImages as Record<string, string>)
+        : {};
     const rawEmployeeSchedules =
       rawSchedule && typeof rawSchedule._employeeSchedules === "object" && rawSchedule._employeeSchedules
         ? (rawSchedule._employeeSchedules as Record<string, unknown>)
@@ -405,6 +409,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           name: s.name,
           price: Number(s.price) || 0,
           duration: Number(s.duration_min) || 30,
+          image_url: serviceImageMap[s.id] ?? null,
         })),
     );
     setClients(
@@ -433,18 +438,33 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
 
   const loadServices = React.useCallback(async () => {
     if (!businessId) return;
-    const { data, error } = await supabase
-      .from("price_catalog")
-      .select("id,name,price,duration_min,active,category")
-      .eq("business_id", businessId)
-      .not("duration_min", "is", null)
-      .order("name");
+    const [{ data, error }, settingsRes] = await Promise.all([
+      supabase
+        .from("price_catalog")
+        .select("id,name,price,duration_min,active,category")
+        .eq("business_id", businessId)
+        .not("duration_min", "is", null)
+        .order("name"),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
+    ]);
     if (error) return;
+    const rawSchedule = (settingsRes.data?.schedule ?? {}) as Record<string, unknown>;
+    const serviceImageMap = (rawSchedule._catalogImages ?? {}) as Record<string, string>;
     const svc = (data ?? []) as unknown as (Service & { active?: boolean | null; duration_min?: number | null })[];
     setServices(
       svc
         .filter((s) => s.active !== false && s.duration_min != null)
-        .map((s) => ({ id: s.id, name: s.name, price: Number(s.price) || 0, duration: Number(s.duration_min) || 30 })),
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          price: Number(s.price) || 0,
+          duration: Number(s.duration_min) || 30,
+          image_url: serviceImageMap[s.id] ?? null,
+        })),
     );
   }, [businessId]);
 

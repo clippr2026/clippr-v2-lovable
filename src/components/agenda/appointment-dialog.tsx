@@ -753,7 +753,11 @@ export function AppointmentDialog({
             {serviceName && (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Scissors className="h-4 w-4 shrink-0 text-emerald-300/75" />
+                  {services.find(s => s.id === serviceId)?.image_url ? (
+                    <img src={services.find(s => s.id === serviceId)?.image_url ?? ""} alt={serviceName || "Servicio"} className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-white/10" loading="lazy" />
+                  ) : (
+                    <Scissors className="h-4 w-4 shrink-0 text-emerald-300/75" />
+                  )}
                   <span className="truncate font-medium text-foreground">{serviceName}</span>
                 </div>
                 {price ? (
