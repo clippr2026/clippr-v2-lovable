@@ -3,15 +3,30 @@ import { cn } from "@/lib/utils";
 
 type ClipprLoaderProps = {
   fullScreen?: boolean;
-  size?: "sm" | "md" | "lg";
+  /**
+   * "screen" is the single official size for page/section loaders across the
+   * internal panel (Dashboard, Agenda, Caja, Profesionales, Asesor IA,
+   * Clientes, Configuración) — visually identical to Agenda's loader.
+   * "sm"/"md" remain available only for small, inline/button-level spinners.
+   */
+  size?: "sm" | "md" | "lg" | "screen";
   background?: "dark" | "light" | "transparent";
   className?: string;
+  /**
+   * Delays the loader's appearance by this many ms to avoid flicker on fast
+   * loads. If the loading state resolves before the delay elapses, the
+   * loader never renders. 0 (default) renders immediately — use this for
+   * button/inline loaders. Use ~130ms for page/section loaders.
+   */
+  delayMs?: number;
 };
 
 const sizeClass = {
   sm: "h-7 w-7 rounded-lg",
   md: "h-16 w-16 rounded-2xl",
   lg: "h-28 w-28 rounded-[2rem]",
+  // Official size for every page/section loader — same as Agenda's.
+  screen: "h-28 w-28 rounded-[2rem]",
 };
 
 export function ClipprLoader({
@@ -19,7 +34,22 @@ export function ClipprLoader({
   size = "md",
   background = "transparent",
   className,
+  delayMs = 0,
 }: ClipprLoaderProps) {
+  const [visible, setVisible] = React.useState(delayMs === 0);
+
+  React.useEffect(() => {
+    if (delayMs === 0) {
+      setVisible(true);
+      return;
+    }
+    setVisible(false);
+    const timer = window.setTimeout(() => setVisible(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs]);
+
+  if (delayMs > 0 && !visible) return null;
+
   const mark = (
     <div className={cn("relative grid place-items-center", className)}>
       <style>{`
