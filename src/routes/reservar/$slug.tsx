@@ -91,7 +91,7 @@ type Service = {
 };
 
 type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
-type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string; description?: string };
+type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string; image_position?: string; description?: string };
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
@@ -138,6 +138,10 @@ function normalizeRecommendedProducts(schedule: unknown): RecommendedProduct[] {
   const bp = (schedule as Record<string, any>)._bookingProducts;
   const list = bp && typeof bp === "object" ? bp.recommended : null;
   if (!Array.isArray(list)) return [];
+  // Misma fuente de verdad que Configuración → Catálogo: el recorte de la
+  // imagen se lee de business_settings.schedule._catalogImagePositions, no
+  // se recalcula ni se recentra acá.
+  const positions = ((schedule as Record<string, any>)._catalogImagePositions ?? {}) as Record<string, unknown>;
   return list
     .map((item) => {
       const v = (item ?? {}) as Record<string, unknown>;
@@ -150,6 +154,7 @@ function normalizeRecommendedProducts(schedule: unknown): RecommendedProduct[] {
         price: Number(v.price) || 0,
         offer: typeof v.offer === "string" ? v.offer : "none",
         image: typeof v.image === "string" ? v.image : "",
+        image_position: typeof positions[id] === "string" ? (positions[id] as string) : "50% 50%",
         description: typeof v.description === "string" ? v.description : "",
       } as RecommendedProduct;
     })
@@ -1139,20 +1144,14 @@ function PublicBookingPage() {
                             )}
                           </div>
 
-                          {/* Imagen grande */}
-                          <div className="grid aspect-[1/1] w-full place-items-center overflow-hidden rounded-2xl bg-white/[0.04]">
-                            {product.image ? (
-                              <img
-                                loading="lazy"
-                                decoding="async"
-                                src={product.image}
-                                alt={product.name}
-                                className="h-full w-full object-contain p-2"
-                              />
-                            ) : (
-                              <ShoppingBag className="h-12 w-12 text-white/30" />
-                            )}
-                          </div>
+                          {/* Imagen grande — misma posición guardada en Configuración → Catálogo, sin recentrar */}
+                          <ServiceImage
+                            src={product.image}
+                            alt={product.name}
+                            position={product.image_position}
+                            className="aspect-[1/1] w-full rounded-2xl bg-white/[0.04]"
+                            fallback={<ShoppingBag className="h-12 w-12 text-white/30" />}
+                          />
 
                           {/* Cuerpo */}
                           <div className="mt-2 flex flex-1 flex-col px-1">
