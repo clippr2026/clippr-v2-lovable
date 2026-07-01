@@ -68,6 +68,7 @@ export type Service = {
   price: number;
   duration: number | null;
   image_url?: string | null;
+  image_position?: string | null;
 };
 export type Client = {
   id: string;
@@ -348,6 +349,10 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       rawSchedule && typeof rawSchedule._catalogImages === "object" && rawSchedule._catalogImages
         ? (rawSchedule._catalogImages as Record<string, string>)
         : {};
+    const serviceImagePositionMap =
+      rawSchedule && typeof rawSchedule._catalogImagePositions === "object" && rawSchedule._catalogImagePositions
+        ? (rawSchedule._catalogImagePositions as Record<string, string>)
+        : {};
     const rawEmployeeSchedules =
       rawSchedule && typeof rawSchedule._employeeSchedules === "object" && rawSchedule._employeeSchedules
         ? (rawSchedule._employeeSchedules as Record<string, unknown>)
@@ -411,6 +416,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           price: Number(s.price) || 0,
           duration: Number(s.duration_min) || 30,
           image_url: serviceImageMap[s.id] ?? null,
+          image_position: serviceImagePositionMap[s.id] ?? "50% 50%",
         })),
     );
     setClients(
@@ -455,6 +461,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     if (error) return;
     const rawSchedule = (settingsRes.data?.schedule ?? {}) as Record<string, unknown>;
     const serviceImageMap = (rawSchedule._catalogImages ?? {}) as Record<string, string>;
+    const serviceImagePositionMap = (rawSchedule._catalogImagePositions ?? {}) as Record<string, string>;
     const svc = (data ?? []) as unknown as (Service & { active?: boolean | null; duration_min?: number | null })[];
     setServices(
       svc
@@ -465,6 +472,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           price: Number(s.price) || 0,
           duration: Number(s.duration_min) || 30,
           image_url: serviceImageMap[s.id] ?? null,
+          image_position: serviceImagePositionMap[s.id] ?? "50% 50%",
         })),
     );
   }, [businessId]);

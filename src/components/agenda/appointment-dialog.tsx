@@ -754,7 +754,13 @@ export function AppointmentDialog({
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   {services.find(s => s.id === serviceId)?.image_url ? (
-                    <img src={services.find(s => s.id === serviceId)?.image_url ?? ""} alt={serviceName || "Servicio"} className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-white/10" loading="lazy" />
+                    <img
+                      src={services.find(s => s.id === serviceId)?.image_url ?? ""}
+                      alt={serviceName || "Servicio"}
+                      className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
+                      style={{ objectPosition: services.find(s => s.id === serviceId)?.image_position ?? "50% 50%" }}
+                      loading="lazy"
+                    />
                   ) : (
                     <Scissors className="h-4 w-4 shrink-0 text-emerald-300/75" />
                   )}
