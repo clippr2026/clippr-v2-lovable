@@ -1406,59 +1406,25 @@ function AgendaPage() {
         {/* Editor de horario especial para (profesional, fecha) — mismo editor que
           Configuración → Equipo → Horario especial (campos compartidos). */}
         {specialEditor ? (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#101119] shadow-2xl overflow-hidden">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-lg font-semibold text-white">Horario especial</div>
-                <div className="mt-1 text-xs text-white/45">
-                  Elegí el profesional y configurá la disponibilidad del día.
-                </div>
-
-                <label className="mt-4 block space-y-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                    Profesional
-                  </span>
-                  <select
-                    value={specialEditor.employeeId ?? ""}
-                    onChange={(event) => changeSpecialEmployee(event.target.value)}
-                    className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none transition focus:border-violet-300/45"
-                  >
-                    <option value="">Seleccionar profesional</option>
-                    {data.employees.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.full_name ?? employee.name ?? "Sin nombre"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={openBlockFromSpecial}
-                  className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/15"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Bloquear horario
-                </button>
-              </div>
-
-              <SpecialDayEditor
-                date={specialEditor.date}
-                value={{
-                  enabled: specialEditor.available,
-                  start: specialEditor.start,
-                  end: specialEditor.end,
-                  breakStart: specialEditor.breakStart || undefined,
-                  breakEnd: specialEditor.breakEnd || undefined,
-                }}
-                allowBreak
-                closedLabel="No disponible"
-                saving={specialEditor.saving}
-                onSave={saveSpecialFromAgenda}
-                onCancel={() => setSpecialEditor(null)}
-              />
-            </div>
-          </div>
+          <SpecialDayEditor
+            date={specialEditor.date}
+            value={{
+              enabled: specialEditor.available,
+              start: specialEditor.start,
+              end: specialEditor.end,
+              breakStart: specialEditor.breakStart || undefined,
+              breakEnd: specialEditor.breakEnd || undefined,
+            }}
+            allowBreak
+            closedLabel="No disponible"
+            saving={specialEditor.saving}
+            professionals={data.employees}
+            selectedEmployeeId={specialEditor.employeeId}
+            onSelectEmployee={changeSpecialEmployee}
+            onBlock={openBlockFromSpecial}
+            onSave={saveSpecialFromAgenda}
+            onCancel={() => setSpecialEditor(null)}
+          />
         ) : null}
 
         <AppointmentDetailDialog
