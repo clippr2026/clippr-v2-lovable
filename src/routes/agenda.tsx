@@ -3090,7 +3090,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         </SheetHeader>
 
         <div className="space-y-3 p-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <div className="space-y-2.5">
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
