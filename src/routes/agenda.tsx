@@ -895,7 +895,7 @@ function AgendaPage() {
     return (
       <AppShell>
         <div className="grid place-items-center py-32">
-          <ClipprLoader size="xl" />
+          <ClipprLoader size="md" />
         </div>
       </AppShell>
     );
@@ -1223,7 +1223,7 @@ function AgendaPage() {
         {/* Always day view */}
         {data.loading ? (
           <div className="grid min-h-[330px] place-items-center rounded-3xl border border-white/10 bg-white/[0.03]">
-            <ClipprLoader size="xl" />
+            <ClipprLoader size="lg" />
           </div>
         ) : (
           <DayView

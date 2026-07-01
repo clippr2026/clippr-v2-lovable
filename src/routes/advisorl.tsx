@@ -406,7 +406,7 @@ function AdvisorContent() {
 
               <ActionStatusButton
                 action={priorityAction}
-                size="xl"
+                size="lg"
                 onStart={() => handleStartStrategy(priorityAction)}
                 onOpen={() => setSelectedRecommendation(priorityAction)}
               />

@@ -722,7 +722,7 @@ function LandingSection() {
   if (loading) {
     return (
       <div className="grid place-items-center py-20">
-        <ClipprLoader size="xl" />
+        <ClipprLoader size="md" />
       </div>
     );
   }
@@ -1683,7 +1683,7 @@ function BrandingSection() {
   if (loading)
     return (
       <div className="grid place-items-center py-24">
-        <ClipprLoader size="xl" />
+        <ClipprLoader size="md" />
       </div>
     );
 
@@ -8507,7 +8507,7 @@ function SenasSection() {
   if (loading)
     return (
       <div className="grid place-items-center py-24">
-        <ClipprLoader size="xl" />
+        <ClipprLoader size="md" />
       </div>
     );
 
