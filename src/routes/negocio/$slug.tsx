@@ -58,6 +58,7 @@ type Service = {
   price: number | null;
   duration_min?: number | null;
   is_active?: boolean | null;
+  image_url?: string | null;
 };
 
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
@@ -121,6 +122,17 @@ function extractBranding(schedule: unknown): PublicBranding {
   if (!schedule || typeof schedule !== "object") return {};
   const branding = (schedule as Record<string, any>)._branding;
   return branding && typeof branding === "object" ? branding : {};
+}
+
+function extractCatalogImages(schedule: unknown): Record<string, string> {
+  if (!schedule || typeof schedule !== "object") return {};
+  const imgs = (schedule as Record<string, unknown>)._catalogImages;
+  if (!imgs || typeof imgs !== "object") return {};
+  const map: Record<string, string> = {};
+  for (const [id, url] of Object.entries(imgs as Record<string, unknown>)) {
+    if (id.trim() && typeof url === "string" && url) map[id] = url;
+  }
+  return map;
 }
 
 function normalizePortfolio(value: unknown): string[] {
@@ -440,6 +452,7 @@ function PublicProfilePage() {
         };
 
         const visibility = extractPublicVisibility(settingsSchedule);
+        const serviceImages = extractCatalogImages(settingsSchedule);
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
@@ -457,7 +470,8 @@ function PublicProfilePage() {
           setServices(
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
-              .filter((service) => visibility.services[service.id] !== false),
+              .filter((service) => visibility.services[service.id] !== false)
+              .map((service) => ({ ...service, image_url: serviceImages[service.id] ?? null })),
           );
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
@@ -720,11 +734,26 @@ function PublicProfilePage() {
                 <div className="mt-5 divide-y divide-white/10">
                   {services.map((service) => (
                     <div key={service.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
-                      <div className="min-w-0">
-                        <p className="font-medium">{service.name}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
-                          {service.duration_min ? <span>{Number(service.duration_min)} min</span> : null}
-                          <span className="font-semibold text-white">{formatMoney(service.price)}</span>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/[0.06] ring-1 ring-white/10">
+                          {service.image_url ? (
+                            <img
+                              src={service.image_url}
+                              alt={service.name}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          ) : (
+                            <Sparkles className="h-5 w-5 text-white/30" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium">{service.name}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
+                            {service.duration_min ? <span>{Number(service.duration_min)} min</span> : null}
+                            <span className="font-semibold text-white">{formatMoney(service.price)}</span>
+                          </div>
                         </div>
                       </div>
                       <a
