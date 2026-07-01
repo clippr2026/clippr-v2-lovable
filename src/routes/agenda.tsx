@@ -3225,7 +3225,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     <img
                       src={serviceImageUrl}
                       alt={appointment.service_name || "Servicio"}
-                      className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
+                      className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-white/10"
                       style={{ objectPosition: serviceImagePosition }}
                       loading="lazy"
                     />

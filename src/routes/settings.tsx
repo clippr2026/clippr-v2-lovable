@@ -6365,28 +6365,105 @@ function moveImagePosition(position: string, dx: number, dy: number) {
   return `${clampImagePositionValue(current.x + dx)}% ${clampImagePositionValue(current.y + dy)}%`;
 }
 
-function ImagePositionControls({
+function DraggableImageCrop({
+  src,
+  alt,
   value,
   onChange,
+  onPickImage,
+  className,
 }: {
+  src: string;
+  alt: string;
   value: string;
   onChange: (value: string) => void;
+  onPickImage?: () => void;
+  className?: string;
 }) {
-  const move = (dx: number, dy: number) => onChange(moveImagePosition(value, dx, dy));
-  const btnCls = "grid h-7 w-7 place-items-center rounded-lg bg-white/6 text-xs font-bold text-white/80 ring-1 ring-white/10 transition hover:bg-white/12 hover:text-white";
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    imageX: number;
+    imageY: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const setPositionFromDrag = (clientX: number, clientY: number) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = ((clientX - drag.startX) / Math.max(drag.width, 1)) * 70;
+    const dy = ((clientY - drag.startY) / Math.max(drag.height, 1)) * 70;
+    onChange(
+      `${clampImagePositionValue(drag.imageX + dx)}% ${clampImagePositionValue(drag.imageY + dy)}%`,
+    );
+  };
+
   return (
-    <div className="mt-2 rounded-xl border border-white/10 bg-black/15 p-2">
-      <div className="mb-1 text-[10px] font-medium text-muted-foreground">Acomodar imagen</div>
-      <div className="grid grid-cols-3 justify-items-center gap-1">
-        <span />
-        <button type="button" className={btnCls} onClick={() => move(0, -10)} aria-label="Mover imagen arriba">↑</button>
-        <span />
-        <button type="button" className={btnCls} onClick={() => move(-10, 0)} aria-label="Mover imagen izquierda">←</button>
-        <button type="button" className={btnCls} onClick={() => onChange("50% 50%")} aria-label="Centrar imagen">•</button>
-        <button type="button" className={btnCls} onClick={() => move(10, 0)} aria-label="Mover imagen derecha">→</button>
-        <span />
-        <button type="button" className={btnCls} onClick={() => move(0, 10)} aria-label="Mover imagen abajo">↓</button>
-        <span />
+    <div className="space-y-2">
+      <div
+        role="button"
+        tabIndex={0}
+        className={cn(
+          "relative grid aspect-square w-full cursor-grab touch-none select-none place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
+          className,
+        )}
+        title="Arrastrá la imagen para acomodarla"
+        onPointerDown={(event) => {
+          const target = event.currentTarget;
+          const rect = target.getBoundingClientRect();
+          const current = parseImagePosition(value);
+          dragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            imageX: current.x,
+            imageY: current.y,
+            width: rect.width,
+            height: rect.height,
+          };
+          target.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => setPositionFromDrag(event.clientX, event.clientY)}
+        onPointerUp={(event) => {
+          setPositionFromDrag(event.clientX, event.clientY);
+          dragRef.current = null;
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null;
+        }}
+        onDoubleClick={onPickImage}
+        onKeyDown={(event) => {
+          const current = parseImagePosition(value);
+          if (event.key === "ArrowLeft") onChange(`${clampImagePositionValue(current.x - 5)}% ${current.y}%`);
+          if (event.key === "ArrowRight") onChange(`${clampImagePositionValue(current.x + 5)}% ${current.y}%`);
+          if (event.key === "ArrowUp") onChange(`${current.x}% ${clampImagePositionValue(current.y - 5)}%`);
+          if (event.key === "ArrowDown") onChange(`${current.x}% ${clampImagePositionValue(current.y + 5)}%`);
+          if (event.key === "Enter" && onPickImage) onPickImage();
+        }}
+      >
+        <img
+          src={src}
+          alt={alt}
+          className="h-full w-full object-cover"
+          style={{ objectPosition: value }}
+          loading="lazy"
+          draggable={false}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <span>Arrastrá la imagen para acomodarla.</span>
+        <button
+          type="button"
+          className="font-medium text-white/75 transition hover:text-white"
+          onClick={() => onChange("50% 50%")}
+        >
+          Centrar
+        </button>
       </div>
     </div>
   );
@@ -6531,29 +6608,31 @@ function PriceEditorModal({
                           if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
                         }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => bookingFileRef.current?.click()}
-                        disabled={uploadingImg}
-                        className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
-                      >
-                        {form.image ? (
-                          <img
-                            src={form.image}
-                            alt={form.name || "Servicio"}
-                            className="h-full w-full object-cover"
-                            style={{ objectPosition: form.imagePosition }}
-                            loading="lazy"
-                          />
-                        ) : uploadingImg ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        ) : (
-                          <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
-                            <Upload className="h-5 w-5" />
-                            <span className="text-[11px]">Subir imagen</span>
-                          </span>
-                        )}
-                      </button>
+                      {form.image ? (
+                        <DraggableImageCrop
+                          src={form.image}
+                          alt={form.name || "Servicio"}
+                          value={form.imagePosition}
+                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
+                          onPickImage={() => bookingFileRef.current?.click()}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => bookingFileRef.current?.click()}
+                          disabled={uploadingImg}
+                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                        >
+                          {uploadingImg ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          ) : (
+                            <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
+                              <Upload className="h-5 w-5" />
+                              <span className="text-[11px]">Subir imagen</span>
+                            </span>
+                          )}
+                        </button>
+                      )}
                       {form.image ? (
                         <button
                           type="button"
@@ -6566,12 +6645,7 @@ function PriceEditorModal({
                         </button>
                       ) : null}
                     </div>
-                    {form.image ? (
-                      <ImagePositionControls
-                        value={form.imagePosition}
-                        onChange={(imagePosition) => setForm({ ...form, imagePosition })}
-                      />
-                    ) : null}
+
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -6681,29 +6755,31 @@ function PriceEditorModal({
                           if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
                         }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => bookingFileRef.current?.click()}
-                        disabled={uploadingImg}
-                        className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
-                      >
-                        {form.image ? (
-                          <img
-                            src={form.image}
-                            alt={form.name || "Producto"}
-                            className="h-full w-full object-cover"
-                            style={{ objectPosition: form.imagePosition }}
-                            loading="lazy"
-                          />
-                        ) : uploadingImg ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        ) : (
-                          <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
-                            <Upload className="h-5 w-5" />
-                            <span className="text-[11px]">Subir imagen</span>
-                          </span>
-                        )}
-                      </button>
+                      {form.image ? (
+                        <DraggableImageCrop
+                          src={form.image}
+                          alt={form.name || "Producto"}
+                          value={form.imagePosition}
+                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
+                          onPickImage={() => bookingFileRef.current?.click()}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => bookingFileRef.current?.click()}
+                          disabled={uploadingImg}
+                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                        >
+                          {uploadingImg ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          ) : (
+                            <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
+                              <Upload className="h-5 w-5" />
+                              <span className="text-[11px]">Subir imagen</span>
+                            </span>
+                          )}
+                        </button>
+                      )}
                       {form.image ? (
                         <button
                           type="button"
@@ -6716,12 +6792,7 @@ function PriceEditorModal({
                         </button>
                       ) : null}
                     </div>
-                    {form.image ? (
-                      <ImagePositionControls
-                        value={form.imagePosition}
-                        onChange={(imagePosition) => setForm({ ...form, imagePosition })}
-                      />
-                    ) : null}
+
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -7863,7 +7934,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 )}
               >
                 <GripVertical className="h-4 w-4 shrink-0 text-white/35" />
-                <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+                <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
                   {imageMap[row.id] ? (
                     <img
                       src={imageMap[row.id]}

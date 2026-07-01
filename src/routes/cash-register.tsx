@@ -1651,7 +1651,7 @@ function PreciosTab({
   const Thumb = ({ item, fallback }: { item: any; fallback: string }) => {
     const src = itemImage(item);
     return (
-      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]">
+      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]">
         {src ? (
           <img
             src={src}
@@ -2037,7 +2037,7 @@ function InventarioTab({
   const Thumb = ({ item }: { item: any }) => {
     const src = itemImage(item);
     return (
-      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
+      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]">
         {src ? (
           <img
             src={src}
