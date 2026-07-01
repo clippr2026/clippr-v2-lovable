@@ -74,6 +74,7 @@ export type Service = {
   stock?: number | null;
   is_catalog?: boolean;
   image?: string | null;
+  image_position?: string | null;
 };
 
 export type Employee = {
@@ -259,6 +260,17 @@ export function useCajaData() {
       }
       return map;
     })();
+    // Posición de recorte guardada para cada imagen (servicios y catálogo comparten el mismo mapa)
+    const catalogImagePositions: Record<string, string> = (() => {
+      const bsData = bsRes.status === "fulfilled" && !bsRes.value.error ? bsRes.value.data : null;
+      const schedule = (bsData?.schedule ?? {}) as Record<string, unknown>;
+      const positions = (schedule._catalogImagePositions ?? {}) as Record<string, unknown>;
+      const map: Record<string, string> = {};
+      for (const [k, v] of Object.entries(positions)) {
+        if (k.trim() && typeof v === "string" && v.trim()) map[k] = v;
+      }
+      return map;
+    })();
     setServices(
       (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null }>)
         .map((r) => ({
@@ -271,6 +283,7 @@ export function useCajaData() {
           stock: r.stock,
           is_catalog: r.duration_min == null,
           image: catalogImages[r.id] ?? null,
+          image_position: catalogImagePositions[r.id] ?? null,
         })),
     );
 
