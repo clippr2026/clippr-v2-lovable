@@ -831,6 +831,46 @@ function ItemPicker({
   );
 }
 
+type ProfessionalAppointmentProduct = {
+  name: string;
+  amount: number;
+};
+
+function parseProfessionalProductsFromNotes(raw?: string | null): ProfessionalAppointmentProduct[] {
+  if (!raw) return [];
+
+  const match = raw.match(/Productos agregados:\s*([\s\S]*?)(?:\n\s*\n|$)/i);
+  const block = match?.[1]?.trim();
+  if (!block) return [];
+
+  return block
+    .split(/\n+/)
+    .map((line) => line.trim().replace(/^[-•]\s*/, ""))
+    .filter(Boolean)
+    .map((line) => {
+      const parsed = line.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+      const name = (parsed?.[1] ?? line).trim();
+      const priceText = parsed?.[2] ?? "";
+      const amount = Number(priceText.replace(/[^0-9,-]/g, "").replace(",", ".")) || 0;
+      return { name, amount };
+    })
+    .filter((product) => product.name.length > 0);
+}
+
+function stripBookingMetadataFromNote(raw?: string | null): string | null {
+  if (!raw) return null;
+
+  let clean = raw.replace("[PENDIENTE_CAJA]", "").trim();
+  const clientNoteMatch = clean.match(/Notas del cliente:\s*([\s\S]*)/i);
+  if (clientNoteMatch) clean = clientNoteMatch[1];
+
+  clean = clean
+    .split(/\s*(?:Productos agregados|Email|Origen|Tel[eé]fono|Fecha de nacimiento|Servicios seleccionados)\s*:/i)[0]
+    .trim();
+
+  return clean || null;
+}
+
 function CobroModal({
   turno, empId, businessId, mode, userEmail, onClose, onDone,
 }: {
@@ -846,8 +886,17 @@ function CobroModal({
     profsList.find((p) => p.id === empId)?.full_name?.trim() || null;
 
   const initPrice = Number(turno.service_price ?? 0);
-  const [items, setItems] = useState<LineItem[]>([
+  const reservedProducts = React.useMemo(
+    () => parseProfessionalProductsFromNotes(turno.notes),
+    [turno.notes],
+  );
+  const [items, setItems] = useState<LineItem[]>(() => [
     { id: "main", name: turno.service_name ?? "Servicio", amount: initPrice },
+    ...reservedProducts.map((product, index) => ({
+      id: `reserved-product-${index}`,
+      name: product.name,
+      amount: product.amount,
+    })),
   ]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingItem, setAddingItem] = useState(false);
@@ -1375,9 +1424,11 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   };
 
   function getNoteDisplay(t: import("@/hooks/use-professionals-data").ProfTurno) {
-    if (!t.notes) return null;
-    const clean = t.notes.replace("[PENDIENTE_CAJA]", "").trim();
-    return clean || null;
+    return stripBookingMetadataFromNote(t.notes);
+  }
+
+  function hasProductBadge(t: import("@/hooks/use-professionals-data").ProfTurno) {
+    return parseProfessionalProductsFromNotes(t.notes).length > 0;
   }
 
   function getTurnoMeta(t: import("@/hooks/use-professionals-data").ProfTurno) {
@@ -1645,8 +1696,14 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       {style.label}
                     </span>
 
-                    <div className="min-w-0 truncate text-xs text-muted-foreground">
-                      {t.service_name ?? "—"}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</span>
+                      {hasProductBadge(t) && (
+                        <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold text-amber-300">
+                          <span aria-hidden>⭐</span>
+                          <span>Producto</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="min-w-[70px] justify-self-start">
