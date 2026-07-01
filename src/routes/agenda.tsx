@@ -3079,10 +3079,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
             style={{ background: meta.dot }}
           />
-          <div className="relative flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
+          <div className="relative space-y-3">
+            <div className="flex min-w-0 items-start gap-3 pr-8">
               <div
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-sm font-semibold"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/10 text-base font-semibold"
                 style={{ background: withAlpha(meta.dot, 0.14), color: meta.dot }}
               >
                 {(appointment.status === "blocked"
@@ -3090,7 +3090,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   : (appointment.client_name || "S")[0]
                 ).toUpperCase()}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 pt-0.5">
                 <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
                   {appointment.status === "blocked"
                     ? "Horario bloqueado"
@@ -3099,9 +3099,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 pr-7">
+            <div className="flex items-center justify-between gap-2 pl-[60px] pr-8">
               <div
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
                 style={{ color: meta.dot }}
               >
                 <span
@@ -3110,29 +3110,32 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 />
                 {statusLabel}
               </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
-                onClick={() => onFicha(appointment)}
-              >
-                <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
-              </Button>
-              {!isPast && (
+
+              <div className="flex items-center gap-1.5">
                 <Button
                   size="sm"
                   variant="secondary"
                   className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
-                  onClick={() => onEdit(appointment)}
+                  onClick={() => onFicha(appointment)}
                 >
-                  Editar
+                  <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
                 </Button>
-              )}
+                {!isPast && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
+                    onClick={() => onEdit(appointment)}
+                  >
+                    Editar
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </SheetHeader>
 
-        <div className="space-y-3 p-4">
+        <div className="space-y-3 p-4 pt-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <div className="space-y-2.5">
               <div className="flex min-w-0 items-center justify-between gap-3">
