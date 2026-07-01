@@ -58,7 +58,7 @@ function DashboardRoute() {
   if (loading || !session) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
-        <ClipprLoader size="lg" />
+        <ClipprLoader size="xl" />
       </div>
     );
   }
