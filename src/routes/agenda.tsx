@@ -278,8 +278,9 @@ function AgendaPage() {
   } | null>(null);
   // Editor de horario especial para (profesional, fecha) desde la Agenda.
   const [specialEditor, setSpecialEditor] = React.useState<{
-    employeeId: string;
+    employeeId: string | null;
     date: Date;
+    startsAt: Date;
     available: boolean;
     start: string;
     end: string;
@@ -406,6 +407,65 @@ function AgendaPage() {
     setActiveDrawer("block");
   };
 
+  const buildSpecialEditorState = (employeeId: string | null, date: Date) => {
+    if (!employeeId) {
+      return {
+        employeeId: null,
+        date,
+        startsAt: date,
+        available: true,
+        start: "11:00",
+        end: "20:00",
+        breakStart: "",
+        breakEnd: "",
+        saving: false,
+      };
+    }
+
+    const day = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      employeeId,
+      date,
+    );
+
+    const base =
+      day?.enabled !== false
+        ? day
+        : resolveDaySchedule(data.schedule, data.employeeSchedules ?? {}, {}, {}, employeeId, date);
+
+    return {
+      employeeId,
+      date,
+      startsAt: date,
+      available: day?.enabled !== false,
+      start: base?.start ?? "11:00",
+      end: base?.end ?? "20:00",
+      breakStart: base?.breakStart ?? "",
+      breakEnd: base?.breakEnd ?? "",
+      saving: false,
+    };
+  };
+
+  const changeSpecialEmployee = (employeeId: string) => {
+    setSpecialEditor((current) => {
+      if (!current) return current;
+      return buildSpecialEditorState(employeeId || null, current.date);
+    });
+  };
+
+  const openBlockFromSpecial = () => {
+    if (!specialEditor?.employeeId) {
+      toast.error("Seleccioná un profesional para bloquear horario.");
+      return;
+    }
+    const start = specialEditor.startsAt ?? specialEditor.date;
+    setSpecialEditor(null);
+    openBlockDialog(specialEditor.employeeId, start);
+  };
+
   // ── Descanso: habilitar temporalmente / editar horario especial ────────────
   const enableBreakTemporarily = async () => {
     if (!breakModal || !breakModal.employeeId || !data.businessId) return;
@@ -499,6 +559,7 @@ function AgendaPage() {
     setSpecialEditor({
       employeeId: breakModal.employeeId,
       date: breakModal.date,
+      startsAt: breakModal.date,
       available: day?.enabled !== false,
       start: day?.start ?? "11:00",
       end: day?.end ?? "20:00",
@@ -509,47 +570,17 @@ function AgendaPage() {
     setBreakModal(null);
   };
   const openSpecialFromSlot = (employeeId: string | null, date: Date) => {
-    if (!employeeId) {
-      toast.error("Seleccioná un profesional para editar horario especial.");
-      setNewMenu(false);
-      return;
-    }
-
-    const day = resolveDaySchedule(
-      data.schedule,
-      data.employeeSchedules ?? {},
-      data.businessSpecialDates ?? {},
-      data.employeeSpecialDates ?? {},
-      employeeId,
-      date,
-    );
-
-    // Si el día resuelto está NO disponible (especial cerrado o libre), el rango
-    // viene como 00:00–00:00. Para que al reactivar "Disponible" se vean horas
-    // útiles, sembramos el editor con el horario NORMAL (semanal del profesional →
-    // negocio), ignorando los especiales.
-    const base =
-      day?.enabled !== false
-        ? day
-        : resolveDaySchedule(data.schedule, data.employeeSchedules ?? {}, {}, {}, employeeId, date);
-
-    setSpecialEditor({
-      employeeId,
-      date,
-      available: day?.enabled !== false,
-      start: base?.start ?? "11:00",
-      end: base?.end ?? "20:00",
-      breakStart: base?.breakStart ?? "",
-      breakEnd: base?.breakEnd ?? "",
-      saving: false,
-    });
-
+    setSpecialEditor(buildSpecialEditorState(employeeId, date));
     setSlotMenu(null);
     setNewMenu(false);
   };
 
   const saveSpecialFromAgenda = async (day: DaySchedule) => {
     if (!specialEditor || !data.businessId) return;
+    if (!specialEditor.employeeId) {
+      toast.error("Seleccioná un profesional para guardar el horario especial.");
+      return;
+    }
     setSpecialEditor((s) => (s ? { ...s, saving: true } : s));
     const key = toDateKey(specialEditor.date);
     try {
@@ -1089,7 +1120,7 @@ function AgendaPage() {
 
           <div className="h-5 w-px bg-white/10 shrink-0" />
 
-          {/* Nuevo — square button with menu (Agregar turno / Bloquear horario) */}
+          {/* Nuevo — square button with menu (Agregar turno / Horario especial / Cliente rechazado) */}
           <div className="relative shrink-0">
             <Button
               ref={newBtnRef}
@@ -1114,15 +1145,6 @@ function AgendaPage() {
                     }}
                   >
                     <CalendarIcon className="h-4 w-4 shrink-0 text-primary" /> <span className="whitespace-nowrap">Agregar turno</span>
-                  </button>
-                  <button
-                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                    onClick={() => {
-                      setNewMenu(false);
-                      openBlockDialog(null, cursor);
-                    }}
-                  >
-                    <XCircle className="h-4 w-4 shrink-0 text-amber-300" /> <span className="whitespace-nowrap">Bloquear horario</span>
                   </button>
                   <button
                     className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
@@ -1314,14 +1336,6 @@ function AgendaPage() {
                     <CalendarIcon className="h-4 w-4 shrink-0 text-primary" />
                     <span className="whitespace-nowrap">Agregar turno</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => openBlockDialog(slotMenu.employeeId, slotMenu.startsAt)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-                  >
-                    <XCircle className="h-4 w-4 shrink-0 text-amber-300" />
-                    <span className="whitespace-nowrap">Bloquear horario</span>
-                  </button>
                 </>
               )}
               <button
@@ -1392,21 +1406,59 @@ function AgendaPage() {
         {/* Editor de horario especial para (profesional, fecha) — mismo editor que
           Configuración → Equipo → Horario especial (campos compartidos). */}
         {specialEditor ? (
-          <SpecialDayEditor
-            date={specialEditor.date}
-            value={{
-              enabled: specialEditor.available,
-              start: specialEditor.start,
-              end: specialEditor.end,
-              breakStart: specialEditor.breakStart || undefined,
-              breakEnd: specialEditor.breakEnd || undefined,
-            }}
-            allowBreak
-            closedLabel="No disponible"
-            saving={specialEditor.saving}
-            onSave={saveSpecialFromAgenda}
-            onCancel={() => setSpecialEditor(null)}
-          />
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#101119] shadow-2xl overflow-hidden">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-lg font-semibold text-white">Horario especial</div>
+                <div className="mt-1 text-xs text-white/45">
+                  Elegí el profesional y configurá la disponibilidad del día.
+                </div>
+
+                <label className="mt-4 block space-y-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                    Profesional
+                  </span>
+                  <select
+                    value={specialEditor.employeeId ?? ""}
+                    onChange={(event) => changeSpecialEmployee(event.target.value)}
+                    className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none transition focus:border-violet-300/45"
+                  >
+                    <option value="">Seleccionar profesional</option>
+                    {data.employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.full_name ?? employee.name ?? "Sin nombre"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={openBlockFromSpecial}
+                  className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/15"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Bloquear horario
+                </button>
+              </div>
+
+              <SpecialDayEditor
+                date={specialEditor.date}
+                value={{
+                  enabled: specialEditor.available,
+                  start: specialEditor.start,
+                  end: specialEditor.end,
+                  breakStart: specialEditor.breakStart || undefined,
+                  breakEnd: specialEditor.breakEnd || undefined,
+                }}
+                allowBreak
+                closedLabel="No disponible"
+                saving={specialEditor.saving}
+                onSave={saveSpecialFromAgenda}
+                onCancel={() => setSpecialEditor(null)}
+              />
+            </div>
+          </div>
         ) : null}
 
         <AppointmentDetailDialog
