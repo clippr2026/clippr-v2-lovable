@@ -788,10 +788,10 @@ function PublicBookingPage() {
           isLight ? "border-white/10 bg-black" : "border-gray-200 bg-white",
         )}
       >
-        <div className="relative flex w-full items-center justify-center px-4 py-1.5 sm:py-2">
+        <div className="relative flex w-full items-center justify-center px-4 py-0.5 sm:py-1">
           <div className="inline-flex items-center justify-center gap-3">
             <span
-              className="text-xs font-medium sm:text-sm"
+              className="text-[10px] font-medium sm:text-[11px]"
               style={
                 isLight
                   ? { color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }
@@ -805,10 +805,10 @@ function PublicBookingPage() {
               alt="Clippr"
               loading="eager"
               decoding="async"
-              className="h-9 w-9 rounded-xl object-contain sm:h-10 sm:w-10"
+              className="h-7 w-7 rounded-lg object-contain sm:h-8 sm:w-8"
             />
             <span
-              className="text-xl font-bold tracking-tight sm:text-2xl"
+              className="text-base font-bold tracking-tight sm:text-lg"
               style={
                 isLight
                   ? { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
