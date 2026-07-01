@@ -1576,7 +1576,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       ) : agendaTurnos.length === 0 && !breakRange ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.018] -mt-1">
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-[#070814]/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)] -mt-1">
+          <div className="absolute left-0 top-0 bottom-0 w-[84px] bg-black/35" />
           <div className="absolute left-[84px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div className="relative" style={{ height: timelineHeight }}>
             {timelineHours.map((hour) => (
@@ -1585,7 +1586,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 className="absolute left-0 right-0 border-t border-white/[0.055]"
                 style={{ top: TIMELINE_TOP_OFFSET + (hour - dayBounds.startHour) * HOUR_HEIGHT }}
               >
-                <div className="absolute left-5 -top-2.5 text-sm text-muted-foreground tabular-nums">
+                <div className="absolute left-5 -top-2.5 text-sm text-white/50 tabular-nums">
                   {String(hour).padStart(2, "0")}:00
                 </div>
               </div>
@@ -1628,7 +1629,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
                 >
-                  <div className="grid h-full grid-cols-[112px_minmax(120px,0.9fr)_auto_minmax(180px,1.4fr)_auto] items-center gap-3">
+                  <div className="grid h-full grid-cols-[112px_minmax(120px,0.85fr)_auto_minmax(170px,1.25fr)_auto_auto] items-center gap-3">
                     <div className={cn("min-w-0 text-xs font-semibold tabular-nums", style.labelColor)}>
                       {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
                     </div>
@@ -1644,17 +1645,20 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       {style.label}
                     </span>
 
-                    <div className="min-w-0">
-                      <div className="truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</div>
-                      {noteText && (
+                    <div className="min-w-0 truncate text-xs text-muted-foreground">
+                      {t.service_name ?? "—"}
+                    </div>
+
+                    <div className="min-w-[70px] justify-self-start">
+                      {noteText ? (
                         <button
                           type="button"
                           onClick={() => setNotaTurno(t)}
-                          className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
+                          className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
                         >
                           📄 Ver nota
                         </button>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="min-w-[92px] max-w-[260px] justify-self-end text-right">
