@@ -244,6 +244,10 @@ function PublicBookingPage() {
     const cachedTheme = window.localStorage.getItem(`clippr_booking_theme:${slug}`);
     return cachedTheme === "dark" || cachedTheme === "light" ? (cachedTheme as LandingTheme) : "light";
   });
+  // Tema real del negocio, resuelto únicamente desde business_settings.schedule._branding.theme.
+  // Se usa solo para el fondo del loader inicial: nunca se lee de localStorage ni de un
+  // valor cacheado, para evitar un flash de color incorrecto mientras carga el negocio.
+  const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark" | null>(null);
   const [confirmedBooking, setConfirmedBooking] = React.useState<{
     services: string;
     professional: string;
@@ -445,6 +449,7 @@ function PublicBookingPage() {
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           const resolvedLandingTheme: LandingTheme = branding.theme === "light" ? "light" : "dark";
           setLandingTheme(resolvedLandingTheme);
+          setResolvedTheme(resolvedLandingTheme);
           if (typeof window !== "undefined") {
             window.localStorage.setItem(`clippr_booking_theme:${slug}`, resolvedLandingTheme);
           }
@@ -706,7 +711,13 @@ function PublicBookingPage() {
   const accentButtonText = landingColors.buttonText || "#ffffff";
 
   if (loading) {
-    return <ClipprLoader fullScreen size="lg" background={landingTheme === "dark" ? "dark" : "light"} />;
+    return (
+      <ClipprLoader
+        fullScreen
+        size="lg"
+        background={resolvedTheme === "light" ? "light" : "dark"}
+      />
+    );
   }
 
   if (!business) {
