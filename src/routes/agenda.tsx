@@ -2483,6 +2483,7 @@ const DayView = React.memo(function DayView({
                     hourEnd={HOUR_END}
                     rowPx={rowPx}
                     employeeCount={employees.length}
+                    services={data.services}
                     onClick={() => onApptClick(a)}
                     onChangeStatus={(s) => onChangeStatus(a, s)}
                     onCobrar={() => onCobrar(a)}
@@ -2530,6 +2531,30 @@ const DayView = React.memo(function DayView({
   );
 });
 
+function getServiceImageByName(
+  serviceName: string | null | undefined,
+  services: ReturnType<typeof useAgendaData>["services"],
+): string | null {
+  const name = serviceName?.trim();
+  if (!name) return null;
+
+  const segments = name
+    .split("+")
+    .map((segment) => segment.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const segment of segments) {
+    const match = services.find((service) => service.name.trim().toLowerCase() === segment);
+    if (match?.image_url) return match.image_url;
+  }
+
+  const loose = services.find((service) =>
+    name.toLowerCase().includes(service.name.trim().toLowerCase()),
+  );
+
+  return loose?.image_url ?? null;
+}
+
 const ApptCard = React.memo(function ApptCard({
   a,
   onClick,
@@ -2540,6 +2565,7 @@ const ApptCard = React.memo(function ApptCard({
   hourEnd,
   rowPx,
   employeeCount,
+  services,
 }: {
   a: Appointment;
   onClick: () => void;
@@ -2550,6 +2576,7 @@ const ApptCard = React.memo(function ApptCard({
   hourEnd: number;
   rowPx: number;
   employeeCount: number;
+  services: ReturnType<typeof useAgendaData>["services"];
 }) {
   const start = new Date(a.starts_at);
   const end = getApptEnd(a);
@@ -2562,6 +2589,7 @@ const ApptCard = React.memo(function ApptCard({
     if (employeeCount <= 8) return parts.join(" ");
     return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
   })();
+  const serviceImageUrl = getServiceImageByName(a.service_name, services);
   const startH = start.getHours() + start.getMinutes() / 60;
   const dur = Math.max(0.5, Number(a.duration_min ?? 30) / 60);
   // Gap vertical mínimo (1px arriba + 1px abajo): turnos consecutivos quedan
@@ -2629,6 +2657,15 @@ const ApptCard = React.memo(function ApptCard({
       {/* Línea 2: servicio + producto online — pegado al horario, legible y sin cortarse */}
       {a.service_name && (
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
+          {serviceImageUrl ? (
+            <img
+              src={serviceImageUrl}
+              alt={a.service_name}
+              className="h-5 w-8 shrink-0 rounded-md object-cover ring-1 ring-white/10"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
           <span className="truncate text-[11px] text-foreground/85">
             {a.service_name}
           </span>
@@ -3048,17 +3085,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   // servicios con " + "), no hay FK a price_catalog. Resolvemos la imagen
   // buscando el primer servicio del catálogo cuyo nombre matchee alguno de
   // los segmentos del texto guardado.
-  const serviceImageUrl = (() => {
-    const name = appointment.service_name?.trim();
-    if (!name) return null;
-    const segments = name.split("+").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    for (const segment of segments) {
-      const match = services.find((s) => s.name.trim().toLowerCase() === segment);
-      if (match?.image_url) return match.image_url;
-    }
-    const loose = services.find((s) => name.toLowerCase().includes(s.name.trim().toLowerCase()));
-    return loose?.image_url ?? null;
-  })();
+  const serviceImageUrl = getServiceImageByName(appointment.service_name, services);
   const start = new Date(appointment.starts_at);
   const end = appointment.ends_at
     ? new Date(appointment.ends_at)
@@ -3183,7 +3210,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     <img
                       src={serviceImageUrl}
                       alt={appointment.service_name || "Servicio"}
-                      className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+                      className="h-12 w-20 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
                       loading="lazy"
                     />
                   ) : (
