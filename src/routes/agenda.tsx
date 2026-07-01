@@ -90,13 +90,13 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
       dot: "oklch(0.88 0.2 75)",
     },
     charged: {
-      label: "Cobrado",
+      label: "Cobrar",
       bg: "oklch(0.38 0.2 150 / 0.55)",
       border: "oklch(0.76 0.2 150)",
       dot: "oklch(0.76 0.2 150)",
     },
     cancelled: {
-      label: "Cancelado",
+      label: "Cancelar",
       bg: "oklch(0.3 0.05 25 / 0.4)",
       border: "oklch(0.6 0.18 25)",
       dot: "oklch(0.65 0.2 25)",
@@ -3002,11 +3002,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
   const statusLabel =
     appointment.status === "charged"
-      ? "Cobrado"
+      ? "Cobrar"
       : appointment.status === "confirmed"
         ? "Confirmado"
         : appointment.status === "cancelled"
-          ? "Cancelado"
+          ? "Cancelar"
           : appointment.status === "in_service"
             ? "En servicio"
             : "Pendiente";
@@ -3092,14 +3092,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Turno</div>
-                <div className="mt-1 flex min-w-0 items-center gap-2 text-base font-semibold leading-tight">
-                  <span className="truncate">{appointment.service_name || "Servicio"}</span>
-                  {appointmentProducts.length > 0 && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300 ring-1 ring-amber-300/25">
-                      <span aria-hidden>⭐</span>
-                      <span>Producto</span>
-                    </span>
-                  )}
+                <div className="mt-1 text-base font-semibold leading-tight truncate">
+                  {appointment.service_name || "Servicio"}
                 </div>
                 <div className="mt-1.5 text-sm text-white/70">{dateText}</div>
                 <div className="mt-0.5 text-sm text-white/45">
