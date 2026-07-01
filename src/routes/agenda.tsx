@@ -3080,9 +3080,28 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             style={{ background: meta.dot }}
           />
           <div className="relative flex items-start justify-between gap-3">
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
               <div
-                className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-sm font-semibold"
+                style={{ background: withAlpha(meta.dot, 0.14), color: meta.dot }}
+              >
+                {(appointment.status === "blocked"
+                  ? "B"
+                  : (appointment.client_name || "S")[0]
+                ).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
+                  {appointment.status === "blocked"
+                    ? "Horario bloqueado"
+                    : appointment.client_name || "Sin cliente"}
+                </SheetTitle>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 pr-7">
+              <div
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
                 style={{ color: meta.dot }}
               >
                 <span
@@ -3091,13 +3110,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 />
                 {statusLabel}
               </div>
-              <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
-                {appointment.status === "blocked"
-                  ? "Horario bloqueado"
-                  : appointment.client_name || "Sin cliente"}
-              </SheetTitle>
-            </div>
-            <div className="flex gap-1.5 pr-7">
               <Button
                 size="sm"
                 variant="secondary"
@@ -3121,7 +3133,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         </SheetHeader>
 
         <div className="space-y-3 p-4">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <div className="space-y-2.5">
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
@@ -3137,12 +3149,12 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 ) : null}
               </div>
 
-              <div className="grid gap-1.5 text-sm">
+              <div className="flex min-w-0 items-center gap-4 text-sm">
                 <div className="flex items-center gap-2 text-white/72">
                   <Clock3 className="h-4 w-4 shrink-0 text-white/38" />
                   <span className="tabular-nums">{fmtTime(start)} – {fmtTime(end)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-white/60">
+                <div className="flex min-w-0 items-center gap-2 text-white/60">
                   <UserRound className="h-4 w-4 shrink-0 text-white/35" />
                   <span className="truncate">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
                 </div>
@@ -3239,7 +3251,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 
           <div className="space-y-2 text-sm">
             {phone && (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.028] px-3 py-2.5 min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <Phone className="h-4 w-4 shrink-0 text-white/38" />
                   <div className="truncate text-white/85 text-[13px]">{phone}</div>
@@ -3259,9 +3271,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             )}
             {email && (
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 min-w-0">
+              <div className="flex items-center gap-2 px-1 py-1.5 min-w-0">
                 <Mail className="h-4 w-4 shrink-0 text-white/38" />
-                <div className="truncate text-white/85 text-[13px]">{email}</div>
+                <div className="truncate text-white/78 text-[13px]">{email}</div>
               </div>
             )}
             {noteText && (
@@ -3386,7 +3398,12 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </>
               )}
 
-              <div className="my-2 h-px bg-white/10" />
+              <div className="my-2 space-y-1.5">
+                <div className="h-px bg-white/10" />
+                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Acciones
+                </div>
+              </div>
 
               {/* Cancelar / No asistió */}
               {(() => {
@@ -3494,9 +3511,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     onClick={() => setConfirmCancel(true)}
                     className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
                     style={{
-                      background: "rgba(255,255,255,0.03)",
+                      background: "rgba(255,255,255,0.018)",
                       color: dot,
-                      boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                      boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.32)}`,
                     }}
                   >
                     Cancelar
@@ -3517,11 +3534,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       disabled={charged}
                       className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
                       style={{
-                        background: charged ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
+                        background: charged ? withAlpha(dot, 0.16) : withAlpha(dot, 0.08),
                         color: dot,
                         boxShadow: charged
                           ? `inset 0 0 0 1.5px ${dot}`
-                          : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
+                          : `inset 0 0 0 1px ${withAlpha(dot, 0.48)}, 0 0 22px -16px ${dot}`,
                       }}
                     >
                       {charged && (
