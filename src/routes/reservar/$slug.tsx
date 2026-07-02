@@ -79,6 +79,8 @@ type Employee = {
   role?: string | null;
 };
 
+type CatalogImageOffset = { image_offset_x: number; image_offset_y: number };
+
 type Service = {
   id: string;
   name: string;
@@ -88,6 +90,7 @@ type Service = {
   is_active?: boolean | null;
   image_url?: string | null;
   image_position?: string | null;
+  image_offset?: CatalogImageOffset | null;
 };
 
 type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
@@ -95,6 +98,23 @@ type RecommendedProduct = { id: string; name: string; price: number; offer: stri
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
+
+function extractCatalogImageOffsets(schedule: unknown): Record<string, CatalogImageOffset> {
+  if (!schedule || typeof schedule !== "object") return {};
+  const offsets = (schedule as Record<string, unknown>)._catalogImageOffsets;
+  if (!offsets || typeof offsets !== "object") return {};
+  const map: Record<string, CatalogImageOffset> = {};
+  for (const [id, value] of Object.entries(offsets as Record<string, unknown>)) {
+    if (!id.trim() || !value || typeof value !== "object") continue;
+    const row = value as Record<string, unknown>;
+    const x = Number(row.image_offset_x);
+    const y = Number(row.image_offset_y);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      map[id] = { image_offset_x: x, image_offset_y: y };
+    }
+  }
+  return map;
+}
 
 const DEFAULT_CLIENT_FIELDS: ClientFields = {
   nombre: true,
@@ -415,10 +435,16 @@ function PublicBookingPage() {
           settingsSchedule && typeof settingsSchedule === "object"
             ? (((settingsSchedule as Record<string, unknown>)._catalogImagePositions ?? {}) as Record<string, string>)
             : {};
+        const serviceImageOffsetMap = extractCatalogImageOffsets(settingsSchedule);
         const visibleServices = ((servicesRes.error ? [] : (servicesRes.data ?? [])) as Service[])
           .filter((service) => service.is_active !== false)
           .filter((service) => visibility.services[service.id] !== false)
-          .map((service) => ({ ...service, image_url: serviceImageMap[service.id] ?? null, image_position: serviceImagePositionMap[service.id] ?? "50% 50%" }));
+          .map((service) => ({
+            ...service,
+            image_url: serviceImageMap[service.id] ?? null,
+            image_position: serviceImagePositionMap[service.id] ?? "50% 50%",
+            image_offset: serviceImageOffsetMap[service.id] ?? null,
+          }));
 
         if (!cancelled) {
           setBusiness(businessData as Business);
