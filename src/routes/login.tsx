@@ -82,7 +82,7 @@ function LoginPage() {
         />
 
         {/* Planeta sutil: aporta profundidad sin convertirse en protagonista. */}
-        <div className="animate-breathe absolute left-[4%] top-[7%] h-[620px] w-[620px] rounded-full opacity-[0.62]">
+        <div className="animate-breathe absolute left-[5%] top-[9%] h-[560px] w-[560px] rounded-full opacity-[0.62]">
           <div
             className="absolute inset-0 rounded-full"
             style={{
@@ -115,10 +115,11 @@ function LoginPage() {
 
       <div className="relative z-10 grid min-h-screen gap-10 px-6 py-10 lg:grid-cols-2 lg:gap-8 lg:px-16 lg:py-16">
         <section className="mx-auto flex max-w-xl flex-col justify-center text-center lg:mx-0 lg:text-left">
-          <div
-            className="animate-fade-up flex items-center justify-center gap-4 lg:justify-start"
-            style={{ animationDelay: "40ms" }}
-          >
+          <div className="lg:translate-x-14 lg:-translate-y-3">
+            <div
+              className="animate-fade-up flex items-center justify-center gap-4 lg:justify-start"
+              style={{ animationDelay: "40ms" }}
+            >
             <img
               src="/clippr-powered-logo.webp"
               alt="Clippr"
@@ -144,9 +145,10 @@ function LoginPage() {
           >
             Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
           </p>
+          </div>
 
           <div
-            className="animate-fade-up mt-11 grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4"
+            className="animate-fade-up mt-16 grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4 lg:mt-32 lg:translate-x-14"
             style={{ animationDelay: "230ms" }}
           >
             {PILLARS.map(({ icon: Icon, title, subtitle, color }) => (
