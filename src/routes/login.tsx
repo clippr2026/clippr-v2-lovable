@@ -81,26 +81,33 @@ function LoginPage() {
           style={{ background: "radial-gradient(circle, oklch(0.58 0.24 310 / 0.48), transparent 66%)" }}
         />
 
-        {/* Planeta sutil: aporta profundidad sin convertirse en protagonista. */}
-        <div className="animate-breathe absolute left-[5%] top-[9%] h-[560px] w-[560px] rounded-full opacity-[0.62]">
+        {/* Planeta premium: círculo más protagonista, centrado con el bloque de marca. */}
+        <div className="animate-breathe absolute left-[5.5%] top-[10.5%] h-[540px] w-[540px] rounded-full opacity-[0.72]">
           <div
             className="absolute inset-0 rounded-full"
             style={{
               background:
-                "radial-gradient(circle at 54% 48%, oklch(0.035 0.018 280 / 0.98) 0%, oklch(0.035 0.018 280 / 0.98) 58%, transparent 59%)",
+                "radial-gradient(circle at 52% 47%, oklch(0.09 0.03 282 / 0.42) 0%, oklch(0.045 0.018 280 / 0.98) 57%, oklch(0.018 0.01 280 / 1) 100%)",
+              boxShadow:
+                "inset -34px -18px 90px oklch(0.7 0.26 305 / 0.18), inset 22px 0 80px oklch(0.72 0.2 245 / 0.12)",
             }}
           />
           <div
             className="absolute inset-0 rounded-full"
             style={{
               background:
-                "conic-gradient(from 215deg, transparent 0deg, transparent 232deg, oklch(0.7 0.24 270 / 0.08) 248deg, oklch(0.72 0.26 305 / 0.24) 262deg, oklch(0.72 0.2 245 / 0.18) 278deg, transparent 298deg, transparent 360deg)",
-              filter: "blur(0.2px)",
+                "conic-gradient(from 215deg, oklch(0.72 0.2 245 / 0.32) 0deg, transparent 54deg, transparent 224deg, oklch(0.72 0.26 305 / 0.34) 270deg, oklch(0.72 0.2 245 / 0.26) 318deg, transparent 360deg)",
+              maskImage: "radial-gradient(circle, transparent 59%, black 60%, black 61%, transparent 62%)",
+              WebkitMaskImage: "radial-gradient(circle, transparent 59%, black 60%, black 61%, transparent 62%)",
             }}
           />
           <div
-            className="absolute inset-[1px] rounded-full border border-white/[0.045]"
-            style={{ boxShadow: "0 0 110px -34px oklch(0.66 0.23 282 / 0.5)" }}
+            className="absolute inset-[1px] rounded-full border"
+            style={{
+              borderColor: "oklch(0.72 0.22 275 / 0.26)",
+              boxShadow:
+                "0 0 120px -36px oklch(0.66 0.23 282 / 0.55), 0 0 42px -22px oklch(0.72 0.2 245 / 0.42)",
+            }}
           />
         </div>
 
@@ -114,60 +121,63 @@ function LoginPage() {
       </div>
 
       <div className="relative z-10 grid min-h-screen gap-10 px-6 py-10 lg:grid-cols-2 lg:gap-8 lg:px-16 lg:py-16">
-        <section className="mx-auto flex max-w-xl flex-col justify-center text-center lg:mx-0 lg:text-left">
-          <div className="lg:translate-x-14 lg:-translate-y-3">
+        <section className="mx-auto flex max-w-2xl flex-col justify-center text-center lg:mx-0 lg:items-start">
+          <div className="relative z-10 flex min-h-[540px] w-full max-w-[640px] flex-col items-center justify-center px-6 lg:translate-x-2">
             <div
-              className="animate-fade-up flex items-center justify-center gap-4 lg:justify-start"
+              className="animate-fade-up flex flex-col items-center justify-center gap-4"
               style={{ animationDelay: "40ms" }}
             >
-            <img
-              src="/clippr-powered-logo.webp"
-              alt="Clippr"
-              loading="eager"
-              decoding="async"
-              className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_14px_44px_-16px_oklch(0.6_0.26_290_/_0.7)] md:h-20 md:w-20"
-            />
-            <span className="font-display text-4xl font-semibold tracking-tight md:text-5xl">Clippr</span>
-          </div>
+              <img
+                src="/clippr-powered-logo.webp"
+                alt="Clippr"
+                loading="eager"
+                decoding="async"
+                className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_16px_48px_-16px_oklch(0.6_0.26_290_/_0.74)] md:h-20 md:w-20"
+              />
+              <span className="font-display text-4xl font-semibold tracking-tight md:text-5xl">Clippr</span>
+            </div>
 
-          <h1
-            className="animate-fade-up font-display mt-9 text-4xl font-semibold leading-[1.08] tracking-tight md:text-[3.25rem]"
-            style={{ animationDelay: "110ms" }}
-          >
-            El centro de control
-            <br />
-            de <span className="text-gradient">tu negocio</span>
-          </h1>
+            <h1
+              className="animate-fade-up font-display mt-10 max-w-[560px] text-4xl font-semibold leading-[1.08] tracking-tight md:text-[3.25rem]"
+              style={{ animationDelay: "110ms" }}
+            >
+              El centro de control
+              <br />
+              de <span className="text-gradient">tu negocio</span>
+            </h1>
 
-          <p
-            className="animate-fade-up mx-auto mt-4 max-w-md text-base leading-relaxed text-muted-foreground/90 lg:mx-0"
-            style={{ animationDelay: "170ms" }}
-          >
-            Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
-          </p>
+            <p
+              className="animate-fade-up mx-auto mt-5 max-w-[520px] text-base leading-relaxed text-muted-foreground/90"
+              style={{ animationDelay: "170ms" }}
+            >
+              Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
+            </p>
           </div>
 
           <div
-            className="animate-fade-up mt-16 grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4 lg:mt-32 lg:translate-x-14"
+            className="animate-fade-up mt-6 grid w-full max-w-[640px] grid-cols-2 gap-x-6 gap-y-8 px-6 sm:grid-cols-4 lg:translate-x-2"
             style={{ animationDelay: "230ms" }}
           >
-            {PILLARS.map(({ icon: Icon, title, subtitle, color }) => (
-              <div key={title} className="flex flex-col items-center justify-start">
+            {PILLARS.map(({ icon: Icon, title, subtitle, color }, index) => (
+              <div key={title} className="relative flex flex-col items-center justify-start">
+                {index > 0 && (
+                  <div className="absolute -left-3 top-3 hidden h-20 w-px bg-white/[0.08] sm:block" />
+                )}
                 <div
-                  className="grid h-11 w-11 place-items-center rounded-xl ring-1"
+                  className="grid h-16 w-16 place-items-center rounded-2xl ring-1"
                   style={{
                     color,
-                    background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.13)}, transparent)`,
-                    borderColor: colorWithAlpha(color, 0.22),
-                    boxShadow: `0 0 20px -12px ${colorWithAlpha(color, 0.45)}`,
+                    background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.16)}, oklch(1 0 0 / 0.025))`,
+                    borderColor: colorWithAlpha(color, 0.28),
+                    boxShadow: `0 0 28px -14px ${colorWithAlpha(color, 0.6)}`,
                   }}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-7 w-7" />
                 </div>
 
-                <div className="mt-3 flex h-10 flex-col items-center justify-start leading-tight">
-                  <span className="text-center text-[13px] font-medium text-white/80">{title}</span>
-                  <span className="text-center text-[13px] font-medium text-white/80">{subtitle || "\u00A0"}</span>
+                <div className="mt-4 flex h-11 flex-col items-center justify-start leading-tight">
+                  <span className="text-center text-[14px] font-semibold text-white/90">{title}</span>
+                  <span className="text-center text-[14px] font-medium text-white/74">{subtitle || "\u00A0"}</span>
                 </div>
               </div>
             ))}
