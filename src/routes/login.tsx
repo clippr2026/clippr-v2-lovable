@@ -72,71 +72,7 @@ function LoginPage() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#05040b] text-foreground">
       <style>{`
-        @keyframes logoEnter {
-          0% {
-            transform: translate3d(0, 0, 0);
-            filter: hue-rotate(0deg) saturate(1.12) brightness(1)
-              drop-shadow(0 0 30px rgba(70,170,255,.76))
-              drop-shadow(0 0 76px rgba(170,90,255,.70))
-              drop-shadow(0 0 136px rgba(120,80,255,.58));
-          }
-          22% {
-            transform: translate3d(0, 0, 0);
-            filter: hue-rotate(28deg) saturate(1.42) brightness(1.08)
-              drop-shadow(0 0 38px rgba(75,210,255,.82))
-              drop-shadow(0 0 92px rgba(225,75,255,.78))
-              drop-shadow(0 0 150px rgba(120,80,255,.66));
-          }
-          48% {
-            transform: translate3d(0, 0, 0);
-            filter: hue-rotate(-34deg) saturate(1.5) brightness(1.1)
-              drop-shadow(0 0 42px rgba(80,230,255,.86))
-              drop-shadow(0 0 105px rgba(255,80,210,.80))
-              drop-shadow(0 0 160px rgba(120,80,255,.68));
-          }
-          74% {
-            transform: translate3d(0, 0, 0);
-            filter: hue-rotate(16deg) saturate(1.32) brightness(1.06)
-              drop-shadow(0 0 36px rgba(70,190,255,.80))
-              drop-shadow(0 0 88px rgba(190,90,255,.76))
-              drop-shadow(0 0 148px rgba(120,80,255,.62));
-          }
-          100% {
-            transform: translate3d(0, 0, 0);
-            filter: hue-rotate(0deg) saturate(1.14) brightness(1)
-              drop-shadow(0 0 34px rgba(70,170,255,.82))
-              drop-shadow(0 0 82px rgba(170,90,255,.76))
-              drop-shadow(0 0 150px rgba(120,80,255,.62));
-          }
-        }
-
-        @keyframes logoLiquidOverlay {
-          0% {
-            opacity: 0;
-            transform: translateX(-18%) skewX(-10deg);
-            filter: hue-rotate(20deg) saturate(1.8) blur(.2px);
-          }
-          22% {
-            opacity: .45;
-            transform: translateX(-6%) skewX(-7deg);
-            filter: hue-rotate(55deg) saturate(2) blur(.2px);
-          }
-          50% {
-            opacity: .58;
-            transform: translateX(10%) skewX(8deg);
-            filter: hue-rotate(-38deg) saturate(2.1) blur(.2px);
-          }
-          78% {
-            opacity: .28;
-            transform: translateX(4%) skewX(4deg);
-            filter: hue-rotate(18deg) saturate(1.6) blur(.2px);
-          }
-          100% {
-            opacity: 0;
-            transform: translateX(0) skewX(0deg);
-            filter: hue-rotate(0deg) saturate(1) blur(0);
-          }
-        }
+        
       `}</style>
       <div className="pointer-events-none absolute inset-0">
         <div
@@ -167,7 +103,7 @@ function LoginPage() {
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   background:
                     "linear-gradient(160deg, oklch(0.17 0.045 285 / 0.20), oklch(0.045 0.018 280 / 0.42))",
-                  border: "1px solid transparent",
+                  border: "0 solid transparent",
                   boxShadow:
                     "inset 0 0 88px oklch(0.72 0.2 245 / 0.075), 0 0 120px -34px oklch(0.7 0.26 300 / 0.58), 0 0 70px -42px oklch(0.72 0.2 245 / 0.48)",
                 }}
@@ -176,14 +112,14 @@ function LoginPage() {
                 className="pointer-events-none absolute inset-[-30px] opacity-32"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
-                  border: "1px solid transparent",
+                  border: "0 solid transparent",
                 }}
               />
               <div
                 className="pointer-events-none absolute inset-[-62px] opacity-14"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
-                  border: "1px solid transparent",
+                  border: "0 solid transparent",
                 }}
               />
 
@@ -203,19 +139,10 @@ function LoginPage() {
                     decoding="async"
                     className="absolute inset-0 h-full w-full object-contain"
                     style={{
-                      animation: "logoEnter 1.45s cubic-bezier(.22,.9,.2,1) both",
+                      filter: "drop-shadow(0 0 34px rgba(70,170,255,.82)) drop-shadow(0 0 82px rgba(170,90,255,.76)) drop-shadow(0 0 150px rgba(120,80,255,.62))"
                     }}
                   />
-                  <img
-                    src="/clippr-powered-logo.webp"
-                    alt=""
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 h-full w-full object-contain mix-blend-screen"
-                    style={{
-                      animation: "logoLiquidOverlay 1.45s cubic-bezier(.22,.9,.2,1) both",
-                    }}
-                  />
-                </div>
+</div>
 
                 <span
                   className="animate-fade-up font-display mt-5 text-5xl font-semibold tracking-tight md:text-[3.25rem]"
