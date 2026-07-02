@@ -126,8 +126,11 @@ function LoginPage() {
                   alt="Clippr"
                   loading="eager"
                   decoding="async"
-                  className="animate-fade-up h-[164px] w-[164px] rounded-[36px] object-cover ring-1 ring-white/20 shadow-[0_0_40px_oklch(0.72_0.22_245_/_0.45),0_0_90px_oklch(0.70_0.28_305_/_0.40),0_28px_80px_-20px_oklch(0.60_0.26_290_/_0.95)]"
-                  style={{ animationDelay: "40ms", filter: "drop-shadow(0 0 22px rgba(74,163,255,.45)) drop-shadow(0 0 46px rgba(180,83,255,.45))" }}
+                  className="animate-fade-up h-[164px] w-[164px] object-contain"
+                  style={{
+                    animationDelay: "40ms",
+                    filter: "drop-shadow(0 0 18px rgba(70,170,255,.55)) drop-shadow(0 0 42px rgba(170,90,255,.55)) drop-shadow(0 0 90px rgba(120,80,255,.45))"
+                  }}
                 />
 
                 <span
