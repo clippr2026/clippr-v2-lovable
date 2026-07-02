@@ -753,7 +753,7 @@ function PublicProfilePage() {
                           src={service.image_url}
                           alt={service.name}
                           position={service.image_position}
-                          className="h-20 w-20 rounded-2xl bg-white/[0.06] ring-1 ring-white/10"
+                          className="h-20 w-20 rounded-xl bg-white/[0.06] ring-1 ring-white/10"
                           fallback={<Sparkles className="h-5 w-5 text-white/30" />}
                         />
                         <div className="min-w-0">
