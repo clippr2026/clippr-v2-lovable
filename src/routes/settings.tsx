@@ -7215,24 +7215,56 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       );
   }, [businessId, isService, customServiceCategories, customCatalogCategories]);
 
-  // Local-only category update (no Supabase until global save)
+  // Guarda el orden de categorías en el momento en que el usuario lo cambia.
+  // Esto evita que, al salir y volver a Configuración, las pestañas se reordenen
+  // por el orden alfabético de Supabase o por la primera categoría con ítems.
+  const persistCategoryList = useCallback(
+    async (next: string[], type: "catalog" | "service") => {
+      if (!businessId) return;
+      const { data: existingRow } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const existingCats = (existingSchedule._categories ?? {}) as Record<string, unknown>;
+      const updatedCats =
+        type === "service"
+          ? { ...existingCats, service: next }
+          : { ...existingCats, catalog: next };
+      await supabase.from("business_settings").upsert(
+        {
+          business_id: businessId,
+          schedule: { ...existingSchedule, _categories: updatedCats },
+        },
+        { onConflict: "business_id" },
+      );
+    },
+    [businessId],
+  );
+
   const saveCategories = useCallback(
     (next: string[], type: "catalog" | "service") => {
       const clean = Array.from(
         new Set(next.map((c) => c.trim()).filter(Boolean)),
       );
+      const normalized =
+        clean.length > 0
+          ? clean
+          : type === "service"
+            ? defaultServiceCategories
+            : defaultCatalogCategories;
+
       if (type === "service") {
-        setCustomServiceCategories(
-          clean.length ? clean : defaultServiceCategories,
-        );
+        setCustomServiceCategories(normalized);
       } else {
-        setCustomCatalogCategories(
-          clean.length ? clean : defaultCatalogCategories,
-        );
+        setCustomCatalogCategories(normalized);
       }
-      markSettingsDirty();
+
+      // Persistencia silenciosa e inmediata del orden de pestañas.
+      void persistCategoryList(normalized, type);
     },
-    [isService],
+    [persistCategoryList],
   );
 
   const load = useCallback(async () => {
