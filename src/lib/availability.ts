@@ -200,8 +200,10 @@ export function buildSlots<T extends { id: string }>(
   employeeSchedules: Record<string, ScheduleMap> = {},
   businessSpecial: SpecialDateMap = {},
   employeeSpecial: EmployeeSpecialDateMap = {},
+  intervalMinutes = 30,
 ) {
   const now = new Date();
+  const step = Number.isFinite(intervalMinutes) && intervalMinutes > 0 ? intervalMinutes : 30;
   const result: Array<{ date: Date; slots: Array<{ time: Date; employeeId: string }> }> = [];
   const pool =
     selectedEmployeeId && selectedEmployeeId !== "any"
@@ -234,7 +236,7 @@ export function buildSlots<T extends { id: string }>(
       const breakStart = day.breakStart ? parseTime(day.breakStart) : null;
       const breakEnd = day.breakEnd ? parseTime(day.breakEnd) : null;
 
-      for (let minute = open; minute + duration <= close; minute += 30) {
+      for (let minute = open; minute + duration <= close; minute += step) {
         if (breakStart !== null && breakEnd !== null && minute < breakEnd && minute + duration > breakStart) continue;
         const slotStart = new Date(date);
         slotStart.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
