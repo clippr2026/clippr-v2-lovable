@@ -81,62 +81,6 @@ function LoginPage() {
           style={{ background: "radial-gradient(circle, oklch(0.58 0.24 310 / 0.48), transparent 66%)" }}
         />
 
-        {/* Marco geométrico premium: evita el problema óptico del círculo y da más precisión visual. */}
-        <div className="absolute left-[4%] top-[7%] h-[610px] w-[610px] opacity-80">
-          {[1, 1.08, 1.18].map((scale, index) => (
-            <div
-              key={index}
-              className="absolute inset-0"
-              style={{
-                clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
-                transform: `scale(${scale})`,
-                transformOrigin: "center",
-                opacity: index === 0 ? 0.9 : index === 1 ? 0.32 : 0.14,
-                background:
-                  index === 0
-                    ? "linear-gradient(160deg, oklch(0.18 0.04 285 / 0.18), oklch(0.06 0.02 280 / 0.32))"
-                    : "transparent",
-                border: "1px solid oklch(0.72 0.24 285 / 0.22)",
-                boxShadow:
-                  index === 0
-                    ? "inset 0 0 70px oklch(0.72 0.22 245 / 0.05), 0 0 90px -34px oklch(0.7 0.26 300 / 0.42)"
-                    : "none",
-              }}
-            />
-          ))}
-          <div
-            className="absolute left-[7%] top-[18%] h-[72%] w-[2px] rounded-full opacity-70"
-            style={{
-              background:
-                "linear-gradient(180deg, transparent, oklch(0.72 0.2 245 / 0.45), oklch(0.72 0.26 305 / 0.55), transparent)",
-              filter: "blur(1px)",
-            }}
-          />
-          <div
-            className="absolute bottom-[12%] right-[10%] h-[2px] w-[34%] rounded-full opacity-75"
-            style={{
-              background:
-                "linear-gradient(90deg, transparent, oklch(0.72 0.26 305 / 0.55), oklch(0.72 0.2 245 / 0.38), transparent)",
-              filter: "blur(1px)",
-            }}
-          />
-        </div>
-
-        <div
-          className="absolute -left-[4%] top-[20%] h-[520px] w-[520px] rotate-[-42deg] opacity-[0.18]"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, transparent 42%, oklch(0.72 0.22 245 / 0.38) 46%, transparent 52%, transparent 100%)",
-          }}
-        />
-        <div
-          className="absolute right-[-8%] top-[18%] h-[480px] w-[480px] rotate-[-42deg] opacity-[0.14]"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, transparent 44%, oklch(0.72 0.26 305 / 0.4) 48%, transparent 54%, transparent 100%)",
-          }}
-        />
-
         {AMBIENT_PARTICLES.map((p, i) => (
           <span
             key={i}
@@ -146,79 +90,111 @@ function LoginPage() {
         ))}
       </div>
 
-      <div className="relative z-10 grid min-h-screen gap-10 px-6 py-10 lg:grid-cols-2 lg:gap-8 lg:px-16 lg:py-16">
-        <section className="mx-auto flex max-w-[680px] flex-col justify-center text-center lg:mx-0">
-          <div className="relative z-20 flex min-h-[560px] flex-col items-center justify-center px-6 text-center lg:w-[610px]">
-            <div
-              className="animate-fade-up flex flex-col items-center justify-center gap-5"
-              style={{ animationDelay: "40ms" }}
-            >
-              <img
-                src="/clippr-powered-logo.webp"
-                alt="Clippr"
-                loading="eager"
-                decoding="async"
-                className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_14px_44px_-16px_oklch(0.6_0.26_290_/_0.7)] md:h-[76px] md:w-[76px]"
+      <div className="relative z-10 grid min-h-screen items-center gap-8 px-6 py-8 lg:grid-cols-[minmax(520px,0.95fr)_minmax(360px,0.75fr)] lg:gap-12 lg:px-14 xl:px-20">
+        <section className="flex items-center justify-center">
+          <div className="relative flex w-full max-w-[620px] flex-col items-center">
+            <div className="relative flex h-[500px] w-full max-w-[560px] flex-col items-center justify-center px-8 text-center">
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
+                  background:
+                    "linear-gradient(160deg, oklch(0.17 0.045 285 / 0.20), oklch(0.045 0.018 280 / 0.42))",
+                  border: "1px solid oklch(0.72 0.24 285 / 0.28)",
+                  boxShadow:
+                    "inset 0 0 62px oklch(0.72 0.2 245 / 0.045), 0 0 82px -34px oklch(0.7 0.26 300 / 0.42)",
+                }}
               />
-              <span className="font-display text-4xl font-semibold tracking-tight md:text-5xl">Clippr</span>
+              <div
+                className="pointer-events-none absolute inset-[-24px] opacity-32"
+                style={{
+                  clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
+                  border: "1px solid oklch(0.72 0.2 245 / 0.26)",
+                }}
+              />
+              <div
+                className="pointer-events-none absolute inset-[-48px] opacity-14"
+                style={{
+                  clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
+                  border: "1px solid oklch(0.72 0.26 305 / 0.26)",
+                }}
+              />
+
+              <div className="relative z-10 flex flex-col items-center">
+                <img
+                  src="/clippr-powered-logo.webp"
+                  alt="Clippr"
+                  loading="eager"
+                  decoding="async"
+                  className="animate-fade-up h-[68px] w-[68px] rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_18px_48px_-18px_oklch(0.6_0.26_290_/_0.82)]"
+                  style={{ animationDelay: "40ms" }}
+                />
+
+                <span
+                  className="animate-fade-up font-display mt-4 text-4xl font-semibold tracking-tight md:text-[2.75rem]"
+                  style={{ animationDelay: "80ms" }}
+                >
+                  Clippr
+                </span>
+
+                <h1
+                  className="animate-fade-up font-display mt-8 max-w-[520px] text-4xl font-semibold leading-[1.08] tracking-tight md:text-[3rem]"
+                  style={{ animationDelay: "120ms" }}
+                >
+                  El centro de control
+                  <br />
+                  de <span className="text-gradient">tu negocio</span>
+                </h1>
+
+                <p
+                  className="animate-fade-up mx-auto mt-4 max-w-[430px] text-[15px] leading-relaxed text-muted-foreground/90"
+                  style={{ animationDelay: "170ms" }}
+                >
+                  Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
+                </p>
+              </div>
             </div>
 
-            <h1
-              className="animate-fade-up font-display mt-10 max-w-[560px] text-4xl font-semibold leading-[1.08] tracking-tight md:text-[3.35rem]"
-              style={{ animationDelay: "110ms" }}
+            <div
+              className="animate-fade-up mt-7 grid w-full max-w-[560px] grid-cols-2 gap-x-0 gap-y-7 sm:grid-cols-4"
+              style={{ animationDelay: "230ms" }}
             >
-              El centro de control
-              <br />
-              de <span className="text-gradient">tu negocio</span>
-            </h1>
+              {PILLARS.map(({ icon: Icon, title, subtitle, color }, index) => (
+                <div key={title} className="relative flex flex-col items-center justify-start px-4">
+                  {index > 0 && <div className="absolute left-0 top-4 hidden h-14 w-px bg-white/10 sm:block" />}
+                  <div
+                    className="grid h-14 w-14 place-items-center rounded-2xl ring-1"
+                    style={{
+                      color,
+                      background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.16)}, transparent)`,
+                      borderColor: colorWithAlpha(color, 0.25),
+                      boxShadow: `0 0 28px -15px ${colorWithAlpha(color, 0.62)}`,
+                    }}
+                  >
+                    <Icon className="h-6 w-6" />
+                  </div>
 
-            <p
-              className="animate-fade-up mx-auto mt-5 max-w-[470px] text-base leading-relaxed text-muted-foreground/90"
-              style={{ animationDelay: "170ms" }}
-            >
-              Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
-            </p>
-          </div>
-
-          <div
-            className="animate-fade-up mt-6 grid w-full max-w-[620px] grid-cols-2 gap-x-0 gap-y-8 sm:grid-cols-4"
-            style={{ animationDelay: "230ms" }}
-          >
-            {PILLARS.map(({ icon: Icon, title, subtitle, color }, index) => (
-              <div key={title} className="relative flex flex-col items-center justify-start px-5">
-                {index > 0 && <div className="absolute left-0 top-3 hidden h-16 w-px bg-white/10 sm:block" />}
-                <div
-                  className="grid h-16 w-16 place-items-center rounded-2xl ring-1"
-                  style={{
-                    color,
-                    background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.16)}, transparent)`,
-                    borderColor: colorWithAlpha(color, 0.26),
-                    boxShadow: `0 0 28px -14px ${colorWithAlpha(color, 0.65)}`,
-                  }}
-                >
-                  <Icon className="h-7 w-7" />
+                  <div className="mt-3 flex h-10 flex-col items-center justify-start leading-tight">
+                    <span className="text-center text-[13px] font-semibold text-white/90">{title}</span>
+                    <span className="text-center text-[13px] font-medium text-white/80">{subtitle || "\u00A0"}</span>
+                  </div>
                 </div>
-
-                <div className="mt-4 flex h-11 flex-col items-center justify-start leading-tight">
-                  <span className="text-center text-[14px] font-semibold text-white/90">{title}</span>
-                  <span className="text-center text-[14px] font-medium text-white/80">{subtitle || "\u00A0"}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
         <section className="flex items-center justify-center">
-          <div className="animate-fade-up relative w-full max-w-md" style={{ animationDelay: "150ms" }}>
+          <div className="animate-fade-up relative w-full max-w-[380px]" style={{ animationDelay: "150ms" }}>
             <div
-              className="absolute -inset-px rounded-[28px] opacity-80"
+              className="absolute -inset-px rounded-[26px] opacity-80"
               style={{
                 background:
                   "linear-gradient(135deg, oklch(0.72 0.22 245 / 0.55), oklch(0.7 0.28 305 / 0.36), oklch(0.72 0.22 245 / 0.08))",
               }}
             />
             <div
-              className="relative rounded-[28px] p-8 backdrop-blur-2xl sm:p-9"
+              className="relative rounded-[26px] p-7 backdrop-blur-2xl"
               style={{
                 background:
                   "linear-gradient(180deg, oklch(0.18 0.045 285 / 0.56), oklch(0.075 0.03 280 / 0.82))",
@@ -226,12 +202,12 @@ function LoginPage() {
                   "0 28px 72px -30px oklch(0.52 0.25 285 / 0.42), inset 0 1px 0 oklch(1 0 0 / 0.065)",
               }}
             >
-              <div className="mb-7 text-center">
-                <h2 className="font-display text-2xl font-semibold tracking-tight">Bienvenido de nuevo</h2>
+              <div className="mb-6 text-center">
+                <h2 className="font-display text-[22px] font-semibold tracking-tight">Bienvenido de nuevo</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">Ingresá para acceder a tu negocio.</p>
               </div>
 
-              <form onSubmit={onSubmit} className="space-y-5">
+              <form onSubmit={onSubmit} className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium tracking-wide text-white/55">
                     Correo electrónico
@@ -245,7 +221,7 @@ function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="ejemplo@correo.com"
                       disabled={submitting}
-                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-3 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
+                      className="h-11 w-full rounded-xl bg-white/[0.035] pl-10 pr-3 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
                     />
                   </div>
                 </div>
@@ -261,7 +237,7 @@ function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Ingresá tu contraseña"
                       disabled={submitting}
-                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-10 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
+                      className="h-11 w-full rounded-xl bg-white/[0.035] pl-10 pr-10 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
                     />
                     <button
                       type="button"
@@ -300,7 +276,7 @@ function LoginPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="btn-sheen flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:-translate-y-px hover:brightness-110 active:translate-y-0 disabled:pointer-events-none disabled:opacity-50"
+                  className="btn-sheen flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:-translate-y-px hover:brightness-110 active:translate-y-0 disabled:pointer-events-none disabled:opacity-50"
                   style={{
                     background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
                     boxShadow:
