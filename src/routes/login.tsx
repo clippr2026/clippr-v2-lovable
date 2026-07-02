@@ -71,6 +71,32 @@ function LoginPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#05040b] text-foreground">
+      <style>{`
+        @keyframes logoEnter {
+          0% {
+            opacity: 0;
+            transform: scale(.88) rotate(-2deg);
+            filter: hue-rotate(55deg) saturate(1.55) brightness(1.22)
+              drop-shadow(0 0 18px rgba(70,170,255,.35))
+              drop-shadow(0 0 44px rgba(170,90,255,.38));
+          }
+          48% {
+            opacity: 1;
+            transform: scale(1.07) rotate(1deg);
+            filter: hue-rotate(-28deg) saturate(1.42) brightness(1.18)
+              drop-shadow(0 0 36px rgba(70,170,255,.78))
+              drop-shadow(0 0 92px rgba(170,90,255,.78));
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) rotate(0deg);
+            filter: hue-rotate(0deg) saturate(1.12) brightness(1)
+              drop-shadow(0 0 28px rgba(70,170,255,.72))
+              drop-shadow(0 0 68px rgba(170,90,255,.68))
+              drop-shadow(0 0 128px rgba(120,80,255,.55));
+          }
+        }
+      `}</style>
       <div className="pointer-events-none absolute inset-0">
         <div
           className="absolute -top-[30%] -left-[18%] h-[780px] w-[780px] rounded-full opacity-35 blur-[130px]"
@@ -129,7 +155,9 @@ function LoginPage() {
                   className="animate-fade-up h-[164px] w-[164px] object-contain"
                   style={{
                     animationDelay: "40ms",
-                    filter: "drop-shadow(0 0 18px rgba(70,170,255,.55)) drop-shadow(0 0 42px rgba(170,90,255,.55)) drop-shadow(0 0 90px rgba(120,80,255,.45))"
+                    animation: "logoEnter 1.15s cubic-bezier(.16,1,.3,1) both",
+                    filter:
+                      "drop-shadow(0 0 28px rgba(70,170,255,.72)) drop-shadow(0 0 68px rgba(170,90,255,.68)) drop-shadow(0 0 128px rgba(120,80,255,.55)) saturate(1.12)"
                   }}
                 />
 
@@ -189,6 +217,13 @@ function LoginPage() {
 
         <section className="flex items-center justify-center">
           <div className="animate-fade-up relative w-full max-w-[430px]" style={{ animationDelay: "150ms" }}>
+            <div
+              className="pointer-events-none absolute -inset-10 rounded-[36px] opacity-60 blur-3xl"
+              style={{
+                background:
+                  "radial-gradient(circle at 35% 20%, oklch(0.72 0.2 245 / 0.38), transparent 48%), radial-gradient(circle at 80% 80%, oklch(0.72 0.26 305 / 0.34), transparent 52%)",
+              }}
+            />
             <div
               className="absolute -inset-px rounded-[26px] opacity-80"
               style={{
