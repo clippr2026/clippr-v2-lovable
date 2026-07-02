@@ -7623,6 +7623,28 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           ...visibleRows.map((r) => r.category || "Productos"),
         ]),
       );
+
+  const firstCategoryWithItems = React.useMemo(() => {
+    const fallbackCategory = isService ? "Servicios" : "Productos";
+    return (
+      categories.find((category) =>
+        visibleRows.some((row) => (row.category || fallbackCategory) === category),
+      ) ?? categories[0] ?? fallbackCategory
+    );
+  }, [categories.join("|"), isService, visibleRows]);
+
+  React.useEffect(() => {
+    if (!categories.length) return;
+    const fallbackCategory = isService ? "Servicios" : "Productos";
+    const currentCategoryHasItems = visibleRows.some(
+      (row) => (row.category || fallbackCategory) === cat,
+    );
+
+    if (!currentCategoryHasItems && firstCategoryWithItems && cat !== firstCategoryWithItems) {
+      setCat(firstCategoryWithItems);
+    }
+  }, [categories.join("|"), cat, firstCategoryWithItems, isService, visibleRows]);
+
   const filtered = visibleRows.filter(
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === cat,
   );
