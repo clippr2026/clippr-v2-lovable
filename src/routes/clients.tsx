@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -42,12 +42,6 @@ const avatarTints = [
   "from-cyan-300/30 to-cyan-600/10 text-cyan-100 ring-cyan-300/30",
   "from-emerald-300/30 to-emerald-600/10 text-emerald-100 ring-emerald-300/30",
 ];
-
-function whatsappHref(phone?: string | null) {
-  const clean = (phone || "").replace(/\D/g, "");
-  if (!clean) return undefined;
-  return `https://wa.me/${clean.startsWith("54") ? clean : `54${clean}`}`;
-}
 
 function statusBadge(s: ClientStatus) {
   const map = {
@@ -191,7 +185,7 @@ function StatCard({
   return (
     <div
       className={cn(
-        "glass relative overflow-hidden rounded-2xl p-3 sm:p-4 group transition-all hover:-translate-y-0.5 hover:ring-white/20",
+        "glass relative overflow-hidden rounded-2xl p-3 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:ring-white/20",
         featured && "ring-1 ring-violet-400/30 shadow-[0_0_60px_-20px_rgba(139,92,246,0.45)]",
       )}
     >
@@ -201,7 +195,7 @@ function StatCard({
           glow,
         )}
       />
-      <div className="relative flex flex-col gap-2">
+      <div className="relative flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.18em] text-muted-foreground/90 truncate">
             {label}
@@ -213,7 +207,7 @@ function StatCard({
                 event.stopPropagation();
                 onInfoClick?.();
               }}
-              className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/5 text-[10px] font-bold text-muted-foreground ring-1 ring-white/10 transition hover:bg-violet-400/10 hover:text-violet-200 hover:ring-violet-300/30"
+              className="shrink-0 text-[10px] font-semibold text-muted-foreground/40 opacity-0 transition hover:text-violet-200 group-hover:opacity-100 focus-visible:opacity-100"
               aria-label={`Información sobre ${label}`}
             >
               i
@@ -221,10 +215,10 @@ function StatCard({
           )}
         </div>
         <div className="flex items-end justify-between gap-2">
-          <div className="text-2xl sm:text-3xl font-display font-light leading-none tracking-tight">
+          <div className="text-3xl sm:text-[2rem] font-display font-medium leading-none tracking-tight">
             {value}
           </div>
-          <div className="text-xl sm:text-2xl opacity-90 shrink-0">{icon}</div>
+          <div className="text-lg sm:text-xl opacity-80 shrink-0">{icon}</div>
         </div>
         {caption && <div className="text-[11px] text-muted-foreground leading-snug">{caption}</div>}
         {link && (
@@ -247,19 +241,6 @@ function formatClientSince(date?: string | null) {
   return parsed.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
 }
 
-function formatNextAppointment(date?: string | null) {
-  if (!date) return "No registrado";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "No registrado";
-  return parsed.toLocaleString("es-AR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function getClientProfileText(c: Client | null) {
   if (!c) return "Seleccioná un cliente para ver el perfil.";
   if (c.visits === 0)
@@ -275,6 +256,235 @@ function getClientProfileText(c: Client | null) {
   return "Cliente activo. Seguí acumulando historial para mejorar las recomendaciones.";
 }
 
+type ClientDetailPanelProps = {
+  client: Client;
+  onDelete: (client: Client) => void;
+  onSaveNotes: (clientId: string, notes: string) => Promise<void>;
+  savingNotes: boolean;
+};
+
+// Memoizado: el padre re-renderiza en cada tecla de búsqueda, cambio de orden,
+// etc. Sin este límite, toda la ficha del cliente (header, métricas, historial)
+// se recalculaba y re-renderizaba en cada una de esas teclas aunque nada acá
+// hubiera cambiado. Ahora solo re-renderiza cuando cambia el cliente
+// seleccionado o el estado de guardado de notas.
+const ClientDetailPanel = memo(function ClientDetailPanel({
+  client,
+  onDelete,
+  onSaveNotes,
+  savingNotes,
+}: ClientDetailPanelProps) {
+  const [tab, setTab] = useState<"resumen" | "historial">("resumen");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(client.notes ?? "");
+
+  useEffect(() => {
+    setNoteDraft(client.notes ?? "");
+    setMenuOpen(false);
+  }, [client.id, client.notes]);
+
+  const ticket = client.visits ? Math.round(client.spent / client.visits) : 0;
+  const since = formatClientSince(client.created_at);
+  const profileText = getClientProfileText(client);
+  const favoriteServices = client.favoriteServices;
+  const hasNote = Boolean((client.notes ?? "").trim());
+
+  return (
+    <div className="flex flex-col h-full">
+      <div
+        className={cn(
+          "relative px-6 py-5 border-b border-white/5",
+          client.status === "perdido" && "bg-rose-500/5",
+          client.status === "vip" && "bg-amber-400/5",
+        )}
+      >
+        <div className="relative flex items-center gap-5">
+          <div className="h-20 w-20 rounded-2xl grid place-items-center text-2xl font-display font-semibold bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100 shrink-0">
+            {client.name[0]?.toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-2xl font-display font-semibold leading-tight">
+                  {client.status === "perdido" && <AlertTriangle className="h-5 w-5 text-rose-300" />}
+                  {client.status === "vip" && <Crown className="h-5 w-5 text-amber-200" />}
+                  {client.name}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  {client.vipTag ? vipTagBadge(client.vipTag) : statusBadge(client.status)}
+                  <Rating value={client.rating} />
+                </div>
+                {profileText && (
+                  <div className="mt-1.5 max-w-md text-xs text-white/55">{profileText}</div>
+                )}
+                <div className="mt-2.5 inline-flex items-center gap-2 text-sm text-white/70">
+                  <CalendarDays className="h-4 w-4 text-white/45" />
+                  <span>
+                    Cliente desde <span className="font-semibold text-white capitalize">{since}</span>
+                  </span>
+                </div>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="rounded-full p-2 hover:bg-white/5 transition"
+                >
+                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-9 z-20 w-44 rounded-xl bg-background/95 ring-1 ring-white/10 shadow-2xl p-1.5 backdrop-blur">
+                    <button
+                      onClick={() => onDelete(client)}
+                      className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Eliminar
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 pt-3 shrink-0">
+        <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
+          {(["resumen", "historial"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition",
+                tab === t
+                  ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto">
+        {tab === "resumen" && (
+          <div className="space-y-5">
+            {/* Métricas: una sola banda integrada en vez de 4 cajas sueltas */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-white/[0.06] rounded-2xl bg-white/[0.025] ring-1 ring-white/[0.06] overflow-hidden">
+              <div className="px-3 py-3 sm:px-4">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Lifetime value
+                </div>
+                <div className="mt-1 text-xl font-display tabular-nums">
+                  ${client.spent.toLocaleString("es-AR")}
+                </div>
+              </div>
+              <div className="px-3 py-3 sm:px-4">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Visitas</div>
+                <div className="mt-1 text-xl font-display tabular-nums">{client.visits}</div>
+              </div>
+              <div className="px-3 py-3 sm:px-4">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Ticket prom.
+                </div>
+                <div className="mt-1 text-xl font-display tabular-nums">
+                  ${ticket.toLocaleString("es-AR")}
+                </div>
+              </div>
+              <div className="px-3 py-3 sm:px-4">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Última visita
+                </div>
+                <div className="mt-1 text-sm font-semibold">{client.lastVisit ?? "—"}</div>
+              </div>
+            </div>
+
+            {/* Servicios favoritos: lista con separadores, sin una caja por ítem */}
+            <div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Servicios favoritos
+              </div>
+              {favoriteServices.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  Todavía no hay servicios suficientes para detectar favoritos.
+                </div>
+              ) : (
+                <div className="divide-y divide-white/[0.06]">
+                  {favoriteServices.map((item) => (
+                    <div key={item.service} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="truncate text-sm font-medium text-white/85">{item.service}</span>
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {item.count} veces · ${item.amount.toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notas: integradas a la ficha, sin módulo contenedor propio */}
+            <div>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Notas</span>
+                {hasNote && (
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-200/70">
+                    Última nota
+                  </span>
+                )}
+              </div>
+              {hasNote && (
+                <p className="mb-2.5 text-sm italic leading-relaxed text-white/65">“{client.notes}”</p>
+              )}
+              <textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="Agregá notas internas del cliente..."
+                className="w-full min-h-[68px] rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-3 text-sm focus:outline-none focus:ring-violet-400/40 focus:bg-white/[0.045] transition"
+              />
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={() => onSaveNotes(client.id, noteDraft)}
+                  disabled={savingNotes}
+                  className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  {savingNotes ? "Guardando…" : "Guardar nota"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {tab === "historial" && (
+          <div className="space-y-2">
+            {client.history.length === 0 ? (
+              <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
+                Sin historial de cobros todavía.
+              </div>
+            ) : (
+              client.history.map((h) => (
+                <div
+                  key={h.id}
+                  className="flex items-center justify-between rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
+                >
+                  <div>
+                    <div className="text-sm font-medium">{h.service}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {new Date(h.date).toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums">
+                    ${h.amount.toLocaleString("es-AR")}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 function ClientsPage() {
   const { businessId } = useAuth();
   const saveClient = useSaveClient(businessId);
@@ -284,14 +494,11 @@ function ClientsPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
   const [selected, setSelected] = useState<string | null>(null);
-  const [tab, setTab] = useState<"resumen" | "historial">("resumen");
   const [newClientOpen, setNewClientOpen] = useState(false);
-  const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [segmentModal, setSegmentModal] = useState<{ title: string; clients: ClientListRow[]; loading?: boolean } | null>(
     null,
   );
   const [metricInfo, setMetricInfo] = useState<ClientMetricInfo | null>(null);
-  const [noteDraft, setNoteDraft] = useState("");
   const [newClient, setNewClient] = useState({
     name: "",
     phone: "",
@@ -345,22 +552,15 @@ function ClientsPage() {
   );
 
   const current = currentDetail ?? null;
-  useEffect(() => {
-    setNoteDraft(current?.notes ?? "");
-    setClientMenuOpen(false);
-  }, [current?.id, current?.notes]);
-  const ticket = current && current.visits ? Math.round(current.spent / current.visits) : 0;
-  const currentSince = formatClientSince(current?.created_at);
-  const profileText = getClientProfileText(current);
-  const nextAppointmentLabel = formatNextAppointment(current?.nextAppointment?.date);
-  const favoriteServices = current?.favoriteServices ?? [];
-  const hasNote = Boolean((current?.notes ?? "").trim());
 
-  async function showGroup(title: string, status: ClientStatus) {
-    setSegmentModal({ title, clients: [], loading: true });
-    const rows = businessId ? await fetchClientsByStatus(businessId, status) : [];
-    setSegmentModal({ title, clients: rows, loading: false });
-  }
+  const showGroup = useCallback(
+    async (title: string, status: ClientStatus) => {
+      setSegmentModal({ title, clients: [], loading: true });
+      const rows = businessId ? await fetchClientsByStatus(businessId, status) : [];
+      setSegmentModal({ title, clients: rows, loading: false });
+    },
+    [businessId],
+  );
 
   async function handleCreateClient() {
     if (!newClient.name.trim()) {
@@ -379,18 +579,23 @@ function ClientsPage() {
     setNewClientOpen(false);
   }
 
-  async function handleDeleteClient(client: Client) {
-    if (!window.confirm(`¿Eliminar cliente ${client.name}?`)) return;
-    await deleteClient.mutateAsync(client.id);
-    toast.success("Cliente eliminado");
-    if (selected === client.id) setSelected(null);
-  }
+  const handleDeleteClient = useCallback(
+    async (client: Client) => {
+      if (!window.confirm(`¿Eliminar cliente ${client.name}?`)) return;
+      await deleteClient.mutateAsync(client.id);
+      toast.success("Cliente eliminado");
+      setSelected((cur) => (cur === client.id ? null : cur));
+    },
+    [deleteClient],
+  );
 
-  async function saveNotes() {
-    if (!current) return;
-    await updateNotes.mutateAsync({ clientId: current.id, notes: noteDraft });
-    toast.success("Nota guardada");
-  }
+  const saveNotes = useCallback(
+    async (clientId: string, notes: string) => {
+      await updateNotes.mutateAsync({ clientId, notes });
+      toast.success("Nota guardada");
+    },
+    [updateNotes],
+  );
 
   if (isLoading && clients.length === 0) {
     return (
@@ -413,7 +618,7 @@ function ClientsPage() {
               label="VIP"
               value={String(summary?.counts.vip ?? 0)}
               caption={null}
-              icon={<Crown className="h-6 w-6 text-amber-200" />}
+              icon={<Crown className="h-5 w-5 text-amber-200" />}
               glow="bg-amber-500/25"
               featured
               info={CLIENT_METRIC_INFO.vip.title}
@@ -422,21 +627,10 @@ function ClientsPage() {
               onLinkClick={() => showGroup("Clientes VIP", "vip")}
             />
             <StatCard
-              label="Nuevos"
-              value={String(summary?.counts.nuevo ?? 0)}
-              caption={null}
-              icon={<Sparkles className="h-6 w-6 text-violet-300" />}
-              glow="bg-violet-500/25"
-              info={CLIENT_METRIC_INFO.nuevos.title}
-              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.nuevos)}
-              link="Ver todos"
-              onLinkClick={() => showGroup("Clientes nuevos", "nuevo")}
-            />
-            <StatCard
               label="Activos"
               value={String(summary?.counts.activo ?? 0)}
               caption={null}
-              icon={<CheckCircle2 className="h-6 w-6 text-emerald-300" />}
+              icon={<CheckCircle2 className="h-5 w-5 text-emerald-300" />}
               glow="bg-emerald-500/20"
               info={CLIENT_METRIC_INFO.activos.title}
               onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.activos)}
@@ -444,10 +638,21 @@ function ClientsPage() {
               onLinkClick={() => showGroup("Clientes activos", "activo")}
             />
             <StatCard
+              label="Nuevos"
+              value={String(summary?.counts.nuevo ?? 0)}
+              caption={null}
+              icon={<Sparkles className="h-5 w-5 text-violet-300" />}
+              glow="bg-violet-500/25"
+              info={CLIENT_METRIC_INFO.nuevos.title}
+              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.nuevos)}
+              link="Ver todos"
+              onLinkClick={() => showGroup("Clientes nuevos", "nuevo")}
+            />
+            <StatCard
               label="Inactivos"
               value={String(summary?.counts.inactivo ?? 0)}
               caption={null}
-              icon={<PauseCircle className="h-6 w-6 text-amber-300" />}
+              icon={<PauseCircle className="h-5 w-5 text-amber-300" />}
               glow="bg-amber-500/15"
               info={CLIENT_METRIC_INFO.inactivos.title}
               onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.inactivos)}
@@ -458,7 +663,7 @@ function ClientsPage() {
               label="Perdidos"
               value={String(summary?.counts.perdido ?? 0)}
               caption={null}
-              icon={<AlertTriangle className="h-6 w-6 text-rose-300" />}
+              icon={<AlertTriangle className="h-5 w-5 text-rose-300" />}
               glow="bg-rose-500/20"
               info={CLIENT_METRIC_INFO.perdidos.title}
               onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.perdidos)}
@@ -548,8 +753,30 @@ function ClientsPage() {
                 </div>
               )}
               {!isLoading && filtered.length === 0 && (
-                <div className="text-center text-sm text-muted-foreground py-10">
-                  {debouncedQuery ? "Sin resultados para la búsqueda." : "Sin clientes para mostrar."}
+                <div className="flex flex-col items-center gap-2 py-14 text-center">
+                  {debouncedQuery ? (
+                    <>
+                      <Search className="h-6 w-6 text-muted-foreground/50" />
+                      <div className="text-sm text-muted-foreground">
+                        Sin resultados para “{debouncedQuery}”.
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <UserRound className="h-7 w-7 text-muted-foreground/50" />
+                      <div className="text-sm font-medium text-white/80">Todavía no tenés clientes</div>
+                      <div className="max-w-[220px] text-xs text-muted-foreground">
+                        Se van a ir sumando solos con las ventas, o agregá el primero a mano.
+                      </div>
+                      <button
+                        onClick={() => setNewClientOpen(true)}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 transition hover:bg-white/10"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Agregar cliente
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
               {!isLoading && hasNextPage && (
@@ -572,222 +799,12 @@ function ClientsPage() {
             )}
           >
             {current ? (
-              <div className="flex flex-col h-full">
-                <div
-                  className={cn(
-                    "relative px-6 py-5 border-b border-white/5 overflow-hidden",
-                    current.status === "perdido" && "bg-rose-500/5",
-                    current.status === "vip" && "bg-amber-400/5",
-                  )}
-                >
-                  <div className="relative flex items-center gap-5">
-                    <div className="h-20 w-20 rounded-2xl grid place-items-center text-2xl font-display font-semibold bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100 shrink-0">
-                      {current.name[0]?.toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 text-2xl font-display font-semibold leading-tight">
-                            {current.status === "perdido" && (
-                              <AlertTriangle className="h-5 w-5 text-rose-300" />
-                            )}
-                            {current.status === "vip" && (
-                              <Crown className="h-5 w-5 text-amber-200" />
-                            )}
-                            {current.name}
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                            {current.vipTag ? vipTagBadge(current.vipTag) : statusBadge(current.status)}
-                            <Rating value={current.rating} />
-                          </div>
-                          <div className="mt-3 inline-flex items-center gap-2 text-sm text-white/70">
-                            <CalendarDays className="h-4 w-4 text-white/45" />
-                            <span>Cliente desde <span className="font-semibold text-white capitalize">{currentSince}</span></span>
-                          </div>
-                        </div>
-                        <div className="relative">
-                          <button
-                            onClick={() => setClientMenuOpen((v) => !v)}
-                            className="rounded-full p-2 hover:bg-white/5 transition"
-                          >
-                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                          {clientMenuOpen && (
-                            <div className="absolute right-0 top-9 z-20 w-44 rounded-xl bg-background/95 ring-1 ring-white/10 shadow-2xl p-1.5 backdrop-blur">
-                              <button
-                                onClick={() => handleDeleteClient(current)}
-                                className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Eliminar
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                </div>
-                <div className="px-6 pt-3 shrink-0">
-                  <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
-                    {(["resumen", "historial"] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setTab(t)}
-                        className={cn(
-                          "rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition",
-                          tab === t
-                            ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="p-4 sm:p-5 flex-1 min-h-0 space-y-3 overflow-hidden">
-                  {tab === "resumen" && (
-                    <>
-                      <div className="rounded-2xl bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent ring-1 ring-violet-400/25 p-4 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]">
-                        <div className="flex items-center gap-3">
-                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/12 ring-1 ring-violet-300/20">
-                            <Sparkles className="h-5 w-5 text-violet-300" />
-                          </span>
-                          <div>
-                            <div className="text-sm font-semibold text-white">Cliente VIP</div>
-                            <div className="mt-0.5 text-xs text-white/60">
-                              Alta frecuencia de visitas.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="rounded-xl bg-gradient-to-br from-sky-400/15 to-violet-500/8 ring-1 ring-violet-400/30 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-violet-200/90">
-                            Lifetime value
-                          </div>
-                          <div className="text-2xl font-display mt-1 tabular-nums">
-                            ${current.spent.toLocaleString("es-AR")}
-                          </div>
-                        </div>
-                        <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                            Visitas
-                          </div>
-                          <div className="text-2xl font-display mt-1 tabular-nums">
-                            {current.visits}
-                          </div>
-                        </div>
-                        <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                            Ticket prom.
-                          </div>
-                          <div className="text-2xl font-display mt-1 tabular-nums">
-                            ${ticket.toLocaleString("es-AR")}
-                          </div>
-                        </div>
-                        <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                            Última visita
-                          </div>
-                          <div className="text-sm font-semibold mt-2">
-                            {current.lastVisit ?? "—"}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                            Servicios favoritos
-                          </div>
-
-                        </div>
-                        {favoriteServices.length === 0 ? (
-                          <div className="text-sm text-muted-foreground">
-                            Todavía no hay servicios suficientes para detectar favoritos.
-                          </div>
-                        ) : (
-                          <div className="grid gap-2 sm:grid-cols-3">
-                            {favoriteServices.map((item) => (
-                              <div
-                                key={item.service}
-                                className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3"
-                              >
-                                <div className="truncate text-sm font-semibold text-white/85">
-                                  {item.service}
-                                </div>
-                                <div className="mt-1 text-[11px] text-muted-foreground">
-                                  {item.count} veces · ${item.amount.toLocaleString("es-AR")}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                            Notas
-                          </div>
-                          {hasNote && (
-                            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-200/80">
-                              Última nota registrada
-                            </div>
-                          )}
-                        </div>
-                        {hasNote && (
-                          <div className="mb-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3 text-sm text-white/78">
-                            “{current.notes}”
-                          </div>
-                        )}
-                        <textarea
-                          value={noteDraft}
-                          onChange={(e) => setNoteDraft(e.target.value)}
-                          placeholder="Agregá notas internas del cliente..."
-                          className="w-full min-h-[72px] rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-sm focus:outline-none focus:ring-violet-400/40"
-                        />
-                        <div className="flex justify-end mt-2">
-                          <button
-                            onClick={saveNotes}
-                            disabled={updateNotes.isPending}
-                            className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                          >
-                            {updateNotes.isPending ? "Guardando…" : "Guardar nota"}
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {tab === "historial" && (
-                    <div className="space-y-2">
-                      {current.history.length === 0 ? (
-                        <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
-                          Sin historial de cobros todavía.
-                        </div>
-                      ) : (
-                        current.history.map((h) => (
-                          <div
-                            key={h.id}
-                            className="flex items-center justify-between rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
-                          >
-                            <div>
-                              <div className="text-sm font-medium">{h.service}</div>
-                              <div className="text-[11px] text-muted-foreground">
-                                {new Date(h.date).toLocaleString("es-AR")}
-                              </div>
-                            </div>
-                            <div className="text-sm font-semibold tabular-nums">
-                              ${h.amount.toLocaleString("es-AR")}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ClientDetailPanel
+                client={current}
+                onDelete={handleDeleteClient}
+                onSaveNotes={saveNotes}
+                savingNotes={updateNotes.isPending}
+              />
             ) : (
               <div className="h-full grid place-items-center p-6">
                 <div className="text-center space-y-3">
