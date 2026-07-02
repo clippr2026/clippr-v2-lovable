@@ -81,35 +81,61 @@ function LoginPage() {
           style={{ background: "radial-gradient(circle, oklch(0.58 0.24 310 / 0.48), transparent 66%)" }}
         />
 
-        {/* Planeta premium: círculo más protagonista, centrado con el bloque de marca. */}
-        <div className="animate-breathe absolute left-[5.5%] top-[10.5%] h-[540px] w-[540px] rounded-full opacity-[0.72]">
+        {/* Marco geométrico premium: evita el problema óptico del círculo y da más precisión visual. */}
+        <div className="absolute left-[4%] top-[7%] h-[610px] w-[610px] opacity-80">
+          {[1, 1.08, 1.18].map((scale, index) => (
+            <div
+              key={index}
+              className="absolute inset-0"
+              style={{
+                clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
+                transform: `scale(${scale})`,
+                transformOrigin: "center",
+                opacity: index === 0 ? 0.9 : index === 1 ? 0.32 : 0.14,
+                background:
+                  index === 0
+                    ? "linear-gradient(160deg, oklch(0.18 0.04 285 / 0.18), oklch(0.06 0.02 280 / 0.32))"
+                    : "transparent",
+                border: "1px solid oklch(0.72 0.24 285 / 0.22)",
+                boxShadow:
+                  index === 0
+                    ? "inset 0 0 70px oklch(0.72 0.22 245 / 0.05), 0 0 90px -34px oklch(0.7 0.26 300 / 0.42)"
+                    : "none",
+              }}
+            />
+          ))}
           <div
-            className="absolute inset-0 rounded-full"
+            className="absolute left-[7%] top-[18%] h-[72%] w-[2px] rounded-full opacity-70"
             style={{
               background:
-                "radial-gradient(circle at 52% 47%, oklch(0.09 0.03 282 / 0.42) 0%, oklch(0.045 0.018 280 / 0.98) 57%, oklch(0.018 0.01 280 / 1) 100%)",
-              boxShadow:
-                "inset -34px -18px 90px oklch(0.7 0.26 305 / 0.18), inset 22px 0 80px oklch(0.72 0.2 245 / 0.12)",
+                "linear-gradient(180deg, transparent, oklch(0.72 0.2 245 / 0.45), oklch(0.72 0.26 305 / 0.55), transparent)",
+              filter: "blur(1px)",
             }}
           />
           <div
-            className="absolute inset-0 rounded-full"
+            className="absolute bottom-[12%] right-[10%] h-[2px] w-[34%] rounded-full opacity-75"
             style={{
               background:
-                "conic-gradient(from 215deg, oklch(0.72 0.2 245 / 0.32) 0deg, transparent 54deg, transparent 224deg, oklch(0.72 0.26 305 / 0.34) 270deg, oklch(0.72 0.2 245 / 0.26) 318deg, transparent 360deg)",
-              maskImage: "radial-gradient(circle, transparent 59%, black 60%, black 61%, transparent 62%)",
-              WebkitMaskImage: "radial-gradient(circle, transparent 59%, black 60%, black 61%, transparent 62%)",
-            }}
-          />
-          <div
-            className="absolute inset-[1px] rounded-full border"
-            style={{
-              borderColor: "oklch(0.72 0.22 275 / 0.26)",
-              boxShadow:
-                "0 0 120px -36px oklch(0.66 0.23 282 / 0.55), 0 0 42px -22px oklch(0.72 0.2 245 / 0.42)",
+                "linear-gradient(90deg, transparent, oklch(0.72 0.26 305 / 0.55), oklch(0.72 0.2 245 / 0.38), transparent)",
+              filter: "blur(1px)",
             }}
           />
         </div>
+
+        <div
+          className="absolute -left-[4%] top-[20%] h-[520px] w-[520px] rotate-[-42deg] opacity-[0.18]"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, transparent 42%, oklch(0.72 0.22 245 / 0.38) 46%, transparent 52%, transparent 100%)",
+          }}
+        />
+        <div
+          className="absolute right-[-8%] top-[18%] h-[480px] w-[480px] rotate-[-42deg] opacity-[0.14]"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, transparent 44%, oklch(0.72 0.26 305 / 0.4) 48%, transparent 54%, transparent 100%)",
+          }}
+        />
 
         {AMBIENT_PARTICLES.map((p, i) => (
           <span
@@ -121,10 +147,10 @@ function LoginPage() {
       </div>
 
       <div className="relative z-10 grid min-h-screen gap-10 px-6 py-10 lg:grid-cols-2 lg:gap-8 lg:px-16 lg:py-16">
-        <section className="mx-auto flex max-w-2xl flex-col justify-center text-center lg:mx-0 lg:items-start">
-          <div className="relative z-10 flex min-h-[540px] w-full max-w-[640px] flex-col items-center justify-center px-6 lg:translate-x-2">
+        <section className="mx-auto flex max-w-[680px] flex-col justify-center text-center lg:mx-0">
+          <div className="relative z-20 flex min-h-[560px] flex-col items-center justify-center px-6 text-center lg:w-[610px]">
             <div
-              className="animate-fade-up flex flex-col items-center justify-center gap-4"
+              className="animate-fade-up flex flex-col items-center justify-center gap-5"
               style={{ animationDelay: "40ms" }}
             >
               <img
@@ -132,13 +158,13 @@ function LoginPage() {
                 alt="Clippr"
                 loading="eager"
                 decoding="async"
-                className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_16px_48px_-16px_oklch(0.6_0.26_290_/_0.74)] md:h-20 md:w-20"
+                className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_14px_44px_-16px_oklch(0.6_0.26_290_/_0.7)] md:h-[76px] md:w-[76px]"
               />
               <span className="font-display text-4xl font-semibold tracking-tight md:text-5xl">Clippr</span>
             </div>
 
             <h1
-              className="animate-fade-up font-display mt-10 max-w-[560px] text-4xl font-semibold leading-[1.08] tracking-tight md:text-[3.25rem]"
+              className="animate-fade-up font-display mt-10 max-w-[560px] text-4xl font-semibold leading-[1.08] tracking-tight md:text-[3.35rem]"
               style={{ animationDelay: "110ms" }}
             >
               El centro de control
@@ -147,7 +173,7 @@ function LoginPage() {
             </h1>
 
             <p
-              className="animate-fade-up mx-auto mt-5 max-w-[520px] text-base leading-relaxed text-muted-foreground/90"
+              className="animate-fade-up mx-auto mt-5 max-w-[470px] text-base leading-relaxed text-muted-foreground/90"
               style={{ animationDelay: "170ms" }}
             >
               Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
@@ -155,21 +181,19 @@ function LoginPage() {
           </div>
 
           <div
-            className="animate-fade-up mt-6 grid w-full max-w-[640px] grid-cols-2 gap-x-6 gap-y-8 px-6 sm:grid-cols-4 lg:translate-x-2"
+            className="animate-fade-up mt-6 grid w-full max-w-[620px] grid-cols-2 gap-x-0 gap-y-8 sm:grid-cols-4"
             style={{ animationDelay: "230ms" }}
           >
             {PILLARS.map(({ icon: Icon, title, subtitle, color }, index) => (
-              <div key={title} className="relative flex flex-col items-center justify-start">
-                {index > 0 && (
-                  <div className="absolute -left-3 top-3 hidden h-20 w-px bg-white/[0.08] sm:block" />
-                )}
+              <div key={title} className="relative flex flex-col items-center justify-start px-5">
+                {index > 0 && <div className="absolute left-0 top-3 hidden h-16 w-px bg-white/10 sm:block" />}
                 <div
                   className="grid h-16 w-16 place-items-center rounded-2xl ring-1"
                   style={{
                     color,
-                    background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.16)}, oklch(1 0 0 / 0.025))`,
-                    borderColor: colorWithAlpha(color, 0.28),
-                    boxShadow: `0 0 28px -14px ${colorWithAlpha(color, 0.6)}`,
+                    background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.16)}, transparent)`,
+                    borderColor: colorWithAlpha(color, 0.26),
+                    boxShadow: `0 0 28px -14px ${colorWithAlpha(color, 0.65)}`,
                   }}
                 >
                   <Icon className="h-7 w-7" />
@@ -177,7 +201,7 @@ function LoginPage() {
 
                 <div className="mt-4 flex h-11 flex-col items-center justify-start leading-tight">
                   <span className="text-center text-[14px] font-semibold text-white/90">{title}</span>
-                  <span className="text-center text-[14px] font-medium text-white/74">{subtitle || "\u00A0"}</span>
+                  <span className="text-center text-[14px] font-medium text-white/80">{subtitle || "\u00A0"}</span>
                 </div>
               </div>
             ))}
