@@ -53,6 +53,8 @@ type Employee = {
   role?: string | null;
 };
 
+type CatalogImageOffset = { image_offset_x: number; image_offset_y: number };
+
 type Service = {
   id: string;
   name: string;
@@ -61,6 +63,7 @@ type Service = {
   is_active?: boolean | null;
   image_url?: string | null;
   image_position?: string | null;
+  image_offset?: CatalogImageOffset | null;
 };
 
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
@@ -144,6 +147,23 @@ function extractCatalogImagePositions(schedule: unknown): Record<string, string>
   const map: Record<string, string> = {};
   for (const [id, value] of Object.entries(positions as Record<string, unknown>)) {
     if (id.trim() && typeof value === "string" && value.trim()) map[id] = value;
+  }
+  return map;
+}
+
+function extractCatalogImageOffsets(schedule: unknown): Record<string, CatalogImageOffset> {
+  if (!schedule || typeof schedule !== "object") return {};
+  const offsets = (schedule as Record<string, unknown>)._catalogImageOffsets;
+  if (!offsets || typeof offsets !== "object") return {};
+  const map: Record<string, CatalogImageOffset> = {};
+  for (const [id, value] of Object.entries(offsets as Record<string, unknown>)) {
+    if (!id.trim() || !value || typeof value !== "object") continue;
+    const row = value as Record<string, unknown>;
+    const x = Number(row.image_offset_x);
+    const y = Number(row.image_offset_y);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      map[id] = { image_offset_x: x, image_offset_y: y };
+    }
   }
   return map;
 }
@@ -485,7 +505,12 @@ function PublicProfilePage() {
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
               .filter((service) => visibility.services[service.id] !== false)
-              .map((service) => ({ ...service, image_url: serviceImages[service.id] ?? null, image_position: serviceImagePositions[service.id] ?? "50% 50%" })),
+              .map((service) => ({
+                ...service,
+                image_url: serviceImages[service.id] ?? null,
+                image_position: serviceImagePositions[service.id] ?? "50% 50%",
+                image_offset: serviceImageOffsets[service.id] ?? null,
+              })),
           );
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
@@ -753,6 +778,7 @@ function PublicProfilePage() {
                           src={service.image_url}
                           alt={service.name}
                           position={service.image_position}
+                          offset={service.image_offset}
                           className="h-20 w-20 rounded-2xl bg-white/[0.06] ring-1 ring-white/10"
                           fallback={<Sparkles className="h-5 w-5 text-white/30" />}
                         />
