@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * mantiene exactamente el tamaño que ya tenía cada pantalla.
  *
  * Por defecto es cuadrado, recorte `object-cover` y esquinas redondeadas
- * (`rounded-2xl`). La imagen queda siempre fija y centrada: no usa
+ * (`rounded-xl`). La imagen queda siempre fija y centrada: no usa
  * posiciones manuales ni offsets, para que se vea igual en toda la app.
  */
 export interface ServiceImageProps {
@@ -41,7 +41,7 @@ export function ServiceImage({
   return (
     <div
       className={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-2xl",
+        "grid aspect-square shrink-0 place-items-center overflow-hidden rounded-xl",
         className,
       )}
     >
@@ -52,8 +52,8 @@ export function ServiceImage({
           loading={loading}
           decoding="async"
           draggable={false}
-          className={cn("h-full w-full object-cover", imgClassName)}
-          style={{ objectPosition: "center" }}
+          className={cn("h-full w-full object-cover object-center", imgClassName)}
+          style={{ objectPosition: "center center" }}
         />
       ) : (
         fallback
