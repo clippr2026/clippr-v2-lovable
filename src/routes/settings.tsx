@@ -4982,8 +4982,8 @@ function EquipoSection() {
           </div>
 
           {loading ? (
-            <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
-              Cargando…
+            <div className="grid place-items-center py-16">
+              <ClipprLoader size="screen" delayMs={130} />
             </div>
           ) : rows.length === 0 ? (
             <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
