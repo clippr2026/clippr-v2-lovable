@@ -7097,6 +7097,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // Posición del recorte de cada imagen: { [id]: "50% 50%" }
   const [imagePositionMap, setImagePositionMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [cat, setCat] = useState<string>(isService ? "" : "Productos");
   const reorderingCategories = true;
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
@@ -7126,7 +7127,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   // Load categories from Supabase schedule._categories
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setCategoriesLoading(false);
+      return;
+    }
+    setCategoriesLoading(true);
     supabase
       .from("business_settings")
       .select("schedule")
@@ -7182,7 +7187,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           }
           setBookingConfig(normalized);
         }
-      });
+      })
+      .finally(() => setCategoriesLoading(false));
   }, [businessId, isService]);
 
   // Save categories to Supabase (called by global save)
@@ -7668,6 +7674,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === activeCat,
   );
 
+  const catalogReady = !loading && !categoriesLoading;
+
   async function uploadBookingImage(file: File): Promise<string | null> {
     if (!businessId) {
       toast.error("No se encontró el negocio");
@@ -8051,6 +8059,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       </div>
 
       <div className="glass overflow-visible rounded-2xl ring-1 ring-white/5">
+        {!catalogReady ? (
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+            Cargando…
+          </div>
+        ) : (
+          <>
         <div className="relative flex items-center gap-1 px-3 pt-3 pr-1 border-b border-white/5 overflow-visible">
           {categories.map((category) => {
             const active = category === activeCat;
@@ -8143,11 +8157,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </div>
         </div>
 
-        {loading ? (
-          <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-            Cargando…
-          </div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-muted-foreground">
             No hay ítems en esta sección.
           </div>
@@ -8233,6 +8243,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </div>
 
