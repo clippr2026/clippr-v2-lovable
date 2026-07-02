@@ -7119,8 +7119,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   // Posición del recorte de cada imagen: { [id]: "50% 50%" }
   const [imagePositionMap, setImagePositionMap] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  // `ready` se setea UNA sola vez, con el primer (y único) fetch combinado de
+  // items + categorías. A diferencia del esquema anterior (loading +
+  // categoriesLoading + initialCategoryReady derivados en cada render), acá
+  // nunca vuelve a false: un refresh en segundo plano (realtime, evento de
+  // guardado, etc.) actualiza los datos in-place sin volver a tapar el panel
+  // con el loader, que es lo que producía el "doble render" visible.
+  const [ready, setReady] = useState(false);
   const activeCatStorageKey = React.useMemo(
     () => `clippr:${businessId ?? "local"}:${isService ? "servicios" : "catalogo"}:active-category`,
     [businessId, isService],
@@ -7129,8 +7134,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (typeof window === "undefined") return isService ? "" : "Productos";
     return window.localStorage.getItem(activeCatStorageKey) || (isService ? "" : "Productos");
   });
-  const [initialCategoryReady, setInitialCategoryReady] = useState(false);
-  const didResolveInitialCategoryRef = useRef(false);
   const reorderingCategories = true;
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
@@ -7157,70 +7160,135 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     string[]
   >(defaultServiceCategories);
 
-  // Load categories from Supabase schedule._categories
+  // Carga inicial: items (price_catalog) + categorías/config (business_settings)
+  // en paralelo con Promise.all, y UN SOLO commit de estado al final con todo
+  // ya resuelto (incluida la categoría activa). Antes esto eran dos efectos
+  // independientes que terminaban en momentos distintos, cada uno con su
+  // propio setState — eso es lo que producía el segundo render/"recarga"
+  // visible del panel inferior.
   useEffect(() => {
+    let cancelled = false;
+
     if (!businessId) {
-      setCategoriesLoading(false);
+      setReady(true);
       return;
     }
-    setCategoriesLoading(true);
-    supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
-        const cats = (schedule._categories ?? {}) as Record<string, unknown>;
-        const visibility = getPublicVisibility(schedule);
-        if (isService) {
-          setServiceReservableMap(
-            normalizePublicBooleanMap(
-              visibility.services ?? schedule._serviceReservable,
-            ),
+
+    (async () => {
+      const [catalogRes, settingsRes] = await Promise.all([
+        supabase
+          .from("price_catalog")
+          .select("id,name,price,duration_min,category,active,stock,cash_discount")
+          .eq("business_id", businessId)
+          .order("category")
+          .order("name"),
+        supabase
+          .from("business_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle(),
+      ]);
+
+      if (cancelled) return;
+
+      if (catalogRes.error) toast.error("Error: " + catalogRes.error.message);
+      const fetchedRows = (catalogRes.data ?? []) as PriceRow[];
+
+      const schedule = (settingsRes.data?.schedule ?? {}) as Record<string, unknown>;
+      const cats = (schedule._categories ?? {}) as Record<string, unknown>;
+      const visibility = getPublicVisibility(schedule);
+
+      let nextServiceReservable = serviceReservableMap;
+      let nextServiceCats = customServiceCategories;
+      if (isService) {
+        nextServiceReservable = normalizePublicBooleanMap(
+          visibility.services ?? schedule._serviceReservable,
+        );
+        if (Array.isArray(cats.service))
+          nextServiceCats = cats.service as string[];
+      }
+
+      let nextCatalogCats = customCatalogCategories;
+      if (!isService && Array.isArray(cats.catalog))
+        nextCatalogCats = cats.catalog as string[];
+
+      const imgs = (schedule._catalogImages ?? {}) as Record<string, unknown>;
+      const imgMap: Record<string, string> = {};
+      for (const [pid, url] of Object.entries(imgs)) {
+        if (pid.trim() && typeof url === "string" && url) imgMap[pid] = url;
+      }
+      const positions = (schedule._catalogImagePositions ?? {}) as Record<string, unknown>;
+      const posMap: Record<string, string> = {};
+      for (const [pid, value] of Object.entries(positions)) {
+        if (pid.trim() && typeof value === "string" && value.trim()) posMap[pid] = value;
+      }
+
+      let nextBookingConfig = bookingConfig;
+      if (!isService) {
+        const bp = (schedule._bookingProducts ?? {}) as Record<string, unknown>;
+        const cfg = (bp.config ?? {}) as Record<string, unknown>;
+        const normalized: Record<
+          string,
+          { show: boolean; offer: string; miniDesc?: string }
+        > = {};
+        for (const [pid, value] of Object.entries(cfg)) {
+          if (!pid.trim()) continue;
+          const v = (value ?? {}) as Record<string, unknown>;
+          normalized[pid] = {
+            show: v.show === true,
+            offer: typeof v.offer === "string" ? v.offer : "none",
+            miniDesc: typeof v.miniDesc === "string" ? v.miniDesc : "",
+          };
+        }
+        nextBookingConfig = normalized;
+      }
+
+      // Resolver la categoría activa con los datos YA frescos (no con el
+      // estado — todavía viejo — del render anterior).
+      const visibleForCats = fetchedRows.filter((row) => {
+        const category = (row.category || "Productos").toLowerCase();
+        if (isService) return row.duration_min != null;
+        return row.duration_min == null && !category.includes("servicio");
+      });
+      const resolvedCategories = isService
+        ? Array.from(
+            new Set([
+              ...nextServiceCats,
+              ...visibleForCats.map((r) => r.category || "Servicios"),
+            ]),
+          )
+        : Array.from(
+            new Set([
+              ...nextCatalogCats,
+              ...visibleForCats.map((r) => r.category || "Productos"),
+            ]),
           );
-          if (Array.isArray(cats.service))
-            setCustomServiceCategories(cats.service as string[]);
-        }
-        if (!isService && Array.isArray(cats.catalog))
-          setCustomCatalogCategories(cats.catalog as string[]);
-        {
-          const imgs = (schedule._catalogImages ?? {}) as Record<string, unknown>;
-          const imgMap: Record<string, string> = {};
-          for (const [pid, url] of Object.entries(imgs)) {
-            if (pid.trim() && typeof url === "string" && url) imgMap[pid] = url;
-          }
-          setImageMap(imgMap);
-          const positions = (schedule._catalogImagePositions ?? {}) as Record<string, unknown>;
-          const posMap: Record<string, string> = {};
-          for (const [pid, value] of Object.entries(positions)) {
-            if (pid.trim() && typeof value === "string" && value.trim()) posMap[pid] = value;
-          }
-          setImagePositionMap(posMap);
-        }
-        if (!isService) {
-          const bp = (schedule._bookingProducts ?? {}) as Record<
-            string,
-            unknown
-          >;
-          const cfg = (bp.config ?? {}) as Record<string, unknown>;
-          const normalized: Record<
-            string,
-            { show: boolean; offer: string; miniDesc?: string }
-          > = {};
-          for (const [pid, value] of Object.entries(cfg)) {
-            if (!pid.trim()) continue;
-            const v = (value ?? {}) as Record<string, unknown>;
-            normalized[pid] = {
-              show: v.show === true,
-              offer: typeof v.offer === "string" ? v.offer : "none",
-              miniDesc: typeof v.miniDesc === "string" ? v.miniDesc : "",
-            };
-          }
-          setBookingConfig(normalized);
-        }
-      })
-      .finally(() => setCategoriesLoading(false));
+      const savedCat =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(activeCatStorageKey) || ""
+          : "";
+      const resolvedCat = resolvedCategories.includes(savedCat)
+        ? savedCat
+        : (resolvedCategories[0] ?? "");
+
+      // Un solo commit de estado (React los agrupa en un único render).
+      setRows(fetchedRows);
+      if (isService) {
+        setServiceReservableMap(nextServiceReservable);
+        setCustomServiceCategories(nextServiceCats);
+      } else {
+        setCustomCatalogCategories(nextCatalogCats);
+        setBookingConfig(nextBookingConfig);
+      }
+      setImageMap(imgMap);
+      setImagePositionMap(posMap);
+      setCat(resolvedCat);
+      setReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [businessId, isService]);
 
   // Save categories to Supabase (called by global save)
@@ -7305,26 +7373,21 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     [persistCategoryList],
   );
 
+  // Refresh silencioso de items (realtime, eventos de guardado, etc.).
+  // A propósito NO toca `ready`: una vez que el panel se mostró la primera
+  // vez, un refresh en segundo plano actualiza `rows` in-place sin volver a
+  // tapar el panel con el loader.
   const load = useCallback(async () => {
-    if (!businessId) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+    if (!businessId) return;
     const { data, error } = await supabase
       .from("price_catalog")
       .select("id,name,price,duration_min,category,active,stock,cash_discount")
       .eq("business_id", businessId)
       .order("category")
       .order("name");
-    if (error) toast.error("Error: " + error.message);
+    if (error) return toast.error("Error: " + error.message);
     setRows((data ?? []) as PriceRow[]);
-    setLoading(false);
   }, [businessId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   useEffect(() => {
     if (!businessId) return;
@@ -7694,39 +7757,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ]),
       );
 
-  // Resolver la categoría inicial una sola vez, cuando ya llegaron categorías e ítems.
-  // Mientras tanto no renderizamos una categoría provisoria para evitar el salto visual
-  // de 1-2 segundos al entrar a Servicios/Catálogo.
+  // La categoría activa inicial ya se resuelve dentro del fetch combinado de
+  // arriba (junto con rows/categorías, en un solo commit). Acá solo
+  // persistimos a localStorage cuando el usuario cambia de categoría.
   useEffect(() => {
-    didResolveInitialCategoryRef.current = false;
-    setInitialCategoryReady(false);
-  }, [businessId, isService]);
-
-  useEffect(() => {
-    if (loading || categoriesLoading) return;
-    if (didResolveInitialCategoryRef.current) return;
-
-    didResolveInitialCategoryRef.current = true;
-    setCat((current) => {
-      const saved =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem(activeCatStorageKey) || ""
-          : "";
-      const preferred = categories.includes(current)
-        ? current
-        : categories.includes(saved)
-          ? saved
-          : categories[0] ?? "";
-      return preferred;
-    });
-    setInitialCategoryReady(true);
-  }, [loading, categoriesLoading, categories, activeCatStorageKey]);
-
-  useEffect(() => {
-    if (!initialCategoryReady || !cat) return;
+    if (!ready || !cat) return;
     if (typeof window === "undefined") return;
     window.localStorage.setItem(activeCatStorageKey, cat);
-  }, [initialCategoryReady, cat, activeCatStorageKey]);
+  }, [ready, cat, activeCatStorageKey]);
 
   const selectCategory = React.useCallback((category: string) => {
     setCat(category);
@@ -7735,8 +7773,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     }
   }, [activeCatStorageKey]);
 
-  const catalogReady = !loading && !categoriesLoading && initialCategoryReady;
-  const activeCat = catalogReady && categories.includes(cat) ? cat : "";
+  const activeCat = ready && categories.includes(cat) ? cat : "";
 
   const filtered = visibleRows.filter(
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === activeCat,
@@ -8125,7 +8162,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       </div>
 
       <div className="glass overflow-visible rounded-2xl ring-1 ring-white/5">
-        {!catalogReady ? (
+        {!ready ? (
           <div className="grid place-items-center py-16">
             <ClipprLoader size="screen" delayMs={130} />
           </div>
