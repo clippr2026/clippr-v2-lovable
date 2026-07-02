@@ -74,26 +74,67 @@ function LoginPage() {
       <style>{`
         @keyframes logoEnter {
           0% {
-            opacity: 0;
-            transform: scale(.88) rotate(-2deg);
-            filter: hue-rotate(55deg) saturate(1.55) brightness(1.22)
-              drop-shadow(0 0 18px rgba(70,170,255,.35))
-              drop-shadow(0 0 44px rgba(170,90,255,.38));
+            transform: translate3d(0, 0, 0);
+            filter: hue-rotate(0deg) saturate(1.12) brightness(1)
+              drop-shadow(0 0 30px rgba(70,170,255,.76))
+              drop-shadow(0 0 76px rgba(170,90,255,.70))
+              drop-shadow(0 0 136px rgba(120,80,255,.58));
+          }
+          22% {
+            transform: translate3d(0, 0, 0);
+            filter: hue-rotate(28deg) saturate(1.42) brightness(1.08)
+              drop-shadow(0 0 38px rgba(75,210,255,.82))
+              drop-shadow(0 0 92px rgba(225,75,255,.78))
+              drop-shadow(0 0 150px rgba(120,80,255,.66));
           }
           48% {
-            opacity: 1;
-            transform: scale(1.07) rotate(1deg);
-            filter: hue-rotate(-28deg) saturate(1.42) brightness(1.18)
-              drop-shadow(0 0 36px rgba(70,170,255,.78))
-              drop-shadow(0 0 92px rgba(170,90,255,.78));
+            transform: translate3d(0, 0, 0);
+            filter: hue-rotate(-34deg) saturate(1.5) brightness(1.1)
+              drop-shadow(0 0 42px rgba(80,230,255,.86))
+              drop-shadow(0 0 105px rgba(255,80,210,.80))
+              drop-shadow(0 0 160px rgba(120,80,255,.68));
+          }
+          74% {
+            transform: translate3d(0, 0, 0);
+            filter: hue-rotate(16deg) saturate(1.32) brightness(1.06)
+              drop-shadow(0 0 36px rgba(70,190,255,.80))
+              drop-shadow(0 0 88px rgba(190,90,255,.76))
+              drop-shadow(0 0 148px rgba(120,80,255,.62));
           }
           100% {
-            opacity: 1;
-            transform: scale(1) rotate(0deg);
-            filter: hue-rotate(0deg) saturate(1.12) brightness(1)
-              drop-shadow(0 0 28px rgba(70,170,255,.72))
-              drop-shadow(0 0 68px rgba(170,90,255,.68))
-              drop-shadow(0 0 128px rgba(120,80,255,.55));
+            transform: translate3d(0, 0, 0);
+            filter: hue-rotate(0deg) saturate(1.14) brightness(1)
+              drop-shadow(0 0 34px rgba(70,170,255,.82))
+              drop-shadow(0 0 82px rgba(170,90,255,.76))
+              drop-shadow(0 0 150px rgba(120,80,255,.62));
+          }
+        }
+
+        @keyframes logoLiquidOverlay {
+          0% {
+            opacity: 0;
+            transform: translateX(-18%) skewX(-10deg);
+            filter: hue-rotate(20deg) saturate(1.8) blur(.2px);
+          }
+          22% {
+            opacity: .45;
+            transform: translateX(-6%) skewX(-7deg);
+            filter: hue-rotate(55deg) saturate(2) blur(.2px);
+          }
+          50% {
+            opacity: .58;
+            transform: translateX(10%) skewX(8deg);
+            filter: hue-rotate(-38deg) saturate(2.1) blur(.2px);
+          }
+          78% {
+            opacity: .28;
+            transform: translateX(4%) skewX(4deg);
+            filter: hue-rotate(18deg) saturate(1.6) blur(.2px);
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(0) skewX(0deg);
+            filter: hue-rotate(0deg) saturate(1) blur(0);
           }
         }
       `}</style>
@@ -126,7 +167,7 @@ function LoginPage() {
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   background:
                     "linear-gradient(160deg, oklch(0.17 0.045 285 / 0.20), oklch(0.045 0.018 280 / 0.42))",
-                  border: "1px solid oklch(0.72 0.24 285 / 0.42)",
+                  border: "1px solid transparent",
                   boxShadow:
                     "inset 0 0 88px oklch(0.72 0.2 245 / 0.075), 0 0 120px -34px oklch(0.7 0.26 300 / 0.58), 0 0 70px -42px oklch(0.72 0.2 245 / 0.48)",
                 }}
@@ -135,31 +176,46 @@ function LoginPage() {
                 className="pointer-events-none absolute inset-[-30px] opacity-32"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
-                  border: "1px solid oklch(0.72 0.2 245 / 0.26)",
+                  border: "1px solid transparent",
                 }}
               />
               <div
                 className="pointer-events-none absolute inset-[-62px] opacity-14"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
-                  border: "1px solid oklch(0.72 0.26 305 / 0.26)",
+                  border: "1px solid transparent",
                 }}
               />
 
               <div className="relative z-10 flex flex-col items-center">
-                <img
-                  src="/clippr-powered-logo.webp"
-                  alt="Clippr"
-                  loading="eager"
-                  decoding="async"
-                  className="animate-fade-up h-[164px] w-[164px] object-contain"
-                  style={{
-                    animationDelay: "40ms",
-                    animation: "logoEnter 1.15s cubic-bezier(.16,1,.3,1) both",
-                    filter:
-                      "drop-shadow(0 0 28px rgba(70,170,255,.72)) drop-shadow(0 0 68px rgba(170,90,255,.68)) drop-shadow(0 0 128px rgba(120,80,255,.55)) saturate(1.12)"
-                  }}
-                />
+                <div className="relative h-[164px] w-[164px]">
+                  <div
+                    className="pointer-events-none absolute -inset-10 rounded-full opacity-75 blur-3xl"
+                    style={{
+                      background:
+                        "radial-gradient(circle, rgba(80,170,255,.30), rgba(175,80,255,.28) 42%, transparent 70%)",
+                    }}
+                  />
+                  <img
+                    src="/clippr-powered-logo.webp"
+                    alt="Clippr"
+                    loading="eager"
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-contain"
+                    style={{
+                      animation: "logoEnter 1.45s cubic-bezier(.22,.9,.2,1) both",
+                    }}
+                  />
+                  <img
+                    src="/clippr-powered-logo.webp"
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 h-full w-full object-contain mix-blend-screen"
+                    style={{
+                      animation: "logoLiquidOverlay 1.45s cubic-bezier(.22,.9,.2,1) both",
+                    }}
+                  />
+                </div>
 
                 <span
                   className="animate-fade-up font-display mt-5 text-5xl font-semibold tracking-tight md:text-[3.25rem]"
