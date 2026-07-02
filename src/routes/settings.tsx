@@ -2766,6 +2766,7 @@ function HorariosSection() {
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
   const timeToMinutes = (value: string) => {
@@ -2783,46 +2784,60 @@ function HorariosSection() {
   };
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
     supabase
       .from("business_settings")
       .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle()
       .then(({ data }) => {
+        if (cancelled) return;
         const schedule = data?.schedule as
           Record<string, any> | null | undefined;
-        if (!schedule || typeof schedule !== "object") return;
-        setDays((current) =>
-          current.map((day, i) => {
-            const saved = schedule[dayKeys[i]];
-            if (!saved || typeof saved !== "object") return day;
-            const open =
-              typeof saved.start === "string" ? saved.start : day.open;
-            const close = typeof saved.end === "string" ? saved.end : day.close;
-            return {
-              ...day,
-              open,
-              close: normalizeCloseTime(open, close),
-              enabled: saved.enabled !== false,
-            };
-          }),
-        );
-        const settings = schedule._settings;
-        if (settings && typeof settings === "object") {
-          setReservationSettings({
-            interval: String(
-              settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval,
-            ),
-            maxAdvance: String(
-              settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
-            ),
-            minCancel: String(
-              settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
-            ),
-          });
+        if (schedule && typeof schedule === "object") {
+          setDays((current) =>
+            current.map((day, i) => {
+              const saved = schedule[dayKeys[i]];
+              if (!saved || typeof saved !== "object") return day;
+              const open =
+                typeof saved.start === "string" ? saved.start : day.open;
+              const close =
+                typeof saved.end === "string" ? saved.end : day.close;
+              return {
+                ...day,
+                open,
+                close: normalizeCloseTime(open, close),
+                enabled: saved.enabled !== false,
+              };
+            }),
+          );
+          const settings = schedule._settings;
+          if (settings && typeof settings === "object") {
+            setReservationSettings({
+              interval: String(
+                settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval,
+              ),
+              maxAdvance: String(
+                settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
+              ),
+              minCancel: String(
+                settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
+              ),
+            });
+          }
         }
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [businessId]);
 
   async function saveSchedule(showToast = true) {
@@ -2936,6 +2951,14 @@ function HorariosSection() {
       suffix: "horas",
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="grid place-items-center py-20">
+        <ClipprLoader size="screen" delayMs={130} />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -8103,8 +8126,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
       <div className="glass overflow-visible rounded-2xl ring-1 ring-white/5">
         {!catalogReady ? (
-          <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-            Cargando…
+          <div className="grid place-items-center py-16">
+            <ClipprLoader size="screen" delayMs={130} />
           </div>
         ) : (
           <>
