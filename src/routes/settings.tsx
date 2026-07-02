@@ -7656,18 +7656,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ]),
       );
 
-  React.useEffect(() => {
-    if (!categories.length) return;
-    // No cambiamos automáticamente a una categoría con ítems: las categorías
-    // vacías pueden existir y el usuario decide cuál queda activa. Solo
-    // corregimos la categoría activa si ya no existe (por ejemplo, porque fue eliminada).
-    if (!cat || !categories.includes(cat)) {
-      setCat(categories[0]);
-    }
-  }, [categories.join("|"), cat]);
+  // No forzamos setCat() al entrar a Servicios/Catálogo.
+  // Antes había un useEffect que corregía la categoría activa al primer render,
+  // y eso hacía que la UI "se cargue sola" una vez y las pestañas salten.
+  // Ahora la categoría visible se calcula sin mutar estado: si la categoría guardada
+  // ya no existe, se muestra la primera disponible, pero no se reordena ni se dispara
+  // ningún cambio automático de pestaña.
+  const activeCat = categories.includes(cat) ? cat : (categories[0] ?? "");
 
   const filtered = visibleRows.filter(
-    (r) => (r.category || (isService ? "Servicios" : "Productos")) === cat,
+    (r) => (r.category || (isService ? "Servicios" : "Productos")) === activeCat,
   );
 
   async function uploadBookingImage(file: File): Promise<string | null> {
@@ -8033,7 +8031,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         .eq("business_id", businessId)
         .eq("category", category);
     }
-    setCat(targetCategory);
+    if (category === activeCat || !categories.includes(activeCat)) {
+      setCat(targetCategory);
+    }
     toast.success("Categoría eliminada");
     markSettingsDirty();
     load();
@@ -8053,7 +8053,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       <div className="glass overflow-visible rounded-2xl ring-1 ring-white/5">
         <div className="relative flex items-center gap-1 px-3 pt-3 pr-1 border-b border-white/5 overflow-visible">
           {categories.map((category) => {
-            const active = category === cat;
+            const active = category === activeCat;
             return (
               <div
                 key={category}
