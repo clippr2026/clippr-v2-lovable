@@ -13,11 +13,6 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-// Los mismos cuatro pilares del producto, con los íconos que ya usa la
-// navegación interna (Agenda=Calendar, Caja=Wallet, Clientes=Users,
-// Asesor IA=Brain), para que el vocabulario visual sea el mismo adentro y
-// afuera. Cada uno con un tinte distinto dentro del mismo espectro azul→
-// violeta→magenta que ya es la identidad de Clippr — no colores nuevos.
 const PILLARS: Array<{
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -28,6 +23,17 @@ const PILLARS: Array<{
   { icon: Users, label: "Clientes", color: "oklch(0.72 0.22 288)" },
   { icon: Brain, label: "Asesor IA", color: "oklch(0.72 0.25 320)" },
 ];
+
+const AMBIENT_PARTICLES = [
+  { top: "17%", left: "22%", size: 2, delay: "0s" },
+  { top: "32%", left: "77%", size: 2, delay: "1.4s" },
+  { top: "62%", left: "13%", size: 2, delay: "2.6s" },
+  { top: "18%", left: "58%", size: 2, delay: "3.2s" },
+];
+
+function colorWithAlpha(color: string, alpha: number) {
+  return color.replace(")", ` / ${alpha})`);
+}
 
 function LoginPage() {
   const { signIn, session, loading } = useAuth();
@@ -64,49 +70,49 @@ function LoginPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#05040b] text-foreground">
-      {/* Fondo ambiental: dos glows contenidos, un anillo tipo "borde de planeta"
-          respirando muy despacio, y unas pocas partículas mínimas con deriva.
-          Nada de patrones repetidos ni blobs pesados — todo a baja opacidad. */}
       <div className="pointer-events-none absolute inset-0">
         <div
-          className="absolute -top-[28%] -left-[18%] h-[820px] w-[820px] rounded-full opacity-40 blur-[120px]"
-          style={{ background: "radial-gradient(circle, oklch(0.55 0.24 265 / 0.65), transparent 65%)" }}
+          className="absolute -top-[30%] -left-[18%] h-[780px] w-[780px] rounded-full opacity-35 blur-[130px]"
+          style={{ background: "radial-gradient(circle, oklch(0.52 0.22 260 / 0.58), transparent 66%)" }}
         />
         <div
-          className="absolute -bottom-[30%] -right-[16%] h-[760px] w-[760px] rounded-full opacity-35 blur-[120px]"
-          style={{ background: "radial-gradient(circle, oklch(0.58 0.26 310 / 0.6), transparent 65%)" }}
+          className="absolute -bottom-[32%] -right-[18%] h-[760px] w-[760px] rounded-full opacity-32 blur-[130px]"
+          style={{ background: "radial-gradient(circle, oklch(0.58 0.24 310 / 0.48), transparent 66%)" }}
         />
-        {/* Anillo sutil, tipo horizonte de planeta */}
-        <div
-          className="animate-breathe absolute left-[6%] top-[8%] h-[560px] w-[560px] rounded-full border border-white/[0.06]"
-          style={{ boxShadow: "0 0 120px -20px oklch(0.65 0.22 280 / 0.35)" }}
-        />
-        {/* Línea inferior, eco muy tenue del degradado de marca */}
-        <div
-          className="absolute bottom-[6%] left-[-10%] h-px w-[130%] opacity-[0.14]"
-          style={{
-            background: "linear-gradient(90deg, transparent, oklch(0.7 0.2 250 / 0.8), oklch(0.72 0.26 310 / 0.8), transparent)",
-            filter: "blur(1px)",
-          }}
-        />
-        {/* Partículas mínimas */}
-        {[
-          { top: "18%", left: "22%", size: 3, delay: "0s" },
-          { top: "34%", left: "78%", size: 2, delay: "1.4s" },
-          { top: "62%", left: "12%", size: 2, delay: "2.6s" },
-          { top: "72%", left: "58%", size: 3, delay: "0.8s" },
-          { top: "14%", left: "58%", size: 2, delay: "3.2s" },
-        ].map((p, i) => (
+
+        {/* Planeta sutil: aporta profundidad sin convertirse en protagonista. */}
+        <div className="animate-breathe absolute left-[4%] top-[7%] h-[620px] w-[620px] rounded-full opacity-[0.62]">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle at 54% 48%, oklch(0.035 0.018 280 / 0.98) 0%, oklch(0.035 0.018 280 / 0.98) 58%, transparent 59%)",
+            }}
+          />
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background:
+                "conic-gradient(from 215deg, transparent 0deg, transparent 232deg, oklch(0.7 0.24 270 / 0.08) 248deg, oklch(0.72 0.26 305 / 0.24) 262deg, oklch(0.72 0.2 245 / 0.18) 278deg, transparent 298deg, transparent 360deg)",
+              filter: "blur(0.2px)",
+            }}
+          />
+          <div
+            className="absolute inset-[1px] rounded-full border border-white/[0.045]"
+            style={{ boxShadow: "0 0 110px -34px oklch(0.66 0.23 282 / 0.5)" }}
+          />
+        </div>
+
+        {AMBIENT_PARTICLES.map((p, i) => (
           <span
             key={i}
             className="animate-drift absolute rounded-full bg-white/70 blur-[0.5px]"
-            style={{ top: p.top, left: p.left, width: p.size, height: p.size, opacity: 0.35, animationDelay: p.delay }}
+            style={{ top: p.top, left: p.left, width: p.size, height: p.size, opacity: 0.28, animationDelay: p.delay }}
           />
         ))}
       </div>
 
       <div className="relative z-10 grid min-h-screen gap-10 px-6 py-10 lg:grid-cols-2 lg:gap-8 lg:px-16 lg:py-16">
-        {/* Marca + propuesta de valor */}
         <section className="mx-auto flex max-w-xl flex-col justify-center text-center lg:mx-0 lg:text-left">
           <div
             className="animate-fade-up flex items-center justify-center gap-4 lg:justify-start"
@@ -117,7 +123,7 @@ function LoginPage() {
               alt="Clippr"
               loading="eager"
               decoding="async"
-              className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_14px_44px_-14px_oklch(0.6_0.26_290_/_0.85)] md:h-20 md:w-20"
+              className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_14px_44px_-16px_oklch(0.6_0.26_290_/_0.7)] md:h-20 md:w-20"
             />
             <span className="font-display text-4xl font-semibold tracking-tight md:text-5xl">Clippr</span>
           </div>
@@ -132,7 +138,7 @@ function LoginPage() {
           </h1>
 
           <p
-            className="animate-fade-up mt-4 max-w-md text-base leading-relaxed text-muted-foreground/90 mx-auto lg:mx-0"
+            className="animate-fade-up mx-auto mt-4 max-w-md text-base leading-relaxed text-muted-foreground/90 lg:mx-0"
             style={{ animationDelay: "170ms" }}
           >
             Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
@@ -148,9 +154,9 @@ function LoginPage() {
                   className="grid h-11 w-11 place-items-center rounded-xl ring-1"
                   style={{
                     color,
-                    background: `linear-gradient(160deg, ${color.replace(")", " / 0.16)")}, transparent)`,
-                    borderColor: color.replace(")", " / 0.28)"),
-                    boxShadow: `0 0 24px -10px ${color.replace(")", " / 0.55)")}`,
+                    background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.13)}, transparent)`,
+                    borderColor: colorWithAlpha(color, 0.22),
+                    boxShadow: `0 0 20px -12px ${colorWithAlpha(color, 0.45)}`,
                   }}
                 >
                   <Icon className="h-5 w-5" />
@@ -161,27 +167,22 @@ function LoginPage() {
           </div>
         </section>
 
-        {/* Tarjeta de acceso */}
         <section className="flex items-center justify-center">
-          <div
-            className="animate-fade-up relative w-full max-w-md"
-            style={{ animationDelay: "150ms" }}
-          >
-            {/* Borde con gradiente de marca, respirando muy despacio */}
+          <div className="animate-fade-up relative w-full max-w-md" style={{ animationDelay: "150ms" }}>
             <div
-              className="animate-breathe absolute -inset-px rounded-[28px]"
+              className="absolute -inset-px rounded-[28px] opacity-80"
               style={{
                 background:
-                  "linear-gradient(135deg, oklch(0.72 0.22 245 / 0.75), oklch(0.7 0.28 305 / 0.55), oklch(0.72 0.22 245 / 0.15))",
-                filter: "blur(0.5px)",
+                  "linear-gradient(135deg, oklch(0.72 0.22 245 / 0.55), oklch(0.7 0.28 305 / 0.36), oklch(0.72 0.22 245 / 0.08))",
               }}
             />
             <div
               className="relative rounded-[28px] p-8 backdrop-blur-2xl sm:p-9"
               style={{
-                background: "linear-gradient(180deg, oklch(0.19 0.045 285 / 0.6), oklch(0.09 0.035 280 / 0.78))",
+                background:
+                  "linear-gradient(180deg, oklch(0.18 0.045 285 / 0.56), oklch(0.075 0.03 280 / 0.82))",
                 boxShadow:
-                  "0 32px 90px -24px oklch(0.55 0.28 285 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.07)",
+                  "0 28px 72px -30px oklch(0.52 0.25 285 / 0.42), inset 0 1px 0 oklch(1 0 0 / 0.065)",
               }}
             >
               <div className="mb-7 text-center">
@@ -209,9 +210,7 @@ function LoginPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium tracking-wide text-white/55">
-                    Contraseña
-                  </label>
+                  <label className="mb-1.5 block text-xs font-medium tracking-wide text-white/55">Contraseña</label>
                   <div className="group relative">
                     <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/70 transition-colors group-focus-within:text-primary" />
                     <input
@@ -252,7 +251,7 @@ function LoginPage() {
                 </div>
 
                 {error && (
-                  <div className="rounded-lg bg-destructive/10 p-2.5 text-xs text-destructive ring-1 ring-destructive/25 animate-fade-up">
+                  <div className="animate-fade-up rounded-lg bg-destructive/10 p-2.5 text-xs text-destructive ring-1 ring-destructive/25">
                     {error}
                   </div>
                 )}
@@ -264,7 +263,7 @@ function LoginPage() {
                   style={{
                     background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
                     boxShadow:
-                      "0 12px 34px -12px oklch(0.6 0.28 290 / 0.75), inset 0 1px 0 oklch(1 0 0 / 0.22)",
+                      "0 12px 30px -14px oklch(0.6 0.28 290 / 0.66), inset 0 1px 0 oklch(1 0 0 / 0.2)",
                   }}
                 >
                   <LogIn className="h-4 w-4" />
