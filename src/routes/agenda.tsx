@@ -3226,7 +3226,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     src={serviceImageUrl}
                     alt={appointment.service_name || "Servicio"}
                     position={serviceImagePosition}
-                    className="h-14 w-14 rounded-2xl ring-1 ring-white/10"
+                    className="h-14 w-14 rounded-xl ring-1 ring-white/10"
                     fallback={<Scissors className="h-4 w-4 shrink-0 text-white/45" />}
                   />
                   <div className="truncate text-base font-semibold leading-tight">
@@ -3312,7 +3312,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       <ServiceImage
                         src={product.image}
                         alt={product.name}
-                        className="h-10 w-10 rounded-2xl ring-1 ring-white/10"
+                        className="h-10 w-10 rounded-xl ring-1 ring-white/10"
                       />
                     ) : null}
                     <div className="min-w-0 flex-1">

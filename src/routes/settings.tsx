@@ -6362,7 +6362,7 @@ function FixedImagePreview({
         type="button"
         onClick={onPickImage}
         className={cn(
-          "relative grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 hover:ring-white/20",
+          "relative grid aspect-square w-full place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 hover:ring-white/20",
           className,
         )}
         title="Cambiar imagen"
@@ -6534,7 +6534,7 @@ function PriceEditorModal({
                           type="button"
                           onClick={() => bookingFileRef.current?.click()}
                           disabled={uploadingImg}
-                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
                         >
                           {uploadingImg ? (
                             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -6679,7 +6679,7 @@ function PriceEditorModal({
                           type="button"
                           onClick={() => bookingFileRef.current?.click()}
                           disabled={uploadingImg}
-                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
                         >
                           {uploadingImg ? (
                             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -7876,7 +7876,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   src={imageMap[row.id]}
                   alt={row.name}
                   position={imagePositionMap[row.id]}
-                  className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10"
+                  className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10"
                   fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
                 />
                 <div className="flex-1 min-w-0">

@@ -1654,7 +1654,7 @@ function PreciosTab({
       src={itemImage(item)}
       alt={item.name ?? ""}
       position={item.image_position ?? item.imagePosition}
-      className="size-10 rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]"
+      className="size-10 rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]"
       fallback={<span>{fallback}</span>}
     />
   );
@@ -2032,7 +2032,7 @@ function InventarioTab({
       src={itemImage(item)}
       alt={item.name ?? ""}
       position={item.image_position ?? item.imagePosition}
-      className="size-10 rounded-2xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
+      className="size-10 rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
       fallback={<span>□</span>}
     />
   );
@@ -6589,7 +6589,7 @@ function NuevaVentaTab({
                           src={imageSrc}
                           alt={it.name ?? "Ítem"}
                           position={it.image_position}
-                          className="size-11 rounded-2xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(96,165,250,0.10),rgba(139,92,246,0.10))] text-lg text-blue-100 shadow-[0_0_22px_rgba(96,165,250,0.10)]"
+                          className="size-11 rounded-xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(96,165,250,0.10),rgba(139,92,246,0.10))] text-lg text-blue-100 shadow-[0_0_22px_rgba(96,165,250,0.10)]"
                           fallback={<span>{it.is_catalog ? "□" : "✂"}</span>}
                         />
                         <div className="min-w-0">
