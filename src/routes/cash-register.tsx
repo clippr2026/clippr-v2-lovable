@@ -1653,8 +1653,8 @@ function PreciosTab({
     <ServiceImage
       src={itemImage(item)}
       alt={item.name ?? ""}
-      position={item.image_position ?? item.imagePosition}
-      className="size-10 rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]"
+      className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]"
+      imgClassName="h-full w-full object-cover object-center"
       fallback={<span>{fallback}</span>}
     />
   );
