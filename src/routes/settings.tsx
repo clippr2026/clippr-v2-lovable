@@ -23,7 +23,7 @@ IMPORTANTE:
 ¡Muchas gracias! Te esperamos. 🙌`;
 
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import React from "react";
@@ -6345,274 +6345,40 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
 }
 
 
-function clampImagePositionValue(value: number) {
-  return Math.max(0, Math.min(100, value));
-}
-
-function parseImagePosition(position?: string | null): { x: number; y: number } {
-  const fallback = { x: 50, y: 50 };
-  if (!position) return fallback;
-  const [xRaw, yRaw] = position.split(/\s+/);
-  const x = Number(String(xRaw ?? "").replace("%", ""));
-  const y = Number(String(yRaw ?? "").replace("%", ""));
-  return {
-    x: Number.isFinite(x) ? clampImagePositionValue(x) : fallback.x,
-    y: Number.isFinite(y) ? clampImagePositionValue(y) : fallback.y,
-  };
-}
-
-/**
- * Geometría real del recorte: a partir del tamaño natural de la foto y el
- * tamaño real del marco, calcula cuánto "sobra" de imagen (overflow) en cada
- * eje una vez aplicado object-fit: cover. Ese sobrante es el único rango
- * válido de arrastre — no un porcentaje inventado.
- */
-type CropGeometry = {
-  scale: number;
-  scaledW: number;
-  scaledH: number;
-  overflowX: number;
-  overflowY: number;
-};
-
-function computeCropGeometry(
-  container: { w: number; h: number },
-  natural: { w: number; h: number },
-): CropGeometry | null {
-  if (!container.w || !container.h || !natural.w || !natural.h) return null;
-  const scale = Math.max(container.w / natural.w, container.h / natural.h);
-  const scaledW = natural.w * scale;
-  const scaledH = natural.h * scale;
-  return {
-    scale,
-    scaledW,
-    scaledH,
-    overflowX: Math.max(0, scaledW - container.w),
-    overflowY: Math.max(0, scaledH - container.h),
-  };
-}
-
-// object-position "X% Y%" <-> transform: translate(x px, y px) real, según la geometría.
-function offsetToTranslate(position: string, geometry: CropGeometry) {
-  const { x: px, y: py } = parseImagePosition(position);
-  return {
-    x: -geometry.overflowX * (px / 100),
-    y: -geometry.overflowY * (py / 100),
-  };
-}
-
-function translateToOffset(translate: { x: number; y: number }, geometry: CropGeometry) {
-  const x = geometry.overflowX > 0 ? clampImagePositionValue((-translate.x / geometry.overflowX) * 100) : 50;
-  const y = geometry.overflowY > 0 ? clampImagePositionValue((-translate.y / geometry.overflowY) * 100) : 50;
-  // Redondeo a 1 decimal: precisión de sobra para el recorte, strings más cortos para persistir.
-  return `${Math.round(x * 10) / 10}% ${Math.round(y * 10) / 10}%`;
-}
-
-function clampTranslate(translate: { x: number; y: number }, geometry: CropGeometry) {
-  return {
-    x: Math.max(-geometry.overflowX, Math.min(0, translate.x)),
-    y: Math.max(-geometry.overflowY, Math.min(0, translate.y)),
-  };
-}
-
-/**
- * Editor de imagen tipo Instagram / Mercado Libre: el marco nunca se mueve,
- * solo la fotografía, arrastrada con transform: translate() y con límites
- * calculados con el tamaño real de la imagen y del marco (no con porcentajes
- * fijos). Se puede llevar hasta los bordes reales de la foto, sin rebote.
- */
-function DraggableImageCrop({
+function FixedImagePreview({
   src,
   alt,
-  value,
-  onChange,
   onPickImage,
   className,
 }: {
   src: string;
   alt: string;
-  value: string;
-  onChange: (value: string) => void;
   onPickImage?: () => void;
   className?: string;
 }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
-  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const initializedForRef = useRef<string>("");
-
-  const dragRef = useRef<{
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    startTranslateX: number;
-    startTranslateY: number;
-  } | null>(null);
-
-  // Mide el marco real (no un porcentaje asumido) y reacciona si cambia de tamaño.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const measure = () => {
-      const rect = el.getBoundingClientRect();
-      setContainerSize({ w: rect.width, h: rect.height });
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Si la imagen ya está cargada desde caché al montar, captura su tamaño natural igual.
-  useLayoutEffect(() => {
-    const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth) {
-      setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-    }
-  }, [src]);
-
-  const geometry = useMemo(
-    () => computeCropGeometry(containerSize, naturalSize),
-    [containerSize, naturalSize],
-  );
-
-  // Al cambiar de foto (o apenas se conoce la geometría real por primera vez),
-  // arranca desde la posición guardada — nunca recentra si ya había una guardada.
-  useEffect(() => {
-    if (!geometry) return;
-    const key = `${src}|${Math.round(geometry.scaledW)}x${Math.round(geometry.scaledH)}`;
-    if (initializedForRef.current === key) return;
-    initializedForRef.current = key;
-    setTranslate(clampTranslate(offsetToTranslate(value, geometry), geometry));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geometry, src]);
-
-  const applyTranslate = (next: { x: number; y: number }) => {
-    if (!geometry) return;
-    const clamped = clampTranslate(next, geometry);
-    setTranslate(clamped);
-    return clamped;
-  };
-
-  const commit = (next: { x: number; y: number }) => {
-    if (!geometry) return;
-    onChange(translateToOffset(next, geometry));
-  };
-
   return (
     <div className="space-y-2">
-      <div
-        ref={containerRef}
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
+        onClick={onPickImage}
         className={cn(
-          "relative aspect-square w-full cursor-grab touch-none select-none overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
-          dragging && "ring-2 ring-primary/50",
+          "relative grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 hover:ring-white/20",
           className,
         )}
-        title="Arrastrá la imagen para acomodarla"
-        onPointerDown={(event) => {
-          if (!geometry) return;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          setDragging(true);
-          dragRef.current = {
-            pointerId: event.pointerId,
-            startClientX: event.clientX,
-            startClientY: event.clientY,
-            startTranslateX: translate.x,
-            startTranslateY: translate.y,
-          };
-        }}
-        onPointerMove={(event) => {
-          const drag = dragRef.current;
-          if (!drag || !geometry) return;
-          // 1:1 real: la foto acompaña el cursor/dedo exactamente, sin multiplicadores artificiales.
-          const dx = event.clientX - drag.startClientX;
-          const dy = event.clientY - drag.startClientY;
-          applyTranslate({ x: drag.startTranslateX + dx, y: drag.startTranslateY + dy });
-        }}
-        onPointerUp={(event) => {
-          const drag = dragRef.current;
-          dragRef.current = null;
-          setDragging(false);
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-            event.currentTarget.releasePointerCapture(event.pointerId);
-          }
-          if (!drag || !geometry) return;
-          const dx = event.clientX - drag.startClientX;
-          const dy = event.clientY - drag.startClientY;
-          const final = applyTranslate({ x: drag.startTranslateX + dx, y: drag.startTranslateY + dy });
-          if (final) commit(final);
-        }}
-        onPointerCancel={() => {
-          dragRef.current = null;
-          setDragging(false);
-        }}
-        onDoubleClick={onPickImage}
-        onKeyDown={(event) => {
-          if (!geometry) return;
-          const step = 12; // px reales por pulsación de flecha
-          let next = translate;
-          if (event.key === "ArrowLeft") next = { x: translate.x + step, y: translate.y };
-          else if (event.key === "ArrowRight") next = { x: translate.x - step, y: translate.y };
-          else if (event.key === "ArrowUp") next = { x: translate.x, y: translate.y + step };
-          else if (event.key === "ArrowDown") next = { x: translate.x, y: translate.y - step };
-          else if (event.key === "Enter" && onPickImage) return onPickImage();
-          else return;
-          event.preventDefault();
-          const clamped = applyTranslate(next);
-          if (clamped) commit(clamped);
-        }}
+        title="Cambiar imagen"
       >
         <img
-          ref={imgRef}
           src={src}
           alt={alt}
           draggable={false}
           loading="lazy"
-          onLoad={(event) => {
-            const img = event.currentTarget;
-            setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-          }}
-          style={
-            geometry
-              ? {
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  width: geometry.scaledW,
-                  height: geometry.scaledH,
-                  maxWidth: "none",
-                  transform: `translate(${translate.x}px, ${translate.y}px)`,
-                  willChange: "transform",
-                }
-              : {
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  objectPosition: value,
-                }
-          }
+          decoding="async"
+          className="h-full w-full object-cover"
+          style={{ objectPosition: "center" }}
         />
-      </div>
-      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <span>Arrastrá la imagen para acomodarla.</span>
-        <button
-          type="button"
-          className="font-medium text-white/75 transition hover:text-white"
-          onClick={() => {
-            if (!geometry) return onChange("50% 50%");
-            const centered = { x: -geometry.overflowX / 2, y: -geometry.overflowY / 2 };
-            setTranslate(centered);
-            commit(centered);
-          }}
-        >
-          Centrar
-        </button>
+      </button>
+      <div className="text-[10px] leading-relaxed text-muted-foreground">
+        La imagen se muestra cuadrada, centrada y fija automáticamente.
       </div>
     </div>
   );
@@ -6758,11 +6524,9 @@ function PriceEditorModal({
                         }}
                       />
                       {form.image ? (
-                        <DraggableImageCrop
+                        <FixedImagePreview
                           src={form.image}
                           alt={form.name || "Servicio"}
-                          value={form.imagePosition}
-                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
                           onPickImage={() => bookingFileRef.current?.click()}
                         />
                       ) : (
@@ -6905,11 +6669,9 @@ function PriceEditorModal({
                         }}
                       />
                       {form.image ? (
-                        <DraggableImageCrop
+                        <FixedImagePreview
                           src={form.image}
                           alt={form.name || "Producto"}
-                          value={form.imagePosition}
-                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
                           onPickImage={() => bookingFileRef.current?.click()}
                         />
                       ) : (
