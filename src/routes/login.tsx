@@ -15,13 +15,14 @@ export const Route = createFileRoute("/login")({
 
 const PILLARS: Array<{
   icon: React.ComponentType<{ className?: string }>;
-  label: string;
+  title: string;
+  subtitle: string;
   color: string;
 }> = [
-  { icon: Calendar, label: "Agenda inteligente", color: "oklch(0.72 0.19 245)" },
-  { icon: Wallet, label: "Caja y ventas", color: "oklch(0.74 0.16 222)" },
-  { icon: Users, label: "Clientes", color: "oklch(0.72 0.22 288)" },
-  { icon: Brain, label: "Asesor IA", color: "oklch(0.72 0.25 320)" },
+  { icon: Calendar, title: "Agenda", subtitle: "inteligente", color: "oklch(0.72 0.19 245)" },
+  { icon: Wallet, title: "Caja", subtitle: "y ventas", color: "oklch(0.74 0.16 222)" },
+  { icon: Users, title: "Clientes", subtitle: "", color: "oklch(0.72 0.22 288)" },
+  { icon: Brain, title: "Asesor IA", subtitle: "", color: "oklch(0.72 0.25 320)" },
 ];
 
 const AMBIENT_PARTICLES = [
@@ -145,11 +146,11 @@ function LoginPage() {
           </p>
 
           <div
-            className="animate-fade-up mt-11 grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-4"
+            className="animate-fade-up mt-11 grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4"
             style={{ animationDelay: "230ms" }}
           >
-            {PILLARS.map(({ icon: Icon, label, color }) => (
-              <div key={label} className="flex flex-col items-center gap-2.5 lg:items-start">
+            {PILLARS.map(({ icon: Icon, title, subtitle, color }) => (
+              <div key={title} className="flex flex-col items-center justify-start">
                 <div
                   className="grid h-11 w-11 place-items-center rounded-xl ring-1"
                   style={{
@@ -161,7 +162,11 @@ function LoginPage() {
                 >
                   <Icon className="h-5 w-5" />
                 </div>
-                <span className="text-[13px] font-medium leading-tight text-white/80">{label}</span>
+
+                <div className="mt-3 flex h-10 flex-col items-center justify-start leading-tight">
+                  <span className="text-center text-[13px] font-medium text-white/80">{title}</span>
+                  <span className="text-center text-[13px] font-medium text-white/80">{subtitle || "\u00A0"}</span>
+                </div>
               </div>
             ))}
           </div>
