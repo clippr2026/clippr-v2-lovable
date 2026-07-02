@@ -102,6 +102,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: "Suite premium para barberías, salones y estudios de belleza. Reservas, clientes, inventario y reportes — todo unificado." },
     ],
     links: [
+      { rel: "icon", type: "image/webp", href: "/clippr-powered-logo.webp?v=2" },
+      { rel: "apple-touch-icon", href: "/clippr-powered-logo.webp?v=2" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" },
