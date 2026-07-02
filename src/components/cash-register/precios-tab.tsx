@@ -2,6 +2,7 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { ServiceImage } from "@/components/ui/service-image";
 
 /**
  * Vista de Precios — misma query y misma lógica de categorías que Configuración → Servicios/Catálogo.
@@ -128,20 +129,13 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                   return (
                     <div key={r.id} className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-white/[0.025] transition-colors">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
-                          {r.image ? (
-                            <img
-                              src={r.image}
-                              alt={r.name}
-                              className="h-full w-full object-cover"
-                              style={{ objectPosition: r.image_position ?? "50% 50%" }}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />
-                          )}
-                        </div>
+                        <ServiceImage
+                          src={r.image}
+                          alt={r.name}
+                          position={r.image_position}
+                          className="h-12 w-12 rounded-xl bg-white/5 ring-1 ring-white/10"
+                          fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
+                        />
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
                         {r.duration_min && (
@@ -192,20 +186,13 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
                   return (
                     <div key={r.id} className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-white/[0.025] transition-colors">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
-                          {r.image ? (
-                            <img
-                              src={r.image}
-                              alt={r.name}
-                              className="h-full w-full object-cover"
-                              style={{ objectPosition: r.image_position ?? "50% 50%" }}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />
-                          )}
-                        </div>
+                        <ServiceImage
+                          src={r.image}
+                          alt={r.name}
+                          position={r.image_position}
+                          className="h-12 w-12 rounded-xl bg-white/5 ring-1 ring-white/10"
+                          fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
+                        />
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-foreground truncate">{r.name}</div>
                         {typeof r.stock === "number" && (
