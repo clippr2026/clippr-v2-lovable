@@ -1,0 +1,500 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-neon-blue: var(--neon-blue);
+  --color-neon-purple: var(--neon-purple);
+  --color-neon-cyan: var(--neon-cyan);
+  --color-neon-orange: var(--neon-orange);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
+:root {
+  --radius: 0.875rem;
+  --background: oklch(0.135 0.028 282);
+  --foreground: oklch(0.985 0.003 260);
+  --card: oklch(0.18 0.035 282);
+  --card-foreground: oklch(0.985 0.003 260);
+  --popover: oklch(0.14 0.028 280);
+  --popover-foreground: oklch(0.985 0.003 260);
+  --primary: oklch(0.66 0.22 265);
+  --primary-foreground: oklch(0.985 0.003 260);
+  --secondary: oklch(0.2 0.03 278);
+  --secondary-foreground: oklch(0.95 0.01 260);
+  --muted: oklch(0.2 0.025 278);
+  --muted-foreground: oklch(0.65 0.025 270);
+  --accent: oklch(0.72 0.26 305);
+  --accent-foreground: oklch(0.985 0.003 260);
+  --destructive: oklch(0.66 0.24 25);
+  --destructive-foreground: oklch(0.985 0.003 260);
+  --success: oklch(0.76 0.2 155);
+  --warning: oklch(0.78 0.17 75);
+  --border: oklch(1 0 0 / 0.06);
+  --input: oklch(0.22 0.03 278);
+  --ring: oklch(0.66 0.22 265);
+  --neon-blue: oklch(0.72 0.2 245);
+  --neon-purple: oklch(0.72 0.26 305);
+  --neon-cyan: oklch(0.82 0.16 200);
+  --neon-orange: oklch(0.78 0.17 55);
+  --chart-1: oklch(0.72 0.2 245);
+  --chart-2: oklch(0.72 0.26 305);
+  --chart-3: oklch(0.82 0.16 200);
+  --chart-4: oklch(0.78 0.17 55);
+  --chart-5: oklch(0.76 0.2 155);
+  --sidebar: oklch(0.085 0.018 280);
+  --sidebar-foreground: oklch(0.78 0.018 270);
+  --sidebar-primary: oklch(0.66 0.22 265);
+  --sidebar-primary-foreground: oklch(0.985 0.003 260);
+  --sidebar-accent: oklch(0.2 0.03 278);
+  --sidebar-accent-foreground: oklch(0.97 0.01 260);
+  --sidebar-border: oklch(1 0 0 / 0.05);
+  --sidebar-ring: oklch(0.66 0.22 265);
+
+  --shadow-glow-blue: 0 0 36px -6px oklch(0.72 0.2 245 / 0.6);
+  --shadow-glow-purple: 0 0 36px -6px oklch(0.72 0.26 305 / 0.55);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+
+  html {
+    scroll-behavior: auto;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-image:
+      radial-gradient(circle at 18% 0%, rgb(139 92 246 / 0.34), transparent 42%),
+      radial-gradient(circle at 82% 2%, rgb(79 125 255 / 0.30), transparent 44%),
+      radial-gradient(circle at 50% 100%, rgb(255 123 229 / 0.13), transparent 56%),
+      radial-gradient(ellipse 65% 50% at 50% -8%, oklch(0.5 0.24 295 / 0.34), transparent 60%);
+    background-attachment: fixed;
+    background-color: var(--color-background);
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /* Accessible focus ring on keyboard nav only */
+  :focus-visible {
+    outline: 2px solid oklch(0.72 0.2 245 / 0.85);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Subtle dark scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(1 0 0 / 0.12) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: oklch(1 0 0 / 0.08);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 0.18); background-clip: padding-box; }
+
+  /* Hide chrome on number inputs we use inline */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .glass {
+    background:
+      linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72));
+    border: 1px solid oklch(1 0 0 / 0.09);
+    backdrop-filter: blur(24px) saturate(148%);
+    -webkit-backdrop-filter: blur(24px) saturate(148%);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.075),
+      inset 0 0 34px oklch(0.72 0.2 245 / 0.035),
+      0 16px 42px -24px oklch(0 0 0 / 0.86),
+      0 0 72px -44px oklch(0.72 0.22 265 / 0.35);
+  }
+
+  .glass-strong {
+    background: linear-gradient(180deg, oklch(0.25 0.055 285 / 0.78), oklch(0.13 0.04 280 / 0.84));
+    border: 1px solid oklch(1 0 0 / 0.11);
+    backdrop-filter: blur(26px) saturate(150%);
+    -webkit-backdrop-filter: blur(26px) saturate(150%);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.085),
+      0 20px 52px -26px oklch(0 0 0 / 0.88),
+      0 0 86px -46px oklch(0.72 0.26 305 / 0.36);
+  }
+
+  .glass-hover {
+    transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+  }
+  .glass-hover:hover {
+    border-color: oklch(0.72 0.22 270 / 0.42);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.09),
+      0 22px 56px -22px oklch(0 0 0 / 0.86),
+      0 0 54px -22px oklch(0.66 0.25 286 / 0.48);
+  }
+
+  /* Dark glass fill for Caja panels — same tone as Agenda .glass, so the
+     ambient glow no longer bleeds through and panels read dark like Resumen.
+     Only sets the background; borders/shadows on the element stay intact. */
+  .cash-panel-glow {
+    background: linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72)) !important;
+  }
+
+
+  .dashboard-premium-shell {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .dashboard-premium-shell::before {
+    content: "";
+    position: absolute;
+    inset: -120px -64px -80px -64px;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 17% 4%, rgb(139 92 246 / 0.34), transparent 38%),
+      radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.30), transparent 36%),
+      radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.14), transparent 50%);
+    filter: blur(16px);
+  }
+
+
+  /* Caja: stronger upper atmosphere, matched visually to Agenda */
+  .cash-register-page {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .cash-register-page::before {
+    content: "";
+    position: absolute;
+    top: -132px;
+    left: 50%;
+    width: 100vw;
+    height: 720px;
+    transform: translateX(-50%);
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 18% 5%, rgb(139 92 246 / 0.46), transparent 43%),
+      radial-gradient(circle at 78% 2%, rgb(79 125 255 / 0.38), transparent 42%),
+      radial-gradient(circle at 44% 88%, rgb(255 123 229 / 0.18), transparent 56%);
+    filter: blur(18px);
+  }
+
+  .cash-register-page::after {
+    content: "";
+    position: absolute;
+    top: 72px;
+    left: 50%;
+    width: 100vw;
+    height: 360px;
+    transform: translateX(-50%);
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, rgb(139 92 246 / 0.20), rgb(79 125 255 / 0.16), transparent 86%);
+    filter: blur(32px);
+  }
+
+
+  .dashboard-date-glow {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 0 42px -26px rgb(139 92 246 / 0.65),
+      0 0 80px -54px rgb(79 125 255 / 0.55);
+  }
+
+  .stat-glow-primary {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.085),
+      0 0 30px rgb(79 125 255 / 0.15),
+      0 0 80px rgb(79 125 255 / 0.08),
+      0 18px 44px -30px oklch(0 0 0 / 0.9);
+  }
+
+  .stat-glow-danger {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.085),
+      0 0 30px rgb(244 63 94 / 0.15),
+      0 0 80px rgb(244 63 94 / 0.08),
+      0 18px 44px -30px oklch(0 0 0 / 0.9);
+  }
+
+  .stat-glow-success {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.085),
+      0 0 30px rgb(16 185 129 / 0.18),
+      0 0 80px rgb(16 185 129 / 0.10),
+      0 18px 44px -30px oklch(0 0 0 / 0.9);
+  }
+
+  .dashboard-chart-glow {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      inset 0 0 56px rgb(79 125 255 / 0.035),
+      0 0 38px rgb(79 125 255 / 0.10),
+      0 0 92px rgb(139 92 246 / 0.06);
+  }
+
+  .dashboard-donut-glow {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      inset 0 0 52px rgb(6 214 240 / 0.035),
+      0 0 42px rgb(6 214 240 / 0.10),
+      0 0 82px rgb(139 92 246 / 0.06);
+  }
+
+  .revenue-area-glow .recharts-area-curve {
+    filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 24px currentColor);
+  }
+
+  .donut-chart-glow {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .donut-chart-glow::before {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    border-radius: 9999px;
+    background:
+      radial-gradient(circle, rgb(6 214 240 / 0.26) 0%, rgb(6 214 240 / 0.16) 36%, rgb(79 125 255 / 0.08) 54%, transparent 72%);
+    filter: blur(22px);
+    opacity: 0.95;
+    transform: scale(1.08);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .donut-chart-glow .recharts-responsive-container,
+  .donut-chart-glow .recharts-wrapper,
+  .donut-chart-glow .recharts-surface {
+    position: relative;
+    z-index: 1;
+    overflow: visible;
+  }
+
+  .donut-chart-glow .recharts-pie-sector path {
+    filter: none;
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, oklch(0.78 0.18 245), oklch(0.72 0.26 305));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .glow-blue { box-shadow: var(--shadow-glow-blue); }
+  .glow-purple { box-shadow: var(--shadow-glow-purple); }
+
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305));
+  }
+
+  .ring-glow {
+    box-shadow: 0 0 0 1px oklch(0.7 0.22 270 / 0.4), 0 0 24px -4px oklch(0.7 0.25 290 / 0.5);
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(0.72 0.18 155 / 0.6); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 8px oklch(0.72 0.18 155 / 0); }
+  }
+  .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: fade-up 0.42s ease-out backwards; }
+
+  /* Glow "respirando": para acentos ambientales muy sutiles (login, hero cards). */
+  @keyframes breathe {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+  .animate-breathe { animation: breathe 5s ease-in-out infinite; }
+
+  /* Deriva mínima para partículas ambientales — nunca más de unos pocos px. */
+  @keyframes drift {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(0, -10px, 0); }
+  }
+  .animate-drift { animation: drift 8s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-breathe, .animate-drift { animation: none; }
+  }
+
+  /* Barrido de luz muy sutil al hacer hover, solo para el CTA principal del login. */
+  .btn-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 35%, oklch(1 0 0 / 0.22) 50%, transparent 65%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+  }
+  .btn-sheen:hover::after { transform: translateX(120%); }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-sheen::after { transition: none; display: none; }
+  }
+
+  /* Performance helpers: fewer nested scrolls, lighter paint on mobile/tablet */
+  img {
+    content-visibility: auto;
+  }
+
+  .content-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 620px;
+  }
+
+  .one-scroll {
+    overflow: visible;
+    max-height: none;
+  }
+
+  @media (max-width: 767px) {
+    body {
+      background-image:
+        radial-gradient(ellipse 90% 35% at 50% -10%, oklch(0.5 0.24 295 / 0.26), transparent 62%);
+    }
+
+    .glass, .glass-strong {
+      backdrop-filter: blur(8px) saturate(118%);
+      -webkit-backdrop-filter: blur(8px) saturate(118%);
+      box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.045), 0 8px 22px -18px oklch(0 0 0 / 0.72);
+    }
+
+    .animate-fade-up {
+      animation-duration: 0.22s;
+    }
+
+    .blur-3xl {
+      --tw-blur: blur(28px);
+      filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1180px) {
+    .glass, .glass-strong {
+      backdrop-filter: blur(10px) saturate(125%);
+      -webkit-backdrop-filter: blur(10px) saturate(125%);
+    }
+  }
+
+}
+
+/* Agenda — barra de scroll horizontal premium.
+   Al definir ::-webkit-scrollbar, Chrome/Edge/Safari usan scrollbar clásica
+   (no overlay): queda SIEMPRE visible mientras haya overflow y desaparece sola
+   cuando no lo hay (porque el contenedor usa overflow-x: auto). */
+.agenda-hscroll {
+  scrollbar-width: thin;                                   /* Firefox */
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.agenda-hscroll::-webkit-scrollbar {
+  height: 10px;
+}
+.agenda-hscroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  margin: 0 8px;
+}
+.agenda-hscroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.agenda-hscroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.34);
+  background-clip: padding-box;
+}
