@@ -7098,7 +7098,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [imagePositionMap, setImagePositionMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [cat, setCat] = useState<string>(isService ? "" : "Productos");
+  const activeCatStorageKey = React.useMemo(
+    () => `clippr:${businessId ?? "local"}:${isService ? "servicios" : "catalogo"}:active-category`,
+    [businessId, isService],
+  );
+  const [cat, setCat] = useState<string>(() => {
+    if (typeof window === "undefined") return isService ? "" : "Productos";
+    return window.localStorage.getItem(activeCatStorageKey) || (isService ? "" : "Productos");
+  });
+  const [initialCategoryReady, setInitialCategoryReady] = useState(false);
+  const didResolveInitialCategoryRef = useRef(false);
   const reorderingCategories = true;
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
@@ -7662,19 +7671,53 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ]),
       );
 
-  // No forzamos setCat() al entrar a Servicios/Catálogo.
-  // Antes había un useEffect que corregía la categoría activa al primer render,
-  // y eso hacía que la UI "se cargue sola" una vez y las pestañas salten.
-  // Ahora la categoría visible se calcula sin mutar estado: si la categoría guardada
-  // ya no existe, se muestra la primera disponible, pero no se reordena ni se dispara
-  // ningún cambio automático de pestaña.
-  const activeCat = categories.includes(cat) ? cat : (categories[0] ?? "");
+  // Resolver la categoría inicial una sola vez, cuando ya llegaron categorías e ítems.
+  // Mientras tanto no renderizamos una categoría provisoria para evitar el salto visual
+  // de 1-2 segundos al entrar a Servicios/Catálogo.
+  useEffect(() => {
+    didResolveInitialCategoryRef.current = false;
+    setInitialCategoryReady(false);
+  }, [businessId, isService]);
+
+  useEffect(() => {
+    if (loading || categoriesLoading) return;
+    if (didResolveInitialCategoryRef.current) return;
+
+    didResolveInitialCategoryRef.current = true;
+    setCat((current) => {
+      const saved =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(activeCatStorageKey) || ""
+          : "";
+      const preferred = categories.includes(current)
+        ? current
+        : categories.includes(saved)
+          ? saved
+          : categories[0] ?? "";
+      return preferred;
+    });
+    setInitialCategoryReady(true);
+  }, [loading, categoriesLoading, categories, activeCatStorageKey]);
+
+  useEffect(() => {
+    if (!initialCategoryReady || !cat) return;
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(activeCatStorageKey, cat);
+  }, [initialCategoryReady, cat, activeCatStorageKey]);
+
+  const selectCategory = React.useCallback((category: string) => {
+    setCat(category);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(activeCatStorageKey, category);
+    }
+  }, [activeCatStorageKey]);
+
+  const catalogReady = !loading && !categoriesLoading && initialCategoryReady;
+  const activeCat = catalogReady && categories.includes(cat) ? cat : "";
 
   const filtered = visibleRows.filter(
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === activeCat,
   );
-
-  const catalogReady = !loading && !categoriesLoading;
 
   async function uploadBookingImage(file: File): Promise<string | null> {
     if (!businessId) {
@@ -7967,7 +8010,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const [moved] = list.splice(fromIndex, 1);
     list.splice(toIndex, 0, moved);
     saveCategories(list, isService ? "service" : "catalog");
-    setCat(fromCategory);
+    selectCategory(fromCategory);
   }
 
   async function submitCatModal() {
@@ -7980,7 +8023,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       if (isService)
         saveCategories([...customServiceCategories, clean], "service");
       else saveCategories([...customCatalogCategories, clean], "catalog");
-      setCat(clean);
+      selectCategory(clean);
     } else if (catModal?.mode === "rename" && catModal.current) {
       const category = catModal.current;
       if (clean !== category) {
@@ -8002,7 +8045,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             .eq("business_id", businessId)
             .eq("category", category);
         }
-        setCat(clean);
+        selectCategory(clean);
         toast.success("Categoría actualizada");
         load();
       }
@@ -8040,7 +8083,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         .eq("category", category);
     }
     if (category === activeCat || !categories.includes(activeCat)) {
-      setCat(targetCategory);
+      selectCategory(targetCategory);
     }
     toast.success("Categoría eliminada");
     markSettingsDirty();
@@ -8096,7 +8139,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               >
                 <button
                   type="button"
-                  onClick={() => setCat(category)}
+                  onClick={() => selectCategory(category)}
                   className="inline-flex items-center gap-2 px-3 py-2 text-sm select-none"
                 >
                   <GripVertical className="h-4 w-4 text-white/40" />
