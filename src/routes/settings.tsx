@@ -6304,7 +6304,7 @@ const emptyPriceForm = (
   imagePosition: "50% 50%",
 });
 
-const defaultServiceCategories = ["Servicios"];
+const defaultServiceCategories: string[] = [];
 const serviceCategories = defaultServiceCategories;
 const defaultCatalogCategories = ["Productos", "Bebidas", "Indumentaria"];
 
@@ -7097,7 +7097,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // Posición del recorte de cada imagen: { [id]: "50% 50%" }
   const [imagePositionMap, setImagePositionMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [cat, setCat] = useState<string>(isService ? "Servicios" : "Productos");
+  const [cat, setCat] = useState<string>(isService ? "" : "Productos");
   const reorderingCategories = true;
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
@@ -7252,7 +7252,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         clean.length > 0
           ? clean
           : type === "service"
-            ? defaultServiceCategories
+            ? []
             : defaultCatalogCategories;
 
       if (type === "service") {
@@ -7656,26 +7656,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ]),
       );
 
-  const firstCategoryWithItems = React.useMemo(() => {
-    const fallbackCategory = isService ? "Servicios" : "Productos";
-    return (
-      categories.find((category) =>
-        visibleRows.some((row) => (row.category || fallbackCategory) === category),
-      ) ?? categories[0] ?? fallbackCategory
-    );
-  }, [categories.join("|"), isService, visibleRows]);
-
   React.useEffect(() => {
     if (!categories.length) return;
-    const fallbackCategory = isService ? "Servicios" : "Productos";
-    const currentCategoryHasItems = visibleRows.some(
-      (row) => (row.category || fallbackCategory) === cat,
-    );
-
-    if (!currentCategoryHasItems && firstCategoryWithItems && cat !== firstCategoryWithItems) {
-      setCat(firstCategoryWithItems);
+    // No cambiamos automáticamente a una categoría con ítems: las categorías
+    // vacías pueden existir y el usuario decide cuál queda activa. Solo
+    // corregimos la categoría activa si ya no existe (por ejemplo, porque fue eliminada).
+    if (!cat || !categories.includes(cat)) {
+      setCat(categories[0]);
     }
-  }, [categories.join("|"), cat, firstCategoryWithItems, isService, visibleRows]);
+  }, [categories.join("|"), cat]);
 
   const filtered = visibleRows.filter(
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === cat,
