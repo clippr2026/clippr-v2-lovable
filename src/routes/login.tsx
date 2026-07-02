@@ -90,30 +90,30 @@ function LoginPage() {
         ))}
       </div>
 
-      <div className="relative z-10 grid min-h-screen items-center gap-8 px-6 py-8 lg:grid-cols-[minmax(520px,0.95fr)_minmax(360px,0.75fr)] lg:gap-12 lg:px-14 xl:px-20">
+      <div className="relative z-10 grid min-h-screen items-center gap-8 px-6 py-8 lg:grid-cols-[minmax(560px,1fr)_minmax(390px,0.82fr)] lg:gap-12 lg:px-14 xl:px-20">
         <section className="flex items-center justify-center">
-          <div className="relative flex w-full max-w-[620px] flex-col items-center">
-            <div className="relative flex h-[500px] w-full max-w-[560px] flex-col items-center justify-center px-8 text-center">
+          <div className="relative flex w-full max-w-[680px] flex-col items-center">
+            <div className="relative flex h-[560px] w-full max-w-[630px] flex-col items-center justify-center px-8 text-center">
               <div
                 className="pointer-events-none absolute inset-0"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   background:
                     "linear-gradient(160deg, oklch(0.17 0.045 285 / 0.20), oklch(0.045 0.018 280 / 0.42))",
-                  border: "1px solid oklch(0.72 0.24 285 / 0.28)",
+                  border: "1px solid oklch(0.72 0.24 285 / 0.42)",
                   boxShadow:
-                    "inset 0 0 62px oklch(0.72 0.2 245 / 0.045), 0 0 82px -34px oklch(0.7 0.26 300 / 0.42)",
+                    "inset 0 0 88px oklch(0.72 0.2 245 / 0.075), 0 0 120px -34px oklch(0.7 0.26 300 / 0.58), 0 0 70px -42px oklch(0.72 0.2 245 / 0.48)",
                 }}
               />
               <div
-                className="pointer-events-none absolute inset-[-24px] opacity-32"
+                className="pointer-events-none absolute inset-[-30px] opacity-32"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   border: "1px solid oklch(0.72 0.2 245 / 0.26)",
                 }}
               />
               <div
-                className="pointer-events-none absolute inset-[-48px] opacity-14"
+                className="pointer-events-none absolute inset-[-62px] opacity-14"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   border: "1px solid oklch(0.72 0.26 305 / 0.26)",
@@ -126,19 +126,19 @@ function LoginPage() {
                   alt="Clippr"
                   loading="eager"
                   decoding="async"
-                  className="animate-fade-up h-[68px] w-[68px] rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_18px_48px_-18px_oklch(0.6_0.26_290_/_0.82)]"
+                  className="animate-fade-up h-[82px] w-[82px] rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_18px_48px_-18px_oklch(0.6_0.26_290_/_0.82)]"
                   style={{ animationDelay: "40ms" }}
                 />
 
                 <span
-                  className="animate-fade-up font-display mt-4 text-4xl font-semibold tracking-tight md:text-[2.75rem]"
+                  className="animate-fade-up font-display mt-5 text-5xl font-semibold tracking-tight md:text-[3.25rem]"
                   style={{ animationDelay: "80ms" }}
                 >
                   Clippr
                 </span>
 
                 <h1
-                  className="animate-fade-up font-display mt-8 max-w-[520px] text-4xl font-semibold leading-[1.08] tracking-tight md:text-[3rem]"
+                  className="animate-fade-up font-display mt-10 max-w-[610px] text-5xl font-semibold leading-[1.06] tracking-tight md:text-[3.55rem]"
                   style={{ animationDelay: "120ms" }}
                 >
                   El centro de control
@@ -147,7 +147,7 @@ function LoginPage() {
                 </h1>
 
                 <p
-                  className="animate-fade-up mx-auto mt-4 max-w-[430px] text-[15px] leading-relaxed text-muted-foreground/90"
+                  className="animate-fade-up mx-auto mt-5 max-w-[520px] text-[17px] leading-relaxed text-muted-foreground/90"
                   style={{ animationDelay: "170ms" }}
                 >
                   Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
@@ -185,7 +185,7 @@ function LoginPage() {
         </section>
 
         <section className="flex items-center justify-center">
-          <div className="animate-fade-up relative w-full max-w-[380px]" style={{ animationDelay: "150ms" }}>
+          <div className="animate-fade-up relative w-full max-w-[430px]" style={{ animationDelay: "150ms" }}>
             <div
               className="absolute -inset-px rounded-[26px] opacity-80"
               style={{
@@ -194,7 +194,7 @@ function LoginPage() {
               }}
             />
             <div
-              className="relative rounded-[26px] p-7 backdrop-blur-2xl"
+              className="relative rounded-[26px] p-8 backdrop-blur-2xl sm:p-9"
               style={{
                 background:
                   "linear-gradient(180deg, oklch(0.18 0.045 285 / 0.56), oklch(0.075 0.03 280 / 0.82))",
@@ -203,7 +203,7 @@ function LoginPage() {
               }}
             >
               <div className="mb-6 text-center">
-                <h2 className="font-display text-[22px] font-semibold tracking-tight">Bienvenido de nuevo</h2>
+                <h2 className="font-display text-2xl font-semibold tracking-tight">Bienvenido de nuevo</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">Ingresá para acceder a tu negocio.</p>
               </div>
 
@@ -221,7 +221,7 @@ function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="ejemplo@correo.com"
                       disabled={submitting}
-                      className="h-11 w-full rounded-xl bg-white/[0.035] pl-10 pr-3 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
+                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-3 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
                     />
                   </div>
                 </div>
@@ -237,7 +237,7 @@ function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Ingresá tu contraseña"
                       disabled={submitting}
-                      className="h-11 w-full rounded-xl bg-white/[0.035] pl-10 pr-10 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
+                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-10 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
                     />
                     <button
                       type="button"
@@ -276,7 +276,7 @@ function LoginPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="btn-sheen flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:-translate-y-px hover:brightness-110 active:translate-y-0 disabled:pointer-events-none disabled:opacity-50"
+                  className="btn-sheen flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:-translate-y-px hover:brightness-110 active:translate-y-0 disabled:pointer-events-none disabled:opacity-50"
                   style={{
                     background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
                     boxShadow:
