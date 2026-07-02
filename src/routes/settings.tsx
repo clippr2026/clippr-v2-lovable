@@ -6345,40 +6345,128 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
 }
 
 
-function FixedImagePreview({
+function clampImagePositionValue(value: number) {
+  return Math.max(-100, Math.min(200, value));
+}
+
+function parseImagePosition(position?: string | null): { x: number; y: number } {
+  const fallback = { x: 50, y: 50 };
+  if (!position) return fallback;
+  const [xRaw, yRaw] = position.split(/\s+/);
+  const x = Number(String(xRaw ?? "").replace("%", ""));
+  const y = Number(String(yRaw ?? "").replace("%", ""));
+  return {
+    x: Number.isFinite(x) ? clampImagePositionValue(x) : fallback.x,
+    y: Number.isFinite(y) ? clampImagePositionValue(y) : fallback.y,
+  };
+}
+
+function moveImagePosition(position: string, dx: number, dy: number) {
+  const current = parseImagePosition(position);
+  return `${clampImagePositionValue(current.x + dx)}% ${clampImagePositionValue(current.y + dy)}%`;
+}
+
+function DraggableImageCrop({
   src,
   alt,
+  value,
+  onChange,
   onPickImage,
   className,
 }: {
   src: string;
   alt: string;
+  value: string;
+  onChange: (value: string) => void;
   onPickImage?: () => void;
   className?: string;
 }) {
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    imageX: number;
+    imageY: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const setPositionFromDrag = (clientX: number, clientY: number) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    // Movimiento natural: al arrastrar la imagen hacia un lado, la foto acompaña el dedo/mouse.
+    // object-position funciona al revés del gesto, por eso restamos el desplazamiento.
+    const dx = ((clientX - drag.startX) / Math.max(drag.width, 1)) * 200;
+    const dy = ((clientY - drag.startY) / Math.max(drag.height, 1)) * 200;
+    onChange(
+      `${clampImagePositionValue(drag.imageX - dx)}% ${clampImagePositionValue(drag.imageY - dy)}%`,
+    );
+  };
+
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={onPickImage}
+      <div
+        role="button"
+        tabIndex={0}
         className={cn(
-          "relative grid aspect-square w-full place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 hover:ring-white/20",
+          "relative grid aspect-square w-full cursor-move touch-none select-none place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
           className,
         )}
-        title="Cambiar imagen"
+        title="Arrastrá la imagen para acomodarla"
+        onPointerDown={(event) => {
+          const target = event.currentTarget;
+          const rect = target.getBoundingClientRect();
+          const current = parseImagePosition(value);
+          dragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            imageX: current.x,
+            imageY: current.y,
+            width: rect.width,
+            height: rect.height,
+          };
+          target.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => setPositionFromDrag(event.clientX, event.clientY)}
+        onPointerUp={(event) => {
+          setPositionFromDrag(event.clientX, event.clientY);
+          dragRef.current = null;
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null;
+        }}
+        onDoubleClick={onPickImage}
+        onKeyDown={(event) => {
+          const current = parseImagePosition(value);
+          if (event.key === "ArrowLeft") onChange(`${clampImagePositionValue(current.x - 5)}% ${current.y}%`);
+          if (event.key === "ArrowRight") onChange(`${clampImagePositionValue(current.x + 5)}% ${current.y}%`);
+          if (event.key === "ArrowUp") onChange(`${current.x}% ${clampImagePositionValue(current.y - 5)}%`);
+          if (event.key === "ArrowDown") onChange(`${current.x}% ${clampImagePositionValue(current.y + 5)}%`);
+          if (event.key === "Enter" && onPickImage) onPickImage();
+        }}
       >
         <img
           src={src}
           alt={alt}
-          draggable={false}
-          loading="lazy"
-          decoding="async"
           className="h-full w-full object-cover"
-          style={{ objectPosition: "center" }}
+          style={{ objectPosition: value }}
+          loading="lazy"
+          draggable={false}
         />
-      </button>
-      <div className="text-[10px] leading-relaxed text-muted-foreground">
-        La imagen se muestra cuadrada, centrada y fija automáticamente.
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <span>Arrastrá la imagen para acomodarla.</span>
+        <button
+          type="button"
+          className="font-medium text-white/75 transition hover:text-white"
+          onClick={() => onChange("50% 50%")}
+        >
+          Centrar
+        </button>
       </div>
     </div>
   );
@@ -6524,9 +6612,11 @@ function PriceEditorModal({
                         }}
                       />
                       {form.image ? (
-                        <FixedImagePreview
+                        <DraggableImageCrop
                           src={form.image}
                           alt={form.name || "Servicio"}
+                          value={form.imagePosition}
+                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
                           onPickImage={() => bookingFileRef.current?.click()}
                         />
                       ) : (
@@ -6534,7 +6624,7 @@ function PriceEditorModal({
                           type="button"
                           onClick={() => bookingFileRef.current?.click()}
                           disabled={uploadingImg}
-                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
                         >
                           {uploadingImg ? (
                             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -6669,9 +6759,11 @@ function PriceEditorModal({
                         }}
                       />
                       {form.image ? (
-                        <FixedImagePreview
+                        <DraggableImageCrop
                           src={form.image}
                           alt={form.name || "Producto"}
+                          value={form.imagePosition}
+                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
                           onPickImage={() => bookingFileRef.current?.click()}
                         />
                       ) : (
@@ -6679,7 +6771,7 @@ function PriceEditorModal({
                           type="button"
                           onClick={() => bookingFileRef.current?.click()}
                           disabled={uploadingImg}
-                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
                         >
                           {uploadingImg ? (
                             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -7224,31 +7316,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           return merged;
         };
 
-        // Coordenadas de recorte explícitas (no solo el string CSS de object-position),
-        // para que el recorte se pueda reconstruir con la geometría real de cada pantalla.
-        const mergeCatalogImageOffsets = (
-          existingSchedule: Record<string, unknown>,
-        ): Record<string, { image_offset_x: number; image_offset_y: number }> => {
-          const existing = (existingSchedule._catalogImageOffsets ?? {}) as Record<string, unknown>;
-          const ids = ownImageIds();
-          const merged: Record<string, { image_offset_x: number; image_offset_y: number }> = {};
-          for (const [k, v] of Object.entries(existing)) {
-            if (ids.has(k)) continue;
-            const entry = v as Record<string, unknown>;
-            const ox = Number(entry?.image_offset_x);
-            const oy = Number(entry?.image_offset_y);
-            if (Number.isFinite(ox) && Number.isFinite(oy)) merged[k] = { image_offset_x: ox, image_offset_y: oy };
-          }
-          for (const id of ids) {
-            const position = nextImagePositionMap[id];
-            const hasImage = Boolean(nextImageMap[id]);
-            if (!hasImage || !position) continue;
-            const { x, y } = parseImagePosition(position);
-            merged[id] = { image_offset_x: x / 100, image_offset_y: y / 100 };
-          }
-          return merged;
-        };
-
         imageMapRef.current = nextImageMap;
         setImageMap(nextImageMap);
         imagePositionMapRef.current = nextImagePositionMap;
@@ -7274,7 +7341,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 ...existingSchedule,
                 _catalogImages: mergeCatalogImages(existingSchedule),
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
-                _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
@@ -7329,7 +7395,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 ...existingSchedule,
                 _catalogImages: mergeCatalogImages(existingSchedule),
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
-                _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
                 _bookingProducts: {
                   config: nextBookingConfig,
                   recommended,
@@ -7876,7 +7941,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   src={imageMap[row.id]}
                   alt={row.name}
                   position={imagePositionMap[row.id]}
-                  className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10"
+                  className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10"
                   fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
                 />
                 <div className="flex-1 min-w-0">
