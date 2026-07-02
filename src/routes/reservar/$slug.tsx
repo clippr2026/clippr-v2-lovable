@@ -912,7 +912,7 @@ function PublicBookingPage() {
                               src={service.image_url}
                               alt={service.name}
                               position={service.image_position}
-                              className="h-20 w-20 rounded-2xl bg-white/[0.06] ring-1 ring-white/10"
+                              className="h-20 w-20 rounded-xl bg-white/[0.06] ring-1 ring-white/10"
                               fallback={<Scissors className="h-4 w-4 text-white/30" />}
                             />
                             <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent text-white" : "border-white/20")} style={checked ? { background: accent } : undefined}>
@@ -1175,7 +1175,7 @@ function PublicBookingPage() {
                             src={product.image}
                             alt={product.name}
                             position={product.image_position}
-                            className="aspect-[1/1] w-full rounded-2xl bg-white/[0.04]"
+                            className="aspect-[1/1] w-full rounded-xl bg-white/[0.04]"
                             fallback={<ShoppingBag className="h-12 w-12 text-white/30" />}
                           />
 
