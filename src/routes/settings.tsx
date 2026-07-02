@@ -3884,7 +3884,7 @@ function EquipoSection() {
       });
   }, [businessId]);
 
-  async function saveRolePermissions() {
+  async function saveRolePermissions(showToast = true) {
     if (!businessId) return;
 
     for (const item of pendingProfessionals) {
@@ -4071,14 +4071,16 @@ function EquipoSection() {
     window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
     setPendingProfessionals([]);
     await load();
-    toast.success("Equipo guardado correctamente");
+    if (showToast) toast.success("Equipo guardado correctamente");
   }
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const section = (e as CustomEvent).detail?.section;
+      const detail = (e as CustomEvent).detail ?? {};
+      const section = detail?.section;
+      const silent = detail?.silent === true;
       if (!section || section === "equipo") {
-        void saveRolePermissions();
+        void saveRolePermissions(!silent);
       }
     };
     window.addEventListener("clippr:save-settings", handler);
@@ -7334,7 +7336,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   useEffect(() => {
     const handler = async (e: Event) => {
-      const section = (e as CustomEvent).detail?.section;
+      const detail = (e as CustomEvent).detail ?? {};
+      const section = detail?.section;
+      const silent = detail?.silent === true;
       const mySection = isService ? "servicios" : "catalogo";
       if (!section || section === mySection) {
         const items = pendingItemsRef.current;
@@ -7586,11 +7590,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           setPendingItems([]);
           setPendingDeletes(new Set());
           window.dispatchEvent(new CustomEvent("clippr:catalog-stock-saved"));
-          toast.success(
-            isService
-              ? "Servicios guardados correctamente"
-              : "Catálogo guardado correctamente",
-          );
+          if (!silent) {
+            toast.success(
+              isService
+                ? "Servicios guardados correctamente"
+                : "Catálogo guardado correctamente",
+            );
+          }
           load();
         }
       }
@@ -8887,7 +8893,7 @@ function SenasSection() {
       });
   }, [businessId]);
 
-  const save = React.useCallback(async () => {
+  const save = React.useCallback(async (showToast = true) => {
     if (!businessId) return;
     const localPct = parseFloat(lostLocal) || 0;
     const typedProfPct = parseFloat(lostProf) || 0;
@@ -8923,7 +8929,7 @@ function SenasSection() {
       toast.error("Error guardando señas: " + error.message);
       return;
     }
-    toast.success("Configuración de señas guardada correctamente");
+    if (showToast) toast.success("Configuración de señas guardada correctamente");
   }, [
     businessId,
     selectedSvcs,
@@ -8942,9 +8948,11 @@ function SenasSection() {
 
   React.useEffect(() => {
     const handler = (e: Event) => {
-      const section = (e as CustomEvent).detail?.section;
+      const detail = (e as CustomEvent).detail ?? {};
+      const section = detail?.section;
+      const silent = detail?.silent === true;
       if (!section || section === "senas" || section === "servicios")
-        saveRef.current();
+        saveRef.current(!silent);
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
@@ -9149,7 +9157,7 @@ function SettingsPage() {
   function saveCurrentSection() {
     window.dispatchEvent(
       new CustomEvent("clippr:save-settings", {
-        detail: { section: active },
+        detail: { section: active, silent: true },
       }),
     );
   }
@@ -9414,7 +9422,7 @@ function ClientesSection() {
       });
   }, [businessId]);
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (showToast = true) => {
     if (!businessId) return;
     try {
       const { data: existingRow } = await supabase
@@ -9436,7 +9444,7 @@ function ClientesSection() {
           { onConflict: "business_id" },
         );
       if (result.error) throw new Error(result.error.message);
-      toast.success("Configuración de clientes guardada");
+      if (showToast) toast.success("Configuración de clientes guardada");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -9449,8 +9457,10 @@ function ClientesSection() {
   }, [save]);
   useEffect(() => {
     const handler = (e: Event) => {
-      const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "clientes") void saveRef.current();
+      const detail = (e as CustomEvent).detail ?? {};
+      const section = detail?.section;
+      const silent = detail?.silent === true;
+      if (!section || section === "clientes") void saveRef.current(!silent);
     };
     window.addEventListener("clippr:save-settings", handler);
     return () => window.removeEventListener("clippr:save-settings", handler);
