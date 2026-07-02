@@ -36,8 +36,6 @@ import {
   Phone,
   Globe,
   X,
-  ExternalLink,
-  Share2,
   FileText,
   Image as ImageIcon,
   Building2,
@@ -48,23 +46,17 @@ import {
   AlarmClock,
   Plus,
   Trash2,
-  Scissors,
-  ChevronUp,
   ChevronDown,
   Mail,
   Instagram,
   GripVertical,
   Zap,
-  Eye,
   Banknote,
   Landmark,
   CreditCard,
   Wallet,
   PiggyBank,
-  ArrowLeftRight,
   Rocket,
-  Crown,
-  Shield,
   Sparkles,
   ChevronRight,
   User as UserIcon,
@@ -79,9 +71,6 @@ import {
   XCircle,
   Star,
   ShieldCheck,
-  Handshake,
-  HandCoins,
-  Palette,
   Moon,
   Sun,
   Loader2,
@@ -576,388 +565,6 @@ const ADDITIONAL_INFO_OPTIONS = [
   "🐶 Pet friendly",
 ];
 const MAX_ADDITIONAL_INFO = 12;
-
-function LandingSection() {
-  const { businessId } = useAuth();
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const [colors, setColors] = React.useState(LANDING_DEFAULTS);
-  const [theme, setTheme] = React.useState<LandingTheme>(LANDING_THEME_DEFAULT);
-  const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
-  const [newAdditionalInfo, setNewAdditionalInfo] = React.useState("");
-
-  React.useEffect(() => {
-    if (!businessId) {
-      setLoading(false);
-      return;
-    }
-    supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const schedule = (data?.schedule ?? {}) as Record<string, any>;
-        const c = (schedule._branding?.colors ?? {}) as Record<string, string>;
-        setColors({
-          primary: normalizeHex(
-            c.primary,
-            normalizeHex(c.secondary, LANDING_DEFAULTS.primary),
-          ),
-          secondary: normalizeHex(c.secondary, LANDING_DEFAULTS.secondary),
-          accent: normalizeHex(c.accent, LANDING_DEFAULTS.accent),
-          buttonText: normalizeHex(c.buttonText, LANDING_DEFAULTS.buttonText),
-        });
-        const savedTheme = schedule._branding?.theme;
-        setTheme(savedTheme === "light" ? "light" : "dark");
-        const savedAdditional = Array.isArray(
-          schedule._branding?.additional_info,
-        )
-          ? schedule._branding.additional_info
-          : [];
-        const cleanAdditional = savedAdditional
-          .filter(
-            (item: unknown): item is string =>
-              typeof item === "string" && item.trim().length > 0,
-          )
-          .slice(0, MAX_ADDITIONAL_INFO);
-        setAdditionalInfo(
-          cleanAdditional.length > 0
-            ? cleanAdditional
-            : ADDITIONAL_INFO_OPTIONS,
-        );
-        setLoading(false);
-      });
-  }, [businessId]);
-
-  async function save(showToast = true) {
-    if (!businessId) return;
-    setSaving(true);
-    const next = {
-      primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
-      secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
-      accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
-      buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
-    };
-    // Merge sin pisar el resto de _branding.
-    const { data: row, error: loadErr } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle();
-    if (loadErr) {
-      setSaving(false);
-      return toast.error(
-        "No se pudo leer la configuración: " + loadErr.message,
-      );
-    }
-    const schedule = (row?.schedule ?? {}) as Record<string, unknown>;
-    const branding = (schedule._branding ?? {}) as Record<string, unknown>;
-    const nextAdditionalInfo = additionalInfo
-      .filter((item) => item.trim().length > 0)
-      .slice(0, 12);
-    const nextSchedule = {
-      ...schedule,
-      _branding: {
-        ...branding,
-        colors: next,
-        theme,
-        additional_info: nextAdditionalInfo,
-      },
-    };
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert(
-        { business_id: businessId, schedule: nextSchedule },
-        { onConflict: "business_id" },
-      );
-    setSaving(false);
-    if (error) return toast.error("No se pudo guardar: " + error.message);
-    setColors(next);
-    toast.success("Landing guardada");
-  }
-
-  function updateAdditionalInfo(index: number, value: string) {
-    setAdditionalInfo((current) =>
-      current
-        .map((item, i) => (i === index ? value.slice(0, 35) : item))
-        .slice(0, MAX_ADDITIONAL_INFO),
-    );
-  }
-
-  function removeAdditionalInfo(index: number) {
-    setAdditionalInfo((current) => current.filter((_, i) => i !== index));
-  }
-
-  function addAdditionalInfo() {
-    const value = newAdditionalInfo.trim().slice(0, 35);
-    if (!value) return;
-    if (additionalInfo.length >= MAX_ADDITIONAL_INFO) {
-      toast.error("Máximo 12 beneficios.");
-      return;
-    }
-    setAdditionalInfo((current) =>
-      [...current, value].slice(0, MAX_ADDITIONAL_INFO),
-    );
-    setNewAdditionalInfo("");
-  }
-
-  const fields: { key: keyof typeof colors; label: string; desc: string }[] = [
-    {
-      key: "primary",
-      label: "Color principal",
-      desc: "Color base de la portada, glows y fondo ambiental.",
-    },
-    {
-      key: "accent",
-      label: "Color de resaltado",
-      desc: "Botones, estados, acciones principales, links, íconos e indicadores.",
-    },
-    {
-      key: "buttonText",
-      label: "Texto de botones",
-      desc: "Color de la letra dentro de los botones principales.",
-    },
-  ];
-
-  if (loading) {
-    return (
-      <div className="grid place-items-center py-20">
-        <ClipprLoader size="screen" delayMs={130} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
-        <h2
-          id="pagina-reservas-colores"
-          className="scroll-mt-28 text-lg font-semibold"
-        >
-          Colores
-        </h2>
-        <p className="mt-1 text-sm text-white/55">
-          Personalizá modo claro/oscuro, gradientes, glows, color de resaltado,
-          texto de botones y beneficios del local.
-        </p>
-
-        <div className="mt-5 space-y-4">
-          {fields.map(({ key, label, desc }) => (
-            <div key={key} className="flex items-center gap-4">
-              <label
-                className="relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/15"
-                style={{ background: colors[key] }}
-              >
-                <input
-                  type="color"
-                  value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
-                  onChange={(e) =>
-                    setColors((c) => ({ ...c, [key]: e.target.value }))
-                  }
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                />
-              </label>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{label}</div>
-                <div className="text-xs text-white/50">{desc}</div>
-              </div>
-              <input
-                type="text"
-                value={colors[key]}
-                onChange={(e) =>
-                  setColors((c) => ({ ...c, [key]: e.target.value }))
-                }
-                spellCheck={false}
-                className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-white/25"
-                placeholder="#000000"
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 border-t border-white/10 pt-5">
-          <h3 className="text-sm font-semibold">Modo de la página pública</h3>
-          <p className="mt-1 text-xs text-white/50">
-            Elegí si el perfil público y la reserva online se ven en modo oscuro
-            o claro.
-          </p>
-          <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
-            {(["dark", "light"] as LandingTheme[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setTheme(mode)}
-                className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition",
-                  theme === mode
-                    ? "bg-white text-slate-950 shadow-sm"
-                    : "bg-transparent text-white/65 hover:bg-white/10 hover:text-white",
-                )}
-              >
-                {mode === "dark" ? (
-                    <>
-                      <Moon className="h-3.5 w-3.5" />
-                      Modo oscuro
-                    </>
-                  ) : (
-                    <>
-                      <Sun className="h-3.5 w-3.5" />
-                      Modo claro
-                    </>
-                  )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-6 border-t border-white/10 pt-5">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold">Beneficios del negocio</h3>
-            </div>
-            <span className="text-xs font-medium text-white/45">
-              {additionalInfo.length}/{MAX_ADDITIONAL_INFO}
-            </span>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {additionalInfo.slice(0, MAX_ADDITIONAL_INFO).map((item, index) => (
-              <span
-                key={`${index}-${item}`}
-                className="inline-flex items-center gap-2 rounded-full bg-white/[0.075] px-3 py-2 ring-1 ring-white/10"
-              >
-                <input
-                  value={item}
-                  maxLength={35}
-                  onChange={(e) => updateAdditionalInfo(index, e.target.value)}
-                  className="w-48 max-w-[50vw] bg-transparent text-sm font-medium outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeAdditionalInfo(index)}
-                  className="text-red-300 transition hover:text-red-200"
-                  aria-label="Eliminar"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-3 flex gap-2">
-            <input
-              value={newAdditionalInfo}
-              maxLength={35}
-              onChange={(e) => setNewAdditionalInfo(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addAdditionalInfo();
-                }
-              }}
-              placeholder="Agregar beneficio..."
-              disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
-              className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 outline-none focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-45"
-            />
-            <button
-              type="button"
-              onClick={addAdditionalInfo}
-              disabled={additionalInfo.length >= MAX_ADDITIONAL_INFO}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Agregar
-            </button>
-          </div>
-          {additionalInfo.length >= MAX_ADDITIONAL_INFO ? (
-            <p className="mt-2 text-xs text-white/45">
-              Llegaste al máximo de 12.
-            </p>
-          ) : null}
-        </div>
-        <div className="mt-5 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
-          >
-            {saving ? "Guardando…" : "Guardar colores"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setColors(LANDING_DEFAULTS)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10"
-          >
-            Restaurar predeterminados
-          </button>
-        </div>
-      </div>
-
-      {/* Vista previa */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
-        <p className="text-sm font-medium text-white/70">Vista previa</p>
-        <div
-          className="mt-3 overflow-hidden rounded-2xl border p-6"
-          style={{
-            borderColor:
-              theme === "light"
-                ? "rgba(15,23,42,0.10)"
-                : "rgba(255,255,255,0.10)",
-            color: theme === "light" ? "#0f172a" : "#fff",
-            background: `radial-gradient(circle at top left, color-mix(in oklch, ${colors.primary} 34%, transparent), transparent 40%), radial-gradient(circle at top right, color-mix(in oklch, ${colors.primary} 28%, transparent), transparent 40%), ${theme === "light" ? "#f8fafc" : "#08070c"}`,
-          }}
-        >
-          <div className="relative">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -inset-1 rounded-[2rem] opacity-[0.14] blur-2xl"
-              style={{
-                background: `radial-gradient(60% 70% at 18% 0%, ${colors.primary}, transparent 70%), radial-gradient(55% 70% at 100% 100%, ${colors.primary}, transparent 70%)`,
-              }}
-            />
-            <div
-              className="relative rounded-3xl border p-4 shadow-xl"
-              style={{
-                borderColor:
-                  theme === "light"
-                    ? "rgba(15,23,42,0.10)"
-                    : "rgba(255,255,255,0.10)",
-                background:
-                  theme === "light"
-                    ? "rgba(255,255,255,0.88)"
-                    : "rgba(255,255,255,0.04)",
-                color: theme === "light" ? "#0f172a" : "#fff",
-              }}
-            >
-              <h3 className="text-base font-semibold">Reservá tu turno</h3>
-              <button
-                type="button"
-                className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold"
-                style={{
-                  background: colors.accent,
-                  color: colors.buttonText,
-                  boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)`,
-                }}
-              >
-                Reservar turno
-              </button>
-              <div className="mt-3 flex items-center gap-2 text-sm">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: colors.accent }}
-                />
-                <span style={{ color: colors.accent, fontWeight: 600 }}>
-                  Abierto ahora
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function normalizeWhatsAppArgentina(phone: string): string {
   let raw = String(phone ?? "").replace(/\D/g, "");
@@ -1492,8 +1099,9 @@ function BrandingSection() {
     }
   }
 
-  async function save() {
+  async function save(showToast = true) {
     if (!businessId) return;
+    if (!showToast) reportSaveStatus("saving");
     setSaving(true);
     let logo_url = data.logo_url;
     if (logoFile) {
@@ -1648,6 +1256,7 @@ function BrandingSection() {
       new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }),
     );
     if (showToast) toast.success("Guardado");
+    else reportSaveStatus("saved");
   }
 
   const saveRef = React.useRef(save);
@@ -2662,12 +2271,14 @@ function Toggle({
 function SectionCard({
   label,
   children,
+  id,
 }: {
   label: string;
   children: React.ReactNode;
+  id?: string;
 }) {
   return (
-    <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+    <div id={id} className="glass rounded-2xl p-4 ring-1 ring-white/5">
       {label ? (
         <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-4">
           {label}
@@ -2831,8 +2442,7 @@ function HorariosSection() {
           }
         }
         setLoading(false);
-      })
-      .catch(() => {
+      }, () => {
         if (!cancelled) setLoading(false);
       });
     return () => {
@@ -2857,8 +2467,8 @@ function HorariosSection() {
       return;
     }
 
+    if (!showToast) reportSaveStatus("saving");
     setSaving(true);
-
     // IMPORTANTE: leer el schedule existente y MERGEAR. Antes se reconstruía
     // desde cero y el upsert pisaba el resto de sub-configs (_employeeSchedules,
     // _branding, _caja, especiales, etc.).
@@ -2895,6 +2505,7 @@ function HorariosSection() {
     setSaving(false);
     if (error) return toast.error("Error guardando horarios: " + error.message);
     if (showToast) toast.success("Guardado");
+    else reportSaveStatus("saved");
   }
 
   const saveScheduleRef = useRef(saveSchedule);
@@ -3909,6 +3520,7 @@ function EquipoSection() {
 
   async function saveRolePermissions(showToast = true) {
     if (!businessId) return;
+    if (!showToast) reportSaveStatus("saving");
 
     for (const item of pendingProfessionals) {
       const payload = item.payload;
@@ -4095,6 +3707,7 @@ function EquipoSection() {
     setPendingProfessionals([]);
     await load();
     if (showToast) toast.success("Equipo guardado correctamente");
+    else reportSaveStatus("saved");
   }
 
   useEffect(() => {
@@ -6331,6 +5944,62 @@ const defaultServiceCategories: string[] = [];
 const serviceCategories = defaultServiceCategories;
 const defaultCatalogCategories = ["Productos", "Bebidas", "Indumentaria"];
 
+// ─────────── Indicador de guardado discreto ───────────
+// Reemplaza los toasts de "Guardado" para autoguardados. Cada guardado en
+// segundo plano dispara este evento en vez de toast.success/toast.error;
+// SaveStatusIndicator (montado una sola vez en SettingsPage) lo escucha y
+// muestra "Guardando…" / "Guardado" abajo a la derecha, desapareciendo solo.
+function reportSaveStatus(status: "saving" | "saved") {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("clippr:save-status", { detail: { status } }),
+  );
+}
+
+function SaveStatusIndicator() {
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const hideTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        { status?: "saving" | "saved" } | undefined;
+      if (!detail?.status) return;
+      if (hideTimerRef.current) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+      setStatus(detail.status);
+      if (detail.status === "saved") {
+        hideTimerRef.current = window.setTimeout(() => setStatus("idle"), 1600);
+      }
+    };
+    window.addEventListener("clippr:save-status", handler);
+    return () => {
+      window.removeEventListener("clippr:save-status", handler);
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  }, []);
+
+  if (status === "idle") return null;
+
+  return (
+    <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-black/80 px-4 py-2 text-xs text-white/80 ring-1 ring-white/10 backdrop-blur-sm animate-fade-up">
+      {status === "saving" ? (
+        <>
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Guardando…
+        </>
+      ) : (
+        <>
+          <Check className="h-3.5 w-3.5 text-emerald-400" />
+          Guardado
+        </>
+      )}
+    </div>
+  );
+}
+
 function markSettingsDirty() {
   // Configuración guarda automáticamente o mediante botones propios de cada panel.
   // No disparamos más el estado global de "cambios sin guardar" para evitar
@@ -7474,6 +7143,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       const silent = detail?.silent === true;
       const mySection = isService ? "servicios" : "catalogo";
       if (!section || section === mySection) {
+        if (silent) reportSaveStatus("saving");
         const items = pendingItemsRef.current;
         const deletes = pendingDeletesRef.current;
         const errors: string[] = [];
@@ -7729,6 +7399,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 ? "Servicios guardados correctamente"
                 : "Catálogo guardado correctamente",
             );
+          } else {
+            reportSaveStatus("saved");
           }
           load();
         }
@@ -8812,6 +8484,7 @@ function CajaSection() {
     showToast = true,
   ) {
     if (!businessId) return toast.error("No se encontró el negocio");
+    if (!showToast) reportSaveStatus("saving");
     const { data: existingRow } = await supabase
       .from("business_settings")
       .select("schedule")
@@ -8838,6 +8511,7 @@ function CajaSection() {
     if (error) return toast.error("Error guardando: " + error.message);
     window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
     if (showToast) toast.success("Guardado");
+    else reportSaveStatus("saved");
   }
 
   function updateMethod(methodId: keyof typeof defaultMethods, value: boolean) {
@@ -9053,6 +8727,7 @@ function SenasSection() {
 
   const save = React.useCallback(async (showToast = true) => {
     if (!businessId) return;
+    if (!showToast) reportSaveStatus("saving");
     const localPct = parseFloat(lostLocal) || 0;
     const typedProfPct = parseFloat(lostProf) || 0;
     const parsedAmount = parseFloat(amountValue) || 0;
@@ -9088,6 +8763,7 @@ function SenasSection() {
       return;
     }
     if (showToast) toast.success("Configuración de señas guardada correctamente");
+    else reportSaveStatus("saved");
   }, [
     businessId,
     selectedSvcs,
@@ -9331,6 +9007,7 @@ function SettingsPage() {
 
   return (
     <AppShell>
+      <SaveStatusIndicator />
       <div className="settings-compact-page -mt-4 sm:-mt-5 lg:-mt-6">
         <Topbar
           title="Configuración"
@@ -9582,6 +9259,7 @@ function ClientesSection() {
 
   const save = useCallback(async (showToast = true) => {
     if (!businessId) return;
+    if (!showToast) reportSaveStatus("saving");
     try {
       const { data: existingRow } = await supabase
         .from("business_settings")
@@ -9603,6 +9281,7 @@ function ClientesSection() {
         );
       if (result.error) throw new Error(result.error.message);
       if (showToast) toast.success("Configuración de clientes guardada");
+      else reportSaveStatus("saved");
     } catch (e) {
       toast.error((e as Error).message);
     }
