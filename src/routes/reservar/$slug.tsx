@@ -253,6 +253,13 @@ function PublicBookingPage() {
   const [businessSpecial, setBusinessSpecial] = React.useState<SpecialDateMap>({});
   const [employeeSpecial, setEmployeeSpecial] = React.useState<EmployeeSpecialDateMap>({});
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
+  // Intervalo de turnos y anticipación máxima configurados en Configuración →
+  // Horarios (business_settings.schedule._settings). Los defaults acá abajo
+  // son solo el fallback antes de que responda la primera consulta.
+  const [reservationSettings, setReservationSettings] = React.useState<{
+    interval: number;
+    maxAdvance: number;
+  }>({ interval: 30, maxAdvance: 10 });
   const [recommendedProducts, setRecommendedProducts] = React.useState<RecommendedProduct[]>([]);
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
 
@@ -305,12 +312,24 @@ function PublicBookingPage() {
         employees,
         selectedEmployeeId,
         totalDuration,
-        10,
+        Math.max(1, reservationSettings.maxAdvance || 10),
         employeeSchedules,
         businessSpecial,
         employeeSpecial,
+        reservationSettings.interval || 30,
       ),
-    [schedule, appointments, employees, selectedEmployeeId, totalDuration, employeeSchedules, businessSpecial, employeeSpecial],
+    [
+      schedule,
+      appointments,
+      employees,
+      selectedEmployeeId,
+      totalDuration,
+      employeeSchedules,
+      businessSpecial,
+      employeeSpecial,
+      reservationSettings.maxAdvance,
+      reservationSettings.interval,
+    ],
   );
   const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
@@ -350,8 +369,6 @@ function PublicBookingPage() {
         }
 
         const businessId = businessData.id as string;
-        const start = startOfDay(new Date()).toISOString();
-        const end = addMinutes(startOfDay(new Date()), 14 * 24 * 60).toISOString();
 
         const settingsPromise = supabase
           .from("public_booking_settings")
@@ -369,8 +386,22 @@ function PublicBookingPage() {
             const earlyBranding =
               earlySchedule && typeof earlySchedule === "object" ? ((earlySchedule as Record<string, any>)._branding ?? {}) : {};
             setResolvedTheme(earlyBranding.theme === "light" ? "light" : "dark");
-          })
-          .catch(() => {});
+          }, () => {});
+
+        // La ventana de turnos ocupados debe cubrir TODA la anticipación máxima
+        // configurada (Configuración → Horarios → _settings.maxAdvance), no un
+        // valor fijo — si no, los días más allá de ese valor fijo se muestran
+        // como libres aunque tengan turnos reales.
+        const settingsResForRange = await settingsPromise;
+        const scheduleForRange = settingsResForRange.error ? null : ((settingsResForRange.data as any)?.schedule ?? null);
+        const rawSettingsForRange =
+          scheduleForRange && typeof scheduleForRange === "object"
+            ? ((scheduleForRange as Record<string, any>)._settings ?? {})
+            : {};
+        const maxAdvanceDays = Math.max(1, Number(rawSettingsForRange.maxAdvance) || 10);
+
+        const start = startOfDay(new Date()).toISOString();
+        const end = addMinutes(startOfDay(new Date()), maxAdvanceDays * 24 * 60).toISOString();
 
         const [employeesWithRoleRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
           supabase
@@ -452,6 +483,17 @@ function PublicBookingPage() {
           setServices(visibleServices);
           setAppointments((appointmentsRes.error ? [] : (appointmentsRes.data ?? [])) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
+
+          // Intervalo de turnos y anticipación máxima: siempre desde lo
+          // configurado en el negocio, nunca un valor fijo.
+          const rawReservationSettings =
+            settingsSchedule && typeof settingsSchedule === "object"
+              ? ((settingsSchedule as Record<string, any>)._settings ?? {})
+              : {};
+          setReservationSettings({
+            interval: Number(rawReservationSettings.interval) || 30,
+            maxAdvance: Math.max(1, Number(rawReservationSettings.maxAdvance) || 10),
+          });
 
           // Horarios individuales de profesionales y horarios especiales (negocio
           // y profesional). Misma estructura que usa la Agenda; así la reserva
@@ -1030,6 +1072,7 @@ function PublicBookingPage() {
                           type="date"
                           className="absolute right-0 top-12 z-20 rounded-2xl border border-white/10 bg-white p-3 text-sm text-zinc-950 shadow-2xl"
                           min={formatInputDate(new Date())}
+                          max={formatInputDate(addMinutes(new Date(), (Math.max(1, reservationSettings.maxAdvance) - 1) * 24 * 60))}
                           value={selectedDay ? formatInputDate(selectedDay.date) : ""}
                           onChange={(event) => {
                             const index = availableDays.findIndex((day) => formatInputDate(day.date) === event.target.value);
@@ -1037,9 +1080,21 @@ function PublicBookingPage() {
                               setSelectedDayIndex(index);
                               setSelectedSlot(null);
                               setShowDatePicker(false);
-                            } else {
-                              toast.error("Ese día no tiene horarios disponibles.");
+                              return;
                             }
+                            // No hay slots ese día específico: puede ser porque el
+                            // negocio está cerrado / sin cupo (día dentro del rango
+                            // permitido), o porque la fecha está fuera del rango de
+                            // anticipación configurado. Distinguimos ambos casos en
+                            // vez de mostrar siempre el mismo mensaje genérico.
+                            const withinConfiguredRange = slots.some(
+                              (day) => formatInputDate(day.date) === event.target.value,
+                            );
+                            toast.error(
+                              withinConfiguredRange
+                                ? "Ese día no tiene horarios disponibles."
+                                : "Esa fecha está fuera del rango de anticipación permitido para reservar.",
+                            );
                           }}
                         />
                       ) : null}
