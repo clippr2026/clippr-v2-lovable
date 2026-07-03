@@ -259,9 +259,9 @@ export function RejectedClientsButton({
           className,
         )}
         style={{
-          background: "oklch(0.72 0.16 55 / 0.12)",
-          boxShadow: "0 0 0 1px oklch(0.72 0.16 55 / 0.30)",
-          color: "oklch(0.78 0.16 55)",
+          background: "rgba(245, 158, 11, 0.14)",
+          boxShadow: "0 0 0 1px rgba(245, 158, 11, 0.35)",
+          color: "#FBBF24",
         }}
         title="Clientes rechazados del día"
       >
@@ -280,7 +280,7 @@ export function RejectedClientsButton({
               <div className="flex items-center justify-between gap-2 border-b border-white/8 px-5 py-3.5">
                 <div>
                   <div className="text-sm font-bold text-white">Clientes rechazados</div>
-                  <div className="text-[11px] text-white/45">Día seleccionado en la Agenda</div>
+                  <div className="text-[11px] text-white/45">No se pudo atender al cliente (online o presencial).</div>
                 </div>
                 <button
                   type="button"
