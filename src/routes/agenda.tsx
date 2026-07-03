@@ -1071,9 +1071,9 @@ function AgendaPage() {
                 [
                   "confirmed",
                   "Confirmados",
-                  "oklch(0.72 0.26 305)",
-                  "oklch(0.72 0.26 305 / 0.12)",
-                  "oklch(0.72 0.26 305 / 0.3)",
+                  "#6366F1",
+                  "rgba(99,102,241,.14)",
+                  "rgba(99,102,241,.35)",
                 ],
                 [
                   "charged",
