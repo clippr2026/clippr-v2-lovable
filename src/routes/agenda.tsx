@@ -93,13 +93,13 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
       dot: "oklch(0.88 0.2 75)",
     },
     charged: {
-      label: "Cobrar",
+      label: "Cobrado",
       bg: "oklch(0.38 0.2 150 / 0.55)",
       border: "oklch(0.76 0.2 150)",
       dot: "oklch(0.76 0.2 150)",
     },
     cancelled: {
-      label: "Cancelar",
+      label: "Cancelado",
       bg: "oklch(0.3 0.02 270 / 0.38)",
       border: "oklch(0.62 0.03 270)",
       dot: "oklch(0.76 0.02 270)",
@@ -3115,11 +3115,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
   const statusLabel =
     appointment.status === "charged"
-      ? "Cobrar"
+      ? "Cobrado"
       : appointment.status === "confirmed"
         ? "Confirmado"
         : appointment.status === "cancelled"
-          ? "Cancelar"
+          ? "Cancelado"
           : appointment.status === "no_show"
             ? "No asistió"
           : appointment.status === "in_service"
@@ -3163,12 +3163,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           />
           <div className="relative space-y-3">
             <div className="flex min-w-0 items-start gap-3 pr-8">
-              <div
-                className="h-12 w-12 shrink-0 rounded-2xl border-2 shadow-[0_0_20px_rgba(0,0,0,0.25)]"
-                style={{ background: withAlpha(meta.dot, 0.18), borderColor: meta.border, boxShadow: `0 0 18px ${withAlpha(meta.dot,0.22)}` }}
-              >
-                
-              </div>
               <div className="min-w-0 flex-1 pt-0.5">
                 <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
                   {appointment.status === "blocked"
@@ -3178,7 +3172,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pl-[60px] pr-8">
+            <div className="flex items-center justify-between gap-2 pr-8">
               <div
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
                 style={{ color: meta.dot }}
@@ -3215,17 +3209,29 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         </SheetHeader>
 
         <div className="space-y-3 p-4 pt-5">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <div
+            className="rounded-2xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+            style={{
+              background: meta.bg,
+              borderColor: meta.border,
+              boxShadow: `0 0 0 1px ${meta.border}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
+            }}
+          >
             <div className="space-y-2.5">
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  <ServiceImage
-                    src={serviceImageUrl}
-                    alt={appointment.service_name || "Servicio"}
-                    position={serviceImagePosition}
-                    className="h-14 w-14 rounded-xl ring-1 ring-white/10"
-                    fallback={<Scissors className="h-4 w-4 shrink-0 text-white/45" />}
-                  />
+                  <div
+                    className="grid h-14 w-14 shrink-0 place-items-center rounded-xl overflow-hidden"
+                    style={{ boxShadow: `0 0 0 1px ${meta.border}, 0 10px 22px -18px ${meta.dot}` }}
+                  >
+                    <ServiceImage
+                      src={serviceImageUrl}
+                      alt={appointment.service_name || "Servicio"}
+                      position={serviceImagePosition}
+                      className="h-full w-full rounded-xl"
+                      fallback={<Scissors className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />}
+                    />
+                  </div>
                   <div className="truncate text-base font-semibold leading-tight">
                     {appointment.service_name || "Servicio"}
                   </div>
