@@ -63,6 +63,31 @@ function localTime(d: Date): string {
   return `${h}:${m}:${s}`;
 }
 
+async function resolveInsertBusinessId(providedBusinessId: string): Promise<string> {
+  // Siempre intentamos confirmar el negocio contra el usuario autenticado.
+  // Esto evita enviar un business_id viejo/incorrecto y chocar con RLS.
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user?.id) return providedBusinessId;
+
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("business_id")
+    .eq("auth_user_id", user.id)
+    .limit(1);
+
+  if (error) {
+    console.warn("[rejected_clients] No se pudo validar business_id contra team_members:", error.message);
+    return providedBusinessId;
+  }
+
+  const resolvedBusinessId = data?.[0]?.business_id as string | null | undefined;
+  return resolvedBusinessId || providedBusinessId;
+}
+
 /** Rechazos de un día puntual (para el indicador + historial). */
 export function useRejectedByDay(businessId: string | null | undefined, dateISO: string) {
   return useQuery({
@@ -125,8 +150,10 @@ export function useInsertRejectedClient(businessId: string | null | undefined) {
         /* sin email disponible */
       }
 
+      const resolvedBusinessId = await resolveInsertBusinessId(businessId);
+
       const row = {
-        business_id: businessId,
+        business_id: resolvedBusinessId,
         rejected_date: localDateISO(when),
         rejected_time: localTime(when),
         weekday: when.getDay(),
@@ -141,13 +168,22 @@ export function useInsertRejectedClient(businessId: string | null | undefined) {
         recorded_by: recordedBy,
       };
 
-      const { data, error } = await supabase
-        .from("rejected_clients")
-        .insert(row)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as RejectedClient;
+      console.info("[rejected_clients] insert payload", row);
+
+      // Importante: no encadenar .select().single() después del insert.
+      // Con RLS, el INSERT puede estar permitido pero el RETURNING/SELECT posterior
+      // puede devolver 403. Para esta acción alcanza con guardar y luego invalidar queries.
+      const { error } = await supabase.from("rejected_clients").insert(row);
+      if (error) {
+        console.error("[rejected_clients] insert error", error);
+        throw new Error(error.message || "No se pudo registrar el cliente rechazado.");
+      }
+
+      return {
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        ...row,
+      } as RejectedClient;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rejected-clients"] });
