@@ -259,9 +259,9 @@ export function RejectedClientsButton({
           className,
         )}
         style={{
-          background: "oklch(0.72 0.25 300 / 0.12)",
-          boxShadow: "0 0 0 1px oklch(0.72 0.25 300 / 0.30)",
-          color: "oklch(0.78 0.20 300)",
+          background: "rgba(245, 158, 11, 0.14)",
+          boxShadow: "0 0 0 1px rgba(245, 158, 11, 0.35)",
+          color: "#FBBF24",
         }}
         title="Clientes rechazados del día"
       >
