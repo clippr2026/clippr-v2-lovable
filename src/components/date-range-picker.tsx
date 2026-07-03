@@ -79,36 +79,49 @@ function MiniCalendar({ month, year, from, to, hoverDate, onSelectDay, onHoverDa
       <div className="grid grid-cols-7 gap-px">
         {cells.map((d, i) => {
           if (!d) return <div key={i} className="h-8" />;
-          const edge = isEdge(d);
-          const inR  = inRange(d);
+          const disabled = d > today;
+          const edge = !disabled && isEdge(d);
+          const inR  = !disabled && inRange(d);
           const isT  = d === today;
-          const fromEdge = isFrom(d);
-          const toEdge   = isTo(d);
+          const fromEdge = !disabled && isFrom(d);
+          const toEdge   = !disabled && isTo(d);
           return (
             <button
               key={d}
               type="button"
-              onMouseEnter={() => onHoverDay(d)}
+              disabled={disabled}
+              aria-disabled={disabled}
+              onMouseEnter={() => !disabled && onHoverDay(d)}
               onMouseLeave={() => onHoverDay(null)}
-              onClick={() => onSelectDay(d)}
+              onClick={() => !disabled && onSelectDay(d)}
               className={cn(
                 "h-8 w-full text-xs font-medium transition-all relative",
-                edge ? "rounded-lg z-10" : inR ? "rounded-none" : "rounded-lg",
+                disabled
+                  ? "cursor-not-allowed rounded-lg opacity-25"
+                  : edge
+                    ? "rounded-lg z-10"
+                    : inR
+                      ? "rounded-none"
+                      : "rounded-lg hover:bg-white/[0.06]",
               )}
               style={{
-                background: edge
-                  ? "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))"
-                  : inR
-                    ? "oklch(0.65 0.24 255 / 0.18)"
-                    : undefined,
-                color: edge
-                  ? "#fff"
-                  : inR
-                    ? "rgba(255,255,255,0.9)"
-                    : isT
-                      ? "oklch(0.72 0.24 255)"
-                      : "rgba(255,255,255,0.8)",
-                boxShadow: isT && !edge ? "inset 0 0 0 1px oklch(0.65 0.24 255 / 0.5)" : undefined,
+                background: disabled
+                  ? "transparent"
+                  : edge
+                    ? "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))"
+                    : inR
+                      ? "oklch(0.65 0.24 255 / 0.18)"
+                      : undefined,
+                color: disabled
+                  ? "rgba(255,255,255,0.18)"
+                  : edge
+                    ? "#fff"
+                    : inR
+                      ? "rgba(255,255,255,0.9)"
+                      : isT
+                        ? "oklch(0.72 0.24 255)"
+                        : "rgba(255,255,255,0.8)",
+                boxShadow: !disabled && isT && !edge ? "inset 0 0 0 1px oklch(0.65 0.24 255 / 0.5)" : undefined,
                 borderRadius: fromEdge && !toEdge ? "8px 0 0 8px"
                   : toEdge && !fromEdge ? "0 8px 8px 0"
                   : edge ? "8px" : inR ? "0" : "8px",
@@ -151,6 +164,8 @@ export function DateRangePicker({ from, to, onChange, className }: {
   }, [open]);
 
   function handleSelectDay(d: string) {
+    const today = toISO(startOfDay(new Date()));
+    if (d > today) return;
     if (step === "from") {
       setTempFrom(d);
       setStep("to");
@@ -171,12 +186,24 @@ export function DateRangePicker({ from, to, onChange, className }: {
     setViewMonth(({ month, year }) => month === 0 ? { month: 11, year: year - 1 } : { month: month - 1, year });
   }
   function nextMonth() {
-    setViewMonth(({ month, year }) => month === 11 ? { month: 0, year: year + 1 } : { month: month + 1, year });
+    setViewMonth(({ month, year }) => {
+      const today = startOfDay(new Date());
+      const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const candidate = month === 11 ? { month: 0, year: year + 1 } : { month: month + 1, year };
+      const candidateMonth = new Date(candidate.year, candidate.month, 1);
+      return candidateMonth > currentMonth ? { month, year } : candidate;
+    });
   }
 
   const displayFrom = fromISO(from).toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
   const displayTo   = fromISO(to).toLocaleDateString("es-AR",   { day: "2-digit", month: "short", year: "numeric" });
   const monthLabel  = new Date(viewMonth.year, viewMonth.month, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  const todayForNav = startOfDay(new Date());
+  const nextMonthDate = viewMonth.month === 11
+    ? new Date(viewMonth.year + 1, 0, 1)
+    : new Date(viewMonth.year, viewMonth.month + 1, 1);
+  const nextMonthDisabled =
+    nextMonthDate > new Date(todayForNav.getFullYear(), todayForNav.getMonth(), 1);
 
   // During second-click selection: show tempFrom as from, null as to (range preview via hover)
   const calFrom = step === "to" ? tempFrom : from;
@@ -246,10 +273,18 @@ export function DateRangePicker({ from, to, onChange, className }: {
               <button
                 type="button"
                 onClick={nextMonth}
-                className="h-7 w-7 rounded-lg flex items-center justify-center transition"
+                disabled={nextMonthDisabled}
+                className="h-7 w-7 rounded-lg flex items-center justify-center transition disabled:cursor-not-allowed disabled:opacity-25"
                 style={{ color: "rgba(255,255,255,0.4)" }}
-                onMouseEnter={e => { (e.target as HTMLElement).style.background = "rgba(255,255,255,0.07)"; (e.target as HTMLElement).style.color = "white"; }}
-                onMouseLeave={e => { (e.target as HTMLElement).style.background = ""; (e.target as HTMLElement).style.color = "rgba(255,255,255,0.4)"; }}
+                onMouseEnter={e => {
+                  if (nextMonthDisabled) return;
+                  (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.07)";
+                  (e.currentTarget as HTMLElement).style.color = "white";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = "";
+                  (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.4)";
+                }}
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
