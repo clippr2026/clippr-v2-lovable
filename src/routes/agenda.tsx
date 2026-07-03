@@ -99,7 +99,7 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
       dot: "oklch(0.76 0.2 150)",
     },
     cancelled: {
-      label: "Cancelar",
+      label: "Cancelado",
       bg: "oklch(0.3 0.02 270 / 0.38)",
       border: "oklch(0.62 0.03 270)",
       dot: "oklch(0.76 0.02 270)",
@@ -3194,6 +3194,28 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
 
               <div className="flex items-center gap-1.5">
+                {whatsappHref && (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="WhatsApp"
+                    className="inline-flex h-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 text-xs text-white/72 transition hover:bg-white/[0.1] hover:text-white"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                  </a>
+                )}
+
+                {email && (
+                  <a
+                    href={`mailto:${email}`}
+                    aria-label="Mail"
+                    className="inline-flex h-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 text-xs text-white/72 transition hover:bg-white/[0.1] hover:text-white"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                  </a>
+                )}
+
                 <Button
                   size="sm"
                   variant="secondary"
@@ -3574,32 +3596,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           )}
 
           <div className="space-y-2 text-sm">
-            {phone && (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.028] px-3 py-2.5 min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Phone className="h-4 w-4 shrink-0 text-white/38" />
-                  <div className="truncate text-white/85 text-[13px]">{phone}</div>
-                </div>
-                {whatsappHref && (
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="WhatsApp"
-                    className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full border border-white/10 bg-white/[0.035] text-white/70 hover:bg-white/[0.07] hover:text-white transition px-3 text-[12px] font-medium"
-                  >
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    WhatsApp
-                  </a>
-                )}
-              </div>
-            )}
-            {email && (
-              <div className="flex items-center gap-2 px-1 py-1.5 min-w-0">
-                <Mail className="h-4 w-4 shrink-0 text-white/38" />
-                <div className="truncate text-white/78 text-[13px]">{email}</div>
-              </div>
-            )}
             {noteText && (
               <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
                 <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">
