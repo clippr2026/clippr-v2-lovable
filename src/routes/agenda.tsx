@@ -3164,13 +3164,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           <div className="relative space-y-3">
             <div className="flex min-w-0 items-start gap-3 pr-8">
               <div
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/10 text-base font-semibold"
-                style={{ background: withAlpha(meta.dot, 0.14), color: meta.dot }}
+                className="h-12 w-12 shrink-0 rounded-2xl border-2 shadow-[0_0_20px_rgba(0,0,0,0.25)]"
+                style={{ background: withAlpha(meta.dot, 0.18), borderColor: meta.border, boxShadow: `0 0 18px ${withAlpha(meta.dot,0.22)}` }}
               >
-                {(appointment.status === "blocked"
-                  ? "B"
-                  : (appointment.client_name || "S")[0]
-                ).toUpperCase()}
+                
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
                 <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
