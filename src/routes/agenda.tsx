@@ -99,7 +99,7 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
       dot: "oklch(0.76 0.2 150)",
     },
     cancelled: {
-      label: "Cancelado",
+      label: "Cancelar",
       bg: "oklch(0.3 0.02 270 / 0.38)",
       border: "oklch(0.62 0.03 270)",
       dot: "oklch(0.76 0.02 270)",
@@ -3115,11 +3115,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
   const statusLabel =
     appointment.status === "charged"
-      ? "Cobrado"
+      ? "Cobrar"
       : appointment.status === "confirmed"
         ? "Confirmado"
         : appointment.status === "cancelled"
-          ? "Cancelado"
+          ? "Cancelar"
           : appointment.status === "no_show"
             ? "No asistió"
           : appointment.status === "in_service"
@@ -3163,6 +3163,12 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           />
           <div className="relative space-y-3">
             <div className="flex min-w-0 items-start gap-3 pr-8">
+              <div
+                className="h-12 w-12 shrink-0 rounded-2xl border-2 shadow-[0_0_20px_rgba(0,0,0,0.25)]"
+                style={{ background: withAlpha(meta.dot, 0.18), borderColor: meta.border, boxShadow: `0 0 18px ${withAlpha(meta.dot,0.22)}` }}
+              >
+                
+              </div>
               <div className="min-w-0 flex-1 pt-0.5">
                 <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
                   {appointment.status === "blocked"
@@ -3172,7 +3178,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pr-8">
+            <div className="flex items-center justify-between gap-2 pl-[60px] pr-8">
               <div
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
                 style={{ color: meta.dot }}
@@ -3218,29 +3224,29 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             }}
           >
             <div className="space-y-2.5">
-              <div className="flex min-w-0 items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <div
-                    className="grid h-14 w-14 shrink-0 place-items-center rounded-xl overflow-hidden"
-                    style={{ boxShadow: `0 0 0 1px ${meta.border}, 0 10px 22px -18px ${meta.dot}` }}
-                  >
-                    <ServiceImage
-                      src={serviceImageUrl}
-                      alt={appointment.service_name || "Servicio"}
-                      position={serviceImagePosition}
-                      className="h-full w-full rounded-xl"
-                      fallback={<Scissors className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />}
-                    />
-                  </div>
-                  <div className="truncate text-base font-semibold leading-tight">
-                    {appointment.service_name || "Servicio"}
-                  </div>
+              <div className="flex items-start justify-between gap-3">
+                <div
+                  className="grid h-14 w-14 shrink-0 place-items-center rounded-xl overflow-hidden"
+                  style={{ boxShadow: `0 0 0 1px ${meta.border}, 0 10px 22px -18px ${meta.dot}` }}
+                >
+                  <ServiceImage
+                    src={serviceImageUrl}
+                    alt={appointment.service_name || "Servicio"}
+                    position={serviceImagePosition}
+                    className="h-full w-full rounded-xl"
+                    fallback={<Scissors className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />}
+                  />
                 </div>
+
                 {appointment.service_price ? (
                   <div className="shrink-0 text-right text-xl font-display font-semibold tracking-tight">
                     ${Number(appointment.service_price).toLocaleString("es-AR")}
                   </div>
                 ) : null}
+              </div>
+
+              <div className="text-base font-semibold leading-snug text-white/95 break-words">
+                {appointment.service_name || "Servicio"}
               </div>
 
               <div className="flex min-w-0 items-center gap-4 text-sm">
@@ -3320,7 +3326,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold text-white/90">{product.name}</div>
-                      <div className="text-[11px] text-amber-200/45">Producto reservado online</div>
+                      <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
+                        Producto reservado online
+                      </div>
                     </div>
                     {product.priceLabel && (
                       <div className="shrink-0 text-sm font-semibold text-amber-200">
@@ -3335,19 +3344,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 
           {appointmentProducts.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 text-sm">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-white/60">
-                  <span>Servicio</span>
-                  <span>${serviceTotal.toLocaleString("es-AR")}</span>
-                </div>
-                <div className="flex items-center justify-between text-white/60">
-                  <span>Productos</span>
-                  <span>${productsSubtotal.toLocaleString("es-AR")}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-3 text-base font-semibold text-white">
-                  <span>Total del turno</span>
-                  <span className="text-amber-300">${appointmentTotal.toLocaleString("es-AR")}</span>
-                </div>
+              <div className="flex items-center justify-between text-base font-semibold text-white">
+                <span>Total del turno</span>
+                <span className="text-amber-300">${appointmentTotal.toLocaleString("es-AR")}</span>
               </div>
             </div>
           )}
@@ -3365,7 +3364,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     target="_blank"
                     rel="noreferrer"
                     aria-label="WhatsApp"
-                    className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25 hover:bg-emerald-500/25 transition px-3 text-[12px] font-medium"
+                    className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full border border-white/10 bg-white/[0.035] text-white/70 hover:bg-white/[0.07] hover:text-white transition px-3 text-[12px] font-medium"
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
                     WhatsApp
