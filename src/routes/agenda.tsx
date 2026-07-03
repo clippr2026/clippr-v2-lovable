@@ -82,9 +82,9 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
     },
     confirmed: {
       label: "Confirmado",
-      bg: "rgba(139, 92, 246, 0.28)",
-      border: "#8B5CF6",
-      dot: "#A78BFA",
+      bg: "rgba(124, 58, 237, 0.24)",
+      border: "#A78BFA",
+      dot: "#C4B5FD",
     },
     completed: {
       label: "Confirmado",
@@ -3158,11 +3158,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <X className="h-4 w-4" />
           </button>
           <div
-            className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-35 blur-3xl"
+            className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
             style={{ background: meta.dot }}
           />
           <div
-            className="pointer-events-none absolute -top-10 left-4 h-24 w-32 rounded-full opacity-20 blur-2xl"
+            className="pointer-events-none absolute -top-10 left-4 h-24 w-32 rounded-full opacity-12 blur-2xl"
             style={{ background: meta.dot }}
           />
           <div className="relative space-y-3">
@@ -3180,10 +3180,19 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               <div
                 className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
                 style={{
-                  color: meta.dot,
-                  background: withAlpha(meta.dot, 0.13),
-                  border: `1px solid ${withAlpha(meta.dot, 0.36)}`,
-                  boxShadow: `0 0 18px ${withAlpha(meta.dot, 0.18)}, inset 0 0 0 1px rgba(255,255,255,0.04)`,
+                  color: appointment.status === "confirmed" ? "rgba(255,255,255,0.92)" : meta.dot,
+                  background:
+                    appointment.status === "confirmed"
+                      ? "rgba(124, 58, 237, 0.18)"
+                      : withAlpha(meta.dot, 0.13),
+                  border:
+                    appointment.status === "confirmed"
+                      ? "1px solid rgba(167, 139, 250, 0.68)"
+                      : `1px solid ${withAlpha(meta.dot, 0.36)}`,
+                  boxShadow:
+                    appointment.status === "confirmed"
+                      ? "0 0 14px rgba(139,92,246,.25), inset 0 0 0 1px rgba(255,255,255,0.045)"
+                      : `0 0 18px ${withAlpha(meta.dot, 0.18)}, inset 0 0 0 1px rgba(255,255,255,0.04)`,
                 }}
               >
                 <span
@@ -3245,7 +3254,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             style={{
               background: meta.bg,
               borderColor: meta.border,
-              boxShadow: `0 0 0 1px ${meta.border}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
+              boxShadow:
+                appointment.status === "confirmed"
+                  ? "0 0 0 1px rgba(167,139,250,.78), 0 18px 38px -26px rgba(139,92,246,.95), inset 0 1px 0 rgba(255,255,255,0.07)"
+                  : `0 0 0 1px ${meta.border}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
             }}
           >
             <div className="space-y-2.5">
