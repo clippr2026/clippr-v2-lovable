@@ -82,9 +82,9 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
     },
     confirmed: {
       label: "Confirmado",
-      bg: "oklch(0.4 0.24 300 / 0.35)",
-      border: "oklch(0.72 0.25 300)",
-      dot: "oklch(0.72 0.25 300)",
+      bg: "rgba(99, 102, 241, 0.28)",
+      border: "#6366F1",
+      dot: "#818CF8",
     },
     completed: {
       label: "Confirmado",
@@ -1072,8 +1072,8 @@ function AgendaPage() {
                   "confirmed",
                   "Confirmados",
                   "#6366F1",
-                  "rgba(99,102,241,.14)",
-                  "rgba(99,102,241,.35)",
+                  "rgba(99, 102, 241, 0.14)",
+                  "rgba(99, 102, 241, 0.35)",
                 ],
                 [
                   "charged",
