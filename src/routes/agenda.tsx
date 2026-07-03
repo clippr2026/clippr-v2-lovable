@@ -3115,11 +3115,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
   const statusLabel =
     appointment.status === "charged"
-      ? "Cobrar"
+      ? "Cobrado"
       : appointment.status === "confirmed"
         ? "Confirmado"
         : appointment.status === "cancelled"
-          ? "Cancelar"
+          ? "Cancelado"
           : appointment.status === "no_show"
             ? "No asistió"
           : appointment.status === "in_service"
@@ -3158,17 +3158,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <X className="h-4 w-4" />
           </button>
           <div
-            className="pointer-events-none absolute -top-20 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
+            className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-35 blur-3xl"
+            style={{ background: meta.dot }}
+          />
+          <div
+            className="pointer-events-none absolute -top-10 left-4 h-24 w-32 rounded-full opacity-20 blur-2xl"
             style={{ background: meta.dot }}
           />
           <div className="relative space-y-3">
-            <div className="flex min-w-0 items-start gap-3 pr-8">
-              <div
-                className="h-12 w-12 shrink-0 rounded-2xl border-2 shadow-[0_0_20px_rgba(0,0,0,0.25)]"
-                style={{ background: withAlpha(meta.dot, 0.18), borderColor: meta.border, boxShadow: `0 0 18px ${withAlpha(meta.dot,0.22)}` }}
-              >
-                
-              </div>
+            <div className="flex min-w-0 items-start pr-8">
               <div className="min-w-0 flex-1 pt-0.5">
                 <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
                   {appointment.status === "blocked"
@@ -3178,10 +3176,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pl-[60px] pr-8">
+            <div className="flex items-center justify-between gap-2 pr-8">
               <div
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
-                style={{ color: meta.dot }}
+                className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
+                style={{
+                  color: meta.dot,
+                  background: withAlpha(meta.dot, 0.13),
+                  border: `1px solid ${withAlpha(meta.dot, 0.36)}`,
+                  boxShadow: `0 0 18px ${withAlpha(meta.dot, 0.18)}, inset 0 0 0 1px rgba(255,255,255,0.04)`,
+                }}
               >
                 <span
                   className="size-1.5 rounded-full"
@@ -3303,32 +3306,49 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           </div>
 
           {appointmentProducts.length > 0 && (
-            <div className="rounded-2xl border border-amber-300/35 bg-transparent p-3.5 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.06)]">
+            <div
+              className="rounded-2xl border p-3.5"
+              style={{
+                background: "rgba(251, 191, 36, 0.095)",
+                borderColor: "rgba(251, 191, 36, 0.58)",
+                boxShadow:
+                  "0 0 0 1px rgba(251,191,36,0.34), 0 18px 34px -28px rgba(251,191,36,0.95), inset 0 1px 0 rgba(255,255,255,0.07)",
+              }}
+            >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">
                   Productos agregados
                 </div>
-                <span className="text-amber-300" aria-hidden>⭐</span>
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-amber-300"
+                  style={{ boxShadow: "0 0 14px rgba(251,191,36,0.95)" }}
+                  aria-hidden
+                />
               </div>
 
               <div className="space-y-2">
                 {appointmentProducts.map((product, index) => (
                   <div
                     key={`${product.name}-${index}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-transparent px-3 py-2.5"
+                    className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
+                    style={{
+                      background: "rgba(251, 191, 36, 0.055)",
+                      borderColor: "rgba(251, 191, 36, 0.34)",
+                      boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.035)",
+                    }}
                   >
                     {product.image ? (
                       <ServiceImage
                         src={product.image}
                         alt={product.name}
-                        className="h-10 w-10 rounded-xl ring-1 ring-amber-300/20"
+                        className="h-10 w-10 rounded-xl ring-1 ring-amber-300/40"
                       />
                     ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold text-white/90">{product.name}</div>
                     </div>
                     {product.priceLabel && (
-                      <div className="shrink-0 text-sm font-semibold text-amber-200">
+                      <div className="shrink-0 text-sm font-semibold text-amber-100">
                         {product.priceLabel}
                       </div>
                     )}
@@ -3346,45 +3366,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
           )}
-
-          <div className="space-y-2 text-sm">
-            {phone && (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.028] px-3 py-2.5 min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Phone className="h-4 w-4 shrink-0 text-white/38" />
-                  <div className="truncate text-white/85 text-[13px]">{phone}</div>
-                </div>
-                {whatsappHref && (
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="WhatsApp"
-                    className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full border border-white/10 bg-white/[0.035] text-white/70 hover:bg-white/[0.07] hover:text-white transition px-3 text-[12px] font-medium"
-                  >
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    WhatsApp
-                  </a>
-                )}
-              </div>
-            )}
-            {email && (
-              <div className="flex items-center gap-2 px-1 py-1.5 min-w-0">
-                <Mail className="h-4 w-4 shrink-0 text-white/38" />
-                <div className="truncate text-white/78 text-[13px]">{email}</div>
-              </div>
-            )}
-            {noteText && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
-                <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">
-                  Notas
-                </div>
-                <div className="text-white/80 text-[13px] whitespace-pre-wrap break-words">
-                  {noteText}
-                </div>
-              </div>
-            )}
-          </div>
 
           {appointment.status === "blocked" ? (
             <div className="grid grid-cols-2 gap-2">
@@ -3591,6 +3572,46 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
           )}
+
+          <div className="space-y-2 text-sm">
+            {phone && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.028] px-3 py-2.5 min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Phone className="h-4 w-4 shrink-0 text-white/38" />
+                  <div className="truncate text-white/85 text-[13px]">{phone}</div>
+                </div>
+                {whatsappHref && (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="WhatsApp"
+                    className="inline-flex shrink-0 items-center gap-1.5 h-8 rounded-full border border-white/10 bg-white/[0.035] text-white/70 hover:bg-white/[0.07] hover:text-white transition px-3 text-[12px] font-medium"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    WhatsApp
+                  </a>
+                )}
+              </div>
+            )}
+            {email && (
+              <div className="flex items-center gap-2 px-1 py-1.5 min-w-0">
+                <Mail className="h-4 w-4 shrink-0 text-white/38" />
+                <div className="truncate text-white/78 text-[13px]">{email}</div>
+              </div>
+            )}
+            {noteText && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
+                <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">
+                  Notas
+                </div>
+                <div className="text-white/80 text-[13px] whitespace-pre-wrap break-words">
+                  {noteText}
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
       </SheetContent>
     </Sheet>
