@@ -62,9 +62,18 @@ function useStableCallback<T extends (...args: any[]) => any>(fn: T): T {
 
 function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M20.52 3.48A11 11 0 0 0 3.7 17.1L2.5 21.5l4.5-1.18A11 11 0 1 0 20.52 3.48Z"/>
-      <path d="M9.2 8.9c.18-.42.37-.43.62-.44h.53c.18 0 .45.07.58.36l.8 1.9c.08.2.03.43-.1.59l-.63.77c.48.95 1.26 1.73 2.21 2.21l.77-.63c.16-.13.39-.18.59-.1l1.9.8c.29.13.36.4.36.58v.53c-.01.25-.02.44-.44.62-.44.18-.92.27-1.42.2-2.34-.34-5.24-3.24-5.58-5.58-.07-.5.02-.98.2-1.42Z"/>
+    <svg
+      viewBox="-2 -2 28 28"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      overflow="visible"
+      {...props}
+    >
+      <path d="M20.52 3.48A11 11 0 0 0 3.7 17.1L2.5 21.5l4.5-1.18A11 11 0 1 0 20.52 3.48Z" />
+      <path d="M9.2 8.9c.18-.42.37-.43.62-.44h.53c.18 0 .45.07.58.36l.8 1.9c.08.2.03.43-.1.59l-.63.77c.48.95 1.26 1.73 2.21 2.21l.77-.63c.16-.13.39-.18.59-.1l1.9.8c.29.13.36.4.36.58v.53c-.01.25-.02.44-.44.62-.44.18-.92.27-1.42.2-2.34-.34-5.24-3.24-5.58-5.58-.07-.5.02-.98.2-1.42Z" />
     </svg>
   );
 }
