@@ -144,14 +144,25 @@ async function loadDashboard(
   const session = sessRes.status === "fulfilled" ? (sessRes.value.data as { id: string } | null) : null;
   const gastosHoy = expRes.status === "fulfilled" ? ((expRes.value.data as Exp[]) ?? []) : [];
 
-  // Si hay caja abierta, filtrar payments por session_id (igual que app.js)
+  // Si hay caja abierta, mantener SIEMPRE el rango seleccionado.
+  // Antes esta query reemplazaba `payments` por todos los pagos de la sesión abierta,
+  // sin filtrar por fecha, y el Dashboard mostraba acumulado histórico.
+  // Dashboard = rango del calendario, no total de caja/sesión.
   if (session && payments.length > 0) {
-    const { data: sp } = await supabase
+    const { data: sp, error: spError } = await supabase
       .from("payments")
       .select("id,total,method,created_at,appointment_id,client_name,service_name")
+      .eq("business_id", businessId)
       .eq("session_id", session.id)
+      .gte("created_at", today.toISOString())
+      .lte("created_at", todayEnd.toISOString())
       .order("created_at", { ascending: false });
-    if (sp?.length) payments = sp as Pay[];
+
+    if (spError) {
+      console.error("[Dashboard] session payments error:", spError.message, spError);
+    } else {
+      payments = (sp as Pay[]) ?? [];
+    }
   }
 
   const totalGastos = gastosHoy.reduce((s, g) => s + Number(g.amount || 0), 0);
@@ -175,6 +186,7 @@ async function loadDashboard(
     supabase
       .from("payments")
       .select("total,created_at")
+      .eq("business_id", businessId)
       .gte("created_at", w7start.toISOString())
       .lte("created_at", todayEnd.toISOString()),
     supabase
