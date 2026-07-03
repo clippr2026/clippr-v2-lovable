@@ -2198,7 +2198,7 @@ const DayView = React.memo(function DayView({
   }
 
   return (
-    <section className="glass rounded-2xl p-2 sm:p-3 relative">
+    <section className="rounded-2xl p-2 sm:p-3 relative border border-white/10 shadow-[0_18px_60px_-34px_rgba(0,0,0,0.95)]" style={{ background: "#111323" }}>
       <div
         ref={gridScrollRef}
         onScroll={onGridScroll}
@@ -2207,7 +2207,7 @@ const DayView = React.memo(function DayView({
       >
         <div className="grid min-w-[860px]" style={{ gridTemplateColumns, width: gridWidth }}>
           <div
-            className="sticky left-0 top-0 z-40 bg-background/90 backdrop-blur-xl border-b border-r border-white/10 px-1.5 flex items-center justify-center"
+            className="sticky left-0 top-0 z-40 bg-[#111323] border-b border-r border-white/10 px-1.5 flex items-center justify-center"
             style={{ height: AGENDA_HEADER_PX }}
           >
             <label
@@ -2247,7 +2247,7 @@ const DayView = React.memo(function DayView({
             return (
               <div
                 key={e.id}
-                className="sticky top-0 z-20 px-2.5 border-l border-b border-white/10 bg-background/80 backdrop-blur-xl flex items-center gap-2"
+                className="sticky top-0 z-20 px-2.5 border-l border-b border-white/10 bg-[#111323] flex items-center gap-2"
                 style={{ height: AGENDA_HEADER_PX }}
               >
                 {e.avatar_url ? (
@@ -2288,7 +2288,7 @@ const DayView = React.memo(function DayView({
 
           <div
             ref={gridBodyRef}
-            className="relative sticky left-0 z-30 bg-[#0c0b14] border-r border-white/15 shadow-[2px_0_8px_rgba(0,0,0,0.35)]"
+            className="relative sticky left-0 z-30 bg-[#111323] border-r border-white/15 shadow-[2px_0_8px_rgba(0,0,0,0.35)]"
           >
             {timeSlots.map((min) => (
               <div
@@ -2348,7 +2348,7 @@ const DayView = React.memo(function DayView({
             return (
               <div
                 key={e.id}
-                className="relative border-l border-white/[0.04]"
+                className="relative border-l border-white/[0.055] bg-white/[0.006]"
                 onMouseMove={(ev) =>
                   updateHoverTimeFromColumn(ev.currentTarget as HTMLElement, ev.clientY)
                 }
@@ -2374,8 +2374,8 @@ const DayView = React.memo(function DayView({
                     <div
                       key={min}
                       className={cn(
-                        "border-t border-white/[0.04] transition-colors",
-                        cellBlocked ? "cursor-not-allowed" : "hover:bg-white/[0.02] cursor-pointer",
+                        "border-t border-white/[0.055] bg-white/[0.012] transition-colors",
+                        cellBlocked ? "cursor-not-allowed" : "hover:bg-white/[0.035] cursor-pointer",
                       )}
                       style={{ height: slotHeightPx }}
                       onClick={(event) => {
@@ -2399,7 +2399,7 @@ const DayView = React.memo(function DayView({
                       top: seg.top,
                       height: seg.height,
                       background:
-                        "repeating-linear-gradient(135deg, rgba(255,255,255,0.016) 0, rgba(255,255,255,0.016) 7px, rgba(255,255,255,0.05) 7px, rgba(255,255,255,0.05) 14px)",
+                        "repeating-linear-gradient(135deg, rgba(255,255,255,0.010) 0, rgba(255,255,255,0.010) 7px, rgba(255,255,255,0.028) 7px, rgba(255,255,255,0.028) 14px)",
                     }}
                   />
                 ))}
@@ -3658,7 +3658,7 @@ function WeekView({
             );
           })}
 
-          <div className="relative sticky left-0 z-30 bg-background/80 backdrop-blur-xl border-r border-white/[0.06]">
+          <div className="relative sticky left-0 z-30 bg-[#111323] border-r border-white/[0.06]">
             {HOURS.map((h) => (
               <div
                 key={h}
@@ -3684,7 +3684,7 @@ function WeekView({
               );
             });
             return (
-              <div key={d.toISOString()} className="relative border-l border-white/[0.04]">
+              <div key={d.toISOString()} className="relative border-l border-white/[0.055] bg-white/[0.006]">
                 {isClosed ? (
                   <div className="absolute inset-0 grid place-items-center bg-black/10 text-[11px] text-muted-foreground text-center px-2">
                     Negocio cerrado

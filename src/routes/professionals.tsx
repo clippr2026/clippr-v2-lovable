@@ -1627,14 +1627,14 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       ) : agendaTurnos.length === 0 && !breakRange ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-[#070814]/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)] -mt-1">
-          <div className="absolute left-0 top-0 bottom-0 w-[84px] bg-black/35" />
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.10] bg-[#111323] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)] -mt-1">
+          <div className="absolute left-0 top-0 bottom-0 w-[84px] bg-[#111323]" />
           <div className="absolute left-[84px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div className="relative" style={{ height: timelineHeight }}>
             {timelineHours.map((hour) => (
               <div
                 key={hour}
-                className="absolute left-0 right-0 border-t border-white/[0.055]"
+                className="absolute left-0 right-0 border-t border-white/[0.065]"
                 style={{ top: TIMELINE_TOP_OFFSET + (hour - dayBounds.startHour) * HOUR_HEIGHT }}
               >
                 <div className="absolute left-5 -top-2.5 text-sm text-white/50 tabular-nums">
