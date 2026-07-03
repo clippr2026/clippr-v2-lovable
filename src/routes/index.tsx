@@ -107,10 +107,10 @@ function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#070612]/75 backdrop-blur-2xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link to="/" className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-blue-400 to-fuchsia-500 font-display text-xl font-bold shadow-[0_0_34px_rgba(124,85,255,.55)]">
+            <div className="grid h-16 w-16 place-items-center rounded-[1.4rem] bg-gradient-to-br from-blue-400 to-fuchsia-500 font-display text-3xl font-bold shadow-[0_0_54px_rgba(124,85,255,.72)]">
               C
             </div>
-            <span className="font-display text-2xl font-semibold tracking-tight">Clippr</span>
+            <span className="font-display text-3xl font-semibold tracking-tight">Clippr</span>
           </Link>
           <nav className="hidden items-center gap-8 text-sm font-medium text-white/70 md:flex">
             <a href="#ia" className="transition hover:text-white">Asesor IA</a>
@@ -225,7 +225,7 @@ function LandingPage() {
               <img src={dashboardImg} alt="Dashboard Clippr" className="h-[420px] w-full object-cover object-top opacity-95" />
             </div>
             <div className="absolute bottom-4 left-1/2 w-[72%] -translate-x-1/2 rounded-[2rem] border border-white/20 bg-[#06040c]/95 p-7 shadow-[0_28px_80px_-30px_rgba(0,0,0,.9)]">
-              <div className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-[1.7rem] bg-gradient-to-br from-blue-400 to-fuchsia-500 text-4xl font-bold shadow-[0_0_46px_rgba(168,85,247,.55)]">C</div>
+              <div className="mx-auto mb-6 grid h-32 w-32 place-items-center rounded-[2rem] bg-gradient-to-br from-blue-400 to-fuchsia-500 text-6xl font-bold shadow-[0_0_74px_rgba(168,85,247,.72)]">C</div>
               <h3 className="font-display text-4xl font-black uppercase leading-none">Fidelizá a tus clientes</h3>
               <p className="mt-3 text-white/60">Reservas simples, experiencia premium y tu marca siempre presente.</p>
             </div>
@@ -253,8 +253,8 @@ function LandingPage() {
       <footer className="relative z-10 border-t border-white/10 px-5 py-10 sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 text-white">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-400 to-fuchsia-500 font-bold">C</div>
-            <span className="font-display text-xl font-semibold">Clippr</span>
+            <div className="grid h-14 w-14 place-items-center rounded-[1.25rem] bg-gradient-to-br from-blue-400 to-fuchsia-500 text-2xl font-bold shadow-[0_0_40px_rgba(124,85,255,.55)]">C</div>
+            <span className="font-display text-2xl font-semibold">Clippr</span>
           </div>
           <div className="text-sm">© 2026 Clippr. Todos los derechos reservados.</div>
         </div>
