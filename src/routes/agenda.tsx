@@ -3294,7 +3294,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           </div>
 
           {appointmentProducts.length > 0 && (
-            <div className="rounded-2xl border border-amber-300/35 bg-amber-400/[0.055] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="rounded-2xl border border-amber-300/35 bg-transparent p-3.5 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.06)]">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">
                   Productos agregados
@@ -3306,44 +3306,46 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 {appointmentProducts.map((product, index) => (
                   <div
                     key={`${product.name}-${index}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-transparent px-3 py-2.5"
                   >
                     {product.image ? (
                       <ServiceImage
                         src={product.image}
                         alt={product.name}
-                        className="h-10 w-10 rounded-xl ring-1 ring-white/10"
+                        className="h-10 w-10 rounded-xl ring-1 ring-amber-300/20"
                       />
                     ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold text-white/90">{product.name}</div>
-                      <div className="text-[11px] text-white/40">Producto reservado online</div>
+                      <div className="text-[11px] text-amber-200/45">Producto reservado online</div>
                     </div>
                     {product.priceLabel && (
-                      <div className="shrink-0 text-sm font-semibold text-white/90">
+                      <div className="shrink-0 text-sm font-semibold text-amber-200">
                         {product.priceLabel}
                       </div>
                     )}
                   </div>
                 ))}
               </div>
+            </div>
+          )}
 
-              {productsSubtotal > 0 && (
-                <div className="mt-3 space-y-1 border-t border-amber-300/20 pt-3 text-sm">
-                  <div className="flex items-center justify-between text-white/55">
-                    <span>Subtotal servicios</span>
-                    <span>${serviceTotal.toLocaleString("es-AR")}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-white/55">
-                    <span>Subtotal productos</span>
-                    <span>${productsSubtotal.toLocaleString("es-AR")}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-1 text-base font-semibold text-white">
-                    <span>Total del turno</span>
-                    <span className="text-amber-300">${appointmentTotal.toLocaleString("es-AR")}</span>
-                  </div>
+          {appointmentProducts.length > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 text-sm">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-white/60">
+                  <span>Servicio</span>
+                  <span>${serviceTotal.toLocaleString("es-AR")}</span>
                 </div>
-              )}
+                <div className="flex items-center justify-between text-white/60">
+                  <span>Productos</span>
+                  <span>${productsSubtotal.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-3 text-base font-semibold text-white">
+                  <span>Total del turno</span>
+                  <span className="text-amber-300">${appointmentTotal.toLocaleString("es-AR")}</span>
+                </div>
+              </div>
             </div>
           )}
 
