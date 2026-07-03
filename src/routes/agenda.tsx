@@ -3399,37 +3399,44 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 Liberar horario
               </Button>
             </div>
-          ) : appointment.status === "charged" ? (
-            <div className="space-y-2">
-              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                Estado
-              </div>
-
-              {/* Cobrado: estado final, sin posibilidad de cambio */}
-              {(() => {
-                const dot = STATUS_META.charged.dot;
-                return (
-                  <div
-                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                    style={{
-                      background: withAlpha(dot, 0.16),
-                      color: dot,
-                      boxShadow: `inset 0 0 0 1.5px ${dot}`,
-                    }}
-                  >
-                    <span
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                    />
-                    Cobrar
-                  </div>
-                );
-              })()}
-            </div>
           ) : (
-            <div className="space-y-2">
-              <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                Estado
+            <div className="space-y-4">
+              {/* Estado actual: visual, no botón */}
+              <div className="space-y-2">
+                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Estado
+                </div>
+                {(() => {
+                  const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
+                  const dot = meta.dot;
+                  const label =
+                    appointment.status === "charged"
+                      ? "Cobrado"
+                      : appointment.status === "cancelled"
+                        ? "Cancelado"
+                        : appointment.status === "no_show"
+                          ? "No asistió"
+                          : appointment.status === "confirmed"
+                            ? "Confirmado"
+                            : "Pendiente";
+
+                  return (
+                    <div
+                      className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-semibold uppercase tracking-[0.14em]"
+                      style={{
+                        background: withAlpha(dot, 0.12),
+                        color: dot,
+                        boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.34)}`,
+                      }}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                      />
+                      {label}
+                    </div>
+                  );
+                })()}
               </div>
 
               {isPast && appointment.status !== "cancelled" && appointment.status !== "no_show" && (
@@ -3438,232 +3445,187 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               )}
 
-              {!isPast && (
-                <>
-                  {/* Pendiente */}
-                  {(() => {
-                    const dot = STATUS_META.pending.dot;
-                    const active = appointment.status === "pending";
-                    return (
-                      <button
-                        onClick={() => onChangeStatus(appointment, "pending")}
-                        className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                        style={{
-                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                          color: dot,
-                          boxShadow: active
-                            ? `inset 0 0 0 1.5px ${dot}`
-                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                        }}
-                      >
-                        {active && (
-                          <span
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                          />
-                        )}
-                        Pendiente
-                      </button>
-                    );
-                  })()}
-
-                  {/* Confirmado */}
-                  {(() => {
-                    const dot = STATUS_META.confirmed.dot;
-                    const active = appointment.status === "confirmed";
-                    return (
-                      <button
-                        onClick={() => onChangeStatus(appointment, "confirmed")}
-                        className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                        style={{
-                          background: active ? withAlpha(dot, 0.16) : "rgba(255,255,255,0.03)",
-                          color: dot,
-                          boxShadow: active
-                            ? `inset 0 0 0 1.5px ${dot}`
-                            : `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                        }}
-                      >
-                        {active && (
-                          <span
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                          />
-                        )}
-                        Confirmado
-                      </button>
-                    );
-                  })()}
-                </>
-              )}
-
-              <div className="my-2 space-y-1.5">
-                <div className="h-px bg-white/10" />
-                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                  Acciones
-                </div>
-              </div>
-
-              {/* Cancelar / No asistió */}
-              {(() => {
-                const isNoShowAction = isPast && appointment.status !== "cancelled";
-                const statusKey = isNoShowAction ? "no_show" : "cancelled";
-                const dot = STATUS_META[statusKey].dot;
-                const cancelled = appointment.status === "cancelled";
-                const noShow = appointment.status === "no_show";
-
-                if (cancelled || noShow) {
-                  return (
-                    <div
-                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                      style={{
-                        background: withAlpha(dot, 0.16),
-                        color: dot,
-                        boxShadow: `inset 0 0 0 1.5px ${dot}`,
-                      }}
-                    >
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                      />
-                      {noShow ? "No asistió" : "Cancelar"}
-                    </div>
-                  );
-                }
-
-                if (isNoShowAction) {
-                  return (
-                    <button
-                      onClick={() => onChangeStatus(appointment, "no_show")}
-                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                      style={{
-                        background: "rgba(255,255,255,0.03)",
-                        color: dot,
-                        boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                      }}
-                    >
-                      No asistió
-                    </button>
-                  );
-                }
-
-                return confirmCancel ? (
-                  <div
-                    className="rounded-xl p-2.5 space-y-2"
-                    style={{
-                      background: withAlpha(dot, 0.08),
-                      boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.4)}`,
-                    }}
-                  >
-                    <div className="text-xs text-center" style={{ color: dot }}>
-                      {appointment.deposit_status === "paid"
-                        ? "Tiene seña pagada. ¿Qué hacés con la seña?"
-                        : "¿Cancelar este turno?"}
-                    </div>
-                    {appointment.deposit_status === "paid" ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="destructive"
-                          className="h-9"
-                          onClick={() => {
-                            onCancelWithDeposit(appointment, "keep");
-                            setConfirmCancel(false);
-                          }}
-                        >
-                          Perder seña
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          className="h-9"
-                          onClick={() => {
-                            onCancelWithDeposit(appointment, "return");
-                            setConfirmCancel(false);
-                          }}
-                        >
-                          Devolver seña
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="destructive"
-                          className="h-9"
-                          onClick={() => {
-                            onCancel(appointment);
-                            setConfirmCancel(false);
-                          }}
-                        >
-                          Sí, cancelar
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          className="h-9"
-                          onClick={() => setConfirmCancel(false)}
-                        >
-                          No
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setConfirmCancel(true)}
-                    className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                    style={{
-                      background: "rgba(255,255,255,0.018)",
-                      color: dot,
-                      boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.32)}`,
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                );
-              })()}
-
-              {/* Cobrado */}
               {!isPast &&
+                appointment.status === "pending" &&
                 (() => {
-                  const dot = STATUS_META.charged.dot;
-                  const charged = appointment.status === "charged";
+                  const dot = STATUS_META.confirmed.dot;
                   return (
                     <button
-                      onClick={() => {
-                        if (!charged) onCobrar(appointment);
-                      }}
-                      disabled={charged}
-                      className="w-full h-[42px] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:cursor-default enabled:hover:brightness-110"
+                      onClick={() => onChangeStatus(appointment, "confirmed")}
+                      className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
                       style={{
-                        background: charged ? withAlpha(dot, 0.16) : withAlpha(dot, 0.08),
+                        background: withAlpha(dot, 0.14),
                         color: dot,
-                        boxShadow: charged
-                          ? `inset 0 0 0 1.5px ${dot}`
-                          : `inset 0 0 0 1px ${withAlpha(dot, 0.48)}, 0 0 22px -16px ${dot}`,
+                        boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.42)}`,
                       }}
                     >
-                      {charged && (
-                        <span
-                          className="h-1.5 w-1.5 rounded-full"
-                          style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                        />
-                      )}
-                      Cobrar
+                      <CheckCircle2 className="h-4 w-4" />
+                      Confirmar turno
                     </button>
                   );
                 })()}
 
-              {/* Cobrar seña (si aplica) */}
-              {!isPast &&
-                requiresDeposit &&
-                appointment.status !== "charged" &&
-                appointment.deposit_status !== "paid" &&
-                appointment.deposit_status !== "lost" && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => onMarkDeposit(appointment)}
-                    className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
-                  >
-                    <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
-                  </Button>
-                )}
+              <div className="space-y-2 pt-1">
+                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Acciones
+                </div>
+
+                {/* CTA principal: Cobrar */}
+                {!isPast &&
+                  appointment.status !== "charged" &&
+                  appointment.status !== "cancelled" &&
+                  appointment.status !== "no_show" &&
+                  (() => {
+                    const dot = STATUS_META.charged.dot;
+                    return (
+                      <button
+                        onClick={() => onCobrar(appointment)}
+                        className="w-full h-12 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-[0.99]"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, rgba(16,185,129,.95), rgba(34,197,94,.72))",
+                          color: "white",
+                          boxShadow:
+                            "0 16px 34px -22px rgba(34,197,94,.95), inset 0 0 0 1px rgba(255,255,255,.16)",
+                        }}
+                      >
+                        <DollarSign className="h-4 w-4" />
+                        Cobrar turno
+                      </button>
+                    );
+                  })()}
+
+                {/* Cobrar seña (si aplica) */}
+                {!isPast &&
+                  requiresDeposit &&
+                  appointment.status !== "charged" &&
+                  appointment.deposit_status !== "paid" &&
+                  appointment.deposit_status !== "lost" && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => onMarkDeposit(appointment)}
+                      className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
+                    >
+                      <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
+                    </Button>
+                  )}
+
+                {/* Cancelar / No asistió como acción secundaria */}
+                {(() => {
+                  const isNoShowAction = isPast && appointment.status !== "cancelled";
+                  const statusKey = isNoShowAction ? "no_show" : "cancelled";
+                  const dot = STATUS_META[statusKey].dot;
+                  const cancelled = appointment.status === "cancelled";
+                  const noShow = appointment.status === "no_show";
+
+                  if (cancelled || noShow) {
+                    return (
+                      <div
+                        className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                        style={{
+                          background: withAlpha(dot, 0.12),
+                          color: dot,
+                          boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.38)}`,
+                        }}
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                        />
+                        {noShow ? "No asistió" : "Cancelado"}
+                      </div>
+                    );
+                  }
+
+                  if (isNoShowAction) {
+                    return (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "no_show")}
+                        className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        style={{
+                          background: "rgba(255,255,255,0.025)",
+                          color: dot,
+                          boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.34)}`,
+                        }}
+                      >
+                        No asistió
+                      </button>
+                    );
+                  }
+
+                  return confirmCancel ? (
+                    <div
+                      className="rounded-xl p-2.5 space-y-2"
+                      style={{
+                        background: withAlpha(dot, 0.08),
+                        boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.36)}`,
+                      }}
+                    >
+                      <div className="text-xs text-center" style={{ color: dot }}>
+                        {appointment.deposit_status === "paid"
+                          ? "Tiene seña pagada. ¿Qué hacés con la seña?"
+                          : "¿Cancelar este turno?"}
+                      </div>
+                      {appointment.deposit_status === "paid" ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            variant="destructive"
+                            className="h-9"
+                            onClick={() => {
+                              onCancelWithDeposit(appointment, "keep");
+                              setConfirmCancel(false);
+                            }}
+                          >
+                            Perder seña
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            className="h-9"
+                            onClick={() => {
+                              onCancelWithDeposit(appointment, "return");
+                              setConfirmCancel(false);
+                            }}
+                          >
+                            Devolver seña
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            variant="destructive"
+                            className="h-9"
+                            onClick={() => {
+                              onCancel(appointment);
+                              setConfirmCancel(false);
+                            }}
+                          >
+                            Sí, cancelar
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            className="h-9"
+                            onClick={() => setConfirmCancel(false)}
+                          >
+                            No
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : appointment.status !== "charged" ? (
+                    <button
+                      onClick={() => setConfirmCancel(true)}
+                      className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:bg-white/[0.045]"
+                      style={{
+                        background: "rgba(255,255,255,0.018)",
+                        color: "rgba(255,255,255,.72)",
+                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,.13)",
+                      }}
+                    >
+                      Cancelar turno
+                    </button>
+                  ) : null;
+                })()}
+              </div>
             </div>
           )}
         </div>
