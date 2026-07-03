@@ -1063,7 +1063,7 @@ function AgendaPage() {
               [
                 [
                   "pending",
-                  "Por confirmars",
+                  "Por confirmar",
                   "oklch(0.72 0.2 245)",
                   "oklch(0.72 0.2 245 / 0.12)",
                   "oklch(0.72 0.2 245 / 0.3)",
@@ -1180,7 +1180,7 @@ function AgendaPage() {
               no_show: "no_show",
             };
             const labels: Record<string, string> = {
-              pending: "Por confirmars",
+              pending: "Por confirmar",
               confirmed: "Confirmados",
               charged: "Cobrados",
               cancelled: "Cancelados",
@@ -3401,19 +3401,45 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
           ) : (
             <div className="space-y-4">
-                          <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Acciones</div>
-                {appointment.status === "pending" && !isPast && (
-                  <button onClick={() => onChangeStatus(appointment, "confirmed")} className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110" style={{background:"rgba(139,92,246,.16)",color:"#A78BFA",boxShadow:"inset 0 0 0 1px rgba(139,92,246,.42)"}}><CheckCircle2 className="h-4 w-4" />Confirmar turno</button>
-                )}
-{/* CTA principal: Cobrar */}
+              {isPast && appointment.status !== "cancelled" && appointment.status !== "no_show" && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] text-white/55">
+                  Este turno ya pasó. Podés marcarlo como no asistió.
+                </div>
+              )}
+
+              <div className="space-y-2 pt-1">
+                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Acciones
+                </div>
+
+                {/* Confirmar turno: solo si está por confirmar */}
+                {!isPast &&
+                  appointment.status === "pending" &&
+                  (() => {
+                    const dot = STATUS_META.confirmed.dot;
+                    return (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "confirmed")}
+                        className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-[0.99]"
+                        style={{
+                          background: "rgba(139, 92, 246, 0.16)",
+                          color: "#A78BFA",
+                          boxShadow:
+                            "inset 0 0 0 1px rgba(139, 92, 246, 0.42), 0 12px 26px -22px rgba(139, 92, 246, 0.8)",
+                        }}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Confirmar turno
+                      </button>
+                    );
+                  })()}
+
+                {/* CTA principal: Cobrar */}
                 {!isPast &&
                   appointment.status !== "charged" &&
                   appointment.status !== "cancelled" &&
                   appointment.status !== "no_show" &&
                   (() => {
-                    const dot = STATUS_META.charged.dot;
                     return (
                       <button
                         onClick={() => onCobrar(appointment)}
