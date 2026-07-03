@@ -3326,10 +3326,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold text-white/90">{product.name}</div>
-                      <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
-                        Producto reservado online
-                      </div>
                     </div>
                     {product.priceLabel && (
                       <div className="shrink-0 text-sm font-semibold text-amber-200">
@@ -3346,7 +3342,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 text-sm">
               <div className="flex items-center justify-between text-base font-semibold text-white">
                 <span>Total del turno</span>
-                <span className="text-amber-300">${appointmentTotal.toLocaleString("es-AR")}</span>
+                <span className="text-white">${appointmentTotal.toLocaleString("es-AR")}</span>
               </div>
             </div>
           )}
