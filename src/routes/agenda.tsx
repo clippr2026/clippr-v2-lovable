@@ -75,7 +75,7 @@ export const Route = createFileRoute("/agenda")({
 const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: string; dot: string }> =
   {
     pending: {
-      label: "Pendiente",
+      label: "Por confirmar",
       bg: "oklch(0.38 0.2 220 / 0.4)",
       border: "oklch(0.72 0.2 210)",
       dot: "oklch(0.82 0.18 210)",
@@ -1063,7 +1063,7 @@ function AgendaPage() {
               [
                 [
                   "pending",
-                  "Pendientes",
+                  "Por confirmars",
                   "oklch(0.72 0.2 245)",
                   "oklch(0.72 0.2 245 / 0.12)",
                   "oklch(0.72 0.2 245 / 0.3)",
@@ -1180,7 +1180,7 @@ function AgendaPage() {
               no_show: "no_show",
             };
             const labels: Record<string, string> = {
-              pending: "Pendientes",
+              pending: "Por confirmars",
               confirmed: "Confirmados",
               charged: "Cobrados",
               cancelled: "Cancelados",
@@ -3124,7 +3124,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             ? "No asistió"
           : appointment.status === "in_service"
             ? "En servicio"
-            : "Pendiente";
+            : "Por confirmar";
   const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
   const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
   const noteText = clientNoteOnly(appointment.notes);
@@ -3282,7 +3282,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     )}
                     {ds === "paid" && depositPaid > 0 && (
                       <div className="mt-1 text-muted-foreground">
-                        Pendiente de cobro:{" "}
+                        Por confirmar de cobro:{" "}
                         <span className="text-foreground font-medium">
                           ${remaining.toLocaleString("es-AR")}
                         </span>
@@ -3418,7 +3418,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                           ? "No asistió"
                           : appointment.status === "confirmed"
                             ? "Confirmado"
-                            : "Pendiente";
+                            : "Por confirmar";
 
                   return (
                     <div
