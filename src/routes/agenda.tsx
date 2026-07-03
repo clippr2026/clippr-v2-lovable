@@ -3401,76 +3401,13 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Estado actual: visual, no botón */}
+                          <div className="space-y-4">
               <div className="space-y-2">
-                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                  Estado
-                </div>
-                {(() => {
-                  const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
-                  const dot = meta.dot;
-                  const label =
-                    appointment.status === "charged"
-                      ? "Cobrado"
-                      : appointment.status === "cancelled"
-                        ? "Cancelado"
-                        : appointment.status === "no_show"
-                          ? "No asistió"
-                          : appointment.status === "confirmed"
-                            ? "Confirmado"
-                            : "Por confirmar";
-
-                  return (
-                    <div
-                      className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-semibold uppercase tracking-[0.14em]"
-                      style={{
-                        background: withAlpha(dot, 0.12),
-                        color: dot,
-                        boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.34)}`,
-                      }}
-                    >
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                      />
-                      {label}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {isPast && appointment.status !== "cancelled" && appointment.status !== "no_show" && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] text-white/55">
-                  Este turno ya pasó. Podés marcarlo como no asistió.
-                </div>
-              )}
-
-              {!isPast &&
-                appointment.status === "pending" &&
-                (() => {
-                  const dot = STATUS_META.confirmed.dot;
-                  return (
-                    <button
-                      onClick={() => onChangeStatus(appointment, "confirmed")}
-                      className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
-                      style={{
-                        background: withAlpha(dot, 0.14),
-                        color: dot,
-                        boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.42)}`,
-                      }}
-                    >
-                      <CheckCircle2 className="h-4 w-4" />
-                      Confirmar turno
-                    </button>
-                  );
-                })()}
-
-              <div className="space-y-2 pt-1">
-                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                  Acciones
-                </div>
-
-                {/* CTA principal: Cobrar */}
+                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Acciones</div>
+                {appointment.status === "pending" && !isPast && (
+                  <button onClick={() => onChangeStatus(appointment, "confirmed")} className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110" style={{background:"rgba(139,92,246,.16)",color:"#A78BFA",boxShadow:"inset 0 0 0 1px rgba(139,92,246,.42)"}}><CheckCircle2 className="h-4 w-4" />Confirmar turno</button>
+                )}
+{/* CTA principal: Cobrar */}
                 {!isPast &&
                   appointment.status !== "charged" &&
                   appointment.status !== "cancelled" &&
