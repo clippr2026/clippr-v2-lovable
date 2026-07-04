@@ -17,14 +17,15 @@ import { Route as ProfessionalsRouteImport } from './routes/professionals'
 import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InventoryRouteImport } from './routes/inventory'
-import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as GestionRouteImport } from './routes/gestion'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as CashRegisterLiquidacionesCompactoRouteImport } from './routes/cash-register-liquidaciones-compacto'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AdvisorlRouteImport } from './routes/advisorl'
 import { Route as AdvisorRouteImport } from './routes/advisor'
-import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservarSlugRouteImport } from './routes/reservar/$slug'
 import { Route as NegocioSlugRouteImport } from './routes/negocio/$slug'
@@ -69,9 +70,9 @@ const InventoryRoute = InventoryRouteImport.update({
   path: '/inventory',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClientsRoute = ClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
+const GestionRoute = GestionRouteImport.update({
+  id: '/gestion',
+  path: '/gestion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -79,6 +80,17 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CashRegisterLiquidacionesCompactoRoute =
+  CashRegisterLiquidacionesCompactoRouteImport.update({
+    id: '/cash-register-liquidaciones-compacto',
+    path: '/cash-register-liquidaciones-compacto',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const CashRegisterRoute = CashRegisterRouteImport.update({
   id: '/cash-register',
   path: '/cash-register',
@@ -104,11 +116,6 @@ const AdvisorRoute = AdvisorRouteImport.update({
   path: '/advisor',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SlugRoute = SlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -127,14 +134,15 @@ const NegocioSlugRoute = NegocioSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/$slug': typeof SlugRoute
   '/advisor': typeof AdvisorRoute
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
+  '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
   '/dashboard': typeof DashboardRoute
+  '/gestion': typeof GestionRoute
   '/inventory': typeof InventoryRoute
   '/login': typeof LoginRoute
   '/marketing': typeof MarketingRoute
@@ -148,14 +156,15 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$slug': typeof SlugRoute
   '/advisor': typeof AdvisorRoute
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
+  '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
   '/dashboard': typeof DashboardRoute
+  '/gestion': typeof GestionRoute
   '/inventory': typeof InventoryRoute
   '/login': typeof LoginRoute
   '/marketing': typeof MarketingRoute
@@ -170,14 +179,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/$slug': typeof SlugRoute
   '/advisor': typeof AdvisorRoute
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/cash-register': typeof CashRegisterRoute
+  '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
   '/dashboard': typeof DashboardRoute
+  '/gestion': typeof GestionRoute
   '/inventory': typeof InventoryRoute
   '/login': typeof LoginRoute
   '/marketing': typeof MarketingRoute
@@ -193,14 +203,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/$slug'
     | '/advisor'
     | '/advisorl'
     | '/agenda'
     | '/appointments'
     | '/cash-register'
+    | '/cash-register-liquidaciones-compacto'
     | '/clients'
     | '/dashboard'
+    | '/gestion'
     | '/inventory'
     | '/login'
     | '/marketing'
@@ -214,14 +225,15 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/$slug'
     | '/advisor'
     | '/advisorl'
     | '/agenda'
     | '/appointments'
     | '/cash-register'
+    | '/cash-register-liquidaciones-compacto'
     | '/clients'
     | '/dashboard'
+    | '/gestion'
     | '/inventory'
     | '/login'
     | '/marketing'
@@ -235,14 +247,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/$slug'
     | '/advisor'
     | '/advisorl'
     | '/agenda'
     | '/appointments'
     | '/cash-register'
+    | '/cash-register-liquidaciones-compacto'
     | '/clients'
     | '/dashboard'
+    | '/gestion'
     | '/inventory'
     | '/login'
     | '/marketing'
@@ -257,14 +270,15 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  SlugRoute: typeof SlugRoute
   AdvisorRoute: typeof AdvisorRoute
   AdvisorlRoute: typeof AdvisorlRoute
   AgendaRoute: typeof AgendaRoute
   AppointmentsRoute: typeof AppointmentsRoute
   CashRegisterRoute: typeof CashRegisterRoute
+  CashRegisterLiquidacionesCompactoRoute: typeof CashRegisterLiquidacionesCompactoRoute
   ClientsRoute: typeof ClientsRoute
   DashboardRoute: typeof DashboardRoute
+  GestionRoute: typeof GestionRoute
   InventoryRoute: typeof InventoryRoute
   LoginRoute: typeof LoginRoute
   MarketingRoute: typeof MarketingRoute
@@ -335,11 +349,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/clients': {
-      id: '/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof ClientsRouteImport
+    '/gestion': {
+      id: '/gestion'
+      path: '/gestion'
+      fullPath: '/gestion'
+      preLoaderRoute: typeof GestionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -347,6 +361,20 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cash-register-liquidaciones-compacto': {
+      id: '/cash-register-liquidaciones-compacto'
+      path: '/cash-register-liquidaciones-compacto'
+      fullPath: '/cash-register-liquidaciones-compacto'
+      preLoaderRoute: typeof CashRegisterLiquidacionesCompactoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cash-register': {
@@ -384,13 +412,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdvisorRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$slug': {
-      id: '/$slug'
-      path: '/$slug'
-      fullPath: '/$slug'
-      preLoaderRoute: typeof SlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -417,14 +438,16 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  SlugRoute: SlugRoute,
   AdvisorRoute: AdvisorRoute,
   AdvisorlRoute: AdvisorlRoute,
   AgendaRoute: AgendaRoute,
   AppointmentsRoute: AppointmentsRoute,
   CashRegisterRoute: CashRegisterRoute,
+  CashRegisterLiquidacionesCompactoRoute:
+    CashRegisterLiquidacionesCompactoRoute,
   ClientsRoute: ClientsRoute,
   DashboardRoute: DashboardRoute,
+  GestionRoute: GestionRoute,
   InventoryRoute: InventoryRoute,
   LoginRoute: LoginRoute,
   MarketingRoute: MarketingRoute,

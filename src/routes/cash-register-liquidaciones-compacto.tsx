@@ -13,8 +13,6 @@ import {
   type PayMethod,
 } from "@/components/cash-register/register-payment";
 import {
-  openCashSession,
-  closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
@@ -37,7 +35,6 @@ import {
   Smartphone,
   Check,
   Loader2,
-  Unlock,
   CalendarDays
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";

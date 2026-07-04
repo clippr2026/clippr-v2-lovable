@@ -4,20 +4,14 @@ import {
   ChevronRight,
   Plus,
   Calendar as CalendarIcon,
-  Loader2,
-  Check,
   X,
   DollarSign,
   Pencil,
   CheckCircle2,
-  MessageCircle,
   UserRound,
-  XCircle,
   Clock3,
   UserX,
-  Clock,
   Scissors,
-  Phone,
   Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -3158,11 +3152,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent
-        forceMount
         side="right"
         hideOverlay
         hideClose
-        className="w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100 data-[state=closed]:hidden"
+        className="w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100"
         aria-describedby={undefined}
       >
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">

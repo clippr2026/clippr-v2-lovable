@@ -14,7 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   useCajaData,
   searchClientsLite,
-  type Service,
   type ClientLiteResult,
 } from "@/components/cash-register/use-caja-data";
 import {
@@ -23,7 +22,6 @@ import {
   type PayMethod,
 } from "@/components/cash-register/register-payment";
 import {
-  openCashSession,
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
@@ -46,7 +44,6 @@ import {
   Smartphone,
   Check,
   Loader2,
-  Unlock,
   CalendarDays,
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";

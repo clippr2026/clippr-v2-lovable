@@ -5,7 +5,6 @@ import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
-import { supabase } from "@/integrations/supabase/client";
 import { DateRangePicker } from "@/components/date-range-picker";
 import {
   useDashboardData,

@@ -3,12 +3,10 @@ import React, { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import {
-  Zap,
   ClipboardList,
   BarChart3,
   Clock,
   DollarSign,
-  ArrowRight,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -20,8 +18,8 @@ import { registerPayment, type PayMethod } from "@/components/cash-register/regi
 import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfStats, useProfPayments,
-  useProfSales, useProfTurnos, useRegisterPayout,
-  type ProfPayment, type ProfTurno,
+  useProfSales, useProfTurnos,
+  type ProfTurno,
 } from "@/hooks/use-professionals-data";
 import { toast } from "sonner";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
