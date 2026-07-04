@@ -90,7 +90,6 @@ type SectionId =
   | "catalogo"
   | "caja"
   | "cuenta"
-  | "senas"
   | "plan";
 
 type NavItem = {
