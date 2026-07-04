@@ -1,0 +1,3169 @@
+import React, { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  Check,
+  Plus,
+  Trash2,
+  ChevronDown,
+  Mail,
+  UserPlus,
+  CheckCircle2,
+  XCircle,
+  ShieldCheck,
+  Loader2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { SpecialHoursEditor } from "@/components/settings/special-hours-editor";
+import type {
+  SpecialDateMap,
+  EmployeeSpecialDateMap,
+} from "@/components/agenda/use-agenda-data";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
+import {
+  SectionCard,
+  reportSaveStatus,
+  Toggle,
+  ConfirmDialog,
+  Field,
+  inputCls,
+  normalizePublicBooleanMap,
+  getPublicVisibility,
+  type PriceRow,
+} from "@/components/settings/shared";
+
+// ─────────── Equipo ───────────
+const PRO_TINTS = [
+  "from-[oklch(0.78_0.17_55)] to-[oklch(0.72_0.2_40)]",
+  "from-[oklch(0.72_0.2_245)] to-[oklch(0.65_0.22_270)]",
+  "from-[oklch(0.7_0.25_300)] to-[oklch(0.6_0.22_290)]",
+  "from-[oklch(0.82_0.16_200)] to-[oklch(0.7_0.2_220)]",
+  "from-[oklch(0.78_0.17_140)] to-[oklch(0.7_0.2_160)]",
+  "from-[oklch(0.82_0.14_75)] to-[oklch(0.78_0.17_55)]",
+];
+
+// Color estable por id (no por posición): así eliminar un profesional no cambia
+// el color/avatar de los demás.
+function tintForId(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return PRO_TINTS[h % PRO_TINTS.length];
+}
+
+const AGENDA_COLORS = [
+  "oklch(0.65 0.18 240)",
+  "oklch(0.65 0.22 300)",
+  "oklch(0.75 0.14 75)",
+  "oklch(0.72 0.18 150)",
+  "oklch(0.68 0.22 25)",
+  "oklch(0.8 0.17 90)",
+];
+
+const WEEKDAYS = [
+  ["mon", "Lunes"],
+  ["tue", "Martes"],
+  ["wed", "Miércoles"],
+  ["thu", "Jueves"],
+  ["fri", "Viernes"],
+  ["sat", "Sábado"],
+  ["sun", "Domingo"],
+] as const;
+
+type DayKey = (typeof WEEKDAYS)[number][0];
+type DaySchedule = {
+  enabled: boolean;
+  start: string;
+  end: string;
+  breakStart: string;
+  breakEnd: string;
+};
+type ScheduleMap = Record<DayKey, DaySchedule>;
+
+const DEFAULT_SCHEDULE: ScheduleMap = {
+  mon: {
+    enabled: true,
+    start: "11:00",
+    end: "20:00",
+    breakStart: "12:00",
+    breakEnd: "13:00",
+  },
+  tue: {
+    enabled: true,
+    start: "11:00",
+    end: "20:00",
+    breakStart: "12:00",
+    breakEnd: "13:00",
+  },
+  wed: {
+    enabled: true,
+    start: "11:00",
+    end: "20:00",
+    breakStart: "12:00",
+    breakEnd: "13:00",
+  },
+  thu: {
+    enabled: true,
+    start: "11:00",
+    end: "20:00",
+    breakStart: "12:00",
+    breakEnd: "13:00",
+  },
+  fri: {
+    enabled: true,
+    start: "11:00",
+    end: "20:00",
+    breakStart: "12:00",
+    breakEnd: "13:00",
+  },
+  sat: {
+    enabled: true,
+    start: "11:00",
+    end: "20:00",
+    breakStart: "12:00",
+    breakEnd: "13:00",
+  },
+  sun: {
+    enabled: false,
+    start: "11:00",
+    end: "20:00",
+    breakStart: "12:00",
+    breakEnd: "13:00",
+  },
+};
+
+type EmployeeRow = {
+  id: string;
+  name?: string | null;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  is_active?: boolean | null;
+  commission_pct?: number | null;
+  role?: string | null;
+};
+
+type PendingProfessional = {
+  tempId: string;
+  payload: {
+    id?: string;
+    full_name: string;
+    is_active: boolean;
+    commission_pct: number | null;
+    avatar_url?: string | null;
+    role?: string | null;
+    acceptsOnline?: boolean;
+    commissions?: Record<string, CommissionConfig>;
+    schedule?: ScheduleMap;
+    specialDates?: SpecialDateMap;
+  };
+  isNew: boolean;
+};
+
+type CommissionMode = "percent" | "fixed";
+
+type CommissionConfig = {
+  enabled: boolean;
+  mode: CommissionMode;
+  value: string;
+};
+
+type NewProForm = {
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  acceptsOnline: boolean;
+  color: string;
+  schedule: ScheduleMap;
+  publicName: string;
+  description: string;
+  specialty: string;
+  commissionPct: string;
+  avatarUrl: string;
+  commissions: Record<string, CommissionConfig>;
+  specialDates: SpecialDateMap;
+};
+
+const EMPTY_FORM: NewProForm = {
+  fullName: "",
+  email: "",
+  phone: "",
+  role: "Barbero",
+  acceptsOnline: true,
+  color: AGENDA_COLORS[0],
+  schedule: DEFAULT_SCHEDULE,
+  publicName: "",
+  description: "",
+  specialty: "",
+  commissionPct: "",
+  avatarUrl: "",
+  commissions: {},
+  specialDates: {},
+};
+
+const timeCls =
+  "rounded-md bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs focus:outline-none w-[72px]";
+
+
+type RolePermissionId =
+  "admin_general" | "socio" | "admin_local" | "recepcionista" | "profesional";
+
+type PermissionKey =
+  | "dashboard"
+  | "agenda"
+  | "caja_cobro"
+  | "panel_profesionales"
+  | "clientes"
+  | "configuracion"
+  | "branding"
+  | "horarios"
+  | "equipo"
+  | "servicios"
+  | "catalogo"
+  | "caja"
+  | "senas"
+  | "asesor_ia"
+  | "plan_facturacion";
+
+type PermissionMap = Record<PermissionKey, boolean>;
+type RolePermissions = Record<RolePermissionId, PermissionMap>;
+
+type AccessStatus = "invited" | "active" | "suspended";
+
+type AccessUser = {
+  id: string;
+  auth_user_id?: string | null;
+  name: string;
+  email: string;
+  role: RolePermissionId;
+  status: AccessStatus;
+  employee_id?: string | null;
+  branch_id?: string | null;
+  created_at?: string | null;
+};
+
+type AccessFormState = {
+  name: string;
+  email: string;
+  role: RolePermissionId;
+  status: "active" | "inactive";
+  employee_id: string | null;
+  branch_id: string | null;
+};
+
+const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
+  admin_general: "Admin. General",
+  socio: "Socio",
+  admin_local: "Administrador Local",
+  recepcionista: "Recepcionista",
+  profesional: "Profesional",
+};
+
+const EMPTY_ACCESS_FORM: AccessFormState = {
+  name: "",
+  email: "",
+  role: "profesional",
+  status: "active",
+  employee_id: null,
+  branch_id: null,
+};
+
+const MAIN_PERMISSION_ITEMS: {
+  key: PermissionKey;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    desc: "Métricas generales del negocio.",
+  },
+  { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },
+  { key: "caja_cobro", label: "Caja", desc: "Cobros y medios de pago." },
+  {
+    key: "panel_profesionales",
+    label: "Profesionales",
+    desc: "Panel y actividad de profesionales.",
+  },
+  { key: "clientes", label: "Clientes", desc: "Base de clientes e historial." },
+  {
+    key: "configuracion",
+    label: "Configuración",
+    desc: "Acceso a ajustes del negocio.",
+  },
+  {
+    key: "asesor_ia",
+    label: "Asesor IA",
+    desc: "Análisis, recomendaciones, simuladores y métricas con IA.",
+  },
+];
+
+const CONFIG_PERMISSION_ITEMS: {
+  key: PermissionKey;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    key: "branding",
+    label: "Página de reservas",
+    desc: "Identidad visual y datos del negocio.",
+  },
+  {
+    key: "horarios",
+    label: "Horarios",
+    desc: "Disponibilidad y reglas de agenda.",
+  },
+  {
+    key: "equipo",
+    label: "Equipo",
+    desc: "Profesionales, usuarios y permisos.",
+  },
+  {
+    key: "servicios",
+    label: "Servicios",
+    desc: "Servicios, precios y categorías.",
+  },
+  {
+    key: "catalogo",
+    label: "Catálogo",
+    desc: "Productos, stock y categorías.",
+  },
+  { key: "caja", label: "Caja", desc: "Métodos de pago y reglas de cobro." },
+  { key: "senas", label: "Señas", desc: "Reglas de señas para reservas." },
+];
+
+const ALL_PERMISSION_KEYS: PermissionKey[] = [
+  ...MAIN_PERMISSION_ITEMS.map((item) => item.key),
+  ...CONFIG_PERMISSION_ITEMS.map((item) => item.key),
+];
+
+// Subsecciones internas que dependen del único permiso "Configuración".
+const CONFIG_SUB_KEYS: PermissionKey[] = [
+  "branding",
+  "horarios",
+  "equipo",
+  "servicios",
+  "catalogo",
+  "caja",
+  "senas",
+];
+
+const allOnPermissions = (): PermissionMap =>
+  ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: true }),
+    {} as PermissionMap,
+  );
+
+const buildPermissions = (enabled: PermissionKey[]): PermissionMap =>
+  ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: enabled.includes(key) }),
+    {} as PermissionMap,
+  );
+
+const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
+  admin_general: allOnPermissions(),
+  socio: buildPermissions([
+    "dashboard",
+    "agenda",
+    "caja_cobro",
+    "panel_profesionales",
+    "clientes",
+    "configuracion",
+    "asesor_ia",
+    "branding",
+    "horarios",
+    "equipo",
+    "servicios",
+    "catalogo",
+    "caja",
+    "senas",
+  ]),
+  admin_local: buildPermissions([
+    "dashboard",
+    "agenda",
+    "caja_cobro",
+    "clientes",
+  ]),
+  recepcionista: buildPermissions(["agenda", "caja_cobro", "clientes"]),
+  profesional: buildPermissions(["panel_profesionales"]),
+};
+
+const ROLE_PERMISSION_OPTIONS: {
+  id: RolePermissionId;
+  label: string;
+  icon: string;
+  desc: string;
+  locked?: boolean;
+}[] = [
+  {
+    id: "admin_general",
+    label: "Admin. General",
+    icon: "👑",
+    desc: "Administrador principal del negocio.",
+    locked: true,
+  },
+  {
+    id: "socio",
+    label: "Socio",
+    icon: "🤝",
+    desc: "Acceso completo por defecto, editable.",
+  },
+  {
+    id: "admin_local",
+    label: "Administrador Local",
+    icon: "🏢",
+    desc: "Gestión operativa de la sucursal.",
+  },
+  {
+    id: "recepcionista",
+    label: "Recepcionista",
+    icon: "💼",
+    desc: "Agenda, caja y clientes.",
+  },
+  {
+    id: "profesional",
+    label: "Profesional",
+    icon: "✂️",
+    desc: "Accesos para el trabajo diario.",
+  },
+];
+
+const ROLE_ACCESS_SUMMARY: Record<
+  RolePermissionId,
+  { title: string; desc: string; can: string[]; cannot: string[] }
+> = {
+  admin_general: {
+    title: "Administrador principal",
+    desc: "Control completo del negocio en Clippr.",
+    can: ["Todo el negocio", "Configuración", "Caja", "Asesor IA"],
+    cannot: [],
+  },
+  socio: {
+    title: "Gestión completa",
+    desc: "Ideal para socios o encargados con visión completa del negocio.",
+    can: ["Dashboard", "Agenda", "Caja", "Profesionales", "Clientes", "Asesor IA", "Configuración"],
+    cannot: [],
+  },
+  admin_local: {
+    title: "Gestión operativa",
+    desc: "Para administrar la operación diaria sin tocar datos sensibles del negocio.",
+    can: ["Dashboard", "Agenda", "Caja", "Clientes"],
+    cannot: ["Profesionales", "Configuración", "Asesor IA"],
+  },
+  recepcionista: {
+    title: "Recepción y caja",
+    desc: "Para gestionar turnos, clientes y cobros del día.",
+    can: ["Agenda", "Caja", "Clientes"],
+    cannot: ["Dashboard", "Profesionales", "Configuración", "Asesor IA"],
+  },
+  profesional: {
+    title: "Panel profesional",
+    desc: "Para que cada profesional vea su actividad y registre su trabajo.",
+    can: ["Profesionales"],
+    cannot: ["Dashboard", "Agenda", "Caja", "Clientes", "Configuración", "Asesor IA"],
+  },
+};
+
+function normalizeRolePermissions(value: unknown): RolePermissions {
+  const saved = (
+    value && typeof value === "object" ? value : {}
+  ) as Partial<RolePermissions>;
+  return ROLE_PERMISSION_OPTIONS.reduce((acc, role) => {
+    const base = DEFAULT_ROLE_PERMISSIONS[role.id];
+    const incoming = (saved[role.id] ?? {}) as Partial<PermissionMap>;
+    acc[role.id] =
+      role.id === "admin_general"
+        ? allOnPermissions()
+        : ALL_PERMISSION_KEYS.reduce(
+            (roleAcc, key) => ({
+              ...roleAcc,
+              [key]:
+                typeof incoming[key] === "boolean"
+                  ? Boolean(incoming[key])
+                  : base[key],
+            }),
+            {} as PermissionMap,
+          );
+    return acc;
+  }, {} as RolePermissions);
+}
+
+function normalizePermissionMap(value: unknown): PermissionMap {
+  const src = (value && typeof value === "object" ? value : {}) as Record<
+    string,
+    unknown
+  >;
+  return ALL_PERMISSION_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: src[key] === true }),
+    {} as PermissionMap,
+  );
+}
+
+
+
+// Tarjeta de profesional memoizada: solo se re-renderiza si cambian sus props
+// (este profesional o sus callbacks), no cuando cambia cualquier otro estado de
+// Configuración. Reduce drásticamente los re-renders con muchos profesionales.
+const ProfessionalCard = React.memo(function ProfessionalCard({
+  emp,
+  tintClass,
+  deleting,
+  onEdit,
+  onToggle,
+  onRemove,
+}: {
+  emp: EmployeeRow;
+  tintClass: string;
+  deleting?: boolean;
+  onEdit: (emp: EmployeeRow) => void;
+  onToggle: (emp: EmployeeRow) => void;
+  onRemove: (emp: EmployeeRow) => void;
+}) {
+  const displayName = emp.full_name || emp.name || "—";
+  const active = emp.is_active !== false;
+  return (
+    <div
+      className={cn(
+        "glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity",
+        (!active || deleting) && "opacity-70",
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={cn(
+            "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10",
+            tintClass,
+          )}
+        >
+          {emp.avatar_url ? (
+            <img
+              src={emp.avatar_url}
+              alt={displayName}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            displayName[0]?.toUpperCase()
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm ">{displayName}</div>
+          <div className="text-xs text-muted-foreground">{emp.role?.trim() || "Profesional"}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onToggle(emp)}
+          disabled={deleting}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110 disabled:opacity-50",
+            active
+              ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
+              : "bg-white/5 ring-white/10 text-muted-foreground",
+          )}
+          title={active ? "Desactivar profesional" : "Activar profesional"}
+        >
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
+            )}
+          />
+          {active ? "Activo" : "Inactivo"}
+        </button>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          onClick={() => onEdit(emp)}
+          disabled={deleting}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs disabled:opacity-50"
+        >
+          Editar
+        </button>
+      </div>
+    </div>
+  );
+});
+
+export function EquipoSection() {
+  const { businessId } = useAuth();
+  const [tab, setTab] = useState<"pros" | "users">("pros");
+  const [selectedPermRole, setSelectedPermRole] =
+    useState<RolePermissionId>("admin_general");
+  const [rolePermissions, setRolePermissions] = useState<RolePermissions>(
+    DEFAULT_ROLE_PERMISSIONS,
+  );
+  const [individualPermMode, setIndividualPermMode] = useState(true);
+  const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
+  const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
+  const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
+  const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(
+    null,
+  );
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<AccessUser | null>(
+    null,
+  );
+  const [deletingAccess, setDeletingAccess] = useState(false);
+  const [accessTouched, setAccessTouched] = useState(false);
+  const [accessPermissionsForm, setAccessPermissionsForm] =
+    useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
+  const [userPermissions, setUserPermissions] = useState<
+    Record<string, PermissionMap>
+  >({});
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
+  const [showAutoApprovalExample, setShowAutoApprovalExample] = useState(false);
+  const [showManualApprovalExample, setShowManualApprovalExample] = useState(false);
+  const [showAutoApprovalPurpose, setShowAutoApprovalPurpose] = useState(false);
+  const [showManualApprovalPurpose, setShowManualApprovalPurpose] = useState(false);
+  const [rows, setRows] = useState<EmployeeRow[]>([]);
+  const [employeeOnlineMap, setEmployeeOnlineMap] = useState<
+    Record<string, boolean>
+  >({});
+  // Horario individual por profesional cargado desde
+  // business_settings.schedule._employeeSchedules. Pre-carga el form al editar
+  // y evita perderlo al re-guardar.
+  const [employeeSchedules, setEmployeeSchedules] = useState<
+    Record<string, ScheduleMap>
+  >({});
+  const [employeeSpecialDates, setEmployeeSpecialDates] =
+    useState<EmployeeSpecialDateMap>({});
+  const [pendingProfessionals, setPendingProfessionals] = useState<
+    PendingProfessional[]
+  >([]);
+  const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
+  const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
+  const [dlgTab, setDlgTab] = useState<"perfil" | "horarios" | "comisiones">(
+    "perfil",
+  );
+
+  const load = useCallback(async () => {
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const [{ data, error }, catalogResult, settingsResult] = await Promise.all([
+      supabase
+        .from("employees")
+        .select("id,full_name,avatar_url,is_active,commission_pct")
+        .eq("business_id", businessId)
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("price_catalog")
+        .select(
+          "id,name,price,duration_min,category,active,stock,cash_discount",
+        )
+        .eq("business_id", businessId)
+        .order("category")
+        .order("name"),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
+    ]);
+    if (error) toast.error("Error cargando profesionales: " + error.message);
+    if (catalogResult.error)
+      toast.error(
+        "Error cargando servicios y catálogo: " + catalogResult.error.message,
+      );
+    const schedule = (settingsResult.data?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const employeeRoles = (
+      schedule._employeeRoles && typeof schedule._employeeRoles === "object"
+        ? schedule._employeeRoles
+        : {}
+    ) as Record<string, string>;
+    setRows(
+      ((data ?? []) as EmployeeRow[]).map((emp) => ({
+        ...emp,
+        role: employeeRoles[emp.id] ?? emp.role ?? null,
+      })),
+    );
+    setCommissionItems((catalogResult.data ?? []) as PriceRow[]);
+    setLoading(false);
+  }, [businessId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const loadTeamMembers = useCallback(async () => {
+    if (!businessId) return;
+    const { data, error } = await supabase
+      .from("team_members")
+      .select(
+        "id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at",
+      )
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error("Error cargando accesos: " + error.message);
+      return;
+    }
+    // Excluimos los tombstones de accesos eliminados (status deleted/removed):
+    // la fila se conserva en la base para bloquear el re-acceso, pero NO debe
+    // mostrarse en la lista de accesos.
+    const rows = ((data ?? []) as Array<Record<string, unknown>>).filter(
+      (r) =>
+        !["deleted", "removed"].includes(String(r.status ?? "").toLowerCase()),
+    );
+    const users: AccessUser[] = rows.map((r) => {
+      const rawStatus = String(r.status ?? "invited");
+      const status: AccessStatus =
+        rawStatus === "active"
+          ? "active"
+          : rawStatus === "suspended"
+            ? "suspended"
+            : "invited";
+      const role: RolePermissionId = ROLE_PERMISSION_OPTIONS.some(
+        (o) => o.id === r.role,
+      )
+        ? (r.role as RolePermissionId)
+        : "profesional";
+      return {
+        id: String(r.id),
+        auth_user_id: (r.auth_user_id as string | null) ?? null,
+        name: String(r.full_name ?? "").trim(),
+        email: String(r.email ?? "").trim(),
+        role,
+        status,
+        employee_id: (r.professional_id as string | null) ?? null,
+        branch_id: (r.branch_id as string | null) ?? null,
+        created_at: (r.created_at as string | null) ?? null,
+      };
+    });
+    const perms: Record<string, PermissionMap> = {};
+    rows.forEach((r) => {
+      perms[String(r.id)] = normalizePermissionMap(r.permissions);
+    });
+    setAccessUsers(users);
+    setUserPermissions(perms);
+    setSelectedAccessUserId((current) => current || users[0]?.id || "");
+  }, [businessId]);
+
+  useEffect(() => {
+    loadTeamMembers();
+  }, [loadTeamMembers]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule,approval_mode")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
+        const caja = (schedule._caja ?? {}) as Record<string, unknown>;
+        setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
+        const visibility = getPublicVisibility(schedule);
+        setEmployeeOnlineMap(
+          normalizePublicBooleanMap(
+            visibility.employees ?? schedule._employeeOnline,
+          ),
+        );
+        const loadedEmployeeSchedules = (
+          schedule._employeeSchedules &&
+          typeof schedule._employeeSchedules === "object"
+            ? schedule._employeeSchedules
+            : {}
+        ) as Record<string, ScheduleMap>;
+        setEmployeeSchedules(loadedEmployeeSchedules);
+        const loadedEmployeeSpecial = (
+          schedule._employeeSpecialDates &&
+          typeof schedule._employeeSpecialDates === "object"
+            ? schedule._employeeSpecialDates
+            : {}
+        ) as EmployeeSpecialDateMap;
+        setEmployeeSpecialDates(loadedEmployeeSpecial);
+        const employeeRoles = (
+          schedule._employeeRoles && typeof schedule._employeeRoles === "object"
+            ? schedule._employeeRoles
+            : {}
+        ) as Record<string, string>;
+        setRows((current) =>
+          current.map((emp) => ({
+            ...emp,
+            role: employeeRoles[emp.id] ?? emp.role ?? null,
+          })),
+        );
+        setApprovalEnabled(caja.approvalModeEnabled === true);
+        setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
+      });
+  }, [businessId]);
+
+  async function saveRolePermissions(showToast = true) {
+    if (!businessId) return;
+    if (!showToast) reportSaveStatus("saving");
+
+    for (const item of pendingProfessionals) {
+      const payload = item.payload;
+      if (item.isNew) {
+        const { data: inserted, error } = await supabase
+          .from("employees")
+          .insert({
+            business_id: businessId,
+            full_name: payload.full_name,
+            is_active: payload.is_active,
+            commission_pct: payload.commission_pct,
+            avatar_url: payload.avatar_url ?? null,
+          })
+          .select("id")
+          .single();
+
+        if (error || !inserted) {
+          return toast.error(
+            "Error guardando profesional: " +
+              (error?.message ?? "no se pudo crear"),
+          );
+        }
+
+        {
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const existingCommissions = (existingSchedule._employeeCommissions ??
+            {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ??
+            {}) as Record<string, string>;
+          const visibility = getPublicVisibility(existingSchedule);
+          const employeesVisibility = normalizePublicBooleanMap(
+            visibility.employees ?? existingSchedule._employeeOnline,
+          );
+
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeCommissions: payload.commissions
+                  ? {
+                      ...existingCommissions,
+                      [inserted.id]: payload.commissions,
+                    }
+                  : existingCommissions,
+                _employeeRoles: {
+                  ...existingRoles,
+                  [inserted.id]: payload.role ?? "Profesional",
+                },
+                _employeeSchedules: payload.schedule
+                  ? {
+                      ...((existingSchedule._employeeSchedules ?? {}) as Record<
+                        string,
+                        unknown
+                      >),
+                      [inserted.id]: payload.schedule,
+                    }
+                  : (existingSchedule._employeeSchedules ?? {}),
+                _publicVisibility: {
+                  ...visibility,
+                  employees: {
+                    ...employeesVisibility,
+                    [inserted.id]: payload.acceptsOnline !== false,
+                  },
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+      } else if (payload.id) {
+        const { error } = await supabase
+          .from("employees")
+          .update({
+            full_name: payload.full_name,
+            is_active: payload.is_active,
+            commission_pct: payload.commission_pct,
+            avatar_url: payload.avatar_url ?? null,
+          })
+          .eq("id", payload.id);
+
+        if (error)
+          return toast.error("Error guardando profesional: " + error.message);
+
+        {
+          const { data: existingRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", businessId)
+            .maybeSingle();
+          const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const existingCommissions = (existingSchedule._employeeCommissions ??
+            {}) as Record<string, unknown>;
+          const existingRoles = (existingSchedule._employeeRoles ??
+            {}) as Record<string, string>;
+          const visibility = getPublicVisibility(existingSchedule);
+          const employeesVisibility = normalizePublicBooleanMap(
+            visibility.employees ?? existingSchedule._employeeOnline,
+          );
+
+          await supabase.from("business_settings").upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeCommissions: payload.commissions
+                  ? {
+                      ...existingCommissions,
+                      [payload.id]: payload.commissions,
+                    }
+                  : existingCommissions,
+                _employeeRoles: {
+                  ...existingRoles,
+                  [payload.id]: payload.role ?? "Profesional",
+                },
+                _employeeSchedules: payload.schedule
+                  ? {
+                      ...((existingSchedule._employeeSchedules ?? {}) as Record<
+                        string,
+                        unknown
+                      >),
+                      [payload.id]: payload.schedule,
+                    }
+                  : (existingSchedule._employeeSchedules ?? {}),
+                _publicVisibility: {
+                  ...visibility,
+                  employees: {
+                    ...employeesVisibility,
+                    [payload.id]: payload.acceptsOnline !== false,
+                  },
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        }
+      }
+    }
+
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const cleaned = normalizeRolePermissions(rolePermissions);
+
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        approval_mode: approvalMode,
+        schedule: {
+          ...existingSchedule,
+          _rolePermissions: cleaned,
+          _caja: {
+            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
+            approvalModeEnabled: approvalEnabled,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+
+    if (error)
+      return toast.error(
+        "Error guardando accesos y permisos: " + error.message,
+      );
+    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
+    setPendingProfessionals([]);
+    await load();
+    if (showToast) toast.success("Equipo guardado correctamente");
+    else reportSaveStatus("saved");
+  }
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail ?? {};
+      const section = detail?.section;
+      const silent = detail?.silent === true;
+      if (!section || section === "equipo") {
+        void saveRolePermissions(!silent);
+      }
+    };
+    window.addEventListener("clippr:save-settings", handler);
+    return () => window.removeEventListener("clippr:save-settings", handler);
+  }, [
+    businessId,
+    rolePermissions,
+    accessUsers,
+    userPermissions,
+    pendingProfessionals,
+    load,
+    approvalEnabled,
+    approvalMode,
+  ]);
+
+  async function saveApprovalSettings(
+    nextEnabled = approvalEnabled,
+    nextMode = approvalMode,
+  ) {
+    if (!businessId) return toast.error("No se encontró el negocio");
+
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        approval_mode: nextMode,
+        schedule: {
+          ...existingSchedule,
+          _caja: {
+            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
+            approvalModeEnabled: nextEnabled,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+
+    if (error) return toast.error("Error guardando: " + error.message);
+    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
+    toast.success("Guardado");
+  }
+
+  function updateApprovalEnabled(value: boolean) {
+    setApprovalEnabled(value);
+    void saveApprovalSettings(value, approvalMode);
+  }
+
+  function updateApprovalMode(value: "auto" | "manual") {
+    setApprovalMode(value);
+    void saveApprovalSettings(approvalEnabled, value);
+  }
+
+  async function compressProfessionalAvatar(file: File): Promise<Blob> {
+    const imageUrl = URL.createObjectURL(file);
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("No se pudo leer la imagen"));
+        img.src = imageUrl;
+      });
+
+      const size = 200;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("No se pudo preparar la imagen");
+
+      const sourceSize = Math.min(image.width, image.height);
+      const sourceX = Math.max(0, (image.width - sourceSize) / 2);
+      const sourceY = Math.max(0, (image.height - sourceSize) / 2);
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        size,
+        size,
+      );
+
+      const toBlob = (quality: number) =>
+        new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) reject(new Error("No se pudo comprimir la imagen"));
+              else resolve(blob);
+            },
+            "image/webp",
+            quality,
+          );
+        });
+
+      let quality = 0.75;
+      let blob = await toBlob(quality);
+
+      while (blob.size > 80 * 1024 && quality > 0.45) {
+        quality -= 0.08;
+        blob = await toBlob(quality);
+      }
+
+      if (blob.size > 80 * 1024) {
+        toast.info(
+          "La imagen quedó optimizada, pero puede superar levemente los 80 KB por el formato original.",
+        );
+      }
+
+      return blob;
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  }
+
+  async function uploadProfessionalAvatar(file: File) {
+    if (!businessId) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Subí una imagen JPG, PNG o WEBP");
+      return;
+    }
+
+    const compressed = await compressProfessionalAvatar(file);
+    const safeId = editingEmp?.id ?? `new-${crypto.randomUUID()}`;
+    const path = `${businessId}/${safeId}-${Date.now()}.webp`;
+
+    const { error } = await supabase.storage
+      .from("professionals")
+      .upload(path, compressed, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: "image/webp",
+      });
+
+    if (error) {
+      toast.error("Error subiendo la foto: " + error.message);
+      return;
+    }
+
+    const { data } = supabase.storage.from("professionals").getPublicUrl(path);
+    setForm((current) => ({ ...current, avatarUrl: data.publicUrl }));
+    toast.success(
+      "Foto comprimida y cargada. Tocá Aceptar y luego Guardar para confirmar.",
+    );
+  }
+
+  function openNew() {
+    setEditingEmp(null);
+    setForm(EMPTY_FORM);
+    setDlgTab("perfil");
+    setOpen(true);
+  }
+
+  async function saveEmployeeCommissionConfig(employeeId: string) {
+    if (!businessId) return;
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const existingCommissions = (existingSchedule._employeeCommissions ??
+      {}) as Record<string, unknown>;
+
+    await supabase.from("business_settings").upsert(
+      {
+        business_id: businessId,
+        schedule: {
+          ...existingSchedule,
+          _employeeCommissions: {
+            ...existingCommissions,
+            [employeeId]: form.commissions,
+          },
+        },
+      },
+      { onConflict: "business_id" },
+    );
+  }
+
+  async function saveProfessional() {
+    if (!businessId) return;
+    const name = form.fullName.trim();
+    if (!name) {
+      setDlgTab("perfil");
+      return toast.error("Ingresá el nombre completo");
+    }
+
+    const commission = form.commissionPct ? Number(form.commissionPct) : null;
+    const payload = {
+      id: editingEmp?.id,
+      full_name: name,
+      is_active: editingEmp ? editingEmp.is_active !== false : true,
+      commission_pct: commission,
+      avatar_url: form.avatarUrl || null,
+      role: form.role.trim() || "Profesional",
+      acceptsOnline: form.acceptsOnline,
+      commissions: form.commissions,
+      schedule: form.schedule,
+      specialDates: form.specialDates,
+    };
+
+    if (editingEmp) {
+      setRows((current) =>
+        current.map((emp) =>
+          emp.id === editingEmp.id
+            ? {
+                ...emp,
+                full_name: name,
+                commission_pct: commission,
+                avatar_url: form.avatarUrl || null,
+                role: form.role.trim() || "Profesional",
+              }
+            : emp,
+        ),
+      );
+
+      setEmployeeOnlineMap((current) => ({
+        ...current,
+        [editingEmp.id]: form.acceptsOnline,
+      }));
+
+      // Persistencia INMEDIATA del horario individual del profesional, sin
+      // depender del "Guardar" de la sección (igual que avatar/portada). Esto
+      // garantiza que _employeeSchedules quede en Supabase apenas se acepta.
+      try {
+        const { data: existingRow } = await supabase
+          .from("business_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle();
+        const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+          string,
+          unknown
+        >;
+        const existingEmpScheds = (existingSchedule._employeeSchedules ??
+          {}) as Record<string, unknown>;
+        const { error: schedErr } = await supabase
+          .from("business_settings")
+          .upsert(
+            {
+              business_id: businessId,
+              schedule: {
+                ...existingSchedule,
+                _employeeSchedules: {
+                  ...existingEmpScheds,
+                  [editingEmp.id]: form.schedule,
+                },
+                _employeeSpecialDates: {
+                  ...((existingSchedule._employeeSpecialDates ?? {}) as Record<
+                    string,
+                    unknown
+                  >),
+                  [editingEmp.id]: form.specialDates,
+                },
+              },
+            },
+            { onConflict: "business_id" },
+          );
+        if (schedErr)
+          toast.error(
+            "No se pudo guardar el horario del profesional. Probá de nuevo.",
+          );
+        setEmployeeSchedules((current) => ({
+          ...current,
+          [editingEmp.id]: form.schedule,
+        }));
+        setEmployeeSpecialDates((current) => ({
+          ...current,
+          [editingEmp.id]: form.specialDates,
+        }));
+      } catch {
+        toast.error(
+          "No se pudo guardar el horario del profesional. Probá de nuevo.",
+        );
+      }
+
+      setPendingProfessionals((current) => [
+        ...current.filter((item) => item.payload.id !== editingEmp.id),
+        { tempId: editingEmp.id, payload, isNew: false },
+      ]);
+
+      toast.success(
+        "Horario guardado. Tocá Guardar para confirmar los demás cambios.",
+      );
+      setOpen(false);
+      setEditingEmp(null);
+      return;
+    }
+
+    // Alta INMEDIATA: inserta el empleado y persiste su configuración (horario,
+    // rol, comisión, visibilidad) en el momento, sin depender del "Guardar" de
+    // la sección. Mismo criterio que la edición.
+    setSaving(true);
+    try {
+      const { data: inserted, error } = await supabase
+        .from("employees")
+        .insert({
+          business_id: businessId,
+          full_name: name,
+          is_active: true,
+          commission_pct: commission,
+          avatar_url: form.avatarUrl || null,
+        })
+        .select("id")
+        .single();
+
+      if (error || !inserted) {
+        toast.error(
+          "Error guardando profesional: " +
+            (error?.message ?? "no se pudo crear"),
+        );
+        setSaving(false);
+        return;
+      }
+
+      const newId = inserted.id as string;
+      const { data: existingRow } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const existingCommissions = (existingSchedule._employeeCommissions ??
+        {}) as Record<string, unknown>;
+      const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<
+        string,
+        string
+      >;
+      const existingEmpScheds = (existingSchedule._employeeSchedules ??
+        {}) as Record<string, unknown>;
+      const visibility = getPublicVisibility(existingSchedule);
+      const employeesVisibility = normalizePublicBooleanMap(
+        visibility.employees ?? existingSchedule._employeeOnline,
+      );
+
+      const { error: settingsErr } = await supabase
+        .from("business_settings")
+        .upsert(
+          {
+            business_id: businessId,
+            schedule: {
+              ...existingSchedule,
+              _employeeCommissions: form.commissions
+                ? { ...existingCommissions, [newId]: form.commissions }
+                : existingCommissions,
+              _employeeRoles: {
+                ...existingRoles,
+                [newId]: form.role.trim() || "Profesional",
+              },
+              _employeeSchedules: {
+                ...existingEmpScheds,
+                [newId]: form.schedule,
+              },
+              _employeeSpecialDates: {
+                ...((existingSchedule._employeeSpecialDates ?? {}) as Record<
+                  string,
+                  unknown
+                >),
+                [newId]: form.specialDates,
+              },
+              _publicVisibility: {
+                ...visibility,
+                employees: {
+                  ...employeesVisibility,
+                  [newId]: form.acceptsOnline !== false,
+                },
+              },
+            },
+          },
+          { onConflict: "business_id" },
+        );
+      if (settingsErr) {
+        toast.error(
+          "Profesional creado, pero no se pudo guardar su configuración. Editalo para reintentar.",
+        );
+      }
+
+      setRows((current) => [
+        ...current,
+        {
+          id: newId,
+          full_name: name,
+          avatar_url: form.avatarUrl || null,
+          role: form.role.trim() || "Profesional",
+          is_active: true,
+          commission_pct: commission,
+        },
+      ]);
+      setEmployeeOnlineMap((current) => ({
+        ...current,
+        [newId]: form.acceptsOnline,
+      }));
+      setEmployeeSchedules((current) => ({
+        ...current,
+        [newId]: form.schedule,
+      }));
+      setEmployeeSpecialDates((current) => ({
+        ...current,
+        [newId]: form.specialDates,
+      }));
+
+      toast.success("Profesional agregado.");
+      setOpen(false);
+    } catch {
+      toast.error("No se pudo guardar el profesional. Probá de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const toggleActive = useCallback(
+    async (emp: EmployeeRow) => {
+      const { error } = await supabase
+        .from("employees")
+        .update({ is_active: !(emp.is_active !== false) })
+        .eq("id", emp.id);
+      if (error)
+        return toast.error(
+          "No se pudo actualizar el estado del profesional. Probá de nuevo.",
+        );
+      load();
+    },
+    [load],
+  );
+
+  const remove = useCallback(async (emp: EmployeeRow) => {
+    // Solo bloquean la eliminación los turnos FUTUROS reales (no cancelados y
+    // que NO sean bloqueos de horario). El historial pasado, los cancelados y
+    // los bloqueos NO bloquean: se desvinculan del profesional al eliminarlo.
+    const nowIso = new Date().toISOString();
+    const { data: future, error: checkError } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("employee_id", emp.id)
+      .gte("starts_at", nowIso)
+      .neq("status", "cancelled")
+      .neq("status", "blocked")
+      .limit(1);
+    if (checkError) {
+      toast.error(
+        "No se pudo verificar los turnos del profesional. Probá de nuevo.",
+      );
+      return;
+    }
+    if (future && future.length > 0) {
+      toast.error(
+        "No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.",
+      );
+      return;
+    }
+    setConfirmDel(emp);
+  }, []);
+
+  const handleEditPro = useCallback(
+    (emp: EmployeeRow) => {
+      setEditingEmp(emp);
+      setForm({
+        ...EMPTY_FORM,
+        fullName: emp.full_name ?? emp.name ?? "",
+        avatarUrl: emp.avatar_url ?? "",
+        commissionPct: String(emp.commission_pct ?? ""),
+        role: emp.role ?? "Barbero",
+        acceptsOnline: employeeOnlineMap[emp.id] !== false,
+        schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
+        specialDates: employeeSpecialDates[emp.id] ?? {},
+      });
+      setDlgTab("perfil");
+      setOpen(true);
+    },
+    [employeeOnlineMap, employeeSchedules, employeeSpecialDates],
+  );
+
+  async function doRemoveEmp() {
+    if (!confirmDel) return;
+    const emp = confirmDel;
+    setConfirmDel(null);
+    setDeletingId(emp.id);
+
+    // La FK appointments.employee_id → employees.id impide borrar un profesional
+    // con turnos que lo referencian. Para poder eliminarlo cuando solo tiene
+    // historial, desvinculamos (employee_id = null) sus turnos PASADOS y los
+    // CANCELADOS (cualquier fecha). Los FUTUROS no cancelados NO se tocan: si
+    // existe alguno (p. ej. agendado entre el chequeo y el borrado), la FK
+    // bloquea el delete y el backstop de abajo muestra el mensaje correcto.
+    const nowIso = new Date().toISOString();
+    const detachPast = await supabase
+      .from("appointments")
+      .update({ employee_id: null })
+      .eq("employee_id", emp.id)
+      .lt("starts_at", nowIso);
+    const detachCancelled = await supabase
+      .from("appointments")
+      .update({ employee_id: null })
+      .eq("employee_id", emp.id)
+      .eq("status", "cancelled");
+    const detachBlocked = await supabase
+      .from("appointments")
+      .update({ employee_id: null })
+      .eq("employee_id", emp.id)
+      .eq("status", "blocked");
+    if (detachPast.error || detachCancelled.error || detachBlocked.error) {
+      setDeletingId(null);
+      toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("employees")
+      .delete()
+      .eq("id", emp.id);
+    if (error) {
+      setDeletingId(null);
+      // Backstop por si se agendó un turno FUTURO entre el chequeo y el borrado:
+      // nunca mostramos el error técnico de la FK al usuario.
+      if (
+        error.code === "23503" ||
+        /appointments_employee_id_fkey|foreign key/i.test(error.message)
+      ) {
+        toast.error(
+          "No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.",
+        );
+        return;
+      }
+      toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
+      return;
+    }
+    // Borrado quirúrgico por id en el estado local (sin recargar la página ni
+    // re-fetchear toda la lista). Solo desaparece exactamente este profesional.
+    setRows((prev) => prev.filter((e) => e.id !== emp.id));
+    if (editingEmp?.id === emp.id) {
+      setOpen(false);
+      setEditingEmp(null);
+    }
+    setDeletingId(null);
+    toast.success("Profesional eliminado.");
+  }
+
+  function setDay(key: DayKey, patch: Partial<DaySchedule>) {
+    setForm((f) => ({
+      ...f,
+      schedule: { ...f.schedule, [key]: { ...f.schedule[key], ...patch } },
+    }));
+  }
+
+  function togglePermission(roleId: RolePermissionId, key: PermissionKey) {
+    if (roleId === "admin_general") return;
+    setRolePermissions((current) => {
+      const nextValue = !current[roleId][key];
+      const nextRole = { ...current[roleId], [key]: nextValue };
+
+      if (key === "configuracion" && !nextValue) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          nextRole[item.key] = false;
+        });
+      }
+
+      if (
+        CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) &&
+        nextValue
+      ) {
+        nextRole.configuracion = true;
+      }
+
+      return { ...current, [roleId]: nextRole };
+    });
+  }
+
+  async function saveAccessUser() {
+    setAccessTouched(true);
+    const selectedEmployee = rows.find(
+      (emp) => emp.id === accessForm.employee_id,
+    );
+    const fallbackName =
+      accessForm.role === "profesional"
+        ? selectedEmployee?.full_name || selectedEmployee?.name || ""
+        : ROLE_LABEL_BY_ID[accessForm.role];
+    const name = fallbackName.trim();
+    const email = accessForm.email.trim();
+
+    if (accessForm.role === "profesional" && !selectedEmployee) {
+      setAccessTouched(true);
+      return toast.error("Debés seleccionar un profesional para este acceso.");
+    }
+    if (!email) return toast.error("Ingresá el correo electrónico");
+    if (!businessId) return toast.error("No se pudo determinar el negocio");
+
+    setSaving(true);
+    const payload = {
+      action: editingAccessUserId ? "update" : "create",
+      member_id: editingAccessUserId ?? undefined,
+      business_id: businessId,
+      email,
+      full_name: name,
+      role: accessForm.role,
+      status:
+        editingAccessUserId &&
+        accessUsers.find((user) => user.id === editingAccessUserId)?.status ===
+          "invited"
+          ? "invited"
+          : accessForm.status === "inactive"
+            ? "suspended"
+            : "active",
+      professional_id:
+        accessForm.role === "profesional"
+          ? (selectedEmployee?.id ?? null)
+          : null,
+      branch_id: accessForm.branch_id ?? null,
+      permissions: accessPermissionsForm,
+    };
+
+    const { data, error } = await supabase.functions.invoke(
+      "invite-team-member",
+      {
+        body: payload,
+      },
+    );
+    setSaving(false);
+
+    const rawErrMsg =
+      error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    const friendlyErrMsg = rawErrMsg?.includes("non-2xx status code")
+      ? "No se pudo crear el acceso. Revisá si ese correo ya existe o tiene una invitación pendiente."
+      : rawErrMsg;
+    if (friendlyErrMsg) return toast.error(friendlyErrMsg);
+
+    toast.success(
+      editingAccessUserId
+        ? "Acceso actualizado correctamente"
+        : "Invitación enviada por email",
+    );
+    setEditingAccessUserId(null);
+    setAccessForm(EMPTY_ACCESS_FORM);
+    setAccessTouched(false);
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+    setSelectedPermRole(accessForm.role);
+    await loadTeamMembers();
+  }
+
+  function editAccessUser(user: AccessUser) {
+    setEditingAccessUserId(user.id);
+    setAccessForm({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status === "suspended" ? "inactive" : "active",
+      employee_id: user.employee_id ?? null,
+      branch_id: user.branch_id ?? null,
+    });
+    setAccessPermissionsForm(
+      userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role],
+    );
+    setSelectedPermRole(user.role);
+    setSelectedAccessUserId(user.id);
+    setAccessTouched(false);
+  }
+
+  function cancelEditAccessUser() {
+    setEditingAccessUserId(null);
+    setAccessForm(EMPTY_ACCESS_FORM);
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+    setAccessTouched(false);
+  }
+
+  async function removeAccessUser(id: string) {
+    if (!businessId) return;
+    if (id === principalAdminId) {
+      setPendingDeleteUser(null);
+      return toast.error("El administrador principal no se puede eliminar.");
+    }
+
+    setDeletingAccess(true);
+    const { data, error } = await supabase.functions.invoke(
+      "invite-team-member",
+      {
+        body: {
+          action: "delete",
+          business_id: businessId,
+          member_id: id,
+        },
+      },
+    );
+    setDeletingAccess(false);
+    setPendingDeleteUser(null);
+
+    const errMsg =
+      error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    if (errMsg) return toast.error("Error eliminando acceso: " + errMsg);
+
+    if (selectedAccessUserId === id) setSelectedAccessUserId("");
+    if (editingAccessUserId === id) cancelEditAccessUser();
+    toast.success("Acceso eliminado");
+    await loadTeamMembers();
+  }
+
+  // Admin principal = el admin_general más antiguo del negocio (no se puede eliminar).
+  const principalAdminId = (() => {
+    const admins = accessUsers
+      .filter((u) => u.role === "admin_general")
+      .slice()
+      .sort((a, b) =>
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+      );
+    return admins[0]?.id ?? null;
+  })();
+
+  function toggleUserPermission(userId: string, key: PermissionKey) {
+    const user = accessUsers.find((item) => item.id === userId);
+    if (!user) return;
+
+    setUserPermissions((current) => {
+      const base = current[userId] ?? DEFAULT_ROLE_PERMISSIONS[user.role];
+      const nextValue = !base[key];
+      const nextUser = { ...base, [key]: nextValue };
+
+      if (key === "configuracion" && !nextValue) {
+        CONFIG_PERMISSION_ITEMS.forEach((item) => {
+          nextUser[item.key] = false;
+        });
+      }
+
+      if (
+        CONFIG_PERMISSION_ITEMS.some((item) => item.key === key) &&
+        nextValue
+      ) {
+        nextUser.configuracion = true;
+      }
+
+      return { ...current, [userId]: nextUser };
+    });
+  }
+
+  function getRecommendedPermissionKeys(role: RolePermissionId) {
+    return MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
+      (key) => DEFAULT_ROLE_PERMISSIONS[role][key],
+    );
+  }
+
+  function getAdditionalPermissionKeys(role: RolePermissionId) {
+    return MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
+      (key) => !DEFAULT_ROLE_PERMISSIONS[role][key],
+    );
+  }
+
+  function getPermissionItem(key: PermissionKey) {
+    return (
+      MAIN_PERMISSION_ITEMS.find((item) => item.key === key) ??
+      CONFIG_PERMISSION_ITEMS.find((item) => item.key === key)
+    );
+  }
+
+  function toggleAccessFormPermission(key: PermissionKey) {
+    setAccessPermissionsForm((current) => {
+      const next = { ...current, [key]: !current[key] };
+      // "Configuración" es un único permiso que habilita/inhabilita todas las
+      // subsecciones internas (Branding, Horarios, Equipo, Servicios, Catálogo,
+      // Caja, Señas) de una vez.
+      if (key === "configuracion") {
+        const v = next.configuracion;
+        CONFIG_SUB_KEYS.forEach((sub) => {
+          next[sub] = v;
+        });
+      }
+      return next;
+    });
+  }
+
+  function resetSelectedAccessPermissions() {
+    if (!selectedAccessUser) return;
+    setUserPermissions((current) => ({
+      ...current,
+      [selectedAccessUser.id]: {
+        ...DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role],
+      },
+    }));
+    toast.success("Permisos recomendados restablecidos");
+  }
+
+  const selectedRole =
+    ROLE_PERMISSION_OPTIONS.find((role) => role.id === selectedPermRole) ??
+    ROLE_PERMISSION_OPTIONS[0];
+  const selectedRoleUsers = accessUsers.filter(
+    (user) => user.role === selectedPermRole,
+  );
+  const selectedAccessUser =
+    selectedRoleUsers.find((user) => user.id === selectedAccessUserId) ??
+    selectedRoleUsers[0] ??
+    null;
+  const selectedUserPermissions = selectedAccessUser
+    ? (userPermissions[selectedAccessUser.id] ??
+      DEFAULT_ROLE_PERMISSIONS[selectedAccessUser.role])
+    : null;
+  const selectedPermissions =
+    individualPermMode && selectedUserPermissions
+      ? selectedUserPermissions
+      : selectedPermRole === "admin_general"
+        ? allOnPermissions()
+        : rolePermissions[selectedPermRole];
+  const selectedRoleLocked = selectedAccessUser?.role === "admin_general";
+  const currentPanelTitle =
+    individualPermMode && selectedAccessUser
+      ? `${selectedAccessUser.name} · ${ROLE_LABEL_BY_ID[selectedAccessUser.role]}`
+      : selectedRole.label;
+  const accessRoleOption =
+    ROLE_PERMISSION_OPTIONS.find((role) => role.id === accessForm.role) ??
+    ROLE_PERMISSION_OPTIONS[0];
+  const accessRoleSummary = ROLE_ACCESS_SUMMARY[accessForm.role];
+
+  return (
+    <>
+      <div>
+        <h2 className="text-xl font-display font-semibold">Equipo</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Administrá tu equipo.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-1 border-b border-white/5">
+        {(
+          [
+            ["pros", "Profesionales"],
+            ["users", "Accesos"],
+          ] as const
+        ).map(([id, label]) => {
+          const active = tab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={cn(
+                "relative px-4 py-2.5 text-sm transition-colors",
+                active
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+              {active && (
+                <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "pros" && (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <button
+              onClick={openNew}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20"
+            >
+              <Plus className="h-4 w-4" /> Agregar profesional
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="grid place-items-center py-16">
+              <ClipprLoader size="screen" delayMs={130} />
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
+              No hay profesionales cargados. Agregá el primero con el botón de
+              arriba.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {rows.map((emp) => (
+                <ProfessionalCard
+                  key={emp.id}
+                  emp={emp}
+                  tintClass={tintForId(emp.id)}
+                  deleting={deletingId === emp.id}
+                  onEdit={handleEditPro}
+                  onToggle={toggleActive}
+                  onRemove={remove}
+                />
+              ))}
+            </div>
+          )}
+          <SectionCard label="Aprobación de cobros profesionales">
+            <div className="space-y-5">
+              <div className="flex items-center gap-4 rounded-2xl bg-white/[0.025] ring-1 ring-white/10 p-4">
+                <div className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                  <ShieldCheck className="h-5 w-5 text-violet-200" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-base">
+                    Habilitar modo de aprobación
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-0.5">
+                    Definí si los cobros de profesionales se registran directo
+                    en Caja o si necesitan revisión.
+                  </div>
+                </div>
+                <Toggle on={approvalEnabled} onChange={updateApprovalEnabled} />
+              </div>
+
+              {approvalEnabled && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => updateApprovalMode("auto")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        updateApprovalMode("auto");
+                      }
+                    }}
+                    className={cn(
+                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden cursor-pointer",
+                      approvalMode === "auto"
+                        ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
+                        : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
+                    )}
+                  >
+                    <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-sky-400/10 blur-3xl" />
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                          Modo
+                        </div>
+                        <div className="mt-1 text-xl font-display font-semibold">
+                          Automático
+                        </div>
+                      </div>
+                      {approvalMode === "auto" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+                          Seleccionado
+                        </span>
+                      )}
+                    </div>
+                    <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
+                      El profesional cobra desde su panel y el ingreso se
+                      registra automáticamente en Caja.
+                    </p>
+                    <div className="relative mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAutoApprovalPurpose((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>💡</span>
+                        <span>¿Para qué sirve?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showAutoApprovalPurpose && "rotate-180",
+                          )}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAutoApprovalExample((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>❓</span>
+                        <span>¿Cómo funciona?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showAutoApprovalExample && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
+
+                    {showAutoApprovalPurpose ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Para qué sirve
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Ideal si cada profesional cobra directamente a sus clientes. Permite registrar el pago desde su propio panel, sin depender de la recepción, agilizando el cobro y reduciendo los tiempos de espera.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {showAutoApprovalExample ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Ejemplo
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Juan finaliza un servicio de $20.000 y registra el cobro
+                          desde su panel.
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          <div className="text-sm font-semibold text-white">
+                            Resultado:
+                          </div>
+                          <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-white/10 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.7)]">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="font-mono text-xs text-white/42">12:00</span>
+                              <span className="font-semibold text-white">Juan</span>
+                              <span className="text-white/35">→</span>
+                              <span className="font-semibold text-emerald-400">Cobró</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => updateApprovalMode("manual")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        updateApprovalMode("manual");
+                      }
+                    }}
+                    className={cn(
+                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden cursor-pointer",
+                      approvalMode === "manual"
+                        ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
+                        : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
+                    )}
+                  >
+                    <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-violet-400/10 blur-3xl" />
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                          Modo
+                        </div>
+                        <div className="mt-1 text-xl font-display font-semibold">
+                          Manual
+                        </div>
+                      </div>
+                      {approvalMode === "manual" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+                          Seleccionado
+                        </span>
+                      )}
+                    </div>
+                    <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
+                      El profesional informa el cobro y Caja lo revisa antes de
+                      registrarlo oficialmente.
+                    </p>
+                    <div className="relative mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowManualApprovalPurpose((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>💡</span>
+                        <span>¿Para qué sirve?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showManualApprovalPurpose && "rotate-180",
+                          )}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowManualApprovalExample((v) => !v);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
+                      >
+                        <span>❓</span>
+                        <span>¿Cómo funciona?</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showManualApprovalExample && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
+
+                    {showManualApprovalPurpose ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Para qué sirve
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Ideal para que profesionales y Caja tengan el mismo control sobre los servicios realizados. Cada servicio se registra desde el panel del profesional y Caja lo aprueba antes de registrarlo oficialmente.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {showManualApprovalExample ? (
+                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
+                          Ejemplo
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/78">
+                          Juan finaliza un servicio de $20.000 y registra el cobro
+                          desde su panel.
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          <div className="text-sm font-semibold text-white">
+                            Resultado:
+                          </div>
+                          <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-sky-400/15 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.75)]">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-mono text-xs text-white/42">12:00</span>
+                                <span className="font-semibold text-white">Juan</span>
+                                <span className="text-white/35">→</span>
+                                <span className="font-semibold text-sky-400">Envió a caja</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-mono text-xs text-white/42">12:01</span>
+                                <span className="font-semibold text-white">Caja</span>
+                                <span className="text-white/35">→</span>
+                                <span className="font-semibold text-emerald-400">Cobró</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {tab === "users" && (
+        <div className="-mt-2 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-lg font-display font-semibold">
+                Accesos del equipo
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Invitá y administrá quién puede entrar a Clippr.
+              </p>
+            </div>
+            {editingAccessUserId && (
+              <div className="rounded-xl bg-cyan-500/10 ring-1 ring-cyan-400/20 px-3 py-2 text-xs text-cyan-200 flex items-center justify-between gap-3">
+                <span>Editando: {accessForm.email || "sin email"}</span>
+                <button
+                  type="button"
+                  onClick={cancelEditAccessUser}
+                  className="rounded-lg bg-white/10 hover:bg-white/15 px-2 py-1 text-[11px] text-foreground"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-[0.78fr_1fr] gap-3">
+            <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-sky-400/10 ring-1 ring-sky-300/20">
+                  <UserPlus className="h-5 w-5 text-sky-300" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold">Nuevo acceso</div>
+                  <div className="text-xs text-muted-foreground">
+                    {editingAccessUserId
+                      ? "Actualizá el acceso seleccionado."
+                      : "Invitá a un profesional o colaborador a Clippr."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Rol">
+                    <select
+                      value={accessForm.role}
+                      onChange={(e) => {
+                        const role = e.target.value as RolePermissionId;
+                        setAccessForm((f) => ({
+                          ...f,
+                          role,
+                          name: "",
+                          employee_id: null,
+                          email: "",
+                        }));
+                        setAccessPermissionsForm(
+                          DEFAULT_ROLE_PERMISSIONS[role],
+                        );
+                        setAccessTouched(false);
+                      }}
+                      className={inputCls}
+                    >
+                      {ROLE_PERMISSION_OPTIONS.filter(
+                        (role) => role.id !== "admin_general",
+                      ).map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Estado">
+                    <select
+                      value={accessForm.status}
+                      onChange={(e) =>
+                        setAccessForm((f) => ({
+                          ...f,
+                          status: e.target.value as "active" | "inactive",
+                        }))
+                      }
+                      className={inputCls}
+                    >
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                    </select>
+                  </Field>
+                </div>
+
+                {accessForm.role === "profesional" && (
+                  <div>
+                    <Field label="Profesional">
+                      <select
+                        value={accessForm.employee_id ?? ""}
+                        onChange={(e) =>
+                          setAccessForm((f) => ({
+                            ...f,
+                            employee_id: e.target.value || null,
+                          }))
+                        }
+                        className={cn(
+                          inputCls,
+                          accessTouched &&
+                            !accessForm.employee_id &&
+                            "ring-red-500/70 focus:ring-red-500/70",
+                        )}
+                      >
+                        <option value="">Elegí un profesional</option>
+                        {rows.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name || emp.name || "Sin nombre"}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    {accessTouched && !accessForm.employee_id && (
+                      <div className="text-xs text-red-400 mt-1">
+                        Debés seleccionar un profesional para este acceso.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <Field label="Correo electrónico">
+                    <input
+                      type="email"
+                      autoComplete="off"
+                      name="clippr-access-email"
+                      value={accessForm.email}
+                      onChange={(e) =>
+                        setAccessForm((f) => ({ ...f, email: e.target.value }))
+                      }
+                      className={cn(
+                        inputCls,
+                        accessTouched &&
+                          !accessForm.email.trim() &&
+                          "ring-red-500/70 focus:ring-red-500/70",
+                      )}
+                      placeholder="ejemplo@correo.com"
+                    />
+                  </Field>
+                  {accessTouched && !accessForm.email.trim() && (
+                    <div className="text-xs text-red-400 mt-1">
+                      Campo requerido
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
+                  <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                  <span>
+                    La persona crea su contraseña desde la invitación que recibe
+                    por email.
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveAccessUser}
+                  disabled={saving}
+                  className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 disabled:opacity-60"
+                >
+                  {saving
+                    ? "Procesando…"
+                    : editingAccessUserId
+                      ? "Guardar cambios"
+                      : "Invitar y guardar"}
+                </button>
+              </div>
+            </div>
+
+            <div className="glass rounded-2xl p-4 ring-1 ring-white/5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">
+                    Usuarios y accesos
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {accessUsers.length}{" "}
+                    {accessUsers.length === 1
+                      ? "acceso creado"
+                      : "accesos creados"}
+                  </div>
+                </div>
+              </div>
+
+              {accessUsers.length === 0 ? (
+                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-5 text-sm text-muted-foreground text-center">
+                  Todavía no hay accesos creados.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {accessUsers.map((user) => {
+                    const displayTitle =
+                      user.role === "profesional"
+                        ? user.name || ROLE_LABEL_BY_ID[user.role]
+                        : ROLE_LABEL_BY_ID[user.role];
+                    return (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
+                    >
+                      <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                        {(displayTitle[0] || "A").toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium ">
+                          {displayTitle}
+                        </div>
+                        <div className="text-xs text-muted-foreground ">
+                          {user.email}
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-1 text-[10px] ring-1",
+                          user.status === "active"
+                            ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
+                            : user.status === "invited"
+                              ? "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
+                              : "bg-white/5 text-muted-foreground ring-white/10",
+                        )}
+                      >
+                        {user.status === "active"
+                          ? "Activo"
+                          : user.status === "invited"
+                            ? "Pendiente"
+                            : "Inactivo"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => editAccessUser(user)}
+                        className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                      >
+                        Editar
+                      </button>
+                      {user.id === principalAdminId ? (
+                        <span
+                          className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
+                          title="El administrador principal no se puede eliminar"
+                        >
+                          Principal
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteUser(user)}
+                          className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+                <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-sm">
+                      Permisos incluidos
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Según el rol seleccionado:{" "}
+                      {ROLE_LABEL_BY_ID[accessForm.role]}.
+                    </div>
+                  </div>
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-300/20">
+                    <ShieldCheck className="h-4.5 w-4.5 text-violet-200" />
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
+                        Puede acceder
+                      </div>
+                      <div className="space-y-1.5">
+                        {accessRoleSummary.can.map((item) => (
+                          <div
+                            key={item}
+                            className="flex items-center gap-2 text-xs text-white/80"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3">
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                        No accede
+                      </div>
+                      {accessRoleSummary.cannot.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">
+                          Sin restricciones.
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {accessRoleSummary.cannot.map((item) => (
+                            <div
+                              key={item}
+                              className="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
+                              <XCircle className="h-3.5 w-3.5 text-white/30" />
+                              {item}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
+                      <span>Personalizar permisos</span>
+                      <span className="text-xs font-medium text-muted-foreground group-open:hidden">
+                        Opcional
+                      </span>
+                      <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">
+                        Cerrar
+                      </span>
+                    </summary>
+                    <div className="border-t border-white/5 p-4 space-y-4">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                          Accesos recomendados
+                        </div>
+                        <div className="space-y-2">
+                          {getRecommendedPermissionKeys(accessForm.role).map(
+                            (key) => {
+                              const item = getPermissionItem(key);
+                              if (!item) return null;
+                              const checked = accessPermissionsForm[key];
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() =>
+                                    toggleAccessFormPermission(key)
+                                  }
+                                  className={cn(
+                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                    checked
+                                      ? "bg-white/[0.06] ring-white/15"
+                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                                  )}
+                                >
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {item.label}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {item.desc}
+                                    </div>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                      checked
+                                        ? "bg-emerald-400/90 text-white ring-transparent"
+                                        : "bg-white/5 ring-white/15",
+                                    )}
+                                  >
+                                    {checked && (
+                                      <Check
+                                        className="h-3.5 w-3.5"
+                                        strokeWidth={3}
+                                      />
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            },
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                          Adicionales
+                        </div>
+                        <div className="space-y-2">
+                          {getAdditionalPermissionKeys(accessForm.role).map(
+                            (key) => {
+                              const item = getPermissionItem(key);
+                              if (!item) return null;
+                              const checked = accessPermissionsForm[key];
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() =>
+                                    toggleAccessFormPermission(key)
+                                  }
+                                  className={cn(
+                                    "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                                    checked
+                                      ? "bg-white/[0.06] ring-white/15"
+                                      : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                                  )}
+                                >
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {item.label}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {item.desc}
+                                    </div>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                      checked
+                                        ? "bg-emerald-400/90 text-white ring-transparent"
+                                        : "bg-white/5 ring-white/15",
+                                    )}
+                                  >
+                                    {checked && (
+                                      <Check
+                                        className="h-3.5 w-3.5"
+                                        strokeWidth={3}
+                                      />
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            },
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteUser && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-xl grid place-items-center bg-red-500/15 ring-1 ring-red-500/30">
+                  <Trash2 className="h-5 w-5 text-red-300" />
+                </div>
+                <h3 className="text-lg font-semibold">¿Eliminar acceso?</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Esta acción eliminará de{" "}
+                <span className="text-foreground font-medium">
+                  {pendingDeleteUser.name || pendingDeleteUser.email}
+                </span>
+                :
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 mb-4 list-disc pl-5">
+                <li>Usuario</li>
+                <li>Permisos</li>
+                <li>Historial de acceso</li>
+              </ul>
+              <p className="text-sm text-red-300/90 mb-5">
+                El usuario ya no podrá iniciar sesión.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteUser(null)}
+                  disabled={deletingAccess}
+                  className="rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeAccessUser(pendingDeleteUser.id)}
+                  disabled={deletingAccess}
+                  className="rounded-xl bg-red-500/90 hover:bg-red-500 text-white font-semibold px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  {deletingAccess ? "Eliminando…" : "Eliminar acceso"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => !saving && setOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 p-4 border-b border-white/5">
+              <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
+                {form.avatarUrl ? (
+                  <img
+                    src={form.avatarUrl}
+                    alt={form.fullName || "Profesional"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (form.fullName[0] || "A").toUpperCase()
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold">
+                  {editingEmp ? "Editar profesional" : "Nuevo profesional"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {form.role || "Barbero"}
+                </div>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-full p-1.5 ring-1 ring-white/10 hover:bg-white/5 text-muted-foreground"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center gap-6 px-5 border-b border-white/5">
+              {(
+                [
+                  ["perfil", "Perfil"],
+                  ["horarios", "Horarios"],
+                  ["comisiones", "Comisiones"],
+                ] as const
+              ).map(([id, label]) => {
+                const active = dlgTab === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setDlgTab(id)}
+                    className={cn(
+                      "relative py-3 text-sm transition-colors",
+                      active
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {label}
+                    {active && (
+                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="p-4 space-y-4">
+              {dlgTab === "perfil" && (
+                <div className="space-y-3">
+                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-white font-semibold text-xl ring-1 ring-white/10">
+                        {form.avatarUrl ? (
+                          <img
+                            src={form.avatarUrl}
+                            alt={form.fullName || "Profesional"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          (form.fullName[0] || "A").toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">
+                          Foto del profesional
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          JPG, PNG o WEBP. La app la recorta a 200x200, la
+                          convierte a WebP y la comprime antes de subirla.
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-3 py-2 text-xs font-medium">
+                            Subir imagen
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) void uploadProfessionalAvatar(file);
+                                e.currentTarget.value = "";
+                              }}
+                            />
+                          </label>
+                          {form.avatarUrl && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setForm({ ...form, avatarUrl: "" })
+                              }
+                              className="rounded-xl bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 px-3 py-2 text-xs text-red-300"
+                            >
+                              Quitar foto
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Field label="Nombre completo *">
+                    <input
+                      value={form.fullName}
+                      onChange={(e) =>
+                        setForm({ ...form, fullName: e.target.value })
+                      }
+                      className={inputCls}
+                      placeholder="Ej: Alejandro"
+                    />
+                  </Field>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Teléfono">
+                      <input
+                        value={form.phone}
+                        onChange={(e) =>
+                          setForm({ ...form, phone: e.target.value })
+                        }
+                        className={inputCls}
+                        placeholder="11..."
+                      />
+                    </Field>
+                    <Field label="Rol">
+                      <input
+                        value={form.role}
+                        onChange={(e) =>
+                          setForm({ ...form, role: e.target.value })
+                        }
+                        className={inputCls}
+                        placeholder="Barbero"
+                      />
+                    </Field>
+                  </div>
+                  <label className="flex items-center gap-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.acceptsOnline}
+                      onChange={(e) =>
+                        setForm({ ...form, acceptsOnline: e.target.checked })
+                      }
+                      className="sr-only"
+                    />
+                    <span
+                      className={cn(
+                        "h-5 w-9 rounded-full relative transition-colors shrink-0",
+                        form.acceptsOnline ? "bg-primary" : "bg-white/15",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+                          form.acceptsOnline ? "left-[18px]" : "left-0.5",
+                        )}
+                      />
+                    </span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">
+                        Acepta reservas en línea
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Este profesional aparecerá disponible para reservas
+                        online
+                      </div>
+                    </div>
+                  </label>
+                  <Field label="Descripción (opcional)">
+                    <textarea
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                      className={cn(inputCls, "min-h-[90px] resize-y")}
+                      placeholder="Especialidades, experiencia, estilo…"
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {dlgTab === "horarios" && (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Días desactivados no recibirán turnos.
+                  </p>
+                  {WEEKDAYS.map(([key, label]) => {
+                    const d = form.schedule[key];
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
+                      >
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <button
+                            onClick={() => setDay(key, { enabled: !d.enabled })}
+                            className={cn(
+                              "h-5 w-9 rounded-full relative transition-colors shrink-0",
+                              d.enabled ? "bg-primary" : "bg-white/15",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+                                d.enabled ? "left-[18px]" : "left-0.5",
+                              )}
+                            />
+                          </button>
+                          <div className="text-sm font-medium w-20">
+                            {label}
+                          </div>
+                          {d.enabled && (
+                            <>
+                              <input
+                                type="time"
+                                value={d.start}
+                                onChange={(e) =>
+                                  setDay(key, { start: e.target.value })
+                                }
+                                className={timeCls}
+                              />
+                              <span className="text-muted-foreground text-xs">
+                                a
+                              </span>
+                              <input
+                                type="time"
+                                value={d.end}
+                                onChange={(e) =>
+                                  setDay(key, { end: e.target.value })
+                                }
+                                className={timeCls}
+                              />
+                              <div className="text-xs text-muted-foreground ml-2">
+                                Descanso:
+                              </div>
+                              <input
+                                type="time"
+                                value={d.breakStart}
+                                onChange={(e) =>
+                                  setDay(key, { breakStart: e.target.value })
+                                }
+                                className={timeCls}
+                              />
+                              <span className="text-muted-foreground text-xs">
+                                -
+                              </span>
+                              <input
+                                type="time"
+                                value={d.breakEnd}
+                                onChange={(e) =>
+                                  setDay(key, { breakEnd: e.target.value })
+                                }
+                                className={timeCls}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <SpecialHoursEditor
+                    value={form.specialDates}
+                    onChange={(next) =>
+                      setForm((f) => ({ ...f, specialDates: next }))
+                    }
+                    allowBreak
+                    closedLabel="No disponible"
+                    title="Horario especial"
+                    description="Un día distinto al horario normal (ej. 24/12 09:00–15:00) o no disponible una fecha."
+                  />
+                </div>
+              )}
+
+              {dlgTab === "comisiones" && (
+                <div className="space-y-5">
+                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                    <div className="font-semibold text-sm">
+                      Comisiones y servicios que realiza
+                    </div>
+                  </div>
+
+                  {(["servicios", "catalogo"] as const).map((kind) => {
+                    const isServiceKind = kind === "servicios";
+                    const filtered = commissionItems.filter((item) =>
+                      isServiceKind
+                        ? item.duration_min != null
+                        : item.duration_min == null,
+                    );
+                    const grouped = filtered.reduce(
+                      (acc, item) => {
+                        const category =
+                          item.category ||
+                          (isServiceKind ? "Servicios" : "Productos");
+                        if (!acc[category]) acc[category] = [];
+                        acc[category].push(item);
+                        return acc;
+                      },
+                      {} as Record<string, PriceRow[]>,
+                    );
+
+                    return (
+                      <div
+                        key={kind}
+                        className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden"
+                      >
+                        <div className="px-4 py-3 border-b border-white/5">
+                          <div className="text-sm font-semibold">
+                            {isServiceKind ? "Servicios" : "Catálogo"}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {isServiceKind
+                              ? "Servicios cargados en Configuración → Servicios."
+                              : "Productos cargados en Configuración → Catálogo."}
+                          </div>
+                        </div>
+
+                        {Object.keys(grouped).length === 0 ? (
+                          <div className="p-4 text-sm text-muted-foreground">
+                            No hay {isServiceKind ? "servicios" : "productos"}{" "}
+                            cargados.
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-white/5">
+                            {Object.entries(grouped).map(
+                              ([category, items]) => (
+                                <div key={category} className="p-4 space-y-3">
+                                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                                    {category}
+                                  </div>
+                                  <div className="space-y-2">
+                                    {items.map((item) => {
+                                      const cfg = form.commissions[item.id] ?? {
+                                        enabled: false,
+                                        mode: "percent" as CommissionMode,
+                                        value: "",
+                                      };
+                                      const updateCfg = (
+                                        patch: Partial<CommissionConfig>,
+                                      ) =>
+                                        setForm({
+                                          ...form,
+                                          commissions: {
+                                            ...form.commissions,
+                                            [item.id]: { ...cfg, ...patch },
+                                          },
+                                        });
+
+                                      return (
+                                        <div
+                                          key={item.id}
+                                          className={cn(
+                                            "rounded-xl ring-1 p-3 transition-all",
+                                            cfg.enabled
+                                              ? "bg-white/[0.06] ring-white/10"
+                                              : "bg-white/[0.025] ring-white/5 opacity-75",
+                                          )}
+                                        >
+                                          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                updateCfg({
+                                                  enabled: !cfg.enabled,
+                                                })
+                                              }
+                                              className={cn(
+                                                "h-6 w-11 rounded-full relative transition-colors shrink-0",
+                                                cfg.enabled
+                                                  ? "bg-primary"
+                                                  : "bg-white/15",
+                                              )}
+                                            >
+                                              <span
+                                                className={cn(
+                                                  "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                  cfg.enabled
+                                                    ? "left-[22px]"
+                                                    : "left-0.5",
+                                                )}
+                                              />
+                                            </button>
+
+                                            <div className="flex-1 min-w-0">
+                                              <div className="text-sm font-medium ">
+                                                {item.name}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground">
+                                                $
+                                                {Number(
+                                                  item.price ?? 0,
+                                                ).toLocaleString("es-AR")}
+                                                {isServiceKind &&
+                                                item.duration_min
+                                                  ? ` · ${item.duration_min} min`
+                                                  : ""}
+                                              </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                              <select
+                                                value={cfg.mode}
+                                                disabled={!cfg.enabled}
+                                                onChange={(e) =>
+                                                  updateCfg({
+                                                    mode: e.target
+                                                      .value as CommissionMode,
+                                                  })
+                                                }
+                                                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                                              >
+                                                <option value="percent">
+                                                  % comisión
+                                                </option>
+                                                <option value="fixed">
+                                                  Monto fijo
+                                                </option>
+                                              </select>
+                                              <div className="flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                <input
+                                                  type="number"
+                                                  min={0}
+                                                  disabled={!cfg.enabled}
+                                                  value={cfg.value}
+                                                  onChange={(e) =>
+                                                    updateCfg({
+                                                      value: e.target.value,
+                                                    })
+                                                  }
+                                                  className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
+                                                  placeholder="0"
+                                                />
+                                                <span className="text-xs text-muted-foreground">
+                                                  {cfg.mode === "percent"
+                                                    ? "%"
+                                                    : "$"}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 p-4 border-t border-white/5">
+              {editingEmp ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDel(editingEmp)}
+                  disabled={saving || deletingId === editingEmp.id}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/30 transition hover:bg-red-500/20 disabled:opacity-50"
+                >
+                  {deletingId === editingEmp.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Eliminar
+                </button>
+              ) : null}
+              <div className="flex-1" />
+              <button
+                onClick={() => setOpen(false)}
+                disabled={saving}
+                className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveProfessional}
+                disabled={saving}
+                className="inline-flex min-w-[160px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+              >
+                {saving ? "Guardando…" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <ConfirmDialog
+        open={!!confirmDel}
+        title="Eliminar profesional"
+        message={`¿Deseás eliminar a "${confirmDel?.full_name ?? confirmDel?.name}"?`}
+        onConfirm={doRemoveEmp}
+        onCancel={() => setConfirmDel(null)}
+      />
+    </>
+  );
+}

@@ -1,6 +1,17 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+export type PriceRow = {
+  id: string;
+  name: string;
+  price: number;
+  duration_min: number | null;
+  category: string | null;
+  active: boolean | null;
+  stock?: number | null;
+  cash_discount?: number | null;
+};
+
 export function SectionCard({
   label,
   children,
@@ -99,4 +110,94 @@ export function Toggle({
       />
     </button>
   );
+}
+
+// ─────────── ConfirmDialog ───────────
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  confirmLabel = "Eliminar",
+  danger = true,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirmLabel?: string;
+  danger?: boolean;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
+        <div>
+          <div className="font-display font-semibold text-base text-foreground">
+            {title}
+          </div>
+          <div className="text-sm text-muted-foreground mt-1">{message}</div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className={cn(
+              "px-4 py-2 rounded-xl text-sm font-semibold transition",
+              danger
+                ? "bg-red-500/20 hover:bg-red-500/30 ring-1 ring-red-500/40 text-red-300"
+                : "bg-gradient-to-r from-sky-400 to-violet-500 text-white",
+            )}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const inputCls =
+  "w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-primary/40";
+
+export function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1.5">
+        {label}
+      </div>
+      {children}
+      {hint && (
+        <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>
+      )}
+    </div>
+  );
+}
+
+export function normalizePublicBooleanMap(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key.trim().length > 0)
+      .map(([key, next]) => [key, next !== false]),
+  );
+}
+
+export function getPublicVisibility(schedule: Record<string, unknown>) {
+  return (schedule._publicVisibility ?? {}) as Record<string, unknown>;
 }
