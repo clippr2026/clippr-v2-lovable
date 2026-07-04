@@ -40,6 +40,12 @@ export function reportSaveStatus(status: "saving" | "saved") {
   );
 }
 
+export function markSettingsDirty() {
+  // Configuración guarda automáticamente o mediante botones propios de cada panel.
+  // No disparamos más el estado global de "cambios sin guardar" para evitar
+  // el modal al cambiar de sección/cerrar editores.
+}
+
 // Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
 // maxW x maxH y la convierte a WebP (cae a JPEG si el navegador no soporta WebP).
 export async function processImage(
