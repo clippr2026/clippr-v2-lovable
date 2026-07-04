@@ -1,4 +1,5 @@
 import * as React from "react";
+import { cn } from "@/lib/utils";
 
 export function SectionCard({
   label,
@@ -71,4 +72,31 @@ export async function processImage(
   }
   if (!blob) throw new Error("No se pudo procesar la imagen");
   return { blob, ext, type };
+}
+
+export function Toggle({
+  on,
+  onChange,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      className={cn(
+        "relative h-6 w-11 rounded-full transition-colors ring-1",
+        on
+          ? "bg-gradient-to-r from-sky-400 to-violet-500 ring-violet-400/45"
+          : "bg-white/5 ring-white/10",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+          on ? "translate-x-[22px]" : "translate-x-0.5",
+        )}
+      />
+    </button>
+  );
 }
