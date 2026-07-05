@@ -1,12 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Conectado a la base existente de Clippr (misma de la app vanilla).
 // Anon/publishable key — segura para el bundle del browser.
-const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL || "https://pypduwtioxudgepwjvom.supabase.co";
-const SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5cGR1d3Rpb3h1ZGdlcHdqdm9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MzA2MjgsImV4cCI6MjA5NDUwNjYyOH0.4PBaAhAPSnVMXHaXJj604yBlBHyf_4nlAN6AOpNl474";
+// Sin fallback hardcodeado a propósito: cada entorno (local, Vercel Preview,
+// Vercel Production) DEBE declarar explícitamente su propio proyecto de
+// Supabase. Si falta alguna variable, la app no debe arrancar en silencio
+// contra un proyecto por default — eso fue lo que hizo que local terminara
+// pegándole a producción.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "Faltan VITE_SUPABASE_URL y/o VITE_SUPABASE_PUBLISHABLE_KEY. " +
+      "Creá un .env.local (ver .env.example) con las credenciales del proyecto " +
+      "de Supabase que quieras usar. No hay fallback a producción a propósito.",
+  );
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
