@@ -188,7 +188,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
 {/* Revenue chart + breakdown */}
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)] gap-4 items-stretch">
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
-        <ServicesDonut data={data} />
+        <ServicesDonut data={data} activeMetric={activeMetric} />
       </section>
 
     </div>
@@ -470,33 +470,92 @@ const DONUT_COLORS = [
   "oklch(0.66 0.24 25)", // red
 ];
 
-function ServicesDonut({ data }: { data: DashboardData }) {
-  const [view, setView] = React.useState<"all" | "services" | "catalog">("all");
+const INCOME_TAB_ALL = "Todos";
+const INCOME_TAB_SERVICES = "Servicios";
 
-  const serviceItems = data.topServices.length
-    ? data.topServices
-    : [];
+function ServicesDonut({
+  data,
+  activeMetric,
+}: {
+  data: DashboardData;
+  activeMetric: "ingresos" | "gastos" | "utilidad";
+}) {
+  // Sub-tabs de Ingresos: Todos / Servicios / una por cada categoría real del
+  // catálogo (dinámicas, igual que en Caja → Nueva venta — nada hardcodeado).
+  const [incomeTab, setIncomeTab] = React.useState<string>(INCOME_TAB_ALL);
+  // Gastos: categorías (Fijo/Variable/Ocasional/Marketing) expandidas para
+  // listar debajo los gastos individuales de ese tipo.
+  const [expandedExpenseTypes, setExpandedExpenseTypes] = React.useState<Set<string>>(new Set());
 
-  // Por ahora el dashboard solo recibe servicios desde useDashboardData.
-  // Cuando se conecten ventas de catálogo/productos, se pueden mapear acá.
-  const catalogItems: Array<{ name: string; rev: number; count: number; pct: number }> = [];
+  const serviceItems = data.topServices;
+  const catalogCategories = data.topCatalog;
+  const expenseTypes = data.topExpenses;
 
-  const sourceItems =
-    view === "catalog" ? catalogItems : serviceItems;
+  const servicesTotal = serviceItems.reduce((sum, item) => sum + Number(item.rev || 0), 0);
+  const incomeTabs = React.useMemo(
+    () => [INCOME_TAB_ALL, INCOME_TAB_SERVICES, ...catalogCategories.map((c) => c.category)],
+    [catalogCategories],
+  );
 
-  const total = sourceItems.reduce((sum, item) => sum + Number(item.rev || 0), 0);
+  // Si la categoría seleccionada deja de existir (cambió el rango de fechas y
+  // ya no hay ventas de esa categoría), volver a "Todos" en vez de mostrar una
+  // pestaña fantasma.
+  React.useEffect(() => {
+    if (activeMetric === "ingresos" && !incomeTabs.includes(incomeTab)) setIncomeTab(INCOME_TAB_ALL);
+  }, [activeMetric, incomeTabs, incomeTab]);
 
-  const items = sourceItems.length
-    ? sourceItems.map((item) => ({
-        ...item,
-        pct: total > 0 ? Math.round((Number(item.rev || 0) / total) * 100) : 0,
-      }))
-    : [{ name: view === "catalog" ? "Sin datos de catálogo" : "Sin datos", rev: 1, count: 0, pct: 100 }];
+  function toggleExpenseType(type: string) {
+    setExpandedExpenseTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }
 
-  const displayTotal = sourceItems.length ? total : 0;
+  let title = "Todos";
+  let items: Array<{ name: string; rev: number; pct: number }> = [];
+  let displayTotal = 0;
+  let colorFor: (i: number, name: string) => string = (i) => DONUT_COLORS[i % DONUT_COLORS.length];
 
-  const title =
-    view === "catalog" ? "Catálogo" : view === "services" ? "Servicios" : "Todos";
+  if (activeMetric === "gastos") {
+    title = "Gastos";
+    const total = expenseTypes.reduce((s, e) => s + e.amount, 0);
+    items = expenseTypes.map((e) => ({ name: e.label, rev: e.amount, pct: e.pct }));
+    displayTotal = total;
+  } else if (activeMetric === "utilidad") {
+    title = "Utilidad";
+    const ingresos = data.revHoy;
+    const gastos = data.totalGastos;
+    const sum = ingresos + gastos;
+    items = [
+      { name: "Ingresos", rev: ingresos, pct: sum > 0 ? Math.round((ingresos / sum) * 100) : 0 },
+      { name: "Gastos", rev: gastos, pct: sum > 0 ? Math.round((gastos / sum) * 100) : 0 },
+    ].filter((i) => i.rev > 0);
+    displayTotal = data.utilidad;
+    colorFor = (_, name) => (name === "Gastos" ? TONE.danger.stroke : TONE.success.stroke);
+  } else {
+    // Ingresos
+    title = incomeTab;
+    if (incomeTab === INCOME_TAB_SERVICES) {
+      items = serviceItems.map((s) => ({ name: s.name, rev: s.rev, pct: s.pct }));
+      displayTotal = servicesTotal;
+    } else if (incomeTab === INCOME_TAB_ALL) {
+      const all = [
+        { name: INCOME_TAB_SERVICES, rev: servicesTotal },
+        ...catalogCategories.map((c) => ({ name: c.category, rev: c.rev })),
+      ].filter((i) => i.rev > 0);
+      const total = all.reduce((s, i) => s + i.rev, 0);
+      items = all.map((i) => ({ ...i, pct: total > 0 ? Math.round((i.rev / total) * 100) : 0 }));
+      displayTotal = total;
+    } else {
+      const selectedCategory = catalogCategories.find((c) => c.category === incomeTab);
+      items = (selectedCategory?.items ?? []).map((i) => ({ name: i.name, rev: i.rev, pct: i.pct }));
+      displayTotal = selectedCategory?.rev ?? 0;
+    }
+  }
+
+  const pieItems = items.length ? items : [{ name: "Sin datos", rev: 1, pct: 100 }];
 
   return (
     <div className="glass dashboard-donut-glow rounded-2xl p-5 relative overflow-hidden h-full">
@@ -508,27 +567,25 @@ function ServicesDonut({ data }: { data: DashboardData }) {
           <div className="font-display text-xl font-semibold mt-0.5">{title}</div>
         </div>
 
-        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
-          {[
-            ["all", "Todos"],
-            ["services", "Servicios"],
-            ["catalog", "Catálogo"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setView(key as "all" | "services" | "catalog")}
-              className={cn(
-                "rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
-                view === key
-                  ? "bg-primary text-white shadow-[0_8px_20px_-14px_oklch(0.65_0.28_290/0.8)]"
-                  : "text-muted-foreground hover:text-white",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {activeMetric === "ingresos" && (
+          <div className="flex flex-wrap justify-end gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1 max-w-[220px]">
+            {incomeTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setIncomeTab(tab)}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
+                  incomeTab === tab
+                    ? "bg-primary text-white shadow-[0_8px_20px_-14px_oklch(0.65_0.28_290/0.8)]"
+                    : "text-muted-foreground hover:text-white",
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="relative mt-5 grid gap-5">
@@ -536,7 +593,7 @@ function ServicesDonut({ data }: { data: DashboardData }) {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={items}
+                data={pieItems}
                 dataKey="rev"
                 nameKey="name"
                 innerRadius={58}
@@ -545,8 +602,8 @@ function ServicesDonut({ data }: { data: DashboardData }) {
                 stroke="none"
                 isAnimationActive={false}
               >
-                {items.map((_, i) => (
-                  <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+                {pieItems.map((it, i) => (
+                  <Cell key={i} fill={colorFor(i, it.name)} />
                 ))}
               </Pie>
             </PieChart>
@@ -557,25 +614,94 @@ function ServicesDonut({ data }: { data: DashboardData }) {
                 {fmtAR(displayTotal)}
               </div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-                Total
+                {activeMetric === "utilidad" ? "Utilidad" : "Total"}
               </div>
             </div>
           </div>
         </div>
 
-        <ul className="space-y-2 min-w-0">
-          {items.slice(0, 5).map((s, i) => (
-            <li key={s.name} className="flex items-center gap-2 text-xs">
-              <span
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }}
-              />
-              <span className="truncate text-foreground/90 flex-1">{s.name}</span>
-              <span className="text-muted-foreground tabular-nums">{displayTotal ? fmtAR(s.rev) : fmtAR(0)}</span>
-              <span className="text-foreground/80 tabular-nums w-9 text-right">{displayTotal ? s.pct : 0}%</span>
-            </li>
-          ))}
-        </ul>
+        {activeMetric === "gastos" ? (
+          expenseTypes.length > 0 ? (
+            <div className="space-y-1 min-w-0">
+              {expenseTypes.map((exp, i) => {
+                const expanded = expandedExpenseTypes.has(exp.type);
+                return (
+                  <div key={exp.type}>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpenseType(exp.type)}
+                      className="flex w-full items-center gap-2 text-xs py-1 text-left"
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                      />
+                      <span className="truncate text-foreground/90 flex-1">{exp.label}</span>
+                      <span className="text-muted-foreground tabular-nums">{fmtExpenseAR(exp.amount)}</span>
+                      <span className="text-foreground/80 tabular-nums w-9 text-right">{exp.pct}%</span>
+                    </button>
+                    {expanded && (
+                      <ul className="mt-1 mb-1 space-y-1 pl-4">
+                        {exp.items.map((it, idx) => (
+                          <li key={`${it.name}-${idx}`} className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="truncate flex-1">{it.name}</span>
+                            <span className="tabular-nums">{fmtExpenseAR(it.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Sin gastos en el período.</p>
+          )
+        ) : activeMetric === "ingresos" && incomeTab === INCOME_TAB_ALL && catalogCategories.length > 0 ? (
+          <div className="space-y-3 min-w-0">
+            {items.map((entry, i) => {
+              const cat = catalogCategories.find((c) => c.category === entry.name);
+              return (
+                <div key={entry.name}>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                    />
+                    <span className="truncate text-foreground font-semibold flex-1">{entry.name}</span>
+                    <span className="text-muted-foreground tabular-nums">{fmtAR(entry.rev)}</span>
+                    <span className="text-foreground/80 tabular-nums w-9 text-right">{entry.pct}%</span>
+                  </div>
+                  {cat && (
+                    <ul className="mt-1 space-y-1 pl-4">
+                      {cat.items.map((it) => (
+                        <li key={it.name} className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="truncate flex-1">{it.name}</span>
+                          <span className="tabular-nums">{fmtAR(it.rev)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <ul className="space-y-2 min-w-0">
+            {items.slice(0, 5).map((s, i) => (
+              <li key={s.name} className="flex items-center gap-2 text-xs">
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ background: colorFor(i, s.name) }}
+                />
+                <span className="truncate text-foreground/90 flex-1">{s.name}</span>
+                <span className="text-muted-foreground tabular-nums">{displayTotal ? fmtAR(s.rev) : fmtAR(0)}</span>
+                <span className="text-foreground/80 tabular-nums w-9 text-right">{displayTotal ? s.pct : 0}%</span>
+              </li>
+            ))}
+            {items.length === 0 && <li className="text-xs text-muted-foreground">Sin datos.</li>}
+          </ul>
+        )}
       </div>
     </div>
   );

@@ -44,8 +44,22 @@ export type DashboardData = {
   tickByDay: number[];
   occByDay: number[];
   topServices: Array<{ name: string; rev: number; count: number; pct: number }>;
-  topCatalog: Array<{ name: string; rev: number; count: number; pct: number }>;
+  topCatalog: Array<{
+    category: string;
+    rev: number;
+    count: number;
+    pct: number;
+    items: Array<{ name: string; rev: number; count: number; pct: number }>;
+  }>;
   totSvc: number;
+  topExpenses: Array<{
+    type: string;
+    label: string;
+    amount: number;
+    count: number;
+    pct: number;
+    items: Array<{ name: string; amount: number }>;
+  }>;
   hoursLabels: string[];
   hoursValues: number[];
   hoursGastosValues: number[];
@@ -110,13 +124,13 @@ async function loadDashboard(
       .maybeSingle(),
     supabase
       .from("expenses")
-      .select("id,amount,category,payment_method,date,created_at")
+      .select("id,name,amount,type,payment_method,date,created_at")
       .eq("business_id", businessId)
       .gte("date", expenseFrom)
       .lte("date", expenseTo),
     supabase
       .from("price_catalog")
-      .select("name,duration_min,active")
+      .select("id,name,category,duration_min,active")
       .eq("business_id", businessId)
       .eq("active", true),
   ]);
@@ -131,8 +145,20 @@ async function loadDashboard(
       };
   type Pay = { id: string; total: number; created_at: string; appointment_id?: string; service_name?: string; client_name?: string; items?: unknown };
   type Emp = { id: string };
-  type Exp = { amount: number; date?: string | null; created_at?: string | null };
-  type CatalogRow = { name: string | null; duration_min: number | null; active?: boolean | null };
+  type Exp = {
+    name?: string | null;
+    amount: number;
+    type?: string | null;
+    date?: string | null;
+    created_at?: string | null;
+  };
+  type CatalogRow = {
+    id: string;
+    name: string | null;
+    category: string | null;
+    duration_min: number | null;
+    active?: boolean | null;
+  };
 
   // Log any query errors to console for debugging
   [apptRes, payRes, payYestRes, empRes, sessRes, expRes].forEach((r, i) => {
@@ -260,18 +286,34 @@ async function loadDashboard(
       .reduce((s, g) => s + Number(g.amount || 0), 0),
   );
 
-  // Desglose real por origen:
-  // - Servicios = ítems creados en Configuración → Servicios (price_catalog.duration_min != null)
-  // - Catálogo = ítems creados en Configuración → Catálogo (price_catalog.duration_min == null)
-  // - Todos = ambos grupos combinados
+  // Desglose real por origen — SIEMPRE a partir de las mismas ventas cobradas
+  // desde Caja que arman `revHoy` (mismo array `payments`, ningún otro origen).
+  // - Servicios = ítems de price_catalog con duration_min != null
+  // - Catálogo  = ítems de price_catalog con duration_min == null, agrupados por category
   const normalizeName = (value?: string | null) => (value ?? "").trim().toLowerCase();
 
+  // Catálogo real por id: fuente de verdad para pagos nuevos, que guardan
+  // items.id apuntando a price_catalog. Evita adivinar por texto.
+  const catalogById: Record<string, { name: string; category: string; kind: "service" | "catalog" }> = {};
+  for (const row of catalogRows) {
+    if (!row.id || !row.name) continue;
+    const isService = row.duration_min !== null && row.duration_min !== undefined;
+    catalogById[row.id] = {
+      name: String(row.name).trim(),
+      category: (row.category || "Otros").trim() || "Otros",
+      kind: isService ? "service" : "catalog",
+    };
+  }
+
+  // Fallback por nombre, solo para pagos viejos guardados ANTES de este fix
+  // (sin items estructurados con id/is_catalog).
   const serviceCatalog = catalogRows
     .filter((row) => row.name && row.duration_min !== null && row.duration_min !== undefined)
     .map((row) => ({
       key: normalizeName(row.name),
       displayName: String(row.name).trim(),
       kind: "service" as const,
+      category: "Servicios",
     }))
     .filter((row) => row.key.length > 0);
 
@@ -281,6 +323,7 @@ async function loadDashboard(
       key: normalizeName(row.name),
       displayName: String(row.name).trim(),
       kind: "catalog" as const,
+      category: (row.category || "Otros").trim() || "Otros",
     }))
     .filter((row) => row.key.length > 0);
 
@@ -289,20 +332,24 @@ async function loadDashboard(
   );
 
   const serviceMap: Record<string, { name: string; count: number; rev: number }> = {};
-  const catalogMap: Record<string, { name: string; count: number; rev: number }> = {};
+  // catalogMap agrupa por categoría + nombre del ítem (para el desglose anidado).
+  const catalogMap: Record<string, { category: string; name: string; count: number; rev: number }> = {};
 
-  const addBreakdownItem = (
-    kind: "service" | "catalog",
-    displayName: string,
-    amount: number,
-    countShare = 1,
-  ) => {
+  const addService = (displayName: string, amount: number, countShare = 1) => {
     if (!displayName || amount <= 0) return;
     const key = normalizeName(displayName);
-    const target = kind === "service" ? serviceMap : catalogMap;
-    if (!target[key]) target[key] = { name: displayName, count: 0, rev: 0 };
-    target[key].count += countShare;
-    target[key].rev += amount;
+    if (!serviceMap[key]) serviceMap[key] = { name: displayName, count: 0, rev: 0 };
+    serviceMap[key].count += countShare;
+    serviceMap[key].rev += amount;
+  };
+
+  const addCatalog = (category: string, displayName: string, amount: number, countShare = 1) => {
+    if (!displayName || amount <= 0) return;
+    const cat = category || "Otros";
+    const key = `${normalizeName(cat)}::${normalizeName(displayName)}`;
+    if (!catalogMap[key]) catalogMap[key] = { category: cat, name: displayName, count: 0, rev: 0 };
+    catalogMap[key].count += countShare;
+    catalogMap[key].rev += amount;
   };
 
   const matchKnownItems = (raw: string) => {
@@ -335,25 +382,54 @@ async function loadDashboard(
     const paymentTotal = Number(payment.total || 0);
     if (paymentTotal <= 0) return;
 
-    // Preferir items jsonb si existe, porque ahí están las líneas reales de venta.
-    if (Array.isArray(payment.items) && payment.items.length > 0) {
-      for (const rawLine of payment.items as Record<string, unknown>[]) {
+    const rawItems = Array.isArray(payment.items) ? (payment.items as Record<string, unknown>[]) : [];
+
+    // Ítems guardados por Caja a partir de este fix: cada línea trae is_catalog
+    // explícito (boolean), así que el desglose es exacto, sin adivinar por texto.
+    const hasStructuredItems =
+      rawItems.length > 0 && rawItems.every((line) => typeof line.is_catalog === "boolean");
+
+    if (hasStructuredItems) {
+      for (const line of rawItems) {
+        const amount = Number(line.amount ?? 0);
+        if (amount <= 0) continue;
+        if (line.is_catalog) {
+          const id = line.id ? String(line.id) : null;
+          const info = id ? catalogById[id] : undefined;
+          const name = info?.name ?? String(line.name ?? "Ítem").trim();
+          addCatalog(info?.category ?? "Otros", name, amount);
+        } else {
+          const name = String(line.name ?? "Ítem").trim();
+          addService(name, amount);
+        }
+      }
+      return;
+    }
+
+    // --- Fallback legacy: pagos guardados ANTES de este fix ---
+
+    // 1) Si igual tiene items (formato viejo, sin is_catalog), matchear por nombre.
+    if (rawItems.length > 0) {
+      for (const rawLine of rawItems) {
         const lineName = String(
           rawLine.name ?? rawLine.service_name ?? rawLine.product_name ?? rawLine.title ?? "",
         ).trim();
         const matches = matchKnownItems(lineName);
         if (matches.length === 0) continue;
 
-        const amount = lineAmount(rawLine, paymentTotal / Math.max(1, payment.items.length));
+        const amount = lineAmount(rawLine, paymentTotal / Math.max(1, rawItems.length));
         const share = amount / matches.length;
-        for (const match of matches) addBreakdownItem(match.kind, match.displayName, share);
+        for (const match of matches) {
+          if (match.kind === "service") addService(match.displayName, share);
+          else addCatalog(match.category, match.displayName, share);
+        }
       }
       return;
     }
 
-    // Fallback: service_name del turno/pago. Si viene mezclado Servicio + Catálogo,
-    // separa por nombres reales configurados. Si hay service_price del turno,
-    // asigna ese importe al servicio y el resto al catálogo.
+    // 2) Sin items: service_name del turno/pago (texto plano, posiblemente
+    //    mezclando Servicio + Catálogo). Si hay service_price del turno,
+    //    asigna ese importe al servicio y el resto al catálogo.
     const rawName = appt?.service_name || payment.service_name || "";
     const matches = matchKnownItems(rawName);
     if (matches.length === 0) return;
@@ -367,20 +443,25 @@ async function loadDashboard(
       const catalogTotal = Math.max(0, paymentTotal - servicesTotal);
 
       serviceMatches.forEach((match) =>
-        addBreakdownItem(match.kind, match.displayName, servicesTotal / serviceMatches.length),
+        addService(match.displayName, servicesTotal / serviceMatches.length),
       );
       catalogMatches.forEach((match) =>
-        addBreakdownItem(match.kind, match.displayName, catalogTotal / catalogMatches.length),
+        addCatalog(match.category, match.displayName, catalogTotal / catalogMatches.length),
       );
       return;
     }
 
     const share = paymentTotal / matches.length;
-    matches.forEach((match) => addBreakdownItem(match.kind, match.displayName, share));
+    matches.forEach((match) => {
+      if (match.kind === "service") addService(match.displayName, share);
+      else addCatalog(match.category, match.displayName, share);
+    });
   });
 
-  const makeTopItems = (map: Record<string, { name: string; count: number; rev: number }>) => {
-    const entries = Object.values(map).sort((a, b) => b.rev - a.rev).slice(0, 6);
+  // Todas las ventas de servicios, sin recortar a un top-N: la suma tiene que
+  // coincidir exacto con Ingresos. El límite de "cuántos mostrar" es cosa de UI.
+  const makeTopServices = () => {
+    const entries = Object.values(serviceMap).sort((a, b) => b.rev - a.rev);
     const total = entries.reduce((sum, item) => sum + item.rev, 0);
     return entries.map((item) => ({
       name: item.name,
@@ -390,9 +471,72 @@ async function loadDashboard(
     }));
   };
 
-  const topServices = makeTopItems(serviceMap);
-  const topCatalog = makeTopItems(catalogMap);
-  const totSvc = [...topServices, ...topCatalog].reduce((sum, item) => sum + item.rev, 0);
+  // Catálogo agrupado por categoría, con cada ítem vendido debajo.
+  const makeTopCatalog = () => {
+    const byCategory: Record<
+      string,
+      { category: string; rev: number; count: number; items: Array<{ name: string; rev: number; count: number }> }
+    > = {};
+    for (const entry of Object.values(catalogMap)) {
+      const key = normalizeName(entry.category);
+      if (!byCategory[key]) byCategory[key] = { category: entry.category, rev: 0, count: 0, items: [] };
+      byCategory[key].rev += entry.rev;
+      byCategory[key].count += entry.count;
+      byCategory[key].items.push({ name: entry.name, rev: entry.rev, count: Math.round(entry.count) });
+    }
+    const categories = Object.values(byCategory).sort((a, b) => b.rev - a.rev);
+    const grandTotal = categories.reduce((sum, c) => sum + c.rev, 0);
+    return categories.map((c) => {
+      const itemsTotal = c.items.reduce((sum, i) => sum + i.rev, 0);
+      return {
+        category: c.category,
+        rev: c.rev,
+        count: Math.round(c.count),
+        pct: grandTotal > 0 ? Math.round((c.rev / grandTotal) * 100) : 0,
+        items: c.items
+          .sort((a, b) => b.rev - a.rev)
+          .map((i) => ({ ...i, pct: itemsTotal > 0 ? Math.round((i.rev / itemsTotal) * 100) : 0 })),
+      };
+    });
+  };
+
+  const topServices = makeTopServices();
+  const topCatalog = makeTopCatalog();
+  const totSvc =
+    topServices.reduce((sum, item) => sum + item.rev, 0) +
+    topCatalog.reduce((sum, cat) => sum + cat.rev, 0);
+
+  // Desglose de Gastos por "type" (mismo campo y mismos 4 valores que Caja →
+  // Nuevo Gasto: fijo | variable | ocasional | marketing). No cambia
+  // `totalGastos`, solo lo agrupa para el gráfico.
+  const EXPENSE_TYPE_LABEL: Record<string, string> = {
+    fijo: "Fijo",
+    variable: "Variable",
+    ocasional: "Ocasional",
+    marketing: "Marketing",
+  };
+  const expenseMap: Record<string, { type: string; label: string; amount: number; items: Array<{ name: string; amount: number }> }> = {};
+  for (const g of gastosHoy) {
+    const amount = Number(g.amount || 0);
+    if (amount <= 0) continue;
+    const rawType = (g.type || "").trim().toLowerCase();
+    const type = rawType || "otros";
+    const label = EXPENSE_TYPE_LABEL[type] || (rawType ? rawType.charAt(0).toUpperCase() + rawType.slice(1) : "Otros");
+    if (!expenseMap[type]) expenseMap[type] = { type, label, amount: 0, items: [] };
+    expenseMap[type].amount += amount;
+    expenseMap[type].items.push({ name: (g.name || "Gasto").trim(), amount });
+  }
+  const expenseGrandTotal = Object.values(expenseMap).reduce((sum, e) => sum + e.amount, 0);
+  const topExpenses = Object.values(expenseMap)
+    .sort((a, b) => b.amount - a.amount)
+    .map((e) => ({
+      type: e.type,
+      label: e.label,
+      amount: e.amount,
+      count: e.items.length,
+      pct: expenseGrandTotal > 0 ? Math.round((e.amount / expenseGrandTotal) * 100) : 0,
+      items: e.items.sort((a, b) => b.amount - a.amount),
+    }));
 
   return {
     revHoy,
@@ -424,6 +568,7 @@ async function loadDashboard(
     topServices,
     topCatalog,
     totSvc,
+    topExpenses,
     hoursLabels,
     hoursValues,
     hoursGastosValues,

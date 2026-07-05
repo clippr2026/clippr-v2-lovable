@@ -27,6 +27,8 @@ export type RegisterPaymentItem = {
   serviceName: string;
   amount: number;
   qty?: number;
+  serviceId?: string | null;
+  isCatalog?: boolean;
 };
 
 export type ChargeOrigin = "auto" | "manual" | "caja";
@@ -76,6 +78,19 @@ export async function registerPayment(input: RegisterPaymentInput) {
 
   const saleSummary = buildSaleSummary(input.items) || "Venta";
 
+  // Detalle real de la venta, ítem por ítem (servicio o catálogo), para que el
+  // Dashboard pueda desglosar Ingresos con exactitud sin adivinar por texto.
+  const savedItems = input.items.map((item) => {
+    const qty = Number(item.qty ?? 1);
+    return {
+      id: item.serviceId ?? null,
+      name: String(item.serviceName || "Ítem").trim(),
+      amount: Number(item.amount ?? 0) * (Number.isFinite(qty) && qty > 0 ? qty : 1),
+      qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+      is_catalog: Boolean(item.isCatalog),
+    };
+  });
+
   // Resolve charged_by: must be a UUID. Get it from supabase auth session.
   let chargedByUuid: string | null = null;
   try {
@@ -90,6 +105,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
     service_name: saleSummary,
     amount: total,
     total,
+    items: savedItems,
     method: input.method,
     payment_method: input.method,
     appointment_id: input.appointmentId ?? null,
