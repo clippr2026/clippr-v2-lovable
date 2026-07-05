@@ -561,14 +561,14 @@ function ServicesDonut({
     <div className="glass dashboard-donut-glow rounded-2xl p-5 relative overflow-hidden h-full">
       <div className="pointer-events-none absolute -top-16 right-8 h-36 w-36 rounded-full bg-cyan-400/16 blur-[72px]" />
       <div className="pointer-events-none absolute -bottom-16 left-8 h-36 w-36 rounded-full bg-primary/14 blur-[72px]" />
-      <div className="relative flex items-start justify-between gap-3">
-        <div>
+      <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="min-w-0">
           <div className="text-xs text-muted-foreground">Desglose</div>
-          <div className="font-display text-xl font-semibold mt-0.5">{title}</div>
+          <div className="font-display text-xl font-semibold mt-0.5 truncate">{title}</div>
         </div>
 
         {activeMetric === "ingresos" && (
-          <div className="flex flex-wrap justify-end gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1 max-w-[220px]">
+          <div className="flex flex-wrap justify-end gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1 max-w-[220px] shrink-0">
             {incomeTabs.map((tab) => (
               <button
                 key={tab}
