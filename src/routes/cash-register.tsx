@@ -5714,6 +5714,17 @@ function History({
 }
 
 // ───────────────────────────── NUEVA VENTA
+// Iniciales seguras para el fallback del avatar cuando no hay foto: nunca
+// rompe con nombre null/undefined/vacío (mismo criterio que initialsOf en app-sidebar.tsx).
+function getInitials(name?: string | null): string {
+  const src = (name || "").trim();
+  if (!src) return "··";
+  const parts = src.split(/\s+/).filter(Boolean);
+  return (
+    ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || src.slice(0, 2).toUpperCase()
+  );
+}
+
 type MultiSplit = { method: string; amount: string };
 
 type PendingCharge = ReturnType<typeof useCajaData>["pendingCharges"][number];
@@ -6332,7 +6343,7 @@ function NuevaVentaTab({
                           {avatar ? (
                             <img src={avatar} alt={e.name} className="h-full w-full object-cover" />
                           ) : (
-                            initials(e.name)
+                            getInitials(e.name)
                           )}
                         </div>
                         <div className="min-w-0 flex-1">

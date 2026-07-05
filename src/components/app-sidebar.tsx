@@ -323,8 +323,9 @@ function PublicSiteMenu() {
     };
   }, [businessId, loadSiteState]);
 
-  const publicUrl = slug ? `https://myclippr.com/negocio/${slug}` : "";
-  const publicUrlShort = slug ? `myclippr.com/negocio/${slug}` : "Configurá la URL pública";
+  const publicSiteOrigin = import.meta.env.DEV ? window.location.origin : "https://myclippr.com";
+  const publicUrl = slug ? `${publicSiteOrigin}/negocio/${slug}` : "";
+  const publicUrlShort = slug ? `${publicSiteOrigin.replace(/^https?:\/\//, "")}/negocio/${slug}` : "Configurá la URL pública";
 
   async function updateMaintenance(nextMaintenance: boolean) {
     if (!businessId) return toast.error("No se encontró el negocio");

@@ -986,9 +986,11 @@ export function BrandingSection() {
       </div>
     );
 
+  const publicSiteOrigin = import.meta.env.DEV ? window.location.origin : "https://myclippr.com";
+  const publicSiteOriginShort = publicSiteOrigin.replace(/^https?:\/\//, "");
   const publicSlug = slugify(data.slug) || slugify(data.name);
-  const publicUrl = `https://myclippr.com/negocio/${publicSlug}`;
-  const publicUrlShort = `myclippr.com/negocio/${publicSlug}`;
+  const publicUrl = `${publicSiteOrigin}/negocio/${publicSlug}`;
+  const publicUrlShort = `${publicSiteOriginShort}/negocio/${publicSlug}`;
 
   async function copyPublicLink() {
     if (!publicSlug) return;
@@ -1275,7 +1277,7 @@ export function BrandingSection() {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">URL pública</div>
                   <div className="text-xs text-muted-foreground mt-0.5 break-all">
-                    myclippr.com/negocio/
+                    {publicSiteOriginShort}/negocio/
                     <span className="text-foreground">
                       {slugify(data.slug) || slugify(data.name) || "tu-negocio"}
                     </span>
