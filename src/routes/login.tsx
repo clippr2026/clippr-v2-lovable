@@ -42,7 +42,9 @@ function LoginPage() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPwd, setShowPwd] = React.useState(false);
-  const [remember, setRemember] = React.useState(() => localStorage.getItem("clippr_remember_login") === "1");
+  const [remember, setRemember] = React.useState(() =>
+    typeof window !== "undefined" && localStorage.getItem("clippr_remember_login") === "1",
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
