@@ -278,58 +278,69 @@
       0 0 80px -54px rgb(79 125 255 / 0.55);
   }
 
+  /* Tarjetas superiores del Dashboard: glow sutil estilo Linear/Stripe, con
+     lift + sombra suave en hover (ver duration-200 en el componente Stat). */
   .stat-glow-primary {
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.085),
-      0 0 30px rgb(79 125 255 / 0.15),
-      0 0 80px rgb(79 125 255 / 0.08),
-      0 18px 44px -30px oklch(0 0 0 / 0.9);
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 10px 28px -20px oklch(0 0 0 / 0.7);
   }
-  /* Ingresos (azul) — hover sin efecto; el color cambia solo al hacer click */
-  .stat-glow-primary.stat-active {
-    border-color: rgb(79 125 255 / 0.85);
+  .stat-glow-primary:hover {
+    border-color: rgb(79 125 255 / 0.3);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.1),
-      0 0 0 1px rgb(79 125 255 / 0.55),
-      0 0 40px rgb(79 125 255 / 0.42),
-      0 0 92px rgb(79 125 255 / 0.22),
-      0 18px 44px -28px oklch(0 0 0 / 0.9);
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 16px 34px -18px oklch(0 0 0 / 0.75),
+      0 0 22px -10px rgb(79 125 255 / 0.3);
+  }
+  .stat-glow-primary.stat-active {
+    border-color: rgb(79 125 255 / 0.65);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 0 0 1px rgb(79 125 255 / 0.4),
+      0 14px 32px -18px oklch(0 0 0 / 0.75),
+      0 0 30px -10px rgb(79 125 255 / 0.32);
   }
 
   .stat-glow-danger {
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.085),
-      0 0 30px rgb(244 63 94 / 0.15),
-      0 0 80px rgb(244 63 94 / 0.08),
-      0 18px 44px -30px oklch(0 0 0 / 0.9);
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 10px 28px -20px oklch(0 0 0 / 0.7);
   }
-  /* Gastos (rojo) — hover sin efecto; el color cambia solo al hacer click. Nunca azul. */
-  .stat-glow-danger.stat-active {
-    border-color: rgb(244 63 94 / 0.9);
+  .stat-glow-danger:hover {
+    border-color: rgb(244 63 94 / 0.32);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.1),
-      0 0 0 1px rgb(244 63 94 / 0.6),
-      0 0 40px rgb(244 63 94 / 0.45),
-      0 0 92px rgb(244 63 94 / 0.24),
-      0 18px 44px -28px oklch(0 0 0 / 0.9);
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 16px 34px -18px oklch(0 0 0 / 0.75),
+      0 0 22px -10px rgb(244 63 94 / 0.32);
+  }
+  .stat-glow-danger.stat-active {
+    border-color: rgb(244 63 94 / 0.7);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 0 0 1px rgb(244 63 94 / 0.42),
+      0 14px 32px -18px oklch(0 0 0 / 0.75),
+      0 0 30px -10px rgb(244 63 94 / 0.34);
   }
 
   .stat-glow-success {
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.085),
-      0 0 30px rgb(16 185 129 / 0.18),
-      0 0 80px rgb(16 185 129 / 0.10),
-      0 18px 44px -30px oklch(0 0 0 / 0.9);
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 10px 28px -20px oklch(0 0 0 / 0.7);
   }
-  /* Utilidad (verde) — hover sin efecto; el color cambia solo al hacer click. Nunca azul. */
-  .stat-glow-success.stat-active {
-    border-color: rgb(16 185 129 / 0.9);
+  .stat-glow-success:hover {
+    border-color: rgb(16 185 129 / 0.34);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.1),
-      0 0 0 1px rgb(16 185 129 / 0.6),
-      0 0 40px rgb(16 185 129 / 0.46),
-      0 0 92px rgb(16 185 129 / 0.26),
-      0 18px 44px -28px oklch(0 0 0 / 0.9);
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 16px 34px -18px oklch(0 0 0 / 0.75),
+      0 0 22px -10px rgb(16 185 129 / 0.32);
+  }
+  .stat-glow-success.stat-active {
+    border-color: rgb(16 185 129 / 0.7);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 0 0 1px rgb(16 185 129 / 0.42),
+      0 14px 32px -18px oklch(0 0 0 / 0.75),
+      0 0 30px -10px rgb(16 185 129 / 0.34);
   }
 
   .dashboard-chart-glow {

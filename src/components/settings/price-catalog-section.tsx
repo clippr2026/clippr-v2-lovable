@@ -77,6 +77,24 @@ const defaultServiceCategories: string[] = [];
 const serviceCategories = defaultServiceCategories;
 const defaultCatalogCategories = ["Productos", "Bebidas", "Indumentaria"];
 
+const MAX_CATEGORIES = 8;
+// Distribución fija de filas de tabs de categoría según la cantidad total (máx. 8).
+const CATEGORY_ROW_SIZES: Record<number, number[]> = {
+  1: [1],
+  2: [2],
+  3: [3],
+  4: [4],
+  5: [3, 2],
+  6: [3, 3],
+  7: [4, 3],
+  8: [4, 4],
+};
+function categoryRowSizes(count: number): number[] {
+  return CATEGORY_ROW_SIZES[count] ?? (count > 0 ? [count] : []);
+}
+const MAX_CATEGORY_NAME_LENGTH = 18;
+const MAX_ITEM_NAME_LENGTH = 28;
+
 function priceToCash(price: string, discount: string) {
   const p = Number(price) || 0;
   const d = Number(discount) || 0;
@@ -444,6 +462,7 @@ function PriceEditorModal({
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                         className={inputCls}
                         placeholder="Corte + Barba"
+                        maxLength={MAX_ITEM_NAME_LENGTH}
                       />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
@@ -600,6 +619,7 @@ function PriceEditorModal({
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                         className={inputCls}
                         placeholder="Nombre del producto"
+                        maxLength={MAX_ITEM_NAME_LENGTH}
                       />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
@@ -1692,8 +1712,48 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     markSettingsDirty();
   }
 
-  async function remove(row: PriceRow) {
+  // Un servicio/ítem con historial (turno agendado, venta en Caja, etc.) nunca
+  // se borra físicamente para no romper esas referencias — solo se puede
+  // desactivar. Los ítems nuevos (sin guardar todavía, tempId "new_...")
+  // nunca tienen historial real.
+  async function hasHistoricalUsage(row: PriceRow): Promise<boolean> {
+    if (!businessId || row.id.startsWith("new_")) return false;
+    const idFilter = JSON.stringify([{ id: row.id }]);
+    const checks = [
+      supabase
+        .from("payments")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", businessId)
+        .filter("items", "cs", idFilter),
+    ];
+    if (isService) {
+      checks.push(
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", businessId)
+          .eq("service_id", row.id),
+      );
+    }
+    const results = await Promise.all(checks);
+    return results.some((r) => (r.count ?? 0) > 0);
+  }
+
+  async function requestDeleteItem(row: PriceRow) {
+    const used = await hasHistoricalUsage(row);
+    if (used) {
+      toast.error(
+        isService
+          ? "Este servicio ya posee historial y no puede eliminarse. Podés desactivarlo."
+          : "Este producto ya posee historial y no puede eliminarse. Podés desactivarlo.",
+      );
+      return;
+    }
     setConfirmDelItem(row);
+  }
+
+  async function remove(row: PriceRow) {
+    await requestDeleteItem(row);
   }
 
   async function doRemoveItem() {
@@ -1776,6 +1836,38 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [catInputVal, setCatInputVal] = useState("");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const addMenuRef = React.useRef<HTMLDivElement | null>(null);
+  // Edición rápida de nombre por doble click (servicio/ítem), sin abrir el modal completo.
+  const [itemRenameTarget, setItemRenameTarget] = useState<PriceRow | null>(null);
+  const [itemRenameVal, setItemRenameVal] = useState("");
+
+  function openItemRename(row: PriceRow) {
+    setItemRenameVal(row.name);
+    setItemRenameTarget(row);
+  }
+
+  function submitItemRename() {
+    const clean = itemRenameVal.trim();
+    const row = itemRenameTarget;
+    setItemRenameTarget(null);
+    if (!row || !clean || clean === row.name) return;
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, name: clean } : r)));
+    setPendingItems((prev) => {
+      const existing = prev.find((p) => p.tempId === row.id);
+      if (existing)
+        return prev.map((p) =>
+          p.tempId === row.id ? { ...p, payload: { ...p.payload, name: clean } } : p,
+        );
+      return [...prev, { tempId: row.id, payload: { name: clean }, isNew: false }];
+    });
+    markSettingsDirty();
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("clippr:save-settings", {
+          detail: { section: isService ? "servicios" : "catalogo" },
+        }),
+      );
+    }, 150);
+  }
 
   useEffect(() => {
     if (!addMenuOpen) return;
@@ -1822,6 +1914,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       return;
     }
     if (catModal?.mode === "add") {
+      if (categories.length >= MAX_CATEGORIES) {
+        toast.error(`Máximo ${MAX_CATEGORIES} categorías alcanzado`);
+        setCatModal(null);
+        return;
+      }
       if (isService)
         saveCategories([...customServiceCategories, clean], "service");
       else saveCategories([...customCatalogCategories, clean], "catalog");
@@ -1866,7 +1963,46 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const currentCategories = categories.filter((c) => c !== category);
     if (currentCategories.length === 0)
       return toast.error("Debe quedar al menos una categoría");
-    const targetCategory = currentCategories[0];
+
+    const itemsInCategory = rows.filter(
+      (r) => (r.category || (isService ? "Servicios" : "Productos")) === category,
+    );
+
+    // Borra la categoría completa: todos sus ítems se eliminan, salvo los que
+    // ya tienen historial (turnos, ventas) — esos nunca se borran, solo se
+    // desactivan, para no romper esas referencias.
+    const deletable: PriceRow[] = [];
+    const protectedItems: PriceRow[] = [];
+    for (const row of itemsInCategory) {
+      if (await hasHistoricalUsage(row)) protectedItems.push(row);
+      else deletable.push(row);
+    }
+
+    for (const row of deletable) {
+      if (!row.id.startsWith("new_")) {
+        await supabase.from("price_catalog").delete().eq("id", row.id);
+      }
+    }
+    for (const row of protectedItems) {
+      if (!row.id.startsWith("new_")) {
+        await supabase.from("price_catalog").update({ active: false }).eq("id", row.id);
+      }
+    }
+
+    const deletedIds = new Set(deletable.map((r) => r.id));
+    const deactivatedIds = new Set(protectedItems.map((r) => r.id));
+    setRows((prev) =>
+      prev
+        .filter((r) => !deletedIds.has(r.id))
+        .map((r) => (deactivatedIds.has(r.id) ? { ...r, active: false } : r)),
+    );
+    setPendingItems((prev) => prev.filter((p) => !deletedIds.has(p.tempId)));
+    setPendingDeletes((prev) => {
+      const next = new Set(prev);
+      for (const id of deletedIds) next.delete(id);
+      return next;
+    });
+
     if (isService)
       saveCategories(
         customServiceCategories.filter((c) => c !== category),
@@ -1877,17 +2013,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         customCatalogCategories.filter((c) => c !== category),
         "catalog",
       );
-    if (businessId) {
-      await supabase
-        .from("price_catalog")
-        .update({ category: targetCategory })
-        .eq("business_id", businessId)
-        .eq("category", category);
+
+    if (category === activeCat || !currentCategories.includes(activeCat)) {
+      selectCategory(currentCategories[0]);
     }
-    if (category === activeCat || !categories.includes(activeCat)) {
-      selectCategory(targetCategory);
-    }
-    toast.success("Categoría eliminada");
+
+    toast.success(
+      protectedItems.length > 0
+        ? `Categoría eliminada. ${protectedItems.length} ${
+            protectedItems.length === 1
+              ? "elemento con historial fue desactivado"
+              : "elementos con historial fueron desactivados"
+          } porque no se pueden borrar.`
+        : "Categoría y elementos eliminados",
+    );
     markSettingsDirty();
     load();
   }
@@ -1910,58 +2049,77 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </div>
         ) : (
           <>
-        <div className="relative flex items-center gap-1 px-3 pt-3 pr-1 border-b border-white/5 overflow-visible">
-          {categories.map((category) => {
-            const active = category === activeCat;
-            return (
-              <div
-                key={category}
-                draggable
-                onDragStart={(event) => {
-                  setDraggedCategory(category);
-                  event.dataTransfer.effectAllowed = "move";
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  reorderCategory(draggedCategory ?? "", category);
-                  setDraggedCategory(null);
-                }}
-                onDragEnd={() => setDraggedCategory(null)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-t-lg transition-colors whitespace-nowrap",
-                  "cursor-grab active:cursor-grabbing",
-                  active
-                    ? "bg-white/5 text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                  draggedCategory === category && "opacity-50",
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => selectCategory(category)}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm select-none"
-                >
-                  <GripVertical className="h-4 w-4 text-white/40" />
-                  <span>{category}</span>
-                </button>
-                {categories.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => deleteCategory(category)}
-                    className="grid h-6 w-6 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
-                    title="Eliminar categoría"
+        <div className="relative flex items-start gap-2 px-3 pt-3 pr-1 border-b border-white/5 overflow-visible">
+          <div className="min-w-0 flex-1 space-y-1">
+            {(() => {
+              let cursor = 0;
+              return categoryRowSizes(categories.length).map((size, rowIdx) => {
+                const rowCategories = categories.slice(cursor, cursor + size);
+                cursor += size;
+                return (
+                  <div
+                    key={rowIdx}
+                    className="grid gap-1"
+                    style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
+                    {rowCategories.map((category) => {
+                      const active = category === activeCat;
+                      return (
+                        <div
+                          key={category}
+                          draggable
+                          onDragStart={(event) => {
+                            setDraggedCategory(category);
+                            event.dataTransfer.effectAllowed = "move";
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            reorderCategory(draggedCategory ?? "", category);
+                            setDraggedCategory(null);
+                          }}
+                          onDragEnd={() => setDraggedCategory(null)}
+                          className={cn(
+                            "flex min-w-0 items-center gap-1 rounded-t-lg transition-colors",
+                            "cursor-grab active:cursor-grabbing",
+                            active
+                              ? "bg-white/5 text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                            draggedCategory === category && "opacity-50",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => selectCategory(category)}
+                            onDoubleClick={() => renameCategory(category)}
+                            title={category}
+                            className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-2 text-sm select-none"
+                          >
+                            <GripVertical className="h-4 w-4 shrink-0 text-white/40" />
+                            <span className="min-w-0 flex-1 truncate">{category}</span>
+                          </button>
+                          {categories.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => deleteCategory(category)}
+                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
+                              title="Eliminar categoría"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              });
+            })()}
+          </div>
 
-          <div className="ml-auto flex shrink-0 items-center justify-end pl-4 pr-0">
+          <div className="flex shrink-0 items-center justify-end pl-2 pr-0">
             <div ref={addMenuRef} className="relative">
               <button
                 type="button"
@@ -1976,15 +2134,27 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 <div className="absolute right-0 top-10 z-30 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[oklch(0.13_0.035_275/0.98)] p-1.5 shadow-2xl backdrop-blur-xl">
                   <button
                     type="button"
+                    disabled={categories.length >= MAX_CATEGORIES}
                     onClick={() => {
+                      if (categories.length >= MAX_CATEGORIES) return;
                       setAddMenuOpen(false);
                       addCategory();
                     }}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition",
+                      categories.length >= MAX_CATEGORIES
+                        ? "cursor-not-allowed text-white/30"
+                        : "text-white/85 hover:bg-white/10 hover:text-white",
+                    )}
                   >
                     <Plus className="h-4 w-4 text-sky-300" />
                     Nueva categoría
                   </button>
+                  {categories.length >= MAX_CATEGORIES && (
+                    <div className="px-3 pb-1.5 pt-0.5 text-[10px] text-amber-300/90">
+                      Máximo {MAX_CATEGORIES} categorías alcanzado.
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -1994,7 +2164,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
                   >
                     <Plus className="h-4 w-4 text-violet-300" />
-                    Nuevo servicio
+                    {isService ? "Nuevo servicio" : "Nuevo item"}
                   </button>
                 </div>
               ) : null}
@@ -2037,7 +2207,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{row.name}</div>
+                  <div
+                    className="font-medium text-sm truncate"
+                    title={row.name}
+                    onDoubleClick={() => openItemRename(row)}
+                  >
+                    {row.name}
+                  </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {row.duration_min ? `${row.duration_min} min` : ""}
                     {typeof row.stock === "number" && !isService
@@ -2101,7 +2277,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         setForm={setForm}
         onClose={() => setModalOpen(false)}
         onSave={saveItem}
-        onDelete={() => editing && setConfirmDelItem(editing)}
+        onDelete={() => editing && requestDeleteItem(editing)}
         saving={saving}
         catalogCategories={categories}
         onUploadImage={uploadBookingImage}
@@ -2121,7 +2297,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       <ConfirmDialog
         open={!!confirmDelCat}
         title="Eliminar categoría"
-        message={`¿Deseás eliminar la categoría "${confirmDelCat}"? Los ítems se moverán a la primera categoría disponible.`}
+        message="Esta acción eliminará la categoría y todos los elementos que contiene. ¿Deseás continuar?"
         onConfirm={doDeleteCategory}
         onCancel={() => setConfirmDelCat(null)}
       />
@@ -2143,6 +2319,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 if (e.key === "Escape") setCatModal(null);
               }}
               placeholder="Nombre de la categoría"
+              maxLength={MAX_CATEGORY_NAME_LENGTH}
               className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
             />
             <div className="flex gap-3 justify-end">
@@ -2157,6 +2334,42 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-white transition"
               >
                 {catModal.mode === "add" ? "Agregar" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Item/service quick rename modal (double click) */}
+      {itemRenameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
+            <div className="font-display font-semibold text-base">
+              Renombrar {isService ? "servicio" : "ítem"}
+            </div>
+            <input
+              autoFocus
+              value={itemRenameVal}
+              onChange={(e) => setItemRenameVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitItemRename();
+                if (e.key === "Escape") setItemRenameTarget(null);
+              }}
+              placeholder={isService ? "Nombre del servicio" : "Nombre del ítem"}
+              maxLength={MAX_ITEM_NAME_LENGTH}
+              className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setItemRenameTarget(null)}
+                className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={submitItemRename}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-white transition"
+              >
+                Guardar
               </button>
             </div>
           </div>

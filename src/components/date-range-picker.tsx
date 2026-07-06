@@ -5,7 +5,14 @@ import { cn } from "@/lib/utils";
 export type DateRange = { from: string; to: string };
 
 const DAY_MS = 86_400_000;
-function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+// Fecha local (YYYY-MM-DD): nunca toISOString() acá, que convierte a UTC y
+// puede adelantar la fecha un día en timezones detrás de UTC (ej. Argentina).
+function toISO(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 function fromISO(s: string) { return new Date(s + "T12:00:00"); }
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
 
