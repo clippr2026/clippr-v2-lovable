@@ -120,8 +120,8 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   }
 
   const dateBar = (
-    <div className="glass dashboard-date-glow rounded-2xl p-2 sm:p-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="glass dashboard-date-glow rounded-2xl py-1 px-2 sm:p-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+      <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
         <span className="uppercase tracking-wider">Rango</span>
       </div>
       <DateRangePicker
@@ -256,9 +256,10 @@ function Stat({
     <div
       onClick={onClick}
       className={cn(
-        // min-h fijo: el alto de la tarjeta nunca depende del largo del monto
-        // ($0 vs $395.138) ni de si hay datos ese día.
-        "glass rounded-2xl p-4 min-h-[108px] relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5",
+        // min-h fijo en sm+: el alto de la tarjeta nunca depende del largo
+        // del monto ($0 vs $395.138) ni de si hay datos ese día. En mobile
+        // (fila única, compacta) no se fuerza altura mínima.
+        "glass rounded-2xl p-3 sm:p-4 min-h-0 sm:min-h-[108px] relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5",
         // El borde/glow de hover y del estado activo dependen del tono (ver
         // styles.css: .stat-glow-{tone}:hover y .stat-glow-{tone}.stat-active).
         // El azul ya NO se aplica nunca a Gastos (danger) ni Utilidad (success).
@@ -270,13 +271,23 @@ function Stat({
         active && "stat-active",
       )}
     >
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      {/* Mobile: una sola fila compacta — ícono + nombre a la izquierda, monto a la derecha. */}
+      <div className="flex sm:hidden items-center gap-2">
+        <div className={`h-8 w-8 shrink-0 rounded-xl grid place-items-center ring-1 ${t.ring} ${t.bg}`}>
+          <Icon className={`h-4 w-4 ${t.icon}`} />
+        </div>
+        <span className="flex-1 min-w-0 truncate text-sm text-muted-foreground">{label}</span>
+        <span className="shrink-0 font-display text-base font-semibold tracking-tight">{value}</span>
+      </div>
+
+      {/* sm+: diseño actual sin cambios (ícono+nombre arriba, monto grande debajo). */}
+      <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
         <div className={`h-9 w-9 rounded-xl grid place-items-center ring-1 ${t.ring} ${t.bg}`}>
           <Icon className={`h-4 w-4 ${t.icon}`} />
         </div>
         <span className="text-sm">{label}</span>
       </div>
-      <div className="mt-2 min-w-0">
+      <div className="hidden sm:block mt-2 min-w-0">
         <div className="font-display text-3xl font-semibold tracking-tight truncate">{value}</div>
       </div>
     </div>

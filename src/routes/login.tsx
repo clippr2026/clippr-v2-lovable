@@ -244,7 +244,7 @@ function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="ejemplo@correo.com"
                       disabled={submitting}
-                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-3 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
+                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-3 text-base outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
                     />
                   </div>
                 </div>
@@ -260,7 +260,7 @@ function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Ingresá tu contraseña"
                       disabled={submitting}
-                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-10 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
+                      className="h-12 w-full rounded-xl bg-white/[0.035] pl-10 pr-10 text-base outline-none ring-1 ring-white/10 transition placeholder:text-muted-foreground/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/55"
                     />
                     <button
                       type="button"

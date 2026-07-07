@@ -234,11 +234,16 @@ export function RejectedClientsButton({
   date,
   services,
   className,
+  compact = false,
 }: {
   businessId: string | null | undefined;
   date: Date;
   services: ServiceLite[];
   className?: string;
+  // Layout apilado (conteo arriba, label abajo) que ocupa todo el ancho/alto
+  // disponible — para usarse dentro de una grilla de celdas parejas (ej. la
+  // grilla de estados de Agenda en mobile), en vez del pill horizontal.
+  compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const dayISO = localDateISO(date);
@@ -255,7 +260,9 @@ export function RejectedClientsButton({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0",
+          compact
+            ? "flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
+            : "inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0",
           className,
         )}
         style={{
@@ -265,8 +272,12 @@ export function RejectedClientsButton({
         }}
         title="Clientes rechazados del día"
       >
-        <span className="font-semibold tabular-nums text-sm">{dayRejected.length}</span>
-        <span className="opacity-80">Rechazados</span>
+        <span className={compact ? "font-semibold tabular-nums text-sm leading-none" : "font-semibold tabular-nums text-sm"}>
+          {dayRejected.length}
+        </span>
+        <span className={compact ? "text-[10px] leading-tight opacity-80 truncate max-w-full" : "opacity-80"}>
+          Rechazados
+        </span>
       </button>
 
       {open && (

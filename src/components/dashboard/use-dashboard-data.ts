@@ -75,6 +75,18 @@ const localDate = (iso: string) => {
   }
 };
 
+// Mismas claves que usa Configuración → Horarios (business_settings.schedule),
+// indexadas por Date.getDay() (0 = domingo).
+const DOW_TO_SCHEDULE_KEY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+const DEFAULT_OPEN_HOUR = 9;
+const DEFAULT_CLOSE_HOUR = 21;
+
+function scheduleTimeToHour(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const hour = Number(value.split(":")[0]);
+  return Number.isFinite(hour) ? hour : null;
+}
+
 async function loadDashboard(
   businessId: string,
   range: { from: Date; to: Date },
@@ -90,7 +102,7 @@ async function loadDashboard(
   const expenseFrom = today.toISOString().slice(0, 10);
   const expenseTo = todayEnd.toISOString().slice(0, 10);
 
-  const [apptRes, payRes, payYestRes, empRes, sessRes, expRes, catalogRes] = await Promise.allSettled([
+  const [apptRes, payRes, payYestRes, empRes, sessRes, expRes, catalogRes, scheduleRes] = await Promise.allSettled([
     supabase
       .from("appointments")
       .select(
@@ -133,6 +145,11 @@ async function loadDashboard(
       .select("id,name,category,duration_min,active")
       .eq("business_id", businessId)
       .eq("active", true),
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle(),
   ]);
 
   type Appt = {
@@ -264,27 +281,76 @@ async function loadDashboard(
     return Math.round((u / totalSlots) * 100);
   });
 
-  // Hora-por-hora del día actual
-  const hoursLabels = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0") + ":00");
-  const hoursValues = Array.from({ length: 24 }, (_, h) =>
-    payments
-      .filter((p) => new Date(p.created_at).getHours() === h)
-      .reduce((s, p) => s + Number(p.total || 0), 0),
-  );
-
+  // Hora-por-hora — solo tiene sentido con un rango de un solo día (con
+  // varios días el gráfico pasa a ser por día, ver days7 arriba). El eje
+  // arranca en la apertura configurada en Configuración → Horarios para ese
+  // día y termina en el cierre configurado; si hay algún cobro o gasto real
+  // fuera de ese horario, el eje se expande para no ocultarlo nunca.
   const todayKey = today.toLocaleDateString("sv-SE");
   const fallbackExpenseHour = new Date().getHours();
-  const hoursGastosValues = Array.from({ length: 24 }, (_, h) =>
-    gastosHoy
+
+  const todayEndDayStart = new Date(todayEnd);
+  todayEndDayStart.setHours(0, 0, 0, 0);
+  const isSingleDayRange = today.getTime() === todayEndDayStart.getTime();
+
+  let openHour = DEFAULT_OPEN_HOUR;
+  let closeHour = DEFAULT_CLOSE_HOUR;
+
+  if (isSingleDayRange) {
+    const scheduleRaw =
+      scheduleRes.status === "fulfilled"
+        ? (scheduleRes.value.data?.schedule as Record<string, unknown> | null | undefined)
+        : null;
+    const dayKey = DOW_TO_SCHEDULE_KEY[today.getDay()];
+    const daySchedule =
+      scheduleRaw && typeof scheduleRaw === "object"
+        ? (scheduleRaw as Record<string, unknown>)[dayKey]
+        : null;
+    if (
+      daySchedule &&
+      typeof daySchedule === "object" &&
+      (daySchedule as { enabled?: boolean }).enabled !== false
+    ) {
+      const openH = scheduleTimeToHour((daySchedule as { start?: unknown }).start);
+      const closeH = scheduleTimeToHour((daySchedule as { end?: unknown }).end);
+      if (openH != null && closeH != null && closeH > openH) {
+        openHour = openH;
+        closeHour = closeH;
+      }
+    }
+
+    // Nunca ocultar un cobro/gasto real fuera del horario configurado.
+    const paymentHours = payments.map((p) => new Date(p.created_at).getHours());
+    const expenseHours = gastosHoy
+      .filter((g) => (g.created_at ? localDate(g.created_at) === todayKey : g.date === todayKey))
+      .map((g) => (g.created_at ? new Date(g.created_at).getHours() : fallbackExpenseHour));
+    for (const h of [...paymentHours, ...expenseHours]) {
+      if (h < openHour) openHour = h;
+      if (h > closeHour) closeHour = h;
+    }
+  }
+
+  const hoursLabels = Array.from({ length: closeHour - openHour + 1 }, (_, i) =>
+    String(openHour + i).padStart(2, "0") + ":00",
+  );
+  const hoursValues = hoursLabels.map((_, i) => {
+    const h = openHour + i;
+    return payments
+      .filter((p) => new Date(p.created_at).getHours() === h)
+      .reduce((s, p) => s + Number(p.total || 0), 0);
+  });
+  const hoursGastosValues = hoursLabels.map((_, i) => {
+    const h = openHour + i;
+    return gastosHoy
       .filter((g) => {
         if (g.created_at) {
           const created = new Date(g.created_at);
           return created.getHours() === h && localDate(g.created_at) === todayKey;
         }
-        return (g.date === todayKey) && h === fallbackExpenseHour;
+        return g.date === todayKey && h === fallbackExpenseHour;
       })
-      .reduce((s, g) => s + Number(g.amount || 0), 0),
-  );
+      .reduce((s, g) => s + Number(g.amount || 0), 0);
+  });
 
   // Desglose real por origen — SIEMPRE a partir de las mismas ventas cobradas
   // desde Caja que arman `revHoy` (mismo array `payments`, ningún otro origen).

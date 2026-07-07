@@ -301,10 +301,15 @@ function AgendaPage() {
     saving: boolean;
   } | null>(null);
   const newBtnRef = React.useRef<HTMLButtonElement>(null);
-  const [newMenuPos, setNewMenuPos] = React.useState<{ top: number; right: number }>({
-    top: 0,
-    right: 0,
-  });
+  const newBtnRefMobile = React.useRef<HTMLButtonElement>(null);
+  // En mobile el menú se centra horizontalmente debajo de la barra en vez de
+  // anclarse al borde exacto del botón "+": ese anclaje fino es frágil en
+  // pantallas chicas (el menú podía terminar fuera de la vista, mostrando
+  // solo la primera opción "flotando"). En desktop se mantiene el anclaje
+  // preciso de siempre, pegado al botón.
+  const [newMenuPos, setNewMenuPos] = React.useState<
+    { top: number; right: number; centered?: false } | { top: number; centered: true }
+  >({ top: 0, right: 0 });
   const [calOpen, setCalOpen] = React.useState(false);
   const dateBtnRef = React.useRef<HTMLButtonElement>(null);
   const [calPos, setCalPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -318,12 +323,21 @@ function AgendaPage() {
     }
     setCalOpen(true);
   };
-  const toggleNewMenu = () => {
+  // Recibe el ref del botón que disparó el menú — hay dos triggers físicos
+  // (barra desktop y barra compacta de mobile) que abren el mismo popover.
+  const toggleNewMenu = (
+    triggerRef: React.RefObject<HTMLButtonElement | null>,
+    mobile: boolean,
+  ) => {
     setNewMenu((v) => {
       const next = !v;
-      if (next && newBtnRef.current) {
-        const r = newBtnRef.current.getBoundingClientRect();
-        setNewMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+      if (next && triggerRef.current) {
+        const r = triggerRef.current.getBoundingClientRect();
+        if (mobile) {
+          setNewMenuPos({ top: r.bottom + 8, centered: true });
+        } else {
+          setNewMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+        }
       }
       return next;
     });
@@ -964,6 +978,16 @@ function AgendaPage() {
     no_show: data.appointments.filter((a) => a.status === "no_show").length,
   };
 
+  // Compartido entre la barra de estados de desktop (fila con scroll) y la
+  // grilla fija de mobile (3 arriba + 2 abajo, sin scroll).
+  const STATUS_FILTERS: [string, string, string, string, string][] = [
+    ["pending", "Por confirmar", "oklch(0.72 0.2 245)", "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
+    ["confirmed", "Confirmados", "#8B5CF6", "rgba(139, 92, 246, 0.14)", "rgba(139, 92, 246, 0.35)"],
+    ["charged", "Cobrados", "oklch(0.76 0.2 155)", "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
+    ["cancelled", "Cancelados", "oklch(0.76 0.02 270)", "oklch(0.76 0.02 270 / 0.10)", "oklch(0.76 0.02 270 / 0.25)"],
+    ["no_show", "No asistió", "oklch(0.68 0.22 25)", "oklch(0.68 0.22 25 / 0.12)", "oklch(0.68 0.22 25 / 0.30)"],
+  ];
+
   // Always day view — navigation via the banner arrows
   const move = (delta: number) => {
     setCursor((c) => new Date(c.getTime() + delta * DAY_MS));
@@ -978,9 +1002,18 @@ function AgendaPage() {
     <AppShell fullWidth>
       <div className="app-premium-shell -mt-1 sm:-mt-2 space-y-0">
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-        {/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno) */}
+        {/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno).
+            En mobile (sm-) queda solo Hoy + navegación de fecha + el botón "+" (en el lugar
+            del indicador de tiempo real) — sin scroll horizontal. Los conteos de estado y
+            "Clientes rechazados" se ocultan acá y reaparecen debajo, en bloques propios. */}
         <div
-          className="glass rounded-xl mb-2 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap overflow-x-auto"
+          // relative + z-index alto: ".glass" usa backdrop-filter, que crea su
+          // propio stacking context — sin esto, el menú del "+" (adentro, con
+          // z-[61]) queda atrapado dentro de este contexto y esa barra entera
+          // se ordena por posición en el DOM contra la grilla de la agenda
+          // (que viene después en el markup), terminando pintada por detrás.
+          // Mismo bug y misma solución que el selector de fecha del Dashboard.
+          className="relative z-[100] glass rounded-xl mb-2 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap sm:overflow-x-auto"
           style={{ scrollbarWidth: "none" }}
         >
           {/* Hoy */}
@@ -1008,7 +1041,7 @@ function AgendaPage() {
               ref={dateBtnRef}
               onClick={openCalendar}
               aria-label="Elegir fecha"
-              className="text-sm font-semibold whitespace-nowrap min-w-[205px] text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
+              className="text-sm font-semibold whitespace-nowrap min-w-0 sm:min-w-[205px] text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
             >
               {fullDate}
             </button>
@@ -1041,14 +1074,14 @@ function AgendaPage() {
           )}
 
           {data.loading && (
-            <span className="grid h-7 w-7 shrink-0 place-items-center">
+            <span className="hidden sm:grid h-7 w-7 shrink-0 place-items-center">
               <ClipprLoader size="sm" />
             </span>
           )}
 
-          {/* Realtime sync indicator (does not alter layout — sits in the empty gap) */}
+          {/* Realtime sync indicator — solo desktop/tablet (no altera el layout, ocupa el hueco vacío) */}
           <div
-            className="flex items-center gap-1.5 shrink-0 text-[11px] text-muted-foreground select-none"
+            className="hidden sm:flex items-center gap-1.5 shrink-0 text-[11px] text-muted-foreground select-none"
             title="La agenda se actualiza sola en tiempo real"
           >
             <span
@@ -1068,47 +1101,20 @@ function AgendaPage() {
             </span>
           </div>
 
-          {/* Status counts (clickable filters) — pushed right */}
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {(
-              [
-                [
-                  "pending",
-                  "Por confirmar",
-                  "oklch(0.72 0.2 245)",
-                  "oklch(0.72 0.2 245 / 0.12)",
-                  "oklch(0.72 0.2 245 / 0.3)",
-                ],
-                [
-                  "confirmed",
-                  "Confirmados",
-                  "#8B5CF6",
-                  "rgba(139, 92, 246, 0.14)",
-                  "rgba(139, 92, 246, 0.35)",
-                ],
-                [
-                  "charged",
-                  "Cobrados",
-                  "oklch(0.76 0.2 155)",
-                  "oklch(0.76 0.2 155 / 0.12)",
-                  "oklch(0.76 0.2 155 / 0.3)",
-                ],
-                [
-                  "cancelled",
-                  "Cancelados",
-                  "oklch(0.76 0.02 270)",
-                  "oklch(0.76 0.02 270 / 0.10)",
-                  "oklch(0.76 0.02 270 / 0.25)",
-                ],
-                [
-                  "no_show",
-                  "No asistió",
-                  "oklch(0.68 0.22 25)",
-                  "oklch(0.68 0.22 25 / 0.12)",
-                  "oklch(0.68 0.22 25 / 0.30)",
-                ],
-              ] as [string, string, string, string, string][]
-            ).map(([k, label, color, bg, ring]) => (
+          {/* "+" en mobile — mismo lugar donde en desktop está el puntito verde de sync.
+              Fuera de cualquier contenedor con scroll horizontal, para que el tap responda bien. */}
+          <Button
+            ref={newBtnRefMobile}
+            className="sm:hidden h-7 w-7 p-0 ml-auto shrink-0"
+            aria-label="Nuevo"
+            onClick={() => toggleNewMenu(newBtnRefMobile, true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+
+          {/* Status counts (clickable filters) — pushed right, solo desktop/tablet */}
+          <div className="hidden sm:flex items-center gap-1.5 shrink-0 ml-auto">
+            {STATUS_FILTERS.map(([k, label, color, bg, ring]) => (
               <button
                 key={k}
                 onClick={() => {
@@ -1126,58 +1132,94 @@ function AgendaPage() {
             ))}
           </div>
 
-          <div className="h-5 w-px bg-white/10 shrink-0" />
+          <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
 
-          <RejectedClientsButton businessId={data.businessId} date={cursor} services={data.services} />
-
-          <div className="h-5 w-px bg-white/10 shrink-0" />
-
-          {/* Nuevo — square button with menu (Agregar turno / Horario especial / Cliente rechazado) */}
-          <div className="relative shrink-0">
-            <Button
-              ref={newBtnRef}
-              className="h-7 w-7 p-0"
-              aria-label="Nuevo"
-              onClick={toggleNewMenu}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            {newMenu && (
-              <>
-                <div className="fixed inset-0 z-[60]" onClick={() => setNewMenu(false)} />
-                <div
-                  className="fixed z-[61] w-56 glass-strong rounded-xl p-1 animate-fade-up"
-                  style={{ top: newMenuPos.top, right: newMenuPos.right }}
-                >
-                  <button
-                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                    onClick={() => {
-                      setNewMenu(false);
-                      openNew(null, cursor);
-                    }}
-                  >
-                    <CalendarIcon className="h-4 w-4 shrink-0 text-primary" /> <span className="whitespace-nowrap">Agregar turno</span>
-                  </button>
-                  <button
-                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                    onClick={() => openSpecialFromSlot(null, cursor)}
-                  >
-                    <Pencil className="h-4 w-4 shrink-0 text-violet-300" /> <span className="whitespace-nowrap">Horario especial</span>
-                  </button>
-                  <button
-                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                    onClick={() => {
-                      setNewMenu(false);
-                      setRejectAt(cursor);
-                      setRejectOpen(true);
-                    }}
-                  >
-                    <UserX className="h-4 w-4 shrink-0 text-orange-300" /> <span className="whitespace-nowrap">Cliente rechazado</span>
-                  </button>
-                </div>
-              </>
-            )}
+          <div className="hidden sm:block">
+            <RejectedClientsButton businessId={data.businessId} date={cursor} services={data.services} />
           </div>
+
+          <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
+
+          {/* Nuevo — square button with menu (Agregar turno / Horario especial / Cliente rechazado), solo desktop/tablet */}
+          <Button
+            ref={newBtnRef}
+            className="hidden sm:inline-flex h-7 w-7 p-0 shrink-0"
+            aria-label="Nuevo"
+            onClick={() => toggleNewMenu(newBtnRef, false)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+
+          {/* Menú del "+" — un solo popover, compartido por el trigger de desktop y el de mobile. */}
+          {newMenu && (
+            <>
+              <div className="fixed inset-0 z-[60]" onClick={() => setNewMenu(false)} />
+              <div
+                className={cn(
+                  "fixed z-[61] w-56 glass-strong rounded-xl p-1 animate-fade-up",
+                  newMenuPos.centered && "left-1/2 -translate-x-1/2",
+                )}
+                style={
+                  newMenuPos.centered
+                    ? { top: newMenuPos.top }
+                    : { top: newMenuPos.top, right: newMenuPos.right }
+                }
+              >
+                <button
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  onClick={() => {
+                    setNewMenu(false);
+                    openNew(null, cursor);
+                  }}
+                >
+                  <CalendarIcon className="h-4 w-4 shrink-0 text-primary" /> <span className="whitespace-nowrap">Agregar turno</span>
+                </button>
+                <button
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  onClick={() => openSpecialFromSlot(null, cursor)}
+                >
+                  <Pencil className="h-4 w-4 shrink-0 text-violet-300" /> <span className="whitespace-nowrap">Horario especial</span>
+                </button>
+                <button
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  onClick={() => {
+                    setNewMenu(false);
+                    setRejectAt(cursor);
+                    setRejectOpen(true);
+                  }}
+                >
+                  <UserX className="h-4 w-4 shrink-0 text-orange-300" /> <span className="whitespace-nowrap">Cliente rechazado</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Estados — mobile: grilla fija de 3 columnas, 3 arriba + 3 abajo (5 estados +
+            "Clientes rechazados" en la 6ª celda), sin scroll horizontal. */}
+        <div className="grid grid-cols-3 gap-1.5 mb-2 sm:hidden">
+          {STATUS_FILTERS.map(([k, label, color, bg, ring]) => (
+            <button
+              key={k}
+              onClick={() => {
+                setFilterModal(k);
+                setActiveDrawer("filter");
+              }}
+              className="flex flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
+              style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
+            >
+              <span className="font-semibold tabular-nums text-sm leading-none">
+                {(counts as Record<string, number>)[k] ?? 0}
+              </span>
+              <span className="text-[10px] leading-tight opacity-80 truncate max-w-full">{label}</span>
+            </button>
+          ))}
+          <RejectedClientsButton
+            businessId={data.businessId}
+            date={cursor}
+            services={data.services}
+            compact
+          />
         </div>
 
         {/* Filter modal */}
@@ -1715,6 +1757,56 @@ const DayView = React.memo(function DayView({
     };
   }, [employees.length, rowPx, updateHorizontalScrollState]);
 
+  // En mobile, el alto fijo (AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx)
+  // deja la grilla más chica que la pantalla, y la página tiene que scrollear
+  // ADEMÁS del scroll interno de la grilla — dos scrolls anidados es lo que en
+  // iOS hace que el gesto se "trabe" y haga falta arrastrar varias veces para
+  // que el swipe se lo quede la grilla en vez de la página. En mobile el
+  // contenedor pasa a medir "todo el alto real que queda visible debajo suyo",
+  // usando visualViewport (reacciona cuando la barra de Safari aparece o
+  // desaparece) en vez de 100vh — así queda un único scroll de punta a punta,
+  // sin que sobre ni falte espacio al llegar al final.
+  const [isMobileViewport, setIsMobileViewport] = React.useState(false);
+  const [dynamicGridMaxHeight, setDynamicGridMaxHeight] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobileViewport(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isMobileViewport) {
+      setDynamicGridMaxHeight(null);
+      return;
+    }
+
+    const recalc = () => {
+      const el = gridScrollRef.current;
+      if (!el) return;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const top = el.getBoundingClientRect().top;
+      const available = viewportHeight - top;
+      if (available > 160) setDynamicGridMaxHeight(Math.floor(available));
+    };
+
+    recalc();
+    const raf = requestAnimationFrame(recalc);
+    window.visualViewport?.addEventListener("resize", recalc);
+    window.visualViewport?.addEventListener("scroll", recalc);
+    window.addEventListener("resize", recalc);
+    window.addEventListener("orientationchange", recalc);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.visualViewport?.removeEventListener("resize", recalc);
+      window.visualViewport?.removeEventListener("scroll", recalc);
+      window.removeEventListener("resize", recalc);
+      window.removeEventListener("orientationchange", recalc);
+    };
+  }, [isMobileViewport]);
+
   // Drag preview ghost (target time range while dragging). Lightweight: only
   // stored in state, no Supabase calls, no grid recompute.
   const [dragPreview, setDragPreview] = React.useState<{
@@ -2214,9 +2306,23 @@ const DayView = React.memo(function DayView({
         ref={gridScrollRef}
         onScroll={onGridScroll}
         className="overflow-auto agenda-hscroll"
-        style={{ maxHeight: AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx }}
+        style={{
+          maxHeight: dynamicGridMaxHeight ?? AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx,
+        }}
       >
-        <div className="grid min-w-[860px]" style={{ gridTemplateColumns, width: gridWidth }}>
+        <div
+          className="grid min-w-[860px]"
+          style={{
+            gridTemplateColumns,
+            width: gridWidth,
+            // Margen de seguridad para el home indicator / gestos de iOS al
+            // llegar al final del scroll. El alto del contenedor ya se mide
+            // dinámicamente arriba (dynamicGridMaxHeight), así que acá alcanza
+            // con el safe-area real — nada de padding extra inventado, que es
+            // lo que dejaba espacio vacío después del último horario.
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          }}
+        >
           <div
             className="sticky left-0 top-0 z-40 bg-[#111323] border-b border-r border-white/10 px-1.5 flex items-center justify-center"
             style={{ height: AGENDA_HEADER_PX }}
