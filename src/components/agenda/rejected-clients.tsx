@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { UserX, X } from "lucide-react";
+import { UserX, X, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   REJECT_REASONS,
@@ -128,8 +128,11 @@ export function RejectedClientCaptureModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-0 z-[81] grid place-items-center p-4" onClick={onClose}>
+      {/* z-[110]/[111]: por encima de la barra superior de Agenda, que en
+          mobile tiene z-[100] propio (backdrop-filter de .glass crea su
+          stacking context — ver comentario en agenda.tsx). */}
+      <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[111] grid place-items-center p-4" onClick={onClose}>
         <div className="w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between gap-2 border-b border-white/8 px-5 py-3.5">
             <div className="flex items-center gap-2.5">
@@ -246,6 +249,10 @@ export function RejectedClientsButton({
   compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [infoOpen, setInfoOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) setInfoOpen(false);
+  }, [open]);
   const dayISO = localDateISO(date);
   const { data: dayRejected = [] } = useRejectedByDay(businessId, dayISO);
 
@@ -256,47 +263,98 @@ export function RejectedClientsButton({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={cn(
-          compact
-            ? "flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
-            : "inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0",
-          className,
+      <div className={cn("relative", compact ? "h-full w-full" : "inline-flex shrink-0")}>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={cn(
+            compact
+              ? "flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 pr-5 text-center transition-all active:brightness-110"
+              : "inline-flex items-center gap-1 rounded-lg pl-2 pr-7 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0",
+            className,
+          )}
+          style={{
+            background: "rgba(245, 158, 11, 0.14)",
+            boxShadow: "0 0 0 1px rgba(245, 158, 11, 0.35)",
+            color: "#FBBF24",
+          }}
+          title="Clientes rechazados del día"
+        >
+          <span className={compact ? "font-semibold tabular-nums text-sm leading-none" : "font-semibold tabular-nums text-sm"}>
+            {dayRejected.length}
+          </span>
+          <span className={compact ? "text-[10px] leading-tight opacity-80 truncate max-w-full" : "opacity-80"}>
+            Rechazados
+          </span>
+        </button>
+
+        {/* ⓘ integrado dentro del botón (overlay, no al lado) — igual en
+            mobile y desktop. stopPropagation para no disparar setOpen(true).
+            Mismo amarillo/naranja del estado, mismo tamaño visual que el
+            número. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setInfoOpen((v) => !v);
+          }}
+          className="absolute right-1 top-1/2 grid h-4 w-4 -translate-y-1/2 place-items-center rounded-full transition hover:brightness-125"
+          style={{ color: "#FBBF24" }}
+          aria-label="¿Qué es un cliente rechazado?"
+        >
+          <Info className="h-4 w-4" />
+        </button>
+
+        {infoOpen && (
+          <>
+            {/* z-[112]/[113]: mismo motivo que el modal — por encima de la
+                barra superior de Agenda (z-[100] en mobile). */}
+            <div className="fixed inset-0 z-[112]" onClick={() => setInfoOpen(false)} />
+            <div
+              className="absolute right-0 top-full z-[113] mt-2 w-72 rounded-2xl border border-white/10 bg-[#15131f] p-3.5 text-xs leading-relaxed text-white/65 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-1.5 font-bold text-white/90">¿Qué es un cliente rechazado?</div>
+              <p>
+                Es un cliente que intentó atenderse, pero no pudo por falta de disponibilidad,
+                horarios ocupados, precio u otros motivos. Cada cliente rechazado representa una
+                oportunidad de venta perdida.
+              </p>
+              <p className="mt-2">
+                Clippr utiliza esta información para estimar los ingresos potenciales perdidos y
+                recomendar acciones como ampliar horarios, incorporar profesionales, optimizar la
+                agenda, aumentar precios cuando la demanda lo permita y hacer crecer el negocio.
+              </p>
+            </div>
+          </>
         )}
-        style={{
-          background: "rgba(245, 158, 11, 0.14)",
-          boxShadow: "0 0 0 1px rgba(245, 158, 11, 0.35)",
-          color: "#FBBF24",
-        }}
-        title="Clientes rechazados del día"
-      >
-        <span className={compact ? "font-semibold tabular-nums text-sm leading-none" : "font-semibold tabular-nums text-sm"}>
-          {dayRejected.length}
-        </span>
-        <span className={compact ? "text-[10px] leading-tight opacity-80 truncate max-w-full" : "opacity-80"}>
-          Rechazados
-        </span>
-      </button>
+      </div>
 
       {open && (
         <>
-          <div className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="fixed inset-0 z-[81] grid place-items-center p-4" onClick={() => setOpen(false)}>
+          {/* z-[110]/[111]: por encima de la barra superior de Agenda (con
+              su propio z-[100] en mobile — ver comentario en agenda.tsx). */}
+          <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div
+            className="fixed inset-0 z-[111] grid place-items-center p-4"
+            style={{
+              paddingTop: "max(1rem, env(safe-area-inset-top))",
+              paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+            }}
+            onClick={() => setOpen(false)}
+          >
             <div
               className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-white/10"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between gap-2 border-b border-white/8 px-5 py-3.5">
-                <div>
-                  <div className="text-sm font-bold text-white">Clientes rechazados</div>
-                  <div className="text-[11px] text-white/45">No se pudo atender al cliente (online o presencial).</div>
+              <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3.5 py-3 sm:gap-2 sm:px-5 sm:py-3.5">
+                <div className="min-w-0 flex-1 truncate text-[13px] font-bold text-white sm:text-sm">
+                  Clientes rechazados
                 </div>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-full p-1.5 text-white/50 transition hover:bg-white/5 hover:text-white"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-white/50 transition hover:bg-white/5 hover:text-white sm:h-8 sm:w-8"
                   aria-label="Cerrar"
                 >
                   <X className="h-4 w-4" />
@@ -311,20 +369,35 @@ export function RejectedClientsButton({
                       <div className="text-2xl font-extrabold tabular-nums text-rose-300">{dayRejected.length}</div>
                       <div className="mt-0.5 text-[11px] leading-tight text-white/45">Clientes rechazados</div>
                     </div>
-                    <div className="rounded-xl border border-amber-300/15 bg-amber-500/[0.05] px-3 py-3">
-                      <div className="text-2xl font-extrabold tabular-nums text-amber-300">{fmtARS(lostToday)}</div>
-                      <div className="mt-0.5 text-[11px] leading-tight text-white/45">Dinero estimado perdido</div>
+                    <div className="rounded-xl border border-amber-300/25 bg-amber-500/[0.08] px-3 py-3 shadow-[0_0_28px_-14px_rgba(245,158,11,0.55)]">
+                      <div className="text-3xl font-extrabold tabular-nums text-amber-300">{fmtARS(lostToday)}</div>
+                      <div className="mt-0.5 text-[11px] leading-tight text-white/50">Ingresos potenciales perdidos</div>
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Detalle del día</div>
-                  {dayRejected.length === 0 ? (
-                    <div className="rounded-xl border border-white/8 bg-white/[0.02] px-3 py-6 text-center text-xs text-white/40">
-                      No hay clientes rechazados para este día.
-                    </div>
-                  ) : (
+                {/* Bloque de ayuda integrado — discreto, después de las tarjetas
+                    de resumen. No es un tooltip flotante: siempre visible. */}
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3 text-sm leading-6 text-white/55">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold text-white/80">
+                    <Info className="h-3.5 w-3.5 shrink-0" />
+                    ¿Qué es un cliente rechazado?
+                  </div>
+                  <p>
+                    Es un cliente que intentó atenderse, pero no pudo por falta de disponibilidad, horarios
+                    ocupados, precio u otros motivos. Cada cliente rechazado representa una oportunidad de
+                    venta perdida.
+                  </p>
+                  <p className="mt-2">
+                    Clippr utiliza esta información para estimar los ingresos potenciales perdidos y
+                    recomendar acciones como ampliar horarios, incorporar profesionales, optimizar la agenda,
+                    aumentar precios cuando la demanda lo permita y hacer crecer el negocio.
+                  </p>
+                </div>
+
+                {dayRejected.length > 0 && (
+                  <div>
+                    <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">Detalle del día</div>
                     <div className="max-h-[280px] space-y-1.5 overflow-y-auto pr-1">
                       {dayRejected.map((r) => {
                         const motivo =
@@ -342,13 +415,8 @@ export function RejectedClientsButton({
                         );
                       })}
                     </div>
-                  )}
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs leading-relaxed text-white/55">
-                  <div className="mb-1 font-semibold text-white/75">¿Para qué sirve?</div>
-                  Registrá los clientes que no pudieron atenderse. Clippr usa esta información junto con la ocupación de la agenda para detectar demanda no atendida. El Asesor IA analizará estos datos para ayudarte a decidir cuándo conviene incorporar un profesional, ampliar horarios o ajustar precios.
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1761,13 +1761,22 @@ const DayView = React.memo(function DayView({
   // deja la grilla más chica que la pantalla, y la página tiene que scrollear
   // ADEMÁS del scroll interno de la grilla — dos scrolls anidados es lo que en
   // iOS hace que el gesto se "trabe" y haga falta arrastrar varias veces para
-  // que el swipe se lo quede la grilla en vez de la página. En mobile el
-  // contenedor pasa a medir "todo el alto real que queda visible debajo suyo",
-  // usando visualViewport (reacciona cuando la barra de Safari aparece o
-  // desaparece) en vez de 100vh — así queda un único scroll de punta a punta,
-  // sin que sobre ni falte espacio al llegar al final.
+  // que el swipe se lo quede la grilla en vez de la página.
+  //
+  // Un intento anterior le daba a la grilla el alto restante del viewport
+  // (vía visualViewport) para que "llenara" la pantalla — pero un max-height
+  // nunca puede agrandar una caja más allá de su contenido real, así que ese
+  // cálculo no generaba el espacio vacío. El espacio vacío venía de otro
+  // lado: al dejar la grilla con su propio scroll interno, la página seguía
+  // teniendo su propio scroll por separado, y el contenedor exterior
+  // (min-h-dvh en AppShell) se estiraba de más. La solución real es no
+  // limitarle el alto a la grilla en mobile: sin max-height, mide EXACTO lo
+  // que ocupa su contenido (header + horas configuradas, ni una más), y el
+  // único scroll vertical que existe pasa a ser el de la página — sin
+  // scrolls anidados, sin espacio de sobra, terminando justo en la última
+  // hora configurada. El scroll horizontal (para ver todas las columnas de
+  // profesionales) se mantiene igual, ya que solo se limita el eje vertical.
   const [isMobileViewport, setIsMobileViewport] = React.useState(false);
-  const [dynamicGridMaxHeight, setDynamicGridMaxHeight] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const mql = window.matchMedia("(max-width: 639px)");
@@ -1776,36 +1785,6 @@ const DayView = React.memo(function DayView({
     mql.addEventListener("change", update);
     return () => mql.removeEventListener("change", update);
   }, []);
-
-  React.useEffect(() => {
-    if (!isMobileViewport) {
-      setDynamicGridMaxHeight(null);
-      return;
-    }
-
-    const recalc = () => {
-      const el = gridScrollRef.current;
-      if (!el) return;
-      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      const top = el.getBoundingClientRect().top;
-      const available = viewportHeight - top;
-      if (available > 160) setDynamicGridMaxHeight(Math.floor(available));
-    };
-
-    recalc();
-    const raf = requestAnimationFrame(recalc);
-    window.visualViewport?.addEventListener("resize", recalc);
-    window.visualViewport?.addEventListener("scroll", recalc);
-    window.addEventListener("resize", recalc);
-    window.addEventListener("orientationchange", recalc);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.visualViewport?.removeEventListener("resize", recalc);
-      window.visualViewport?.removeEventListener("scroll", recalc);
-      window.removeEventListener("resize", recalc);
-      window.removeEventListener("orientationchange", recalc);
-    };
-  }, [isMobileViewport]);
 
   // Drag preview ghost (target time range while dragging). Lightweight: only
   // stored in state, no Supabase calls, no grid recompute.
@@ -2307,7 +2286,11 @@ const DayView = React.memo(function DayView({
         onScroll={onGridScroll}
         className="overflow-auto agenda-hscroll"
         style={{
-          maxHeight: dynamicGridMaxHeight ?? AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx,
+          // En mobile no se limita el alto: la grilla mide exactamente su
+          // contenido (header + horas configuradas) y el scroll vertical lo
+          // maneja la página. En desktop/tablet se mantiene la ventana fija
+          // de AGENDA_VISIBLE_ROWS con su propio scroll interno.
+          maxHeight: isMobileViewport ? undefined : AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx,
         }}
       >
         <div
@@ -2315,16 +2298,17 @@ const DayView = React.memo(function DayView({
           style={{
             gridTemplateColumns,
             width: gridWidth,
-            // Margen de seguridad para el home indicator / gestos de iOS al
-            // llegar al final del scroll. El alto del contenedor ya se mide
-            // dinámicamente arriba (dynamicGridMaxHeight), así que acá alcanza
-            // con el safe-area real — nada de padding extra inventado, que es
-            // lo que dejaba espacio vacío después del último horario.
+            // Safe-area real del dispositivo únicamente — nada de padding
+            // extra inventado, que es lo que dejaba espacio vacío después
+            // del último horario.
             paddingBottom: "env(safe-area-inset-bottom, 0px)",
           }}
         >
           <div
-            className="sticky left-0 top-0 z-40 bg-[#111323] border-b border-r border-white/10 px-1.5 flex items-center justify-center"
+            className={cn(
+              "sticky left-0 z-40 bg-[#111323] border-b border-r border-white/10 px-1.5 flex items-center justify-center",
+              !isMobileViewport && "top-0",
+            )}
             style={{ height: AGENDA_HEADER_PX }}
           >
             <label
@@ -2364,7 +2348,10 @@ const DayView = React.memo(function DayView({
             return (
               <div
                 key={e.id}
-                className="sticky top-0 z-20 px-2.5 border-l border-b border-white/10 bg-[#111323] flex items-center gap-2"
+                className={cn(
+                  "z-20 px-2.5 border-l border-b border-white/10 bg-[#111323] flex items-center gap-2",
+                  !isMobileViewport && "sticky top-0",
+                )}
                 style={{ height: AGENDA_HEADER_PX }}
               >
                 {e.avatar_url ? (

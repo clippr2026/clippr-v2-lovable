@@ -7,6 +7,7 @@ export const REJECT_REASONS = [
   { key: "no_espero", label: "No quiso esperar" },
   { key: "profesional", label: "Quería un profesional específico" },
   { key: "fuera_horario", label: "Llegó fuera del horario" },
+  { key: "consulto_precio", label: "Consultó el precio y no reservó" },
   { key: "otro", label: "Otro" },
 ] as const;
 

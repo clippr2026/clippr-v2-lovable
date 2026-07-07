@@ -853,6 +853,50 @@ const TABS: {
   { id: "cierres", label: "Cierre de caja", icon: CalendarDays },
 ];
 
+// Botón de pestaña usado solo en la fila mobile de 2 filas (ver Tabs). `compact`
+// apila ícono + texto para que las 4 pestañas de la fila 2 entren sin scroll
+// horizontal en un iPhone/Android chico.
+function TabButton({
+  t,
+  tab,
+  onChange,
+  compact = false,
+  className,
+}: {
+  t: (typeof TABS)[number];
+  tab: Tab;
+  onChange: (t: Tab) => void;
+  compact?: boolean;
+  className?: string;
+}) {
+  const active = t.id === tab;
+  const Icon = t.icon;
+  return (
+    <button
+      onClick={() => onChange(t.id)}
+      className={cn(
+        "group relative inline-flex items-center justify-center rounded-2xl font-semibold transition-all duration-200",
+        compact
+          ? "flex-col gap-1 px-1 py-2 text-center text-[10px] leading-tight"
+          : "gap-2 px-4 py-2.5 text-sm whitespace-nowrap",
+        active
+          ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
+          : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
+        className,
+      )}
+    >
+      <Icon
+        className={cn(
+          compact ? "size-3.5" : "size-4",
+          "transition-all",
+          active ? "text-blue-200" : "text-white/40 group-hover:text-white/70",
+        )}
+      />
+      <span className={compact ? "line-clamp-2" : undefined}>{t.label}</span>
+    </button>
+  );
+}
+
 function Tabs({
   tab,
   onChange,
@@ -871,9 +915,23 @@ function Tabs({
   onCajaCerrada: () => void;
 }) {
   const nuevaActive = tab === "nueva";
+  const [firstTab, ...restTabs] = TABS;
   return (
     <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-4">
-      <div className="relative flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] flex-1 min-w-0 sm:flex-none">
+      {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
+          resto se reparte en una fila 2 de 4 columnas parejas. */}
+      <div className="relative flex w-full flex-col gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:hidden">
+        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
+        <TabButton t={firstTab} tab={tab} onChange={onChange} className="w-full" />
+        <div className="grid grid-cols-4 gap-1">
+          {restTabs.map((t) => (
+            <TabButton key={t.id} t={t} tab={tab} onChange={onChange} compact />
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop/tablet: fila única, sin cambios visuales. */}
+      <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:flex-none">
         <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
         {TABS.map((t) => {
           const active = t.id === tab;
@@ -966,7 +1024,7 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
     <span
       className={cn(
         "font-display tabular-nums tracking-tight text-foreground",
-        large ? "text-4xl font-semibold" : "text-2xl font-semibold",
+        large ? "text-lg sm:text-4xl font-semibold" : "text-2xl font-semibold",
       )}
     >
       <span className="text-muted-foreground/70 mr-0.5">$</span>
@@ -1195,8 +1253,8 @@ function ResumenTab({
 
   return (
     <div className="relative space-y-6 py-2">
-      <div className="pointer-events-none absolute inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
-      <div className="pointer-events-none absolute inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
       <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
@@ -1207,7 +1265,7 @@ function ResumenTab({
               type="button"
               onClick={() => selectPanel(s.id)}
               className={cn(
-                "group relative min-h-[150px] overflow-hidden rounded-3xl border p-6 text-left transition-all duration-300",
+                "group relative min-h-[74px] sm:min-h-[150px] overflow-hidden rounded-3xl border px-3.5 py-2.5 sm:p-6 text-left transition-all duration-300",
                 "backdrop-blur-xl hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-32px_rgba(0,0,0,0.95)]",
                 isActive
                   ? s.cardClass
@@ -1216,31 +1274,31 @@ function ResumenTab({
               )}
             >
               <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.012))]" />
-              <div className="relative flex items-center gap-5">
+              <div className="relative flex items-center gap-3 sm:gap-5">
                 <div
                   className={cn(
-                    "grid size-16 place-items-center rounded-full ring-1 transition-transform duration-300 group-hover:scale-105",
+                    "grid size-9 sm:size-16 shrink-0 place-items-center rounded-full ring-1 transition-transform duration-300 group-hover:scale-105",
                     isActive
                       ? s.iconClass
                       : "bg-white/[0.045] text-white/70 ring-white/10 shadow-[0_0_22px_rgba(255,255,255,0.04)]",
                   )}
                 >
-                  <Icon className="size-7" />
+                  <Icon className="size-4 sm:size-7" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-base font-semibold text-foreground/90">
+                  <p className="text-[11px] sm:text-base font-semibold leading-tight text-foreground/90">
                     {s.label}
                   </p>
-                  <div className="mt-1">
+                  <div className="mt-0.5 sm:mt-1">
                     <Money value={Number(s.value)} large />
                   </div>
                   <div
                     className={cn(
-                      "mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1",
+                      "mt-1 sm:mt-3 inline-flex items-center gap-1 sm:gap-1.5 rounded-full px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs font-semibold ring-1",
                       isActive ? s.chipClass : "bg-white/[0.045] text-white/70 ring-white/10",
                     )}
                   >
-                    <span className="size-1.5 rounded-full bg-current" />
+                    <span className="size-1 sm:size-1.5 rounded-full bg-current" />
                     {s.sub}
                   </div>
                 </div>
@@ -6225,7 +6283,7 @@ function NuevaVentaTab({
   }
 
   return (
-    <div className="relative mx-auto flex h-[calc(100vh-235px)] min-h-[560px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl">
+    <div className="relative mx-auto flex h-[calc(100vh-235px)] min-h-[560px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl sm:h-[calc(100vh-262px)] sm:mb-6">
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
