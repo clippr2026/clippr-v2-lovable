@@ -120,14 +120,37 @@
   }
 
   body {
+    position: relative;
+    background-color: var(--color-background);
+    min-height: 100dvh;
+  }
+
+  /* Antes este degradado vivía en `background-image` + `background-attachment:
+     fixed` sobre el propio `body`. `background-attachment: fixed` tiene un bug
+     de larguísima data en WebKit/iOS (Safari y cualquier navegador en iOS,
+     todos corren sobre WebKit): en vez de quedar fijo al viewport, se
+     recalcula contra el alto TOTAL del body — que en mobile crece y decrece
+     según la cantidad de ítems de cualquier lista de la página (ver Caja →
+     Precios). Como las posiciones de los radial-gradient son porcentajes
+     (18% 0%, 82% 2%, 50% 100%, etc.), cada vez que el body cambiaba de alto
+     esos porcentajes apuntaban a otro punto en píxeles, corriendo el color
+     que le tocaba a cualquier elemento fijo de la pantalla (como la barra de
+     categorías). En Android/Chrome (Blink) `background-attachment: fixed`
+     funciona bien, por eso ahí nunca se notaba.
+     Fix: un pseudo-elemento con `position: fixed` (no `background-attachment`)
+     — este sí funciona de forma confiable en iOS, siempre relativo al
+     viewport, nunca al alto del contenido. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image:
       radial-gradient(circle at 18% 0%, rgb(139 92 246 / 0.34), transparent 42%),
       radial-gradient(circle at 82% 2%, rgb(79 125 255 / 0.30), transparent 44%),
       radial-gradient(circle at 50% 100%, rgb(255 123 229 / 0.13), transparent 56%),
       radial-gradient(ellipse 65% 50% at 50% -8%, oklch(0.5 0.24 295 / 0.34), transparent 60%);
-    background-attachment: fixed;
-    background-color: var(--color-background);
-    min-height: 100dvh;
   }
 
   h1, h2, h3, h4 {

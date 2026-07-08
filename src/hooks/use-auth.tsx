@@ -274,6 +274,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [rolePermissions, setRolePermissions] = React.useState<Record<string, Record<string, boolean>> | null>(null);
   const [teamPermissions, setTeamPermissions] = React.useState<Record<PermKey, boolean> | null>(null);
 
+  // Ref con la sesión actual, siempre al día (a diferencia del `session` de
+  // useState, que quedaría "congelado" dentro del closure de
+  // onAuthStateChange de abajo, ya que ese efecto se suscribe una sola vez).
+  const sessionRef = React.useRef<Session | null>(null);
+  React.useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   const reloadRolePermissions = React.useCallback(async () => {
     if (!businessId) return;
     const { data } = await supabase
@@ -370,6 +378,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (s?.refresh_token && localStorage.getItem("clippr_remember_login") === "1") {
         localStorage.setItem("clippr_refresh_token", s.refresh_token);
       }
+
+      // Supabase dispara TOKEN_REFRESHED/SIGNED_IN cada vez que la pestaña
+      // vuelve a primer plano en mobile (autoRefreshToken revisa la sesión al
+      // recuperar visibilidad — típico al bloquear/desbloquear el teléfono o
+      // cambiar de app y volver). Si ya teníamos hidratado a este MISMO
+      // usuario, no hace falta repetir todo resolveBusinessId (varias
+      // consultas a Supabase) ni reemplazar businessId/profile por objetos
+      // nuevos: eso disparaba un refetch en cascada en Dashboard/Agenda/Caja
+      // cada vez que se volvía a la app, sintiéndose como una recarga
+      // involuntaria. Alcanza con refrescar la sesión (por el token nuevo).
+      if (s?.user && s.user.id === sessionRef.current?.user?.id) {
+        setSession(s);
+        return;
+      }
+
       hydrate(s);
     });
 

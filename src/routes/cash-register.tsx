@@ -45,6 +45,8 @@ import {
   Check,
   Loader2,
   CalendarDays,
+  X,
+  Scissors,
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -418,17 +420,30 @@ function getCashItemImage(item: any) {
 }
 
 
+// Una URL como .../cash-register?appointmentId=null&clientName=null&...
+// (los literales "null"/"undefined" como texto, no el valor JS) llegan acá
+// como string truthy — `"null" ?? null` no los limpia porque `??` solo actúa
+// sobre null/undefined reales. Sin este filtro, `tab` arranca en "nueva" y se
+// arma un pendingCharge de mentira (cliente "null", servicio "null", monto
+// NaN) salteando directo al paso 4 de Nueva venta en vez de mostrar Resumen.
+function cleanSearchParam(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "null" || trimmed === "undefined") return null;
+  return trimmed;
+}
+
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
-    depositAppointmentId: (search.depositAppointmentId as string) ?? null,
-    depositAmount: (search.depositAmount as string) ?? null,
-    clientName: (search.clientName as string) ?? null,
-    serviceName: (search.serviceName as string) ?? null,
-    employeeId: (search.employeeId as string) ?? null,
-    appointmentId: (search.appointmentId as string) ?? null,
-    finalAmount: (search.finalAmount as string) ?? null,
-    depositPaid: (search.depositPaid as string) ?? null,
-    totalPrice: (search.totalPrice as string) ?? null,
+    depositAppointmentId: cleanSearchParam(search.depositAppointmentId),
+    depositAmount: cleanSearchParam(search.depositAmount),
+    clientName: cleanSearchParam(search.clientName),
+    serviceName: cleanSearchParam(search.serviceName),
+    employeeId: cleanSearchParam(search.employeeId),
+    appointmentId: cleanSearchParam(search.appointmentId),
+    finalAmount: cleanSearchParam(search.finalAmount),
+    depositPaid: cleanSearchParam(search.depositPaid),
+    totalPrice: cleanSearchParam(search.totalPrice),
   }),
   head: () => ({
     meta: [
@@ -531,13 +546,27 @@ function CashRegisterPage() {
       userEmail: session.user.email ?? session.user.id,
     })
       .then(async (result) => {
-        if (cancelled || !result.closed) return;
-        setCajaCerrada(true);
-        setShowClosedHistory(false);
-        setPendingToCharge(null);
-        setResumenPanel("ingresos");
-        setTab("resumen");
-        await data.refresh();
+        if (cancelled) return;
+        if (result.closed) {
+          setCajaCerrada(true);
+          setShowClosedHistory(false);
+          setPendingToCharge(null);
+          setResumenPanel("ingresos");
+          setTab("resumen");
+          await data.refresh();
+          return;
+        }
+        // No hubo un auto-cierre recién ahora, pero la caja puede ya estar
+        // cerrada de antes (cierre manual seguido de un refresh de página) —
+        // `cajaCerrada` es estado local en memoria, así que sin este chequeo
+        // se perdía al recargar y la pantalla volvía a mostrar "Caja abierta".
+        const { data: todayCierre } = await supabase
+          .from("caja_cierres" as any)
+          .select("estado")
+          .eq("business_id", data.businessId)
+          .eq("fecha", cajaDateKey())
+          .maybeSingle();
+        if (!cancelled && isCajaCerradaRow(todayCierre)) setCajaCerrada(true);
       })
       .catch((error) => console.warn(error));
 
@@ -669,19 +698,11 @@ function CashRegisterPage() {
     return (
       <AppShell>
         <div className="cash-premium-shell">
-          <div
-            className="pointer-events-none absolute inset-0 -z-10"
-            style={{
-              background: `
-            radial-gradient(circle at 20% 12%, rgba(139,92,246,0.22) 0%, transparent 35%),
-            radial-gradient(circle at 78% 8%, rgba(79,125,255,0.18) 0%, transparent 35%),
-            radial-gradient(circle at 50% 70%, rgba(255,123,229,0.08) 0%, transparent 50%)
-          `,
-              filter: "blur(80px)",
-            }}
-          />
-
-          <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.28),transparent_40%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.25),transparent_38%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.11),transparent_52%)] blur-[16px]" />
+          {/* Glow ambiental unificado con el resto de la app (Dashboard,
+              Agenda, Profesionales, Asesor IA, Clientes, Configuración) —
+              antes Caja tenía dos capas propias (una extra con blur(80px))
+              más fuertes que en cualquier otra sección. */}
+          <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
           <div className="mt-4">
             <CierresTab
               businessId={data.businessId}
@@ -712,21 +733,25 @@ function CashRegisterPage() {
   return (
     <AppShell>
       <div className="cash-premium-shell">
-        <div
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            background: `
-            radial-gradient(circle at 20% 12%, rgba(139,92,246,0.22) 0%, transparent 35%),
-            radial-gradient(circle at 78% 8%, rgba(79,125,255,0.18) 0%, transparent 35%),
-            radial-gradient(circle at 50% 70%, rgba(255,123,229,0.08) 0%, transparent 50%)
-          `,
-            filter: "blur(80px)",
+        {/* Glow ambiental unificado con el resto de la app (Dashboard,
+            Agenda, Profesionales, Asesor IA, Clientes, Configuración) —
+            antes Caja tenía dos capas propias (una extra con blur(80px))
+            más fuertes que en cualquier otra sección. */}
+        <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
+
+        <Header
+          data={data}
+          tab={tab}
+          resumenPanel={resumenPanel}
+          onNuevaVenta={() => {
+            setPendingToCharge(null);
+            setTab("nueva");
+          }}
+          onNuevoGasto={() => {
+            setPendingToCharge(null);
+            setTab("nuevo-gasto");
           }}
         />
-
-        <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.28),transparent_40%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.25),transparent_38%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.11),transparent_52%)] blur-[16px]" />
-
-        <Header data={data} />
         <Tabs
           tab={tab}
           onChange={(t) => {
@@ -748,7 +773,7 @@ function CashRegisterPage() {
             setTab("resumen");
           }}
         />
-        <div className="mt-6">
+        <div className="mt-2 sm:mt-6">
           {tab === "resumen" && (
             <ResumenTab
               data={data}
@@ -786,11 +811,14 @@ function CashRegisterPage() {
               }}
             />
           )}
-          {tab === "precios" && <PreciosTab businessId={data.businessId} />}
+          {tab === "precios" && (
+            <PreciosTab businessId={data.businessId} data={data} />
+          )}
           {tab === "inventario" && (
             <InventarioTab
               businessId={data.businessId}
               userEmail={session.user.email ?? null}
+              data={data}
             />
           )}
           {tab === "gastos" && <GastosTab businessId={data.businessId} />}
@@ -798,6 +826,7 @@ function CashRegisterPage() {
             <ProfesionalesTab
               businessId={data.businessId}
               userEmail={session.user.email ?? null}
+              data={data}
             />
           )}
           {tab === "cierres" && (
@@ -826,17 +855,64 @@ function CashRegisterPage() {
   );
 }
 
-function Header({ data: _data }: { data: ReturnType<typeof useCajaData> }) {
+function Header({
+  data: _data,
+  tab,
+  resumenPanel,
+  onNuevaVenta,
+  onNuevoGasto,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  tab: Tab;
+  resumenPanel: "ingresos" | "pendientes" | "gastos";
+  onNuevaVenta: () => void;
+  onNuevoGasto: () => void;
+}) {
+  // Único botón de acción rápida en mobile: cambia de texto/color/acción
+  // según la sección activa. Reemplaza al botón grande "Nuevo gasto" que
+  // antes vivía debajo de las pestañas (ver Tabs, sin cambios en desktop).
+  const isGastos = tab === "resumen" && resumenPanel === "gastos";
+  const isPendientes = tab === "resumen" && resumenPanel === "pendientes";
+  // Solo se muestra dentro de Resumen (Ingresos/Gastos). Se oculta en
+  // Pendientes (no hay "nueva venta"/"nuevo gasto" que ofrecer ahí) y en
+  // cualquier otra pestaña — Precios, Inventario, Liquidaciones, Cierre de
+  // caja, Nuevo gasto, Nueva venta — donde ese botón no corresponde.
+  const showQuickAction = tab === "resumen" && !isPendientes;
+  const QuickIcon = isGastos ? Wallet : Plus;
   return (
-    <div className="flex items-end justify-between gap-4 flex-wrap">
-      <div>
+    <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="mt-1 sm:mt-0">
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
           Caja
         </h1>
-        <p className="mt-2 text-sm md:text-base text-muted-foreground">
+        {/* Subtítulo solo en web — en mobile la cabecera queda más compacta
+            (Caja + botón de acción rápida, ver botón al lado). */}
+        <p className="mt-2 hidden text-sm text-muted-foreground sm:block md:text-base">
           Cobros, gastos y liquidaciones
         </p>
       </div>
+      {/* Acceso rápido desde la cabecera, solo mobile. En desktop los
+          botones grandes originales siguen viviendo al lado de las pestañas
+          (sin cambios ahí). Mismos handlers que esos botones: no agrega
+          lógica nueva. mt-2.5 lo baja un poco más que el título para que
+          quede centrado en el espacio libre entre "Caja" y las pestañas.
+          Oculto en Pendientes y en el formulario de Nuevo gasto (ver
+          showQuickAction). */}
+      {showQuickAction && (
+        <button
+          type="button"
+          onClick={isGastos ? onNuevoGasto : onNuevaVenta}
+          className={cn(
+            "group mt-2.5 inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all duration-200 active:scale-95 sm:hidden sm:mt-0",
+            isGastos
+              ? "border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 shadow-[0_0_20px_rgba(244,63,94,0.28),0_1px_0_rgba(255,255,255,0.16)_inset]"
+              : "border-emerald-300/38 bg-[linear-gradient(135deg,rgba(16,185,129,0.28),rgba(6,95,70,0.58))] text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.28),0_1px_0_rgba(255,255,255,0.16)_inset]",
+          )}
+        >
+          <QuickIcon className="size-3.5" />
+          {isGastos ? "Nuevo gasto" : "Nueva venta"}
+        </button>
+      )}
     </div>
   );
 }
@@ -917,7 +993,7 @@ function Tabs({
   const nuevaActive = tab === "nueva";
   const [firstTab, ...restTabs] = TABS;
   return (
-    <div className="mt-9 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-4">
+    <div className="mt-5 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-2.5 sm:mt-9 sm:pb-4">
       {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
           resto se reparte en una fila 2 de 4 columnas parejas. */}
       <div className="relative flex w-full flex-col gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:hidden">
@@ -961,22 +1037,28 @@ function Tabs({
         })}
       </div>
       {tab === "resumen" && resumenPanel !== "pendientes" && (
-        <div className="mb-3 flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:shrink-0 sm:flex-nowrap">
-                    {resumenPanel === "gastos" && (
+        <div className="mb-3 hidden w-full flex-wrap items-center justify-end gap-3 sm:flex sm:w-auto sm:shrink-0 sm:flex-nowrap">
+                    {/* En mobile este botón queda oculto: el acceso a Nuevo
+              gasto se movió a la cabecera (ver Header/onNuevoGasto). En
+              desktop sigue igual, al lado de las pestañas. */}
+          {resumenPanel === "gastos" && (
             <button
               onClick={onNuevoGasto}
-              className="group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-extrabold transition-all duration-200 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 border border-rose-300/38 ring-1 ring-rose-400/30 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]"
+              className="hidden sm:inline-flex group relative overflow-hidden justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-extrabold transition-all duration-200 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 border border-rose-300/38 ring-1 ring-rose-400/30 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]"
             >
               <Wallet className="size-4 transition-transform group-hover:scale-110" />
               Nuevo gasto
             </button>
           )}
 
+          {/* En mobile este botón queda oculto: el acceso a Nueva venta se
+              movió a la cabecera (ver Header/onNuevaVenta). En desktop sigue
+              igual, al lado de las pestañas. */}
           {resumenPanel === "ingresos" && (
             <button
               onClick={() => onChange("nueva")}
               className={cn(
-                "group relative overflow-hidden inline-flex flex-1 sm:flex-none justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
+                "hidden sm:inline-flex group relative overflow-hidden justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
                 nuevaActive
                   ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.30),rgba(6,95,70,0.62))] text-emerald-50 border-emerald-300/42 ring-1 ring-emerald-400/32 shadow-[0_0_44px_rgba(16,185,129,0.40),0_0_90px_rgba(16,185,129,0.16),0_1px_0_rgba(255,255,255,0.18)_inset]"
                   : "bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] text-emerald-50 border-emerald-300/36 ring-1 ring-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]",
@@ -1252,7 +1334,7 @@ function ResumenTab({
   const activeTheme = panelTheme[activePanel];
 
   return (
-    <div className="relative space-y-6 py-2">
+    <div className="relative space-y-6 pt-0 pb-2 sm:py-2">
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
       <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -1360,7 +1442,8 @@ function ResumenTab({
               </h3>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* En mobile, tabla oculta — ver tarjetas verticales debajo. */}
+            <div className="hidden overflow-x-auto sm:block">
               <div className="min-w-[1080px]">
                 <div
                   className={cn(
@@ -1443,6 +1526,93 @@ function ResumenTab({
               </div>
             </div>
 
+            {/* Mobile: tarjetas verticales — mismos datos (data.expensesToday,
+                mismo límite de 5) sin scroll horizontal. */}
+            <div className="sm:hidden">
+              {data.expensesToday.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  Sin gastos registrados.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5 p-3">
+                  {data.expensesToday.slice(0, 5).map((e: any) => {
+                    const createdDate = e.created_at ? new Date(e.created_at) : null;
+                    const date = e.date
+                      ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })
+                      : createdDate
+                        ? createdDate.toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })
+                        : "—";
+                    const hora =
+                      createdDate && !Number.isNaN(createdDate.getTime())
+                        ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
+                        : "—";
+                    const category = e.category ?? e.type ?? "—";
+                    const description =
+                      e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                    const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
+                    const user = displayCashActor(e);
+                    return (
+                      <div
+                        key={`gasto-mobile-${e.id}`}
+                        className="w-full rounded-2xl border border-white/[0.07] bg-black/25 px-3.5 py-3 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                            {date} · {hora}
+                          </span>
+                          <span className="text-sm font-bold tabular-nums text-rose-300">
+                            -${Number(e.amount ?? 0).toLocaleString("es-AR")}
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="shrink-0 text-muted-foreground/70">Categoría</span>
+                            <span className="truncate text-right capitalize text-muted-foreground">
+                              {category}
+                            </span>
+                          </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="shrink-0 text-muted-foreground/70">Descripción</span>
+                            <span className="truncate text-right text-foreground/90">
+                              {description}
+                            </span>
+                          </div>
+                          {e.note && e.note !== description && (
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="shrink-0 text-muted-foreground/70">Nota</span>
+                              <span className="truncate text-right text-muted-foreground/70">
+                                {e.note}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="shrink-0 text-muted-foreground/70">Método</span>
+                            <span className="truncate text-right text-muted-foreground">
+                              {method}
+                            </span>
+                          </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="shrink-0 text-muted-foreground/70">Usuario responsable</span>
+                            <span className="truncate text-right text-muted-foreground">
+                              {user}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-end gap-3">
               {data.expensesToday.length > 0 && (
               <button
@@ -1484,7 +1654,8 @@ function ResumenTab({
             </div>
 
             <div className="max-h-[70vh] overflow-y-auto p-4 [scrollbar-width:thin] [scrollbar-color:rgba(244,63,94,0.35)_transparent]">
-              <div className="min-w-[1080px] overflow-hidden rounded-2xl border border-rose-300/12 bg-black/25">
+              {/* En mobile, tabla oculta — ver tarjetas verticales debajo. */}
+              <div className="hidden min-w-[1080px] overflow-hidden rounded-2xl border border-rose-300/12 bg-black/25 sm:block">
                 <div className="grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 border-b border-rose-300/10 bg-rose-400/[0.035] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
                   <div>Fecha</div>
                   <div>Hora</div>
@@ -1543,6 +1714,87 @@ function ResumenTab({
                   </div>
                 )}
               </div>
+
+              {/* Mobile: tarjetas verticales — mismos datos, sin límite
+                  (igual que la tabla de escritorio de este modal). */}
+              <div className="sm:hidden">
+                {data.expensesToday.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-white/45">
+                    Sin gastos registrados.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2.5">
+                    {data.expensesToday.map((e: any) => {
+                      const createdDate = e.created_at ? new Date(e.created_at) : null;
+                      const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
+                      const date = rawDate
+                        ? new Date(`${rawDate}T00:00:00`).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })
+                        : "—";
+                      const hora =
+                        createdDate && !Number.isNaN(createdDate.getTime())
+                          ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
+                          : "—";
+                      const category = e.category ?? e.type ?? "—";
+                      const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                      const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
+                      const user = displayCashActor(e);
+                      return (
+                        <div
+                          key={`history-mobile-${e.id}`}
+                          className="w-full rounded-2xl border border-rose-300/12 bg-black/25 px-3.5 py-3 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                              {date} · {hora}
+                            </span>
+                            <span className="text-sm font-bold tabular-nums text-rose-300">
+                              -${Number(e.amount ?? 0).toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                          <div className="mt-2 space-y-1.5">
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="shrink-0 text-white/45">Categoría</span>
+                              <span className="truncate text-right capitalize text-white/55">
+                                {category}
+                              </span>
+                            </div>
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="shrink-0 text-white/45">Descripción</span>
+                              <span className="truncate text-right text-white/88">
+                                {description}
+                              </span>
+                            </div>
+                            {e.note && e.note !== description && (
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-white/45">Nota</span>
+                                <span className="truncate text-right text-white/45">
+                                  {e.note}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="shrink-0 text-white/45">Método</span>
+                              <span className="truncate text-right text-white/55">
+                                {method}
+                              </span>
+                            </div>
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="shrink-0 text-white/45">Usuario responsable</span>
+                              <span className="truncate text-right text-white/55">
+                                {user}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1554,14 +1806,23 @@ function ResumenTab({
 
 function PreciosTab({
   businessId: _businessId,
+  data,
 }: {
   businessId: string | null;
+  data: ReturnType<typeof useCajaData>;
 }) {
-  const data = useCajaData();
+  // Reutiliza el `data` que ya cargó CashRegisterPage (mismo fix que
+  // ProfesionalesTab/CierresTab) — antes esta pestaña llamaba su propia
+  // useCajaData(), que vuelve a pedir todo cada vez que se monta y por un
+  // instante muestra "Sin servicios/Sin artículos" antes de que llegue la
+  // respuesta real: el flash oscuro reportado.
   const [serviceQuery, setServiceQuery] = React.useState("");
   const [catalogQuery, setCatalogQuery] = React.useState("");
   const [serviceFilter, setServiceFilter] = React.useState("Todos");
   const [catalogFilter, setCatalogFilter] = React.useState("Todos");
+  // Mobile: pestañas Servicios/Catálogo para mostrar una sección a la vez
+  // (en desktop las dos siguen viéndose lado a lado, sin cambios ahí).
+  const [mobileSection, setMobileSection] = React.useState<"servicios" | "catalogo">("servicios");
 
   const items = React.useMemo(() => data.services ?? [], [data.services]);
   const serviceItems = React.useMemo(
@@ -1729,11 +1990,63 @@ function PreciosTab({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-base text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
       />
     </div>
   );
 
+  // Placeholder mientras `data.loading` es true — mismo fondo/tamaño de fila
+  // que el contenido real, para no mostrar "Sin servicios/artículos" por un
+  // instante en la primera carga real de Caja. Versión desktop: sin tarjeta
+  // propia, se usa dentro de la caja continua de siempre (ver más abajo).
+  const RowSkeleton = () => (
+    <>
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-4 border-b border-white/[0.055] px-3 py-2.5 last:border-0"
+        >
+          <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-white/[0.06]" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3.5 w-1/2 animate-pulse rounded bg-white/[0.06]" />
+            <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
+          </div>
+          <div className="hidden h-9 w-[90px] shrink-0 animate-pulse rounded-xl bg-white/[0.045] sm:block" />
+          <div className="hidden h-9 w-[90px] shrink-0 animate-pulse rounded-xl bg-white/[0.045] sm:block" />
+        </div>
+      ))}
+    </>
+  );
+
+  // Versión mobile del skeleton: reproduce las MISMAS 2 filas que
+  // ServiceRowMobile/CatalogRowMobile (thumb+nombre, y las 2 PriceBadge de
+  // precio) — antes le faltaba la fila de precios, que aparecía recién con
+  // los datos reales (tarjetas violeta/verde con precio) sin placeholder.
+  const RowSkeletonMobile = () => (
+    <div className="flex flex-col gap-2">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3"
+        >
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-white/[0.06]" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="h-3.5 w-1/2 animate-pulse rounded bg-white/[0.06]" />
+              <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="h-11 flex-1 animate-pulse rounded-xl bg-white/[0.045]" />
+            <div className="h-11 flex-1 animate-pulse rounded-xl bg-white/[0.045]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Fila de escritorio: estilo original, línea divisoria dentro de una caja
+  // continua (sin cambios respecto de la versión web de siempre).
   const ServiceRow = ({ item }: { item: any }) => (
     <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2.5 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
@@ -1771,15 +2084,103 @@ function PreciosTab({
     </div>
   );
 
+  // Mobile: cada ítem es su propia tarjeta (borde + fondo sutil propio),
+  // separada de las demás por aire real (gap), en vez de una sola caja
+  // continua con líneas divisorias — SOLO mobile, la versión de escritorio
+  // (ServiceRow/CatalogRow de arriba) no cambia.
+  const ServiceRowMobile = ({ item }: { item: any }) => (
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3 active:bg-white/[0.045]">
+      <div className="flex min-w-0 items-center gap-4">
+        <Thumb item={item} fallback="✂" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold text-white">
+            {item.name ?? "Servicio"}
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
+            <Clock className="size-3.5" />
+            {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
+        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
+      </div>
+    </div>
+  );
+
+  const CatalogRowMobile = ({ item }: { item: any }) => (
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3 active:bg-white/[0.045]">
+      <div className="flex min-w-0 items-center gap-4">
+        <Thumb item={item} fallback="□" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold text-white">
+            {item.name ?? "Producto"}
+          </div>
+          <div className="mt-0.5 text-[11px] text-white/50">
+            {catalogCategory(item)}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
+        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="-mt-5 h-[calc(100vh-270px)] min-h-[470px] overflow-hidden pb-6 animate-fade-up">
-      <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-2">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
+    <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
+      {/* Mobile: pestañas para ver una sección a la vez. Desktop no cambia:
+          las dos secciones siguen lado a lado (ver sm:grid abajo). */}
+      <div className="mb-3 flex gap-1.5 rounded-2xl border border-white/[0.085] bg-black/25 p-1.5 sm:hidden">
+        {(
+          [
+            ["servicios", "Servicios"],
+            ["catalogo", "Catálogo"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setMobileSection(id)}
+            className={cn(
+              "flex-1 rounded-xl px-3.5 py-2.5 text-sm font-bold transition-all",
+              mobileSection === id
+                ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
+                : "text-white/50 active:bg-white/[0.045]",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="grid h-auto min-h-0 grid-cols-1 gap-5 sm:h-full xl:grid-cols-2">
+        <section
+          className={cn(
+            // El intento anterior (degradado con background-size fijo de
+            // 320px) seguía viviendo en el MISMO elemento que crece con el
+            // contenido, así que el punto de recorte del degradado también
+            // se recalculaba. Ahora el degradado vive en una capa aparte,
+            // absolutamente posicionada con un alto fijo (100dvh) que NUNCA
+            // depende de cuánto mida la sección — la sección solo recorta
+            // (overflow-hidden + rounded) la parte de esa capa que le
+            // corresponde según su alto real, pero el degradado en sí
+            // siempre mapea sus colores a la MISMA franja de 100dvh sin
+            // importar si la sección mide 400px o 2000px. Por eso la zona
+            // de categorías (a una distancia fija del techo) cae siempre en
+            // el mismo punto de esa franja fija. Desktop no cambia: sigue
+            // usando su propio degradado estirado al 100% de su alto fijo.
+            "relative min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:flex sm:bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))]",
+            mobileSection === "servicios" ? "flex" : "hidden",
+          )}
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[100dvh] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] sm:hidden" />
           <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">
-                  ✂
+                <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
+                  <Scissors className="size-5" />
                 </div>
                 <div className="text-lg font-bold text-white">
                   Servicios disponibles <span className="text-white/35">·</span>{" "}
@@ -1792,43 +2193,119 @@ function PreciosTab({
               onChange={setServiceQuery}
               placeholder="Buscar servicio"
             />
-            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.07] bg-black/25 p-1.5">
-              {serviceCategories.map((cat) => {
-                const active = serviceFilter === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setServiceFilter(cat)}
-                    className={cn(
-                      "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
-                      active
-                        ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
-                        : "text-white/50 hover:bg-white/[0.045] hover:text-white/80",
-                    )}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
+            {/* self-start + max-w-full: antes este contenedor se estiraba
+                al 100% del ancho (comportamiento por defecto de un hijo
+                dentro de un flex-column) sin importar cuántas categorías
+                hubiera. Con pocas categorías, eso dejaba un área grande de
+                fondo negro "vacío" a la derecha de los chips — con muchas,
+                los chips ocupaban todo el ancho y no quedaba fondo visible.
+                Mismo bg-black/25 y mismo border siempre: lo que cambiaba
+                era cuánto quedaba expuesto. Ahora el contenedor se ajusta
+                al contenido (como un chip real), y solo usa scroll interno
+                si no entran todas — igual en cualquier cantidad. */}
+            {/* Bug conocido de WebKit: cuando `overflow-x-auto` y el fondo
+                translúcido viven en el MISMO elemento, WebKit promueve ese
+                elemento a una capa de composición de scroll solo cuando el
+                contenido realmente necesita scrollear — y esa capa se pinta
+                distinto (compositing en buffer aparte) que el elemento
+                pintado directo. Como acá el contenido entra o no según la
+                cantidad de categorías, la capa se crea o no según la
+                cantidad de categorías: de ahí el cambio de intensidad.
+                Confirmado por el usuario: pasa en Safari Y Chrome de iOS
+                (mismo motor WebKit), nunca en Chrome Android (Blink) — es
+                el motor, no el navegador ni el touch.
+                Fix: separar el fondo/borde (elemento de afuera, SIN
+                overflow, nunca se promueve a capa de scroll) del mecanismo
+                de scroll (elemento de adentro, sin fondo propio — no hay
+                color que se pinte distinto sin importar qué capa use
+                WebKit para él). Mismo resultado visual y funcional. */}
+            <div className="isolate inline-flex max-w-full self-start rounded-2xl border border-white/[0.07] bg-[rgba(0,0,0,0.25)] p-1.5">
+              <div className="flex min-w-0 gap-2 overflow-x-auto">
+                {/* Mientras `data.loading` es true, `serviceCategories`
+                    todavía no tiene los datos reales y colapsa a solo
+                    ["Todos"] (ver el useMemo de arriba). Un skeleton con el
+                    mismo ancho aproximado del estado final evita el salto
+                    de tamaño al llegar los datos. */}
+                {data.loading ? (
+                  [0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="h-9 w-16 shrink-0 animate-pulse rounded-xl bg-white/[0.06]"
+                    />
+                  ))
+                ) : (
+                  serviceCategories.map((cat) => {
+                    const active = serviceFilter === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setServiceFilter(cat)}
+                        className={cn(
+                          "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
+                          active
+                            ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
+                            : "text-white/50 [@media(hover:hover)]:hover:bg-white/[0.045] [@media(hover:hover)]:hover:text-white/80 active:bg-white/[0.045] active:text-white/80",
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-            {filteredServices.length === 0 ? (
-              <div className="py-16 text-center text-sm text-white/45">
-                Sin servicios.
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
-                {filteredServices.map((item: any) => (
+          <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            {/* Desktop: caja continua de siempre, sin cambios. */}
+            <div className="hidden overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018] sm:block">
+              {data.loading ? (
+                <RowSkeleton />
+              ) : filteredServices.length === 0 ? (
+                <div className="py-16 text-center text-sm text-white/45">
+                  Sin servicios.
+                </div>
+              ) : (
+                filteredServices.map((item: any) => (
                   <ServiceRow key={item.id} item={item} />
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
+            {/* Mobile: tarjetas individuales con separación real. min-h
+                evita que la página se achique/agrande de golpe al cambiar
+                de categoría (algunas tienen 1-2 servicios, otras muchos) —
+                ese salto de alto corría el scroll y exponía distinto el
+                glow ambiental fijo de arriba de la página, sensación de
+                "cambia la luz" sin que ningún color cambiara en realidad. */}
+            <div className="min-h-[50vh] sm:hidden">
+              {data.loading ? (
+                <RowSkeletonMobile />
+              ) : filteredServices.length === 0 ? (
+                <div className="py-16 text-center text-sm text-white/45">
+                  Sin servicios.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {filteredServices.map((item: any) => (
+                    <ServiceRowMobile key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
+        <section
+          className={cn(
+            // Ver comentario detallado en la sección de Servicios: el
+            // degradado vive en una capa aparte, absolutamente posicionada
+            // con alto fijo (100dvh) que nunca depende de cuánto mida la
+            // sección. Desktop no cambia.
+            "relative min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)] sm:flex sm:bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))]",
+            mobileSection === "catalogo" ? "flex" : "hidden",
+          )}
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[100dvh] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] sm:hidden" />
           <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
             <div className="flex items-center gap-4">
               <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">
@@ -1844,30 +2321,49 @@ function PreciosTab({
               onChange={setCatalogQuery}
               placeholder="Buscar producto"
             />
-            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/[0.07] bg-black/25 p-1.5">
-              {catalogCategories.map((cat) => {
-                const active = catalogFilter === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setCatalogFilter(cat)}
-                    className={cn(
-                      "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
-                      active
-                        ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
-                        : "text-white/50 hover:bg-white/[0.045] hover:text-white/80",
-                    )}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
+            {/* Ver comentario detallado en la lista de Servicios: mismo
+                bug de WebKit (fondo translúcido + overflow-x-auto en el
+                mismo elemento cambia de composición según si hay scroll o
+                no) y mismo fix (separar fondo/borde del mecanismo de
+                scroll en dos elementos). */}
+            <div className="isolate inline-flex max-w-full self-start rounded-2xl border border-white/[0.07] bg-[rgba(0,0,0,0.25)] p-1.5">
+              <div className="flex min-w-0 gap-2 overflow-x-auto">
+                {data.loading ? (
+                  [0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="h-9 w-16 shrink-0 animate-pulse rounded-xl bg-white/[0.06]"
+                    />
+                  ))
+                ) : (
+                  catalogCategories.map((cat) => {
+                    const active = catalogFilter === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setCatalogFilter(cat)}
+                        className={cn(
+                          "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
+                          active
+                            ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
+                            : "text-white/50 [@media(hover:hover)]:hover:bg-white/[0.045] [@media(hover:hover)]:hover:text-white/80 active:bg-white/[0.045] active:text-white/80",
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-            <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
-              {filteredCatalog.length === 0 ? (
+          <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            {/* Desktop: caja continua de siempre, sin cambios. */}
+            <div className="hidden overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018] sm:block">
+              {data.loading ? (
+                <RowSkeleton />
+              ) : filteredCatalog.length === 0 ? (
                 <div className="py-16 text-center text-sm text-white/45">
                   Sin artículos.
                 </div>
@@ -1875,6 +2371,25 @@ function PreciosTab({
                 filteredCatalog.map((item: any) => (
                   <CatalogRow key={item.id} item={item} />
                 ))
+              )}
+            </div>
+            {/* Mobile: tarjetas individuales con separación real. min-h
+                evita que la página se achique/agrande de golpe al cambiar
+                de categoría (ver mismo comentario en la lista de
+                Servicios de arriba). */}
+            <div className="min-h-[50vh] sm:hidden">
+              {data.loading ? (
+                <RowSkeletonMobile />
+              ) : filteredCatalog.length === 0 ? (
+                <div className="py-16 text-center text-sm text-white/45">
+                  Sin artículos.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {filteredCatalog.map((item: any) => (
+                    <CatalogRowMobile key={item.id} item={item} />
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -1887,13 +2402,21 @@ function PreciosTab({
 function InventarioTab({
   businessId: _businessId,
   userEmail,
+  data,
 }: {
   businessId: string | null;
   userEmail: string | null;
+  data: ReturnType<typeof useCajaData>;
 }) {
-  const data = useCajaData();
+  // Reutiliza el `data` que ya cargó CashRegisterPage (mismo fix que
+  // ProfesionalesTab/PreciosTab) — evita el refetch redundante y el flash
+  // de "Sin artículos" al entrar a esta pestaña.
   const [stockQuery, setStockQuery] = React.useState("");
   const [movementQuery, setMovementQuery] = React.useState("");
+  // Mobile: "Últimos movimientos" deja de listarse fijo en pantalla y pasa a
+  // un modal (mismo dato/lógica, solo cambia dónde se muestra). Desktop no
+  // se toca — sigue siendo la segunda columna de siempre.
+  const [movementsModalOpen, setMovementsModalOpen] = React.useState(false);
   const [adjustingId, setAdjustingId] = React.useState<string | null>(null);
   const INVENTORY_STOCK_KEY = "clippr_inventory_stock_overrides_v1";
   const readLocalStock = React.useCallback((): Record<string, number> => {
@@ -1951,6 +2474,87 @@ function InventarioTab({
       return stockById[id];
     return Number(item.stock ?? item.quantity ?? item.qty ?? 0);
   };
+
+  // Placeholder mientras `data.loading` es true — mismo tamaño/fondo de fila
+  // que el contenido real, para no mostrar "Sin artículos/movimientos" por
+  // un instante en la primera carga real de Caja. Versión desktop: sin
+  // tarjeta propia, se usa DENTRO de la caja continua de siempre.
+  const InventoryRowSkeleton = () => (
+    <>
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-4 border-b border-white/[0.055] px-4 py-3 last:border-0"
+        >
+          <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-white/[0.06]" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3.5 w-1/2 animate-pulse rounded bg-white/[0.06]" />
+            <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
+          </div>
+          <div className="hidden h-6 w-16 shrink-0 animate-pulse rounded-full bg-white/[0.045] sm:block" />
+        </div>
+      ))}
+    </>
+  );
+
+  // Versión mobile del skeleton de Stock: reproduce las MISMAS 2 filas que
+  // la tarjeta real (thumb+nombre, badges de stock/estado + botones +/-)
+  // — antes solo tenía la primera fila, y los badges de color y el botón
+  // "+" con glow (shadow-[0_0_22px_rgba(16,185,129,0.18)]) aparecían recién
+  // con los datos reales, lo que se veía como "prende la luz".
+  const InventoryRowSkeletonMobile = () => (
+    <div className="flex flex-col gap-2.5">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-white/[0.06]" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="h-3.5 w-1/2 animate-pulse rounded bg-white/[0.06]" />
+              <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="flex gap-2">
+              <div className="h-6 w-20 animate-pulse rounded-full bg-white/[0.045]" />
+              <div className="h-6 w-16 animate-pulse rounded-full bg-white/[0.045]" />
+            </div>
+            <div className="flex gap-2">
+              <div className="size-9 shrink-0 animate-pulse rounded-full bg-white/[0.045]" />
+              <div className="size-9 shrink-0 animate-pulse rounded-full bg-white/[0.045]" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Versión mobile del skeleton de Movimientos: estructura propia (fecha +
+  // tipo, producto, cantidad/stock/usuario) — distinta a la de Stock, así
+  // que no comparte el mismo componente.
+  const InventoryMovementSkeletonMobile = () => (
+    <div className="flex flex-col gap-2.5">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="h-2.5 w-20 animate-pulse rounded bg-white/[0.045]" />
+            <div className="h-4 w-16 animate-pulse rounded-full bg-white/[0.045]" />
+          </div>
+          <div className="mt-2 h-3.5 w-2/3 animate-pulse rounded bg-white/[0.06]" />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="h-3 w-10 animate-pulse rounded bg-white/[0.045]" />
+            <div className="h-3 w-16 animate-pulse rounded bg-white/[0.045]" />
+            <div className="h-3 w-14 animate-pulse rounded bg-white/[0.045]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   const formatInventoryDate = (value: string | Date | null | undefined) => {
     const date = value ? new Date(value) : new Date();
@@ -2107,7 +2711,7 @@ function InventarioTab({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-base text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
       />
     </div>
   );
@@ -2284,8 +2888,8 @@ function InventarioTab({
       : `${movement.stockFrom} → ${movement.stockTo}`;
 
   return (
-    <div className="-mt-5 grid h-[calc(100vh-270px)] min-h-[470px] grid-cols-1 gap-5 overflow-hidden pb-6 xl:grid-cols-2 animate-fade-up">
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)]">
+    <div className="-mt-5 grid h-auto grid-cols-1 gap-5 overflow-visible pb-6 xl:grid-cols-2 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
+      <section className="flex min-h-0 flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
           <div className="flex items-center gap-4">
             <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
@@ -2301,15 +2905,30 @@ function InventarioTab({
             onChange={setStockQuery}
             placeholder="Buscar artículo"
           />
+          {/* Mobile: "Últimos movimientos" pasa a un modal (ver botón +
+              modal más abajo, fuera de esta sección) en vez de listarse
+              fijo en pantalla. Acceso rápido desde acá mismo. */}
+          <button
+            type="button"
+            onClick={() => setMovementsModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.045] px-4 py-2.5 text-sm font-semibold text-white/85 transition active:bg-white/[0.08] sm:hidden"
+          >
+            <ArrowRight className="size-4" />
+            Ver últimos movimientos
+          </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-          <div className="overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018]">
+        <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          {/* Desktop: tabla. En mobile, tarjetas verticales debajo — mismos
+              datos y mismas acciones de ajustar stock. */}
+          <div className="hidden overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018] sm:block">
             <div className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Artículo</div>
               <div>Stock</div>
 <div className="text-right">Ajustar</div>
             </div>
-            {filteredStock.length === 0 ? (
+            {data.loading ? (
+              <InventoryRowSkeleton />
+            ) : filteredStock.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">
                 Sin artículos.
               </div>
@@ -2359,10 +2978,70 @@ function InventarioTab({
               })
             )}
           </div>
+
+          <div className="sm:hidden">
+            {data.loading ? (
+              <InventoryRowSkeletonMobile />
+            ) : filteredStock.length === 0 ? (
+              <div className="py-16 text-center text-sm text-white/45">
+                Sin artículos.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {filteredStock.map((item: any) => {
+                  const stock = stockNumber(item);
+                  const id = itemId(item);
+                  const loading = adjustingId === id;
+                  return (
+                    <div
+                      key={`mobile-${id}`}
+                      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Thumb item={item} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-bold text-white">
+                            {item.name ?? "Producto"}
+                          </div>
+                          <div className="mt-0.5 text-xs text-white/50">
+                            {catalogCategory(item)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <StockBadge stock={stock} />
+                          <StatusBadge item={item} />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openStockAdjustment(item, "out")}
+                            disabled={loading}
+                            className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition active:bg-rose-500/12 active:text-rose-200 disabled:opacity-50"
+                          >
+                            <Minus className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openStockAdjustment(item, "in")}
+                            disabled={loading}
+                            className="grid size-9 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.18)] transition active:bg-emerald-400/18 disabled:opacity-50"
+                          >
+                            <Plus className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)]">
+      <section className="hidden min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)] sm:flex">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
           <div className="flex items-center gap-4">
             <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
@@ -2390,7 +3069,9 @@ function InventarioTab({
               <div>Nota</div>
               <div>Usuario</div>
             </div>
-            {filteredMovements.length === 0 ? (
+            {data.loading ? (
+              <InventoryRowSkeleton />
+            ) : filteredMovements.length === 0 ? (
               <div className="py-16 text-center text-sm text-white/45">
                 Sin movimientos.
               </div>
@@ -2436,6 +3117,99 @@ function InventarioTab({
         </div>
       </section>
 
+      {/* Mobile: modal de "Últimos movimientos" — mismos datos y lógica que
+          la sección de escritorio (filteredMovements/movementQuery), solo
+          cambia dónde se muestran en mobile: acá, con scroll interno. */}
+      {movementsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm sm:hidden"
+          onClick={() => setMovementsModalOpen(false)}
+        >
+          <div
+            className="mt-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-3xl border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_-30px_100px_-45px_rgba(139,92,246,0.4)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
+                    <ArrowRight className="size-5" />
+                  </div>
+                  <div className="text-lg font-bold text-white">
+                    Últimos movimientos{" "}
+                    <span className="text-white/35">·</span>{" "}
+                    <span className="text-white/55">{inventoryMovements.length}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMovementsModalOpen(false)}
+                  className="grid size-8 shrink-0 place-items-center rounded-full text-white/50 transition active:bg-white/10 active:text-white"
+                  aria-label="Cerrar"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <SearchBox
+                value={movementQuery}
+                onChange={setMovementQuery}
+                placeholder="Buscar movimiento"
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+              {data.loading ? (
+                <InventoryMovementSkeletonMobile />
+              ) : filteredMovements.length === 0 ? (
+                <div className="py-16 text-center text-sm text-white/45">
+                  Sin movimientos.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {filteredMovements.map((item: InventoryMovement) => (
+                    <div
+                      key={`mobile-${item.id}`}
+                      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                          {formatInventoryDate(item.created_at)}
+                        </span>
+                        <span
+                          className={cn(
+                            "inline-flex w-fit rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1",
+                            movementTypeClass(item.type),
+                          )}
+                        >
+                          {item.type}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 truncate font-semibold text-white">
+                        {item.product}
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span
+                          className={cn(
+                            "font-bold tabular-nums",
+                            item.qty >= 0 ? "text-emerald-300" : "text-rose-300",
+                          )}
+                        >
+                          {qtyText(item.qty)}
+                        </span>
+                        <span className="text-white/60">{stockFlow(item)}</span>
+                        <span className="truncate text-white/50">{item.user || "Caja"}</span>
+                      </div>
+                      {item.note && (
+                        <div className="mt-1 truncate text-white/50">{item.note}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {stockAdjustment && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.55)]">
@@ -2465,7 +3239,11 @@ function InventarioTab({
                       ? "Cantidad a agregar"
                       : "Cantidad a retirar"
                   }
-                  className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-sm font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                  // text-base (16px): con autoFocus, este input se enfoca
+                  // apenas se toca +/- para abrir el modal — con menos de
+                  // 16px, iOS hace zoom automático de la pantalla entera al
+                  // enfocar. Mismo fix ya aplicado en login/Nuevo gasto.
+                  className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
                 />
               </div>
               <div>
@@ -2477,7 +3255,7 @@ function InventarioTab({
                   onChange={(event) => setAdjustNote(event.target.value)}
                   rows={3}
                   placeholder="Motivo del movimiento, proveedor, corrección, etc."
-                  className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                  className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
                 />
               </div>
               <div className="rounded-2xl border border-white/[0.065] bg-white/[0.025] px-4 py-3 text-sm text-white/60">
@@ -2523,11 +3301,19 @@ function InventarioTab({
 function ProfesionalesTab({
   businessId,
   userEmail,
+  data,
 }: {
   businessId: string | null;
   userEmail: string | null;
+  data: ReturnType<typeof useCajaData>;
 }) {
-  const data = useCajaData();
+  // Antes esta pestaña llamaba a su propia useCajaData(), que vuelve a
+  // pedir todo (servicios, empleados, pagos, gastos) cada vez que se monta
+  // — es decir, cada vez que se entraba a Liquidaciones. Eso arrancaba
+  // siempre en loading=true, tapando el contenido con "Cargando…" y
+  // volviendo a mostrarlo apenas terminaba: el parpadeo del fondo/glow que
+  // se reportó. Ahora reutiliza el `data` que ya cargó CashRegisterPage
+  // (mismo patrón que ya usa CierresTab), sin ningún fetch redundante.
   const today = React.useMemo(() => new Date().toLocaleDateString("sv-SE"), []);
   const [selectedEmployeeId, setSelectedEmployeeId] =
     React.useState<string>("all");
@@ -2539,7 +3325,14 @@ function ProfesionalesTab({
   const [startDate, setStartDate] = React.useState(today);
   const [endDate, setEndDate] = React.useState(today);
   const [rangePayments, setRangePayments] = React.useState<any[]>([]);
-  const [loadingRange, setLoadingRange] = React.useState(false);
+  // Arrancan en `true` (no `false`): el efecto que los apaga corre después
+  // del primer render, así que si empezaran en `false` se alcanzaba a
+  // pintar un frame con `rows`/`totals` en $0 (datos "reales" vacíos) antes
+  // de que aparezca el skeleton — ese flash de números en cero, seguido del
+  // skeleton y recién después los montos correctos, es lo que se percibía
+  // como "prende la luz" al llegar los datos.
+  const [loadingRange, setLoadingRange] = React.useState(true);
+  const [loadingPayouts, setLoadingPayouts] = React.useState(true);
   const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(
     null,
   );
@@ -2585,6 +3378,7 @@ function ProfesionalesTab({
     async function loadPaymentsByRange() {
       if (!businessId || !startDate || !endDate) {
         setRangePayments(data.paymentsToday ?? []);
+        setLoadingRange(false);
         return;
       }
 
@@ -2629,9 +3423,13 @@ function ProfesionalesTab({
     let cancelled = false;
     async function loadPayouts() {
       if (!businessId || !startDate || !endDate) {
-        if (!cancelled) setPayouts([]);
+        if (!cancelled) {
+          setPayouts([]);
+          setLoadingPayouts(false);
+        }
         return;
       }
+      setLoadingPayouts(true);
       try {
         const { data: rows, error } = await supabase
           .from("professional_payouts")
@@ -2649,6 +3447,8 @@ function ProfesionalesTab({
           "[caja] no se pudieron cargar las liquidaciones:",
           (e as Error).message,
         );
+      } finally {
+        if (!cancelled) setLoadingPayouts(false);
       }
     }
     loadPayouts();
@@ -2973,8 +3773,16 @@ function ProfesionalesTab({
   };
 
   return (
-    <div className="-mt-5 h-[calc(100vh-270px)] min-h-[470px] overflow-hidden pb-6 animate-fade-up">
-      <section className="flex h-full flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
+    <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
+      {/* Mobile: un solo shadow liviano (mismo costo de paint que
+          Precios/Inventario) en vez del shadow doble con capa negra
+          pesada (blur 100px + blur 85px apiladas) que tenía esta pantalla.
+          Ese doble shadow es mucho más caro de componer para Safari iOS en
+          el primer frame tras montar el tab — quedaba "plano" un instante y
+          recién after se terminaba de pintar, dando la sensación de que
+          "prende la luz" al cargar. Desktop no cambia (shadow doble original
+          vía `sm:`). */}
+      <section className="flex flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:h-full sm:overflow-hidden sm:shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="grid size-11 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
@@ -3005,7 +3813,7 @@ function ProfesionalesTab({
                   setSelectedDetail("produccion");
                 }
               }}
-              className="h-10 min-w-[230px] rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-sm text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+              className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
               <option value="all">Todos los profesionales</option>
               {(data.employees ?? []).map((employee: any) => (
@@ -3015,18 +3823,18 @@ function ProfesionalesTab({
               ))}
             </select>
 
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setRangeOpen((value) => !value)}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 text-xs font-semibold text-white ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] hover:text-white"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 text-xs font-semibold text-white ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] hover:text-white sm:w-auto sm:justify-start"
               >
                 <CalendarDays className="size-3.5" />
                 {periodLabel}
               </button>
 
               {rangeOpen && (
-                <div className="absolute right-0 top-12 z-30 w-[430px] overflow-hidden rounded-[30px] border border-white/[0.10] bg-[#050612]/95 shadow-[0_34px_110px_rgba(0,0,0,0.78)] backdrop-blur-2xl">
+                <div className="absolute left-0 right-0 top-12 z-30 w-auto overflow-hidden rounded-[30px] border border-white/[0.10] bg-[#050612]/95 shadow-[0_34px_110px_rgba(0,0,0,0.78)] backdrop-blur-2xl sm:left-auto sm:right-0 sm:w-[430px]">
                   <div className="flex flex-wrap gap-2 border-b border-white/[0.07] px-4 py-4">
                     {[
                       ["today", "Hoy"],
@@ -3161,13 +3969,77 @@ function ProfesionalesTab({
           />
         </div>
 
-        {data.loading || loadingRange ? (
-          <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-white/45">
-            <Loader2 className="size-4 animate-spin" /> Cargando…
-          </div>
+        {data.loading || loadingRange || loadingPayouts ? (
+          <>
+            {/* Desktop: skeleton sin tarjeta propia (misma caja continua de
+                siempre). Sin cambios de layout respecto de la web. */}
+            <div className="hidden overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018] sm:block">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 border-b border-white/[0.055] px-5 py-3.5 last:border-0"
+                >
+                  <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-white/[0.06]" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="h-3.5 w-1/3 animate-pulse rounded bg-white/[0.06]" />
+                    <div className="h-2.5 w-1/4 animate-pulse rounded bg-white/[0.045]" />
+                  </div>
+                  <div className="h-3 w-20 shrink-0 animate-pulse rounded bg-white/[0.045]" />
+                </div>
+              ))}
+            </div>
+            {/* Mobile: skeleton en tarjetas individuales — reproduce las
+                MISMAS 3 filas que la tarjeta real (nombre+pendiente,
+                ventas/comisión/pagado, botones) para que no aparezcan
+                filas/elementos nuevos cuando llegan los datos: antes el
+                skeleton solo tenía nombre+monto y la tarjeta real sumaba
+                de golpe la grilla de 3 columnas y los botones — ese
+                contenido apareciendo de la nada era lo que se percibía
+                como "prende la luz". También usa la MISMA cantidad de
+                tarjetas que `data.employees` (ya disponible aunque
+                loadingRange/loadingPayouts sigan en true, porque son fetches
+                aparte) en vez de un número fijo — antes, con una lista de
+                4 placeholders fijos, si el negocio tenía menos o más
+                empleados la altura de la sección cambiaba de golpe al
+                llegar los datos. En mobile la sección crece con el
+                contenido (a diferencia de desktop, que tiene alto fijo y
+                scroll interno), así que ese cambio de alto reacomoda toda
+                la página y corre los fondos ambientales de más arriba —
+                eso es lo que se percibía como "cambia la luz", exclusivo
+                de mobile. */}
+            <div className="flex flex-col gap-2.5 p-3 sm:hidden">
+              {Array.from({
+                length: Math.max(data.employees?.length ?? 0, 1),
+              }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <div className="h-3.5 w-28 animate-pulse rounded bg-white/[0.06]" />
+                      <div className="h-2.5 w-16 animate-pulse rounded bg-white/[0.045]" />
+                    </div>
+                    <div className="h-3.5 w-14 shrink-0 animate-pulse rounded bg-white/[0.045]" />
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="h-3 animate-pulse rounded bg-white/[0.045]" />
+                    <div className="h-3 animate-pulse rounded bg-white/[0.045]" />
+                    <div className="h-3 animate-pulse rounded bg-white/[0.045]" />
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <div className="h-8 flex-1 animate-pulse rounded-xl bg-white/[0.035]" />
+                    <div className="h-8 flex-1 animate-pulse rounded-xl bg-white/[0.035]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         ) : showingAllEmployees ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+          <div className="flex min-h-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
+            {/* Desktop: tabla continua de siempre, sin cambios. En mobile
+                queda oculta — ver tarjetas verticales debajo, mismos datos. */}
+            <div className="hidden grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38 sm:grid">
               <div>Profesional</div>
               <div>Ventas</div>
               <div className="text-right">Comisión</div>
@@ -3180,11 +4052,11 @@ function ProfesionalesTab({
                 No hay profesionales para liquidar.
               </div>
             ) : (
-              <div className="min-h-0 flex-1 divide-y divide-white/[0.055] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+              <div className="min-h-0 flex-1 divide-y divide-white/[0.055] overflow-visible sm:overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 {visibleRows.map((row) => (
                   <div
                     key={row.id}
-                    className="grid grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-3 text-sm transition-all duration-200 hover:bg-white/[0.026]"
+                    className="hidden grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-3 text-sm transition-all duration-200 hover:bg-white/[0.026] sm:grid"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-bold text-white">
@@ -3249,6 +4121,86 @@ function ProfesionalesTab({
                     </div>
                   </div>
                 ))}
+                {/* Mobile: tarjetas verticales — mismos datos y acciones que
+                    la tabla de arriba, sin scroll horizontal. */}
+                <div className="flex flex-col gap-2.5 p-3 sm:hidden">
+                  {visibleRows.map((row) => (
+                    <div
+                      key={`mobile-${row.id}`}
+                      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-bold text-white">{row.name}</div>
+                          <div className="mt-0.5 truncate text-xs text-white/42">{row.role}</div>
+                        </div>
+                        <div
+                          className={cn(
+                            "shrink-0 text-right text-sm font-bold tabular-nums",
+                            row.pending > 0 ? "text-rose-300" : "text-white/42",
+                          )}
+                        >
+                          {money(row.pending)}
+                          <div className="text-[10px] font-normal uppercase tracking-wider text-white/35">
+                            Pendiente
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <div className="text-white/40">Ventas</div>
+                          <div className="font-semibold text-white/75">{row.sales}</div>
+                        </div>
+                        <div>
+                          <div className="text-white/40">Comisión</div>
+                          <div className="font-semibold text-violet-300">{money(row.commission)}</div>
+                        </div>
+                        <div>
+                          <div className="text-white/40">Pagado</div>
+                          <div className="font-semibold text-emerald-300">{money(row.paid)}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEmployeeId(row.id);
+                            setSelectedDetail("produccion");
+                          }}
+                          className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/68 transition active:bg-white/[0.065]"
+                        >
+                          Producción
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEmployeeId(row.id);
+                            setSelectedDetail("historial");
+                          }}
+                          className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/68 transition active:bg-white/[0.065]"
+                        >
+                          Historial
+                        </button>
+                        {row.pending > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedEmployeeId(row.id);
+                              setPaymentForm((form) => ({
+                                ...form,
+                                amount: String(row.pending),
+                              }));
+                              setSelectedDetail("pagar");
+                            }}
+                            className="flex-1 rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition active:brightness-110"
+                          >
+                            Pagar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -3263,8 +4215,9 @@ function ProfesionalesTab({
             </div>
 
             {selectedDetail === "produccion" && (
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
+              <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
+                <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
                   <div className="grid grid-cols-[90px_minmax(120px,1fr)_minmax(180px,1.3fr)_120px_130px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha</div>
                     <div>Cliente</div>
@@ -3329,12 +4282,76 @@ function ProfesionalesTab({
                     </div>
                   )}
                 </div>
+
+                <div className="sm:hidden">
+                  {selectedProduction.length === 0 ? (
+                    <div className="px-2 py-10 text-center text-sm text-white/45">
+                      Sin servicios realizados en este rango.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {selectedProduction.map((payment: any) => {
+                        const date = payment.created_at
+                          ? new Date(payment.created_at).toLocaleDateString(
+                              "es-AR",
+                              { day: "2-digit", month: "2-digit" },
+                            )
+                          : "—";
+                        const client =
+                          payment.client_name ??
+                          payment.client ??
+                          payment.customer_name ??
+                          "Sin cliente";
+                        const service =
+                          payment.service_name ??
+                          payment.service ??
+                          payment.item_name ??
+                          "Servicio";
+                        const amount = Number(
+                          payment.total ?? payment.amount ?? 0,
+                        );
+                        const method =
+                          PAY_METHOD_LABEL[
+                            String(
+                              payment.method ?? payment.payment_method ?? "",
+                            ) as PayMethod
+                          ] ??
+                          payment.method ??
+                          payment.payment_method ??
+                          "—";
+                        return (
+                          <div
+                            key={`mobile-${payment.id ?? `${date}-${client}-${service}`}`}
+                            className="rounded-2xl border border-white/[0.07] bg-black/18 px-3.5 py-3 text-xs"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                                {date}
+                              </span>
+                              <span className="text-sm font-bold tabular-nums text-emerald-300">
+                                {money(amount)}
+                              </span>
+                            </div>
+                            <div className="mt-1.5 truncate font-semibold text-white/82">
+                              {client}
+                            </div>
+                            <div className="mt-0.5 flex items-center justify-between gap-2 text-white/60">
+                              <span className="truncate">{service}</span>
+                              <span className="shrink-0 text-white/45">{method}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {selectedDetail === "historial" && (
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
+              <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
+                <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
                   <div className="grid grid-cols-[90px_80px_120px_140px_minmax(140px,1fr)_minmax(180px,1fr)] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha</div>
                     <div>Hora</div>
@@ -3388,11 +4405,51 @@ function ProfesionalesTab({
                     </div>
                   )}
                 </div>
+
+                <div className="sm:hidden">
+                  {selectedPaymentHistory.length === 0 ? (
+                    <div className="px-2 py-10 text-center text-sm text-white/45">
+                      Sin pagos de comisión registrados.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {selectedPaymentHistory.map((payment: any) => {
+                        const created = payment.created_at
+                          ? new Date(payment.created_at)
+                          : new Date();
+                        return (
+                          <div
+                            key={`mobile-${payment.id}`}
+                            className="rounded-2xl border border-white/[0.07] bg-black/18 px-3.5 py-3 text-xs"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                                {created.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+                                {" · "}
+                                {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                              <span className="text-sm font-bold tabular-nums text-emerald-300">
+                                {money(Number(payment.amount ?? 0))}
+                              </span>
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-between gap-2">
+                              <span className="capitalize text-white/68">{payment.method ?? "—"}</span>
+                              <span className="truncate text-white/68">{payment.user ?? "Caja"}</span>
+                            </div>
+                            {payment.note && (
+                              <div className="mt-1 truncate text-white/45">{payment.note}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {selectedDetail === "pagar" && (
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+              <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 <div className="mx-auto max-w-2xl rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.035] p-4 shadow-[0_0_35px_rgba(34,197,94,0.08)]">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
@@ -3425,7 +4482,7 @@ function ProfesionalesTab({
                             amount: event.target.value,
                           }))
                         }
-                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-sm text-white outline-none focus:border-emerald-300/35"
+                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-emerald-300/35"
                       />
                     </label>
                     <label className="space-y-1.5 text-xs font-semibold text-white/55">
@@ -3438,7 +4495,7 @@ function ProfesionalesTab({
                             method: event.target.value,
                           }))
                         }
-                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-sm text-white outline-none focus:border-emerald-300/35"
+                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-emerald-300/35"
                       >
                         <option value="efectivo">Efectivo</option>
                         <option value="transferencia">Transferencia</option>
@@ -3460,7 +4517,7 @@ function ProfesionalesTab({
                       }
                       placeholder="Ej: liquidación semana, adelanto, diferencia, etc."
                       rows={3}
-                      className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-white/32 focus:border-emerald-300/35"
+                      className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-base text-white outline-none placeholder:text-white/32 focus:border-emerald-300/35"
                     />
                   </label>
 
@@ -3572,7 +4629,7 @@ function NuevoGastoTab({
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Nombre del gasto *"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
           <input
             value={form.amount}
@@ -3580,13 +4637,13 @@ function NuevoGastoTab({
             placeholder="Monto *"
             type="number"
             min={0}
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <select
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-blue-300/50"
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground outline-none focus:border-blue-300/50"
             >
               <option value="">Tipo</option>
               {GTYPES.map((t) => (
@@ -3600,7 +4657,7 @@ function NuevoGastoTab({
               onChange={(e) =>
                 setForm((f) => ({ ...f, method: e.target.value }))
               }
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground outline-none focus:border-blue-300/50"
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground outline-none focus:border-blue-300/50"
             >
               <option value="">Método de pago *</option>
               {GMETHODS.map((m) => (
@@ -3614,13 +4671,13 @@ function NuevoGastoTab({
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="Nota (opcional)"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
           <button
             type="button"
             onClick={saveGasto}
             disabled={saving}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-blue-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
           >
             {saving ? (
               <Loader2 className="size-4 animate-spin" />
@@ -3831,6 +4888,94 @@ function cierreNeedsAutomaticClose(cierre: any, today = cajaDateKey()) {
   return Boolean(fecha && fecha < today);
 }
 
+// Snapshot financiero de un día puntual (no necesariamente hoy) — se usa para
+// armar el registro de un cierre automático de un día que nunca se cerró,
+// con exactamente la misma forma de datos que guarda un cierre manual
+// (ver CierreCajaBtn.confirmar), para que el detalle del historial funcione
+// igual sea cual sea el tipo de cierre.
+async function buildCierreSnapshotForDate(businessId: string, dateStr: string) {
+  const dayStart = new Date(`${dateStr}T00:00:00`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
+
+  const [payRes, expRes] = await Promise.allSettled([
+    supabase
+      .from("payments")
+      .select(
+        "id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by,charge_type",
+      )
+      .eq("business_id", businessId)
+      .gte("created_at", dayStart.toISOString())
+      .lte("created_at", dayEnd.toISOString()),
+    supabase
+      .from("expenses")
+      .select("id,name,amount,type,category,payment_method,date,note,created_at,user_name,created_by")
+      .eq("business_id", businessId)
+      .eq("date", dateStr),
+  ]);
+
+  const payments =
+    payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as any[]) : [];
+  const expenses =
+    expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as any[]) : [];
+
+  const totalCobrado = payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const totalGastos = expenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const utilidad = totalCobrado - totalGastos;
+
+  const detalleMetodos: Record<string, CierreMetodoDetalle> = {};
+  const ensure = (method: string | null | undefined) => {
+    const key = String(method || "efectivo").toLowerCase();
+    if (!detalleMetodos[key]) detalleMetodos[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+    return detalleMetodos[key];
+  };
+  for (const p of payments) {
+    ensure(p.method ?? p.payment_method).ingresos += Number(p.total ?? p.amount ?? 0);
+  }
+  for (const e of expenses) {
+    ensure(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
+  }
+  Object.values(detalleMetodos).forEach((row) => {
+    row.utilidad = row.ingresos - row.gastos;
+  });
+
+  const cobrosSnapshot = payments.map((p) => ({
+    id: p.id,
+    hora: p.created_at
+      ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      : null,
+    cliente: p.client_name ?? null,
+    profesional: p.employee_name ?? p.professional_name ?? null,
+    servicio: p.service_name ?? null,
+    metodo: p.method ?? p.payment_method ?? null,
+    monto: Number(p.total ?? p.amount ?? 0),
+    usuario: p.charged_by ?? p.created_by ?? null,
+  }));
+
+  const gastosSnapshot = expenses.map((e) => ({
+    id: e.id,
+    hora: e.created_at
+      ? new Date(e.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      : null,
+    nombre: e.name ?? e.concept ?? e.category ?? "Gasto",
+    tipo: e.type ?? e.category ?? null,
+    metodo: e.payment_method ?? e.method ?? null,
+    monto: Number(e.amount ?? 0),
+    nota: e.note ?? null,
+    usuario: e.user_name ?? e.created_by ?? null,
+  }));
+
+  return {
+    totalCobrado,
+    totalGastos,
+    utilidad,
+    detalleMetodos,
+    cobrosSnapshot,
+    gastosSnapshot,
+    cantidadCobros: payments.length,
+    hadActivity: payments.length > 0 || expenses.length > 0,
+  };
+}
+
 async function autoCloseExpiredCajaSession({
   businessId,
   userEmail,
@@ -3851,52 +4996,117 @@ async function autoCloseExpiredCajaSession({
     .maybeSingle();
 
   if (error) throw error;
-  if (!cierreNeedsAutomaticClose(lastCierre, today)) return { closed: false };
 
-  const autoDate = new Date(`${today}T00:00:00`);
-  const evento: CajaEvento = {
-    tipo: "cierre",
-    modo: "automatico",
-    fecha_hora: autoDate.toISOString(),
-    hora: "00:00hs",
-    usuario: "Automático",
-    observacion: "Cierre automático de fin de día.",
-  };
+  // Caso 1: una caja REABIERTA (ver reabrirCaja) que se dejó abierta y ya
+  // pasó su día — se vuelve a cerrar, manteniendo la fecha original del
+  // registro (el día que corresponde cerrar), con tipo "automático".
+  if (cierreNeedsAutomaticClose(lastCierre, today)) {
+    const autoDate = new Date(`${today}T00:00:00`);
+    const evento: CajaEvento = {
+      tipo: "cierre",
+      modo: "automatico",
+      fecha_hora: autoDate.toISOString(),
+      hora: "00:00hs",
+      usuario: "Automático",
+      observacion: "Cierre automático de fin de día.",
+    };
 
-  const { data: updated, error: updateError } = await supabase
-    .from("caja_cierres" as any)
-    .update({
-      estado: "cerrada",
-      tipo_cierre: "automatico",
-      hora_cierre: "00:00hs",
-      closed_by: "Automático",
-      usuario_nombre: "Automático",
-      observacion: (lastCierre as any).observacion ?? "Cierre automático de fin de día.",
-      eventos: appendCajaEvento((lastCierre as any).eventos, evento),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", (lastCierre as any).id)
-    .eq("business_id", businessId)
-    .eq("estado", "reabierta")
-    .select("id")
-    .maybeSingle();
+    const { data: updated, error: updateError } = await supabase
+      .from("caja_cierres" as any)
+      .update({
+        estado: "cerrada",
+        tipo_cierre: "automatico",
+        hora_cierre: "00:00hs",
+        closed_by: "Automático",
+        usuario_nombre: "Automático",
+        observacion: (lastCierre as any).observacion ?? "Cierre automático de fin de día.",
+        eventos: appendCajaEvento((lastCierre as any).eventos, evento),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", (lastCierre as any).id)
+      .eq("business_id", businessId)
+      .eq("estado", "reabierta")
+      .select("id")
+      .maybeSingle();
 
-  if (updateError) throw updateError;
-  if (!updated?.id) return { closed: false };
-
-  try {
-    await closeCashSession({
-      sessionId: (lastCierre as any).id,
-      businessId,
-      closedBy: userEmail ?? "Automático",
-      note: "Cierre automático de fin de día.",
-    } as any);
-  } catch {
-    // El registro visual ya quedó cerrado en caja_cierres.
+    if (updateError) throw updateError;
+    if (updated?.id) {
+      window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
+      return { closed: true };
+    }
   }
 
-  window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
-  return { closed: true };
+  // Caso 2: la caja nunca se cerró (ni manual ni automáticamente) el día de
+  // ayer — la "Caja abierta" de siempre, sin ningún cierre registrado. Se
+  // cierra ahora, ya pasada la medianoche, para que hoy arranque limpio.
+  // Si ayer ya tiene un registro "cerrada" (manual o automático), no se
+  // toca: así nunca se duplica ni se pisa un cierre manual del día.
+  // Nota de alcance: esto retrocede solo UN día (ayer) por corrida — si la
+  // Caja no se abre varios días seguidos, al volver a entrar se cierra el
+  // día inmediato anterior, no cada día salteado.
+  const yesterday = cajaDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const { data: yesterdayCierre, error: yError } = await supabase
+    .from("caja_cierres" as any)
+    .select("id,eventos,estado")
+    .eq("business_id", businessId)
+    .eq("fecha", yesterday)
+    .maybeSingle();
+  if (yError) throw yError;
+
+  if (!isCajaCerradaRow(yesterdayCierre)) {
+    const snapshot = await buildCierreSnapshotForDate(businessId, yesterday);
+    // Un negocio que nunca usó Caja (sin cierres previos ni actividad ayer)
+    // no debe generar un cierre "automático" vacío de la nada.
+    if (lastCierre?.id || snapshot.hadActivity) {
+      const evento: CajaEvento = {
+        tipo: "cierre",
+        modo: "automatico",
+        fecha_hora: new Date(`${yesterday}T23:59:59`).toISOString(),
+        hora: "00:00hs",
+        usuario: "Automático",
+        observacion: "Cierre automático de fin de día.",
+      };
+      const payload = {
+        business_id: businessId,
+        fecha: yesterday,
+        hora_cierre: "00:00hs",
+        usuario_nombre: "Automático",
+        closed_by: "Automático",
+        tipo_cierre: "automatico",
+        estado: "cerrada",
+        observacion: "Cierre automático de fin de día.",
+        total_cobrado: snapshot.totalCobrado,
+        total_gastos: snapshot.totalGastos,
+        utilidad: snapshot.utilidad,
+        cantidad_cobros: snapshot.cantidadCobros,
+        detalle_metodos_pago: snapshot.detalleMetodos,
+        cobros_snapshot: snapshot.cobrosSnapshot,
+        gastos_snapshot: snapshot.gastosSnapshot,
+        eventos: appendCajaEvento((yesterdayCierre as any)?.eventos, evento),
+        updated_at: new Date().toISOString(),
+      };
+
+      const query = (yesterdayCierre as any)?.id
+        ? supabase
+            .from("caja_cierres" as any)
+            .update(payload)
+            .eq("id", (yesterdayCierre as any).id)
+            .eq("business_id", businessId)
+            .neq("estado", "cerrada")
+            .select("id")
+            .maybeSingle()
+        : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
+
+      const { data: savedYesterday, error: saveError } = await query;
+      if (saveError) throw saveError;
+      if (savedYesterday?.id) {
+        window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
+        return { closed: true };
+      }
+    }
+  }
+
+  return { closed: false };
 }
 
 function paymentMethodLabel(method: string) {
@@ -4282,7 +5492,13 @@ function CierresTab({
   const latestCierre = cierres[0] ?? null;
   const latestEventos = latestCierre ? cierreEventos(latestCierre) : [];
   const cierreEvent = [...latestEventos].reverse().find((e: any) => e?.tipo === "cierre");
-  const aperturaEvent = [...latestEventos].find((e: any) => e?.tipo === "apertura") ?? latestEventos[0];
+  // "Hora de apertura" = la PRIMERA apertura del día. Una "reapertura"
+  // (reabrir la caja después de cerrarla) nunca debe pisar ese valor —
+  // por eso queda excluida del pool de candidatos acá, no solo se prioriza
+  // "apertura" sobre ella.
+  const aperturaCandidates = latestEventos.filter((e: any) => e?.tipo !== "reapertura");
+  const aperturaEvent =
+    aperturaCandidates.find((e: any) => e?.tipo === "apertura") ?? aperturaCandidates[0];
 
   const actor = (value?: string | null) => displayResponsibleUser(value ?? userEmail ?? "Usuario");
   const openedBy = actor(aperturaEvent?.usuario ?? latestCierre?.opened_by ?? latestCierre?.created_by ?? userEmail);
@@ -4489,7 +5705,11 @@ function CierresTab({
   const cierreSummary = (c: any) => {
     const eventos = cierreEventos(c);
     const cierre = [...eventos].reverse().find((e: any) => e?.tipo === "cierre");
-    const apertura = eventos.find((e: any) => e?.tipo === "apertura") ?? eventos[0];
+    // Igual que arriba: la reapertura no cuenta como candidata a "apertura".
+    const aperturaCandidatesRow = eventos.filter((e: any) => e?.tipo !== "reapertura");
+    const apertura =
+      aperturaCandidatesRow.find((e: any) => e?.tipo === "apertura") ?? aperturaCandidatesRow[0];
+    const modo = String(cierre?.modo ?? c?.tipo_cierre ?? "manual").toLowerCase();
     return {
       apertura,
       cierre,
@@ -4497,11 +5717,12 @@ function CierresTab({
       responsableCierre: actor(cierre?.usuario ?? c.closed_by ?? c.usuario_nombre ?? c.user_email ?? userEmail),
       horaApertura: cajaHoraDisplay(apertura?.hora ?? c.hora_apertura ?? "—"),
       horaCierre: cajaHoraDisplay(cierre?.hora ?? c.hora_cierre ?? "—"),
+      tipoCierre: modo === "automatico" ? "Automático" : "Manual",
     };
   };
 
   return (
-    <div className="-mt-3 space-y-4 animate-fade-up">
+    <div className="-mt-3 space-y-4">
       <section className="overflow-hidden rounded-[32px] border border-white/[0.085] bg-[radial-gradient(circle_at_14%_0%,rgba(96,165,250,0.08),transparent_32%),radial-gradient(circle_at_90%_6%,rgba(139,92,246,0.10),transparent_36%),linear-gradient(135deg,rgba(5,8,15,0.98),rgba(8,10,20,0.97),rgba(2,4,12,0.99))] p-5 shadow-[0_38px_120px_-62px_rgba(0,0,0,1),0_0_70px_-52px_rgba(139,92,246,0.62)]">
         <div className="flex justify-end border-b border-white/[0.065] pb-5">
           <button
@@ -4578,8 +5799,20 @@ function CierresTab({
             )}
           </div>
         ) : loading ? (
-          <div className="rounded-3xl border border-white/[0.08] bg-black/30 py-12 text-center text-sm text-muted-foreground animate-pulse">
-            Cargando…
+          <div className="pt-5">
+            <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 border-b border-white/[0.055] px-5 py-3.5 last:border-0"
+                >
+                  <div className="h-3 w-16 shrink-0 animate-pulse rounded bg-white/[0.06]" />
+                  <div className="h-3 flex-1 animate-pulse rounded bg-white/[0.045]" />
+                  <div className="h-3 flex-1 animate-pulse rounded bg-white/[0.045]" />
+                  <div className="h-6 w-16 shrink-0 animate-pulse rounded-full bg-white/[0.06]" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : cierres.length === 0 ? (
           <div className="rounded-3xl border border-white/[0.08] bg-black/30 py-12 text-center text-sm text-muted-foreground">
@@ -4588,12 +5821,13 @@ function CierresTab({
         ) : (
           <div className="pt-5">
             <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
-              <div className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_132px] items-center gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+              <div className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_110px_132px] items-center gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
                 <div>Fecha</div>
                 <div>Responsable apertura</div>
                 <div>Responsable cierre</div>
                 <div>Apertura</div>
                 <div>Cierre</div>
+                <div>Tipo</div>
                 <div className="text-right leading-none">Detalle</div>
               </div>
               <div className="max-h-[52vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
@@ -4602,7 +5836,7 @@ function CierresTab({
                   return (
                     <div
                       key={c.id}
-                      className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_132px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
+                      className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_110px_132px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
                     >
                       <div className="text-white/80">
                         <div className="font-semibold">{fechaDetalleLabel(c.fecha)}</div>
@@ -4611,6 +5845,18 @@ function CierresTab({
                       <div className="truncate text-white/70">{s.responsableCierre}</div>
                       <div className="text-muted-foreground">{s.horaApertura}</div>
                       <div className="text-muted-foreground">{s.horaCierre}</div>
+                      <div>
+                        <span
+                          className={cn(
+                            "rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
+                            s.tipoCierre === "Automático"
+                              ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
+                              : "bg-white/[0.05] text-white/70 ring-white/10",
+                          )}
+                        >
+                          {s.tipoCierre}
+                        </span>
+                      </div>
                       <div className="flex items-center justify-end gap-2">
                         {hasNotes(c) && (
                           <span
@@ -5215,6 +6461,9 @@ function History({
   const [showAll, setShowAll] = React.useState(false);
 
   const visibleRows = rows.slice(0, 5);
+  // Solo para el panel "ingresos": en mobile la tarjeta muestra 3 en vez de
+  // 5, con "Ver historial completo" debajo (mismo modal de siempre).
+  const mobileRows = rows.slice(0, 3);
   const hasAnyRows = pendingRows.length > 0 || visibleRows.length > 0;
 
   const closeout = React.useMemo(() => {
@@ -5282,8 +6531,11 @@ function History({
           <ApprovalModeToggle data={data} equipoEnabled={equipoEnabled} />
         </div>
 
-        {/* Table header */}
-        <div className="overflow-x-auto">
+        {/* Table header — en mobile, ambos paneles ("ingresos" y
+            "pendientes") usan tarjetas verticales en su lugar (ver bloques
+            debajo), así que esta tabla con scroll horizontal queda oculta
+            en mobile para los dos. */}
+        <div className="hidden overflow-x-auto sm:block">
           <div className="min-w-[1080px]">
             <div
               className={cn(
@@ -5473,6 +6725,280 @@ function History({
           </div>
         </div>
 
+        {/* Mobile: tarjetas verticales para "Últimos ingresos" — mismos
+            datos, misma fuente (data.paymentsToday) y mismo modal de detalle
+            al tocar, sin scroll horizontal. "Pendientes" no se toca acá. */}
+        {panel === "ingresos" && (
+          <div className="sm:hidden">
+            {data.loading ? (
+              // Reproduce la misma tarjeta real (fecha+monto, 3 filas de
+              // datos, sección de historial) en gris neutro — antes era
+              // solo un "Cargando…" y la tarjeta completa aparecía de
+              // golpe con los datos, incluido el monto en verde.
+              <div className="flex flex-col gap-2.5 p-3">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="w-full rounded-2xl border border-white/[0.07] bg-black/25 px-3.5 py-3"
+                  >
+                    <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                      <div className="h-2.5 w-20 animate-pulse rounded bg-white/[0.06]" />
+                      <div className="h-3.5 w-16 animate-pulse rounded bg-white/[0.06]" />
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="h-2.5 w-full animate-pulse rounded bg-white/[0.045]" />
+                      <div className="h-2.5 w-full animate-pulse rounded bg-white/[0.045]" />
+                      <div className="h-2.5 w-3/4 animate-pulse rounded bg-white/[0.045]" />
+                    </div>
+                    <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                      <div className="h-2 w-16 animate-pulse rounded bg-white/[0.045]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                Sin cobros
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5 p-3">
+                {mobileRows.map((p) => {
+                  const dt = new Date(p.created_at);
+                  const fecha = dt.toLocaleDateString("es-AR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  });
+                  const hora = `${dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
+                  const paymentRecord = p as Record<string, unknown>;
+                  const empName =
+                    data.employees.find((e) => e.id === p.employee_id)?.name ??
+                    "—";
+                  const chargeType = getChargeType(paymentRecord);
+                  const methodLabel = getPaymentMethodLabel(paymentRecord);
+                  const chargedByName = getChargedByLabel(
+                    paymentRecord,
+                    empName === "—" ? null : empName,
+                    chargeType,
+                  );
+                  const saleDetail = getSaleDetailLabel(paymentRecord);
+                  const paymentNote = getCashRowNote(paymentRecord, saleDetail);
+                  const historialEvents = buildPaidHistorialEvents(
+                    paymentRecord,
+                    {
+                      time: hora,
+                      user: chargedByName,
+                      action: "Cobró",
+                    },
+                  );
+
+                  return (
+                    <button
+                      key={`mobile-${p.id}`}
+                      type="button"
+                      onClick={() => setDetailPayment(p)}
+                      className="w-full rounded-2xl border border-white/[0.07] bg-black/25 px-3.5 py-3 text-left text-xs transition active:brightness-110"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                          {fecha}
+                        </span>
+                        <span className="text-sm font-bold tabular-nums text-emerald-300">
+                          $
+                          {Number(p.total ?? p.amount ?? 0).toLocaleString(
+                            "es-AR",
+                          )}
+                        </span>
+                      </div>
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="shrink-0 text-muted-foreground/70">Cliente</span>
+                          <span className="truncate text-right text-foreground">
+                            {p.client_name ?? "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+                          <span className="truncate text-right text-muted-foreground">
+                            {empName}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="shrink-0 text-muted-foreground/70">Servicio/Catálogo</span>
+                          <span className="truncate text-right text-muted-foreground">
+                            {saleDetail}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="shrink-0 text-muted-foreground/70">Método</span>
+                          <span className="truncate text-right text-muted-foreground">
+                            {methodLabel}
+                          </span>
+                        </div>
+                        {paymentNote && (
+                          <div className="pt-0.5 text-right">
+                            <span
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setPendingNoteModal({
+                                  title: `${p.client_name ?? "Cliente"} · ${saleDetail}`,
+                                  note: paymentNote,
+                                });
+                              }}
+                              className="inline-flex items-center rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20"
+                            >
+                              Ver nota
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                          Historial
+                        </div>
+                        <HistorialCell events={historialEvents} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Mobile: tarjetas verticales para "Pendientes" — mismos datos
+            (data.pendingCharges) y mismo botón "Cobrar" de siempre, sin
+            scroll horizontal. No abre modal de detalle (igual que la fila
+            de escritorio, que tampoco lo hace para pendientes). */}
+        {panel === "pendientes" && (
+          <div className="sm:hidden">
+            {data.loading ? (
+              // Misma tarjeta real + una fila extra para el botón "Cobrar"
+              // (shadow-[0_0_20px_rgba(16,185,129,0.18)] verde) que antes
+              // aparecía recién con los datos, sin placeholder.
+              <div className="flex flex-col gap-2.5 p-3">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="w-full rounded-2xl border border-white/[0.07] bg-white/[0.018] px-3.5 py-3"
+                  >
+                    <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                      <div className="h-2.5 w-20 animate-pulse rounded bg-white/[0.06]" />
+                      <div className="h-3.5 w-16 animate-pulse rounded bg-white/[0.06]" />
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="h-2.5 w-full animate-pulse rounded bg-white/[0.045]" />
+                      <div className="h-2.5 w-full animate-pulse rounded bg-white/[0.045]" />
+                      <div className="h-2.5 w-3/4 animate-pulse rounded bg-white/[0.045]" />
+                    </div>
+                    <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                      <div className="h-2 w-16 animate-pulse rounded bg-white/[0.045]" />
+                    </div>
+                    <div className="mt-2.5 border-t border-white/[0.06] pt-2.5">
+                      <div className="h-8 w-full animate-pulse rounded-xl bg-white/[0.045]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : pendingRows.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                Sin pendientes.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5 p-3">
+                {pendingRows.map((p) => {
+                  const dt = new Date(p.starts_at);
+                  const fecha = dt.toLocaleDateString("es-AR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  });
+                  const empName =
+                    data.employees.find((e) => e.id === p.employee_id)?.name ??
+                    "—";
+                  const pendingNote = getCashRowNote(p, p.service_name);
+                  const historialEvents = getHistorialCobro(p.id);
+                  const envioACaja = historialEvents.some(
+                    (e) => e.action === "Envió a caja",
+                  );
+                  const yaCobro = historialEvents.some(
+                    (e) => e.action === "Cobró",
+                  );
+                  const showCobrarBtn = envioACaja && !yaCobro;
+
+                  return (
+                    <div
+                      key={`pending-mobile-${p.id}`}
+                      className="w-full rounded-2xl border border-white/[0.07] bg-white/[0.018] px-3.5 py-3 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                          {fecha}
+                        </span>
+                        <span className={cn("text-sm font-bold tabular-nums", incomeTheme.amount)}>
+                          ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="shrink-0 text-muted-foreground/70">Cliente</span>
+                          <span className="truncate text-right text-foreground">
+                            {p.client_name ?? "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+                          <span className="truncate text-right text-muted-foreground">
+                            {empName}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="shrink-0 text-muted-foreground/70">Servicio/Catálogo</span>
+                          <span className="truncate text-right text-muted-foreground">
+                            {p.service_name ?? "—"}
+                          </span>
+                        </div>
+                        {pendingNote && (
+                          <div className="pt-0.5 text-right">
+                            <span
+                              onClick={() =>
+                                setPendingNoteModal({
+                                  title: `${p.client_name ?? "Cliente"} · ${p.service_name ?? "Servicio"}`,
+                                  note: pendingNote,
+                                })
+                              }
+                              className="inline-flex items-center rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20"
+                            >
+                              Ver nota
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                          Historial
+                        </div>
+                        <HistorialCell events={historialEvents} />
+                      </div>
+                      {showCobrarBtn && (
+                        <div className="mt-2.5 border-t border-white/[0.06] pt-2.5">
+                          <button
+                            type="button"
+                            onClick={() => onCobrarPendiente(p)}
+                            className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-2 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] ring-1 ring-emerald-400/20 transition active:brightness-110"
+                          >
+                            Cobrar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-between gap-3">
           {((panel === "ingresos" && rows.length > 0) || (panel === "pendientes" && pendingRows.length > 0)) && (
@@ -5579,7 +7105,9 @@ function History({
             </div>
 
             <div className="max-h-[72vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-              <div className="min-w-[1180px]">
+              {/* En mobile, ambos paneles usan tarjetas verticales (ver
+                  bloques debajo) en vez de esta tabla con scroll horizontal. */}
+              <div className="hidden min-w-[1180px] sm:block">
                 <div
                   className={cn(
                     panel === "pendientes"
@@ -5762,6 +7290,226 @@ function History({
                   </div>
                 )}
               </div>
+
+              {/* Mobile: mismas tarjetas verticales que "Últimos ingresos",
+                  mismos datos (rows), mismo modal de detalle al tocar. */}
+              {panel === "ingresos" && (
+                <div className="sm:hidden">
+                  {rows.length === 0 ? (
+                    <div className="px-4 py-14 text-center text-sm text-muted-foreground">
+                      Sin cobros.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5 p-3">
+                      {rows.map((p: any) => {
+                        const date = p.created_at
+                          ? new Date(p.created_at).toLocaleDateString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })
+                          : "—";
+                        const time = p.created_at
+                          ? `${new Date(p.created_at).toLocaleTimeString("es-AR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            })}hs`
+                          : "—";
+                        const amount = Number(p.total ?? p.amount ?? 0);
+                        const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
+                        const responsible = displayCashActor(p);
+                        const paymentNote = getCashRowNote(p, p.service_name);
+
+                        return (
+                          <button
+                            key={`historial-mobile-${p.id}`}
+                            type="button"
+                            onClick={() => setDetailPayment(p)}
+                            className="w-full rounded-2xl border border-white/[0.07] bg-black/25 px-3.5 py-3 text-left text-xs transition active:brightness-110"
+                          >
+                            <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                                {date}
+                              </span>
+                              <span className={cn("text-sm font-bold tabular-nums", incomeTheme.amount)}>
+                                ${amount.toLocaleString("es-AR")}
+                              </span>
+                            </div>
+                            <div className="mt-2 space-y-1.5">
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-muted-foreground/70">Cliente</span>
+                                <span className="truncate text-right text-foreground">
+                                  {p.client_name ?? "—"}
+                                </span>
+                              </div>
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+                                <span className="truncate text-right text-muted-foreground">
+                                  {p.employee_name ?? p.professional_name ?? "—"}
+                                </span>
+                              </div>
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-muted-foreground/70">Servicio/Catálogo</span>
+                                <span className="truncate text-right text-muted-foreground">
+                                  {p.service_name ?? p.item_name ?? "—"}
+                                </span>
+                              </div>
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-muted-foreground/70">Método</span>
+                                <span className="truncate text-right text-muted-foreground">
+                                  {methodLabel}
+                                </span>
+                              </div>
+                              {paymentNote && (
+                                <div className="pt-0.5 text-right">
+                                  <span
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setPendingNoteModal({
+                                        title: p.service_name ?? "Nota",
+                                        note: paymentNote,
+                                      });
+                                    }}
+                                    className={cn(
+                                      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
+                                      incomeTheme.chip,
+                                    )}
+                                  >
+                                    Ver nota
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                                Historial
+                              </div>
+                              <div className="whitespace-nowrap">
+                                <span className="text-muted-foreground">{time}</span>{" "}
+                                <span className="font-semibold text-foreground/90">{responsible}</span>{" "}
+                                <span className={incomeTheme.amount}>→ Cobró</span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Mobile: mismas tarjetas verticales que el panel de
+                  Pendientes, mismos datos (pendingRows) y mismo botón
+                  "Cobrar" de siempre (cierra el modal y abre el cobro). */}
+              {panel === "pendientes" && (
+                <div className="sm:hidden">
+                  {pendingRows.length === 0 ? (
+                    <div className="px-4 py-14 text-center text-sm text-muted-foreground">
+                      Sin pendientes.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5 p-3">
+                      {pendingRows.map((p: any) => {
+                        const created = p.created_at ? new Date(p.created_at) : null;
+                        const date = created
+                          ? created.toLocaleDateString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })
+                          : "—";
+                        const time = created
+                          ? `${created.toLocaleTimeString("es-AR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            })}hs`
+                          : "—";
+                        const amount = Number(p.service_price ?? p.amount ?? 0);
+                        const responsible = displayCashActor(p, "Profesional");
+                        const pendingNote = getCashRowNote(p, p.service_name);
+
+                        return (
+                          <div
+                            key={`historial-pendiente-mobile-${p.id}`}
+                            className="w-full rounded-2xl border border-white/[0.07] bg-black/25 px-3.5 py-3 text-xs"
+                          >
+                            <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                                {date}
+                              </span>
+                              <span className={cn("text-sm font-bold tabular-nums", incomeTheme.amount)}>
+                                ${amount.toLocaleString("es-AR")}
+                              </span>
+                            </div>
+                            <div className="mt-2 space-y-1.5">
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-muted-foreground/70">Cliente</span>
+                                <span className="truncate text-right text-foreground">
+                                  {p.client_name ?? "—"}
+                                </span>
+                              </div>
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+                                <span className="truncate text-right text-muted-foreground">
+                                  {p.employee_name ?? p.professional_name ?? "—"}
+                                </span>
+                              </div>
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-muted-foreground/70">Servicio/Catálogo</span>
+                                <span className="truncate text-right text-muted-foreground">
+                                  {p.service_name ?? "—"}
+                                </span>
+                              </div>
+                              {pendingNote && (
+                                <div className="pt-0.5 text-right">
+                                  <span
+                                    onClick={() =>
+                                      setPendingNoteModal({
+                                        title: p.service_name ?? "Nota",
+                                        note: pendingNote,
+                                      })
+                                    }
+                                    className={cn(
+                                      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
+                                      incomeTheme.chip,
+                                    )}
+                                  >
+                                    Ver nota
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                                Historial
+                              </div>
+                              <div className="whitespace-nowrap">
+                                <span className="text-muted-foreground">{time}</span>{" "}
+                                <span className="font-semibold text-foreground">{responsible}</span>{" "}
+                                <span className={incomeTheme.amount}>→ Envió a caja</span>
+                              </div>
+                            </div>
+                            <div className="mt-2.5 border-t border-white/[0.06] pt-2.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCloseoutOpen(false);
+                                  onCobrarPendiente(p);
+                                }}
+                                className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-2 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] transition active:brightness-110"
+                              >
+                                Cobrar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
