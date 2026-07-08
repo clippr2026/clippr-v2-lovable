@@ -363,7 +363,7 @@ function AdvisorContent({
   }
 
   return (
-    <div className="space-y-7 max-w-5xl mx-auto w-full">
+    <div className="space-y-5 sm:space-y-7 max-w-5xl mx-auto w-full">
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={analytics.current?.doneCount ?? 0}
@@ -382,6 +382,20 @@ function AdvisorContent({
           {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
           <div className="relative rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
+            {/* "Cómo funciona" una sola vez por sección, en la esquina
+                superior derecha del bloque completo — antes vivía adentro
+                de la tarjeta "Estado actual" (absolute) y podía superponerse
+                al contenido en pantallas angostas. Acá nunca compite con el
+                dato principal porque no hay nada más en esta esquina. */}
+            <button
+              type="button"
+              onClick={() => setInfoModal(INFO_CONTENT.health)}
+              className="absolute right-3 top-3 z-10 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 text-[11px] font-bold text-emerald-200 shadow-[0_0_22px_rgba(45,212,191,0.14)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 hover:text-white sm:h-7 sm:px-2.5"
+              aria-label="Cómo funciona estado actual"
+            >
+              <CircleHelp className="h-3 w-3" />
+              <span className="hidden sm:inline">Cómo funciona</span>
+            </button>
             {/* Separador de sección */}
             <div className="relative flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -390,31 +404,20 @@ function AdvisorContent({
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
             </div>
-            <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-emerald-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(45,212,191,0.16),0_35px_125px_-40px_rgba(45,212,191,1)]">
+            <GlassCard className="relative overflow-hidden p-3.5 sm:p-6 border border-emerald-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(45,212,191,0.16),0_35px_125px_-40px_rgba(45,212,191,1)]">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
-                    Estado actual
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Rentabilidad, clientes y ocupación del período.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setInfoModal(INFO_CONTENT.health)}
-                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 text-xs font-bold text-emerald-200 shadow-[0_0_22px_rgba(45,212,191,0.14)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 hover:text-white"
-                  aria-label="Cómo funciona estado actual"
-                >
-                  <CircleHelp className="h-3.5 w-3.5" />
-                  <span>Cómo funciona</span>
-                </button>
+              <div className="mb-3 sm:mb-4">
+                <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
+                  Estado actual
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Rentabilidad, clientes y ocupación del período.
+                </p>
               </div>
 
-              <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-5 items-center">
+              <div className="grid gap-3 sm:gap-5 md:grid-cols-[0.95fr_1.05fr] items-center">
                 {/* Left: circular gauge + bar */}
-                <div className="flex flex-col items-center gap-4">
+                <div className="flex flex-col items-center gap-3 sm:gap-4">
                   <div className="relative flex items-center justify-center">
                     {/* SVG ring */}
                     <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
@@ -466,7 +469,7 @@ function AdvisorContent({
                     <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>
                       {healthHeadline}
                     </div>
-                    <div className="mx-auto mt-3 max-w-[310px] space-y-5 text-center">
+                    <div className="mx-auto mt-2 max-w-[310px] space-y-3 text-center sm:mt-3 sm:space-y-5">
                       <p className="text-xs leading-relaxed text-muted-foreground">
                         {analytics.health == null
                           ? "Todavía no hay datos suficientes para calcular la salud del negocio."
@@ -477,7 +480,7 @@ function AdvisorContent({
                         <>
                           <div className="h-px bg-white/10" />
                           <div>
-                            <div className="mb-2 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                            <div className="mb-1.5 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300 sm:mb-2">
                               <Brain className="h-3.5 w-3.5" /> Insight IA
                             </div>
                             <div className="space-y-1.5 text-xs leading-relaxed text-white/72">
@@ -511,7 +514,7 @@ function AdvisorContent({
                     </div>
                   </div>
                   {/* Progress bar */}
-                  <div className="w-full h-2.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="w-full h-1.5 overflow-hidden rounded-full bg-white/10 sm:h-2.5">
                     <div
                       className={cn(
                         "h-full rounded-full bg-gradient-to-r transition-all duration-700",
@@ -522,12 +525,14 @@ function AdvisorContent({
                   </div>
                 </div>
 
-                {/* Right: impact panel */}
-                <div className="rounded-2xl border border-emerald-300/[0.13] bg-white/[0.035] p-5 h-full shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
-                  <div className="mb-4 flex items-center gap-2 text-base font-semibold">
+                {/* Right: impact panel — en mobile pasa a lista compacta
+                    (sin la caja/borde propia, solo íconos+texto por fila);
+                    desktop conserva la tarjeta completa vía `sm:`. */}
+                <div className="rounded-2xl border-0 bg-transparent p-0 h-full shadow-none sm:border sm:border-emerald-300/[0.13] sm:bg-white/[0.035] sm:p-5 sm:shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+                  <div className="mb-2 flex items-center gap-2 text-base font-semibold sm:mb-4">
                     <Activity className="h-4 w-4 text-emerald-300" /> Radar del local
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1 sm:space-y-2">
                     {analytics.radar.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         Todavía no hay suficiente historial para generar el radar del local.
@@ -547,17 +552,17 @@ function AdvisorContent({
                           <div
                             key={item.key}
                             className={cn(
-                              "flex items-center gap-3 rounded-xl border px-3 py-2",
+                              "flex items-center gap-2 rounded-lg border-0 px-0 py-1 sm:gap-3 sm:rounded-xl sm:border sm:px-3 sm:py-2",
                               style.ring,
                             )}
                           >
                             <span
                               className={cn(
-                                "grid h-7 w-7 shrink-0 place-items-center rounded-lg",
+                                "grid h-6 w-6 shrink-0 place-items-center rounded-lg sm:h-7 sm:w-7",
                                 style.bg,
                               )}
                             >
-                              <Icon className={cn("h-4 w-4", style.icon)} />
+                              <Icon className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", style.icon)} />
                             </span>
                             <span className="text-sm text-white/85">{item.label}</span>
                           </div>
@@ -578,6 +583,19 @@ function AdvisorContent({
           {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
           <div className="relative rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
+            {/* Ver mismo comentario en Salud del negocio: "Cómo funciona"
+                una sola vez por sección, en la esquina superior derecha del
+                bloque completo — antes vivía adentro del bloque de
+                "Crecimiento mensual" y podía superponerse al porcentaje. */}
+            <button
+              type="button"
+              onClick={() => setInfoModal(INFO_CONTENT.growth)}
+              className="absolute right-2.5 top-2.5 z-10 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-300/10 px-2 text-[11px] font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white sm:right-3 sm:top-3 sm:h-7 sm:px-2.5"
+              aria-label="Cómo funciona crecimiento"
+            >
+              <CircleHelp className="h-3 w-3" />
+              <span className="hidden sm:inline">Cómo funciona</span>
+            </button>
             <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
@@ -585,16 +603,16 @@ function AdvisorContent({
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
-            <GlassCard className="p-4 sm:p-5 space-y-3 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
+            <GlassCard className="p-3 sm:p-5 space-y-2.5 sm:space-y-3 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
               <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
                 Resultados del período
               </h2>
 
               {/* Bloque superior: crecimiento real de facturación */}
-              <div className="relative flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-4 py-3">
+              <div className="relative flex items-center gap-3 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
                 {/* Icono izquierda */}
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25">
-                  <TrendingUp className="h-5 w-5 text-sky-300" />
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25 sm:h-10 sm:w-10">
+                  <TrendingUp className="h-4 w-4 text-sky-300 sm:h-5 sm:w-5" />
                 </div>
                 {/* Textos */}
                 <div className="flex-1 min-w-0">
@@ -613,7 +631,7 @@ function AdvisorContent({
                         </span>
                       ) : (
                         <>
-                          <span className="font-display text-4xl font-bold text-sky-300 leading-none">
+                          <span className="font-display text-3xl font-bold text-sky-300 leading-none sm:text-4xl">
                             {growth >= 0 ? "+" : ""}
                             {growth}%
                           </span>
@@ -623,16 +641,6 @@ function AdvisorContent({
                     })()}
                   </div>
                 </div>
-                {/* Info btn arriba derecha */}
-                <button
-                  type="button"
-                  onClick={() => setInfoModal(INFO_CONTENT.growth)}
-                  className="absolute right-4 top-4 inline-flex h-9 items-center justify-center gap-2 rounded-full border border-sky-300/35 bg-sky-300/10 px-3 text-xs font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white"
-                  aria-label="Cómo funciona crecimiento"
-                >
-                  <CircleHelp className="h-3.5 w-3.5" />
-                  <span>Cómo funciona</span>
-                </button>
               </div>
 
               {/* Etiqueta IMPULSADOS POR */}
@@ -644,19 +652,19 @@ function AdvisorContent({
               </div>
 
               {/* 3 tarjetas: Clientes / Ticket / Ocupación */}
-              <div className="grid md:grid-cols-3 gap-2.5">
+              <div className="grid gap-2 sm:gap-2.5 md:grid-cols-3">
                 {/* Clientes atendidos */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-3 flex flex-col gap-2">
-                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20">
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20 sm:h-9 sm:w-9">
                     <Users className="h-4 w-4 text-violet-400" />
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Clientes atendidos</div>
-                    <div className="font-display text-3xl font-bold text-violet-300 mt-1 leading-none">
+                    <div className="font-display text-2xl font-bold text-violet-300 mt-1 leading-none sm:text-3xl">
                       {Math.round((analytics.current?.clientsServed ?? 0) * animationProgress)}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-violet-400/10 px-3 py-1.5">
+                  <div className="rounded-xl bg-violet-400/10 px-2.5 py-1 sm:px-3 sm:py-1.5">
                     {(() => {
                       const g =
                         analytics.current && analytics.previous?.hasData
@@ -675,17 +683,17 @@ function AdvisorContent({
                 </div>
 
                 {/* Ticket promedio */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-3 flex flex-col gap-2">
-                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20">
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20 sm:h-9 sm:w-9">
                     <DollarSign className="h-4 w-4 text-sky-400" />
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Ticket promedio</div>
-                    <div className="font-display text-2xl font-bold text-sky-300 mt-1 leading-none">
+                    <div className="font-display text-xl font-bold text-sky-300 mt-1 leading-none sm:text-2xl">
                       {fmtAR(Math.round((analytics.current?.ticket ?? 0) * animationProgress))}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-sky-400/10 px-3 py-1.5">
+                  <div className="rounded-xl bg-sky-400/10 px-2.5 py-1 sm:px-3 sm:py-1.5">
                     {(() => {
                       const g =
                         analytics.current && analytics.previous?.hasData
@@ -704,17 +712,17 @@ function AdvisorContent({
                 </div>
 
                 {/* Ocupación */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-3 flex flex-col gap-2">
-                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20">
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20 sm:h-9 sm:w-9">
                     <ClipboardList className="h-4 w-4 text-orange-400" />
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Ocupación</div>
-                    <div className="font-display text-3xl font-bold text-orange-300 mt-1 leading-none">
+                    <div className="font-display text-2xl font-bold text-orange-300 mt-1 leading-none sm:text-3xl">
                       {Math.round((analytics.current?.occupancy ?? 0) * animationProgress)}%
                     </div>
                   </div>
-                  <div className="rounded-xl bg-orange-400/10 px-3 py-1.5">
+                  <div className="rounded-xl bg-orange-400/10 px-2.5 py-1 sm:px-3 sm:py-1.5">
                     {(() => {
                       const g =
                         analytics.current && analytics.previous?.hasData
@@ -731,7 +739,7 @@ function AdvisorContent({
                     })()}
                   </div>
                   {analytics.freeSlotsMonth > 0 && (
-                    <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-3 py-1.5 text-[11px]">
+                    <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5">
                       <div className="text-white/70">{analytics.freeSlotsMonth} turnos vacíos este mes</div>
                       <div className="mt-0.5 text-white/45">
                         Potencial: +
@@ -752,12 +760,12 @@ function AdvisorContent({
               </div>
 
               {/* Bloque Utilidad */}
-              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-5 py-3.5 flex items-center justify-between gap-4">
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-3.5 py-2.5 flex items-center justify-between gap-3 sm:px-5 sm:py-3.5 sm:gap-4">
                 {/* Left */}
                 <div className="z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-9 w-9 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25">
-                      <DollarSign className="h-5 w-5 text-emerald-400" />
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="grid h-8 w-8 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25 sm:h-9 sm:w-9">
+                      <DollarSign className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />
                     </div>
                     <div className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">
                       Utilidad
@@ -776,7 +784,7 @@ function AdvisorContent({
                       );
                     })()}
                   </div>
-                  <div className="font-display text-3xl sm:text-4xl font-bold text-emerald-300 mt-2 leading-none">
+                  <div className="font-display text-2xl sm:text-4xl font-bold text-emerald-300 mt-1.5 sm:mt-2 leading-none">
                     {analytics.current ? fmtAR(animatedProfit) : "—"}
                   </div>
                 </div>
@@ -795,25 +803,28 @@ function AdvisorContent({
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
             </div>
-            <GlassCard className="p-5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
+            <GlassCard className="p-3.5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
               <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
                 Tu negocio de un vistazo
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Los números que un dueño de barbería o peluquería mira todos los días.
               </p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* grid-cols-2 desde mobile (antes era 1 sola columna hasta
+                  sm:, una tarjeta enorme abajo de otra) — en pantallas
+                  grandes sigue yendo a 4 columnas igual que siempre. */}
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 lg:grid-cols-4">
                 {analytics.radiografia.map((item) => {
                   const Icon =
                     RADIOGRAFIA_ICONS[item.key as keyof typeof RADIOGRAFIA_ICONS] ?? Activity;
                   return (
                     <div
                       key={item.key}
-                      className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.045]"
+                      className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.045] sm:p-4"
                     >
                       <div
                         className={cn(
-                          "grid h-10 w-10 place-items-center rounded-xl ring-1",
+                          "grid h-8 w-8 place-items-center rounded-xl ring-1 sm:h-10 sm:w-10",
                           item.tone === "good"
                             ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300"
                             : item.tone === "warn"
@@ -823,11 +834,11 @@ function AdvisorContent({
                                 : "bg-white/[0.05] ring-white/10 text-white/75",
                         )}
                       >
-                        <Icon className="h-5 w-5" />
+                        <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
                       <div
                         className={cn(
-                          "mt-3 text-2xl font-bold leading-none",
+                          "mt-2 text-xl font-bold leading-none sm:mt-3 sm:text-2xl",
                           item.tone === "good"
                             ? "text-emerald-300"
                             : item.tone === "warn"
@@ -839,7 +850,7 @@ function AdvisorContent({
                       >
                         {item.value}
                       </div>
-                      <div className="mt-1.5 text-xs leading-snug text-muted-foreground">
+                      <div className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-1.5">
                         {item.label}
                       </div>
                     </div>
@@ -866,9 +877,9 @@ function AdvisorContent({
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
-            <GlassCard className="relative overflow-hidden p-5 sm:p-6 border border-violet-300/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(139,92,246,0.06),0_30px_100px_-52px_rgba(124,58,237,0.7)]">
+            <GlassCard className="relative overflow-hidden p-3.5 sm:p-6 border border-violet-300/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(139,92,246,0.06),0_30px_100px_-52px_rgba(124,58,237,0.7)]">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+              <div className="flex flex-wrap items-start justify-between gap-4 mb-3 sm:mb-5">
                 <div>
                   <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
                     Informes mensuales
@@ -886,7 +897,7 @@ function AdvisorContent({
                   apareciendo acá a medida que registres turnos y cobros.
                 </p>
               ) : (
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-2.5 sm:gap-3 md:grid-cols-3">
                   {analytics.history
                     .filter((h) => h.hasData)
                     .slice(0, 3)
@@ -900,7 +911,7 @@ function AdvisorContent({
                         <div
                           key={report.monthKey}
                           className={cn(
-                            "relative flex flex-col rounded-2xl border p-4 transition-all",
+                            "relative flex flex-col rounded-2xl border p-3 transition-all sm:p-4",
                             isPrimary
                               ? "border-emerald-300/25 bg-emerald-300/[0.05] shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_22px_70px_-46px_rgba(45,212,191,0.7)]"
                               : "border-white/10 bg-white/[0.026] hover:border-white/20",
