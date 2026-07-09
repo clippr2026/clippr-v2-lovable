@@ -28,7 +28,7 @@ const RAW_CHANNELS: AcquisitionChannel[] = [
   { id: "tiktok", label: "TikTok", order: 2, measurable: true, icon: { kind: "brand", component: SiTiktok, color: "#25F4EE" } },
   { id: "facebook", label: "Facebook", order: 3, measurable: true, icon: { kind: "brand", component: SiFacebook, color: "#1877F2" } },
   { id: "google", label: "Google", order: 4, measurable: true, icon: { kind: "brand", component: SiGoogle, color: "#4285F4" } },
-  { id: "via_publica", label: "Vía pública", order: 5, measurable: true, icon: { kind: "emoji", value: "🪧" } },
+  { id: "via_publica", label: "Vía pública", order: 5, measurable: true, icon: { kind: "emoji", value: "📍" } },
   { id: "folletos", label: "Folletos", order: 6, measurable: true, icon: { kind: "emoji", value: "🧾" } },
   { id: "recomendado", label: "Recomendado", order: 7, measurable: false, icon: { kind: "emoji", value: "🤝" } },
   { id: "otro", label: "Otro", order: 8, measurable: false, requiresText: true, icon: { kind: "emoji", value: "✍️" } },

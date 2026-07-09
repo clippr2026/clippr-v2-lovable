@@ -15,13 +15,20 @@ type AcquisitionSourceFieldProps = {
   labelClassName?: string;
   triggerClassName?: string;
   inputClassName?: string;
+  /** Muestra "¿Cómo nos conociste? *" como label arriba del select (en vez
+   * de usarlo como placeholder del propio select). */
+  showLabel?: boolean;
+  /** El campo de texto libre de "Otro" abre siempre en su propia fila,
+   * debajo del select, nunca al costado (ni en mobile ni en desktop). */
+  otroBelow?: boolean;
 };
 
 /**
  * Selector de "¿Cómo nos conociste?" — único lugar que arma esta UI (logos
  * oficiales + emoji, texto libre para "Otro"). Reserva pública, agenda y
  * cualquier flujo futuro que capture el canal de origen usan este mismo
- * componente para no duplicar la lista ni el estilo.
+ * componente para no duplicar la lista ni el estilo; `showLabel`/`otroBelow`
+ * solo ajustan presentación, la lógica y validación son las mismas.
  */
 export function AcquisitionSourceField({
   value,
@@ -32,11 +39,19 @@ export function AcquisitionSourceField({
   labelClassName,
   triggerClassName,
   inputClassName,
+  showLabel = false,
+  otroBelow = false,
 }: AcquisitionSourceFieldProps) {
   const selected = ACQUISITION_CHANNELS.find((c) => c.id === value);
+  const selectSpansFull = !selected?.requiresText || otroBelow;
   return (
     <div className={wrapperClassName ?? "grid gap-4 sm:grid-cols-2"}>
-      <div className={cn(!selected?.requiresText && "col-span-full")}>
+      <div className={cn("space-y-2", selectSpansFull && "col-span-full")}>
+        {showLabel ? (
+          <Label htmlFor="acquisitionSource" className={cn("whitespace-nowrap text-[13px]", labelClassName)}>
+            ¿Cómo nos conociste? *
+          </Label>
+        ) : null}
         <Select
           value={value}
           onValueChange={(next) => {
@@ -46,7 +61,7 @@ export function AcquisitionSourceField({
           }}
         >
           <SelectTrigger id="acquisitionSource" className={triggerClassName} aria-label="¿Cómo nos conociste?">
-            <SelectValue placeholder="¿Cómo nos conociste? *" />
+            <SelectValue placeholder={showLabel ? "Elegí una opción" : "¿Cómo nos conociste? *"} />
           </SelectTrigger>
           <SelectContent>
             {ACQUISITION_CHANNELS.map((channel) => (
@@ -61,7 +76,7 @@ export function AcquisitionSourceField({
         </Select>
       </div>
       {selected?.requiresText ? (
-        <div className="space-y-2">
+        <div className={cn("space-y-2", otroBelow && "col-span-full")}>
           <Label htmlFor="acquisitionCustom" className={cn("whitespace-nowrap", labelClassName)}>
             Contanos dónde *
           </Label>

@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { cn } from "@/lib/utils";
@@ -270,11 +269,12 @@ function PublicBookingPage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | "any">("any");
   const [professionalLocked, setProfessionalLocked] = React.useState(false);
   const [selectedSlot, setSelectedSlot] = React.useState<{ time: Date; employeeId: string } | null>(null);
-  const [clientName, setClientName] = React.useState("");
+  const [clientFirstName, setClientFirstName] = React.useState("");
+  const [clientLastName, setClientLastName] = React.useState("");
+  const clientName = `${clientFirstName.trim()} ${clientLastName.trim()}`.trim();
   const [clientPhone, setClientPhone] = React.useState("");
   const [clientEmail, setClientEmail] = React.useState("");
   const [clientBirthDate, setClientBirthDate] = React.useState("");
-  const [notes, setNotes] = React.useState("");
   const [acquisitionSource, setAcquisitionSource] = React.useState("");
   const [acquisitionCustom, setAcquisitionCustom] = React.useState("");
   // Si el email ya tiene un canal guardado, no se vuelve a preguntar. Por
@@ -685,7 +685,8 @@ function PublicBookingPage() {
 
   async function submitBooking() {
     if (!business || selectedServices.length === 0 || !selectedSlot) return;
-    if (!clientName.trim()) return toast.error("Ingresá tu nombre.");
+    if (!clientFirstName.trim()) return toast.error("Ingresá tu nombre.");
+    if (!clientLastName.trim()) return toast.error("Ingresá tu apellido.");
     if (!clientPhone.trim()) return toast.error("Ingresá tu teléfono.");
     if (!clientEmail.trim()) return toast.error("Ingresá tu email.");
     if (clientFields.fecha_nacimiento && !clientBirthDate) return toast.error("Ingresá tu fecha de nacimiento.");
@@ -698,7 +699,6 @@ function PublicBookingPage() {
     const addedProducts = selectedProducts.map((p) => ({ name: p.name, price: productFinalPrice(p), image: p.image || "" }));
     const productList = addedProducts.map((p) => `${p.name} (${formatMoney(p.price)})${p.image ? ` [img:${p.image}]` : ""}`).join("\n- ");
     const publicNotes = [
-      notes.trim() ? `Notas del cliente: ${notes.trim()}` : null,
       clientEmail.trim() ? `Email: ${clientEmail.trim()}` : null,
       clientBirthDate ? `Fecha de nacimiento: ${clientBirthDate}` : null,
       selectedServices.length > 1 ? `Servicios seleccionados:\n- ${serviceList}` : null,
@@ -1333,18 +1333,20 @@ function PublicBookingPage() {
               {step === "details" ? (
                 <div className="mt-5 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2"><Label htmlFor="clientName">Nombre *</Label><Input id="clientName" value={clientName} onChange={(event) => setClientName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu nombre" /></div>
+                    <div className="space-y-2"><Label htmlFor="clientFirstName">Nombre *</Label><Input id="clientFirstName" value={clientFirstName} onChange={(event) => setClientFirstName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu nombre" /></div>
+                    <div className="space-y-2"><Label htmlFor="clientLastName">Apellido *</Label><Input id="clientLastName" value={clientLastName} onChange={(event) => setClientLastName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu apellido" /></div>
                     <div className="space-y-2"><Label htmlFor="clientPhone">Teléfono *</Label><Input id="clientPhone" value={clientPhone} onChange={(event) => setClientPhone(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="11 1234-5678" /></div>
                     <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div>
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
-                  {clientFields.notas ? <div className="space-y-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={notes} onChange={(event) => setNotes(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Ej: corte bajo, barba marcada..." /></div> : null}
                   {!sourceAlreadyKnown ? (
                     <AcquisitionSourceField
                       value={acquisitionSource}
                       onChange={setAcquisitionSource}
                       customValue={acquisitionCustom}
                       onCustomChange={setAcquisitionCustom}
+                      showLabel
+                      otroBelow
                       triggerClassName="border-white/10 bg-white/[0.04] text-white"
                       inputClassName="border-white/10 bg-white/[0.04] text-white"
                     />

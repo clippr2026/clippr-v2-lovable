@@ -30,7 +30,6 @@ import {
   type Employee,
   type Service,
 } from "./use-agenda-data";
-import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ServiceImage } from "@/components/ui/service-image";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
@@ -253,14 +252,12 @@ export function AppointmentDialog({
   const [repeatOpen, setRepeatOpen] = React.useState(false);
 
   // Client config — controls which fields appear in "nuevo cliente"
-  const { isFieldEnabled } = useClientesConfig(businessId ?? null);
 
   const [clientId, setClientId] = React.useState<string>("");
   const [clientName, setClientName] = React.useState("");
   const [clientPhone, setClientPhone] = React.useState("");
   const [clientEmail, setClientEmail] = React.useState("");
   const [clientBirth, setClientBirth] = React.useState("");
-  const [clientNote, setClientNote] = React.useState("");
   const [newClientMode, setNewClientMode] = React.useState(false);
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
@@ -315,7 +312,6 @@ export function AppointmentDialog({
       setClientPhone("");
       setClientEmail("");
       setClientBirth("");
-      setClientNote("");
       setNewClientMode(false);
       setEmployeeId(appointment.employee_id ?? "");
       setServiceId("");
@@ -334,7 +330,6 @@ export function AppointmentDialog({
       setClientPhone("");
       setClientEmail("");
       setClientBirth("");
-      setClientNote("");
       setClientFirstName("");
       setClientLastName("");
       setClientSearch("");
@@ -423,7 +418,6 @@ export function AppointmentDialog({
     setClientPhone("");
     setClientEmail("");
     setClientBirth("");
-    setClientNote("");
     setAcquisitionSource("");
     setAcquisitionCustom("");
     setClientSearch("");
@@ -449,7 +443,7 @@ export function AppointmentDialog({
     if (newClientMode && (!clientFirstName.trim() || !clientLastName.trim())) {
       throw new Error("Nombre y apellido son obligatorios para crear un cliente nuevo.");
     }
-    if (newClientMode && isFieldEnabled("email") && !clientEmail.trim()) {
+    if (newClientMode && !clientEmail.trim()) {
       throw new Error("El email es obligatorio para crear un cliente nuevo.");
     }
     if (newClientMode && !acquisitionSource) {
@@ -459,15 +453,12 @@ export function AppointmentDialog({
       throw new Error("Contanos dónde conoció el cliente.");
     }
 
-    const extraNotes = clientNote.trim() || null;
-
     const payload: Record<string, unknown> = {
       business_id: businessId,
       full_name: fullName,
       phone: clientPhone.trim() || null,
       email: clientEmail.trim() || null,
       birth_date: clientBirth.trim() || null,
-      notes: extraNotes,
       ...(newClientMode
         ? {
             acquisition_source: acquisitionSource,
@@ -494,7 +485,7 @@ export function AppointmentDialog({
 
     if (!fullClientName) return toast.error("Indicá el cliente.");
     if (newClientMode && (!clientFirstName.trim() || !clientLastName.trim())) return toast.error("Nombre y apellido son obligatorios.");
-    if (newClientMode && isFieldEnabled("email") && !clientEmail.trim()) return toast.error("El email es obligatorio.");
+    if (newClientMode && !clientEmail.trim()) return toast.error("El email es obligatorio.");
     if (newClientMode && !acquisitionSource) return toast.error("Contanos cómo nos conoció el cliente.");
     if (newClientMode && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim())
       return toast.error("Contanos dónde conoció el cliente.");
@@ -733,8 +724,7 @@ export function AppointmentDialog({
                   <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido *" />
                 </div>
                 <Input className="h-8 text-sm" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Teléfono *" />
-                {isFieldEnabled("email") && <Input className="h-8 text-sm" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email *" />}
-                {isFieldEnabled("notas") && <Input className="h-8 text-sm" value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Nota" />}
+                <Input className="h-8 text-sm" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email *" />
                 <AcquisitionSourceField
                   value={acquisitionSource}
                   onChange={setAcquisitionSource}
