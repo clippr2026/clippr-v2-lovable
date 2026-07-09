@@ -13,6 +13,8 @@ import { useAdvisorAnalytics } from "@/hooks/use-advisor-analytics";
 import { useAiRecommendations, type RecommendationAchievement, type UseAiRecommendationsResult } from "@/hooks/use-ai-recommendations";
 import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
 import { TIER_EMOJI, buildDemandRecommendations } from "@/lib/rejected-analytics";
+import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
+import { DateRangePicker, type DateRange } from "@/components/date-range-picker";
 import type {
   Recommendation,
   RecommendationContact,
@@ -41,7 +43,7 @@ import {
   Crown,
   UserX,
   Clock,
-  Gift,
+  Megaphone,
   CircleHelp,
   BriefcaseBusiness,
   Sunrise,
@@ -2126,6 +2128,15 @@ type LabData = {
   productAvgPrice: number; // precio promedio real de productos del catálogo
   sellsProducts: boolean;
   payingClients: number;
+  // Datos crudos por cliente para el simulador de Publicidad (agrupa/filtra por
+  // su propio rango de fechas, no por el período fijo del resto de LabData).
+  clients: {
+    acquisitionSource: string | null;
+    acquisitionSourceCustom: string | null;
+    acquisitionCapturedAt: string | null;
+    spent: number;
+    visits: number;
+  }[];
 };
 
 const LAB_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -2407,6 +2418,13 @@ function useLabData(
     productAvgPrice: productAvgPrice || Math.round(avgTicket * 0.45),
     sellsProducts,
     payingClients,
+    clients: clients.map((c) => ({
+      acquisitionSource: c.acquisitionSource ?? null,
+      acquisitionSourceCustom: c.acquisitionSourceCustom ?? null,
+      acquisitionCapturedAt: c.acquisitionCapturedAt ?? null,
+      spent: c.spent,
+      visits: c.visits,
+    })),
   };
 }
 
@@ -3048,131 +3066,216 @@ function LabProductos({ data }: { data: LabData }) {
 }
 
 // ── FIDELIZACIÓN ───────────────────────────────────────────────────────────
-function LabFidelizacion({ data }: { data: LabData }) {
-  const [pct, setPct] = React.useState(30);
+function LabPublicidad({ data }: { data: LabData }) {
+  const [channel, setChannel] = React.useState<string>(MEASURABLE_CHANNELS[0].value);
+  const [investment, setInvestment] = React.useState(100_000);
+  const [projection, setProjection] = React.useState(100_000);
+  const [range, setRange] = React.useState<DateRange>(() => {
+    const to = new Date();
+    const from = new Date();
+    from.setMonth(from.getMonth() - 1);
+    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  });
+
   if (data.loading) return <LabSkeleton />;
 
-  const freq = data.avgFrequencyDays;
-
-  // Frecuencia excelente: no recomendamos promociones.
-  if (freq <= 10) {
+  const hasAnyChannelData = data.clients.some((c) => c.acquisitionSource);
+  if (!hasAnyChannelData) {
     return (
-      <div className="space-y-3">
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
-          <h3 className="text-base font-extrabold tracking-[-0.02em] text-white sm:text-lg">
-            Frecuencia de visita
-          </h3>
-          <p className="mt-0.5 text-xs text-white/50">
-            Detecté que tus clientes vuelven en promedio cada ~{freq} días.
-          </p>
-        </div>
-        <div className="rounded-[20px] border border-emerald-400/30 bg-emerald-400/[0.1] px-4 py-5 text-center">
-          <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-300" />
-          <p className="mt-2 text-lg font-extrabold text-emerald-200">Excelente</p>
-          <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-white/80">
-            No recomendamos promociones. Tu frecuencia ya es muy buena: tus clientes vuelven cada
-            ~{freq} días. Resignar margen en descuentos no se justifica.
-          </p>
-        </div>
-      </div>
+      <LabEmpty text="Todavía no hay clientes con canal de origen registrado. En cuanto empiecen a reservar desde la página pública respondiendo '¿Cómo nos conociste?', este simulador se activa con tus datos reales." />
     );
   }
 
-  // Frecuencia media (~15 días): 3 visitas por mes, la 3ª gratis.
-  if (freq <= 17) {
-    const adopters = Math.round((data.segActivos > 0 ? data.segActivos : data.monthlyClients) * 0.4);
-    const currentVPM = 30 / freq;
-    const extraVisits = Math.max(0, Math.round(adopters * (3 - currentVPM)));
-    const freeCuts = adopters;
-    const paidExtra = Math.max(0, extraVisits - freeCuts);
-    const facturacion = paidExtra * data.avgTicket;
-    const costoPromo = freeCuts * Math.round(data.avgTicket * 0.4);
-    const ganancia = Math.max(0, Math.round(facturacion * LAB_MARGIN) - costoPromo);
+  const rangeStart = new Date(`${range.from}T00:00:00`).getTime();
+  const rangeEnd = new Date(`${range.to}T23:59:59`).getTime();
+  const sixMonthsAgo = Date.now() - 182 * 86_400_000;
 
-    return (
-      <div className="space-y-3">
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
-          <h3 className="text-base font-extrabold tracking-[-0.02em] text-white sm:text-lg">
-            Promoción sugerida: la 3ª visita gratis
-          </h3>
-          <p className="mt-0.5 text-xs text-white/50">
-            Tus clientes vuelven cada ~{freq} días. Empujarlos a 3 visitas por mes acorta el ciclo.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.06] px-4 py-3 text-sm text-white/80">
-          <span className="font-bold text-cyan-200">3 visitas por mes · la tercera gratis.</span>{" "}
-          Estimado sobre {adopters} clientes que adoptarían la promo.
-        </div>
-        <LabSignals
-          items={[
-            { label: "Visitas extra / mes", value: `+${extraVisits}`, tone: "good" },
-            { label: "Cortes gratis", value: freeCuts },
-            { label: "Costo promoción", value: fmtDemandARS(costoPromo), tone: "alert" },
-            { label: "Ganancia final", value: fmtDemandARS(ganancia), tone: "good" },
-          ]}
-        />
-        <LabVerdict
-          nivel={ganancia > 0 ? "recomendado" : "evaluar"}
-          text={`Llevar a tus clientes a 3 visitas por mes suma ~${extraVisits} visitas, de las cuales ${freeCuts} son la 3ª gratis. Aún regalando esos cortes, la ganancia final estimada es ${fmtAR(ganancia)}. Comunicá la promo por WhatsApp.`}
-        />
-      </div>
-    );
+  function statsFor(chan: string, sinceMs: number, untilMs: number = Date.now()) {
+    const list = data.clients.filter((c) => {
+      if (c.acquisitionSource !== chan || !c.acquisitionCapturedAt) return false;
+      const t = new Date(c.acquisitionCapturedAt).getTime();
+      return !Number.isNaN(t) && t >= sinceMs && t <= untilMs;
+    });
+    const clientes = list.length;
+    const facturacion = list.reduce((s, c) => s + c.spent, 0);
+    const avgVisitas = clientes > 0 ? list.reduce((s, c) => s + c.visits, 0) / clientes : 0;
+    return { clientes, facturacion, avgVisitas };
   }
 
-  // Frecuencia baja (20+ días): segundo corte con 50% OFF + slider de adopción.
-  const adheridos = Math.round((data.monthlyClients * pct) / 100);
-  const half = Math.round(data.avgTicket * 0.5);
-  const facturacion = adheridos * half;
-  const costoDescuentos = adheridos * half;
-  const ganancia = Math.round(facturacion * LAB_MARGIN);
-  const nivel: keyof typeof nivelMeta = pct <= 35 ? "recomendado" : pct <= 55 ? "progresivo" : "evaluar";
+  // Métricas reales del canal elegido, dentro del rango de inversión cargado.
+  const sel = statsFor(channel, rangeStart, rangeEnd);
+  const costoPorCliente = sel.clientes > 0 ? Math.round(investment / sel.clientes) : 0;
+  const ganancia = Math.round(sel.facturacion * LAB_MARGIN) - investment;
+  const roi = investment > 0 ? ganancia / investment : 0;
+
+  // Proyección: extrapola el costo por cliente real a una inversión futura.
+  const avgRevenuePerClient = sel.clientes > 0 ? sel.facturacion / sel.clientes : 0;
+  const clientesProyectados = costoPorCliente > 0 ? Math.round(projection / costoPorCliente) : 0;
+  const facturacionProyectada = Math.round(clientesProyectados * avgRevenuePerClient);
+  const gananciaProyectada = Math.round(facturacionProyectada * LAB_MARGIN) - projection;
+
+  const riesgo: "Bajo" | "Medio" | "Alto" =
+    sel.clientes < 3 || roi < 0 ? "Alto" : sel.clientes < 8 || roi < 0.5 ? "Medio" : "Bajo";
+  const riesgoTone = riesgo === "Alto" ? "alert" : riesgo === "Medio" ? "neutral" : "good";
+
+  const nivel: keyof typeof nivelMeta =
+    sel.clientes < 3
+      ? "alto_riesgo"
+      : roi >= 1
+        ? "recomendado"
+        : roi >= 0.3
+          ? "progresivo"
+          : roi >= 0
+            ? "evaluar"
+            : "no_recomendado";
+
+  const channelLabel = MEASURABLE_CHANNELS.find((c) => c.value === channel)?.label ?? channel;
+
+  // Comparación entre canales medibles (ventana fija de 6 meses) — solo con
+  // datos reales de clientes/facturación/recurrencia; no inventa inversión
+  // para canales donde el usuario no la cargó.
+  const comparison = MEASURABLE_CHANNELS.map((c) => ({ ...c, ...statsFor(c.value, sixMonthsAgo) })).filter(
+    (c) => c.clientes > 0,
+  );
+  const bestValue = [...comparison].sort(
+    (a, b) => b.facturacion / b.clientes - a.facturacion / a.clientes,
+  )[0];
+  const bestRetention = [...comparison].sort((a, b) => b.avgVisitas - a.avgVisitas)[0];
+
+  const verdictText =
+    sel.clientes === 0
+      ? `No detectamos clientes que hayan llegado por ${channelLabel} entre ${range.from} y ${range.to}. Probá otro canal o ampliá el rango de fechas.`
+      : `Con ${fmtAR(investment)} invertidos en ${channelLabel} conseguiste ${sel.clientes} cliente${sel.clientes === 1 ? "" : "s"} a ${fmtAR(costoPorCliente)} cada uno, con una ganancia estimada de ${fmtAR(ganancia)} (ROI ${Math.round(roi * 100)}%). Si invertís ${fmtAR(projection)} más, estimamos ~${clientesProyectados} clientes nuevos.${
+          bestValue && bestRetention
+            ? ` En los últimos 6 meses, ${bestValue.label} trajo el mayor valor promedio por cliente (${fmtAR(Math.round(bestValue.facturacion / bestValue.clientes))}) y ${bestRetention.label} la mayor recurrencia (${bestRetention.avgVisitas.toFixed(1)} visitas promedio).`
+            : ""
+        }`;
 
   return (
     <div className="space-y-3">
       <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
         <h3 className="text-base font-extrabold tracking-[-0.02em] text-white sm:text-lg">
-          Promoción sugerida: 2º corte con 50% OFF
+          Publicidad: ¿dónde conviene invertir el próximo peso?
         </h3>
         <p className="mt-0.5 text-xs text-white/50">
-          Tus clientes vuelven cada ~{freq} días. Un segundo corte con descuento acorta el ciclo.
+          Elegí un canal pago y cargá cuánto invertiste para ver el costo por cliente y el ROI real.
         </p>
+      </div>
+
+      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+        <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+          Canal publicitario
+        </div>
+        <LabChips
+          options={MEASURABLE_CHANNELS.map((c) => ({ key: c.value, label: c.label }))}
+          value={channel}
+          onChange={setChannel}
+        />
+      </div>
+
+      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+        <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+          Rango de fechas de la inversión
+        </div>
+        <DateRangePicker from={range.from} to={range.to} onChange={setRange} />
       </div>
 
       <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
         <div className="mb-1.5 flex items-end justify-between gap-4">
           <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-            ¿Qué % de clientes usaría la promo?
+            ¿Cuánto invertiste en {channelLabel} en ese período?
           </span>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200">{pct}%</span>
+          <span className="text-2xl font-extrabold leading-none text-cyan-200">{fmtDemandARS(investment)}</span>
         </div>
         <input
           type="range"
-          min={5}
-          max={70}
-          step={5}
-          value={pct}
-          onChange={(e) => setPct(Number(e.target.value))}
+          min={10_000}
+          max={1_000_000}
+          step={10_000}
+          value={investment}
+          onChange={(e) => setInvestment(Number(e.target.value))}
           className="h-2 w-full accent-cyan-400"
         />
         <div className="mt-1 flex justify-between text-[9px] font-semibold text-white/32">
-          <span>5%</span>
-          <span>70%</span>
+          <span>$10.000</span>
+          <span>$1.000.000</span>
         </div>
       </div>
 
       <LabSignals
         items={[
-          { label: "Clientes adheridos", value: adheridos, tone: "good" },
-          { label: "Facturación", value: fmtDemandARS(facturacion) },
-          { label: "Costo descuentos", value: fmtDemandARS(costoDescuentos), tone: "alert" },
-          { label: "Ganancia final", value: fmtDemandARS(ganancia), tone: "good" },
+          { label: "Clientes obtenidos", value: sel.clientes, tone: "good" },
+          { label: "Costo por cliente", value: fmtDemandARS(costoPorCliente) },
+          { label: "Facturación generada", value: fmtDemandARS(sel.facturacion) },
+          { label: "Riesgo", value: riesgo, tone: riesgoTone },
         ]}
       />
 
-      <LabVerdict
-        nivel={nivel}
-        text={`Si el ${pct}% de tus clientes (${adheridos}) usa el 2º corte con 50% OFF, sumás ${fmtAR(facturacion)} en visitas que hoy no ocurren. Aún con el descuento, deja ${fmtAR(ganancia)} de ganancia y acorta tu frecuencia de ~${freq} días.`}
+      <LabImpact
+        facturacion={sel.facturacion}
+        utilidad={ganancia}
+        extra={{ label: "ROI", value: `${Math.round(roi * 100)}%` }}
       />
+
+      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+        <div className="mb-1.5 flex items-end justify-between gap-4">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+            Simular nueva inversión en {channelLabel}
+          </span>
+          <span className="text-2xl font-extrabold leading-none text-cyan-200">{fmtDemandARS(projection)}</span>
+        </div>
+        <input
+          type="range"
+          min={10_000}
+          max={1_000_000}
+          step={10_000}
+          value={projection}
+          onChange={(e) => setProjection(Number(e.target.value))}
+          className="h-2 w-full accent-cyan-400"
+        />
+        <div className="mt-1 flex justify-between text-[9px] font-semibold text-white/32">
+          <span>$10.000</span>
+          <span>$1.000.000</span>
+        </div>
+      </div>
+
+      <LabScenario
+        currentLabel="Clientes con la inversión actual"
+        currentValue={sel.clientes}
+        projectedLabel="Clientes proyectados"
+        projectedValue={`~${clientesProyectados}`}
+      />
+
+      {clientesProyectados > 0 ? (
+        <LabSignals
+          items={[
+            { label: "Facturación esperada", value: fmtDemandARS(facturacionProyectada), tone: "good" },
+            { label: "Ganancia esperada", value: fmtDemandARS(gananciaProyectada), tone: gananciaProyectada >= 0 ? "good" : "alert" },
+          ]}
+        />
+      ) : null}
+
+      {comparison.length > 1 ? (
+        <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+            Canales medibles · últimos 6 meses
+          </div>
+          <div className="space-y-1.5">
+            {comparison
+              .sort((a, b) => b.clientes - a.clientes)
+              .map((c) => (
+                <div key={c.value} className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-white/80">{c.label}</span>
+                  <span className="text-white/50">
+                    {c.clientes} cliente{c.clientes === 1 ? "" : "s"} · {fmtDemandARS(Math.round(c.facturacion / c.clientes))} prom.
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
+      <LabVerdict nivel={nivel} text={verdictText} />
     </div>
   );
 }
@@ -3201,7 +3304,7 @@ const LAB_SIMS = [
   { key: "horario", icon: Clock, l1: "Extender", l2: "Horario", label: "Extender horario" },
   { key: "recuperar", icon: Users, l1: "Recuperar", l2: "Clientes", label: "Recuperar clientes" },
   { key: "productos", icon: Package, l1: "Venta de", l2: "Productos", label: "Venta de productos" },
-  { key: "fidelizacion", icon: Gift, l1: "Fidelización", l2: "", label: "Fidelización" },
+  { key: "publicidad", icon: Megaphone, l1: "Publicidad", l2: "", label: "Publicidad" },
 ] as const;
 
 function LaboratorioDecisiones(props: SimuladorProps) {
@@ -3291,7 +3394,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
           {sim === "horario" && <LabHorario data={data} demand={demand} />}
           {sim === "recuperar" && <LabRecuperar data={data} />}
           {sim === "productos" && <LabProductos data={data} />}
-          {sim === "fidelizacion" && <LabFidelizacion data={data} />}
+          {sim === "publicidad" && <LabPublicidad data={data} />}
         </div>
       </div>
     </div>

@@ -25,6 +25,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ACQUISITION_CHANNELS } from "@/lib/acquisition-channels";
 import { cn } from "@/lib/utils";
 import {
   type Appointment,
@@ -273,6 +275,12 @@ function PublicBookingPage() {
   const [clientEmail, setClientEmail] = React.useState("");
   const [clientBirthDate, setClientBirthDate] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [acquisitionSource, setAcquisitionSource] = React.useState("");
+  const [acquisitionCustom, setAcquisitionCustom] = React.useState("");
+  // Si el email ya tiene un canal guardado, no se vuelve a preguntar. Por
+  // default se pregunta (fail-open): cubre el caso de negocios sin campo de
+  // email habilitado, donde no hay forma de deduplicar por email.
+  const [sourceAlreadyKnown, setSourceAlreadyKnown] = React.useState(false);
   const [landingColors, setLandingColors] = React.useState<LandingColors>({});
   const [landingTheme, setLandingTheme] = React.useState<LandingTheme>("dark");
   // Tema real del negocio, resuelto únicamente desde business_settings.schedule._branding.theme.
@@ -290,6 +298,28 @@ function PublicBookingPage() {
     clientEmail?: string;
     products?: { name: string; price: number }[];
   } | null>(null);
+
+  // Si el cliente ya reservó antes y su email ya tiene un canal de origen
+  // guardado, no volvemos a mostrarle la pregunta "¿Cómo nos conociste?".
+  React.useEffect(() => {
+    const email = clientEmail.trim();
+    if (!business?.id || !clientFields.email || !email || !email.includes("@")) {
+      setSourceAlreadyKnown(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await supabase.rpc("clippr_client_has_acquisition_source", {
+        p_business_id: business.id,
+        p_email: email,
+      });
+      if (!cancelled && !error) setSourceAlreadyKnown(Boolean(data));
+    }, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [business?.id, clientEmail, clientFields.email]);
 
   const selectedServices = React.useMemo(
     () => selectedServiceIds.map((id) => services.find((service) => service.id === id)).filter(Boolean) as Service[],
@@ -659,6 +689,9 @@ function PublicBookingPage() {
     if (!clientPhone.trim()) return toast.error("Ingresá tu teléfono.");
     if (clientFields.email && !clientEmail.trim()) return toast.error("Ingresá tu email.");
     if (clientFields.fecha_nacimiento && !clientBirthDate) return toast.error("Ingresá tu fecha de nacimiento.");
+    if (!sourceAlreadyKnown && !acquisitionSource) return toast.error("Contanos cómo nos conociste.");
+    if (!sourceAlreadyKnown && acquisitionSource === "otro" && !acquisitionCustom.trim())
+      return toast.error("Contanos dónde nos conociste.");
 
     const serviceName = selectedServices.map((service) => service.name).join(" + ");
     const serviceList = selectedServices.map((service) => `${service.name} (${formatMoney(service.price)})`).join("\n- ");
@@ -719,6 +752,8 @@ function PublicBookingPage() {
         p_client_email: clientEmail.trim() || null,
         p_client_birth_date: clientBirthDate || null,
         p_notes: publicNotes || null,
+        p_acquisition_source: !sourceAlreadyKnown && acquisitionSource ? acquisitionSource : null,
+        p_acquisition_source_custom: !sourceAlreadyKnown && acquisitionSource === "otro" ? acquisitionCustom.trim() : null,
       } as any);
 
       if (bookingResult.error) {
@@ -1304,6 +1339,29 @@ function PublicBookingPage() {
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
                   {clientFields.notas ? <div className="space-y-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={notes} onChange={(event) => setNotes(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Ej: corte bajo, barba marcada..." /></div> : null}
+                  {!sourceAlreadyKnown ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="acquisitionSource">¿Cómo nos conociste? *</Label>
+                        <Select value={acquisitionSource} onValueChange={(value) => { setAcquisitionSource(value); if (value !== "otro") setAcquisitionCustom(""); }}>
+                          <SelectTrigger id="acquisitionSource" className="border-white/10 bg-white/[0.04] text-white">
+                            <SelectValue placeholder="Elegí una opción" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ACQUISITION_CHANNELS.map((channel) => (
+                              <SelectItem key={channel.value} value={channel.value}>{channel.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {acquisitionSource === "otro" ? (
+                        <div className="space-y-2">
+                          <Label htmlFor="acquisitionCustom">Contanos dónde *</Label>
+                          <Input id="acquisitionCustom" value={acquisitionCustom} onChange={(event) => setAcquisitionCustom(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Ej: radio, evento, cartel..." />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
                     {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Confirmar reserva

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Crown,
   MoreHorizontal,
+  Megaphone,
   PauseCircle,
   Plus,
   Search,
@@ -19,6 +20,9 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { acquisitionChannelLabel } from "@/lib/acquisition-channels";
+import { DateRangePicker, getPreset, type DateRange } from "@/components/date-range-picker";
+import { useClientsData } from "@/hooks/use-clients-data";
 import {
   useClientsPage,
   useClientSegmentSummary,
@@ -323,6 +327,22 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                     Cliente desde <span className="font-semibold text-white capitalize">{since}</span>
                   </span>
                 </div>
+                {client.acquisitionSource && (
+                  <div className="mt-1.5 inline-flex items-center gap-2 text-sm text-white/70">
+                    <Megaphone className="h-4 w-4 text-white/45" />
+                    <span>
+                      Nos conoció por{" "}
+                      <span className="font-semibold text-white">
+                        {acquisitionChannelLabel(client.acquisitionSource, client.acquisitionSourceCustom)}
+                      </span>
+                      {client.acquisitionCapturedAt && (
+                        <span className="text-white/50">
+                          {" "}· {formatClientSince(client.acquisitionCapturedAt)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="relative">
                 <button
@@ -505,6 +525,16 @@ function ClientsPage() {
     email: "",
     notes: "",
   });
+  const [acquisitionModalOpen, setAcquisitionModalOpen] = useState(false);
+  const [acquisitionRange, setAcquisitionRange] = useState<DateRange>(() => {
+    const to = new Date();
+    const from = new Date();
+    from.setMonth(from.getMonth() - 6);
+    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  });
+  // Lista completa (no paginada) solo para el panel de estadísticas por canal —
+  // el grid principal sigue usando useClientsPage (RPC paginada), sin tocarlo.
+  const { data: allClients } = useClientsData(acquisitionModalOpen ? businessId : null);
 
   // Debounce the search so we don't hit the server on every keystroke.
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -552,6 +582,30 @@ function ClientsPage() {
   );
 
   const current = currentDetail ?? null;
+
+  const acquisitionStats = useMemo(() => {
+    if (!allClients) return [];
+    const rangeStart = new Date(`${acquisitionRange.from}T00:00:00`).getTime();
+    const rangeEnd = new Date(`${acquisitionRange.to}T23:59:59`).getTime();
+    const byChannel = new Map<string, { count: number; revenue: number }>();
+    for (const c of allClients) {
+      const capturedAt = c.acquisitionCapturedAt ?? c.created_at;
+      const capturedTime = new Date(capturedAt).getTime();
+      if (Number.isNaN(capturedTime) || capturedTime < rangeStart || capturedTime > rangeEnd) continue;
+      const key = c.acquisitionSource ?? "sin_dato";
+      const entry = byChannel.get(key) ?? { count: 0, revenue: 0 };
+      entry.count += 1;
+      entry.revenue += c.spent;
+      byChannel.set(key, entry);
+    }
+    return Array.from(byChannel.entries())
+      .map(([value, stats]) => ({
+        value,
+        label: value === "sin_dato" ? "Sin dato" : acquisitionChannelLabel(value),
+        ...stats,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [allClients, acquisitionRange]);
 
   const showGroup = useCallback(
     async (title: string, status: ClientStatus) => {
@@ -671,7 +725,14 @@ function ClientsPage() {
               onLinkClick={() => showGroup("Clientes perdidos", "perdido")}
             />
           </div>
-          <div className="flex shrink-0 justify-end">
+          <div className="flex shrink-0 justify-end gap-2">
+            <button
+              onClick={() => setAcquisitionModalOpen(true)}
+              className="h-10 px-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition"
+            >
+              <Megaphone className="h-4 w-4 text-violet-300" />
+              Cómo nos conocieron
+            </button>
             <button
               onClick={() => setNewClientOpen(true)}
               className="h-10 px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition"
@@ -893,6 +954,58 @@ function ClientsPage() {
               >
                 Guardar cliente
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {acquisitionModalOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-white/5">
+              <div>
+                <div className="text-lg font-display font-semibold">Cómo nos conocieron</div>
+                <div className="text-xs text-muted-foreground">
+                  Origen de los clientes registrados en el rango elegido.
+                </div>
+              </div>
+              <button
+                onClick={() => setAcquisitionModalOpen(false)}
+                className="rounded-full bg-white/5 px-3 py-1.5 text-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <DateRangePicker
+                from={acquisitionRange.from}
+                to={acquisitionRange.to}
+                onChange={setAcquisitionRange}
+              />
+              <div className="space-y-1.5">
+                {acquisitionStats.length === 0 ? (
+                  <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-4 text-sm text-muted-foreground text-center">
+                    No hay clientes registrados en ese rango de fechas.
+                  </div>
+                ) : (
+                  acquisitionStats.map((stat) => (
+                    <div
+                      key={stat.value}
+                      className="flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5"
+                    >
+                      <div className="text-sm font-medium">{stat.label}</div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-muted-foreground">
+                          {stat.count} cliente{stat.count === 1 ? "" : "s"}
+                        </span>
+                        <span className="font-semibold tabular-nums">
+                          ${stat.revenue.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -48,6 +48,9 @@ export type Client = {
   vipTag: ClientVipTag;
   rating: number;
   history: ClientPayment[];
+  acquisitionSource?: string | null;
+  acquisitionSourceCustom?: string | null;
+  acquisitionCapturedAt?: string | null;
 };
 
 export type ClientStatus = "vip" | "nuevo" | "activo" | "inactivo" | "perdido";
@@ -142,7 +145,9 @@ function formatLastVisit(date: string | null): { label: string | null; days: num
 async function loadClients(businessId: string): Promise<Client[]> {
   const { data: rawClients, error } = await supabase
     .from("clients")
-    .select("id,full_name,phone,email,notes,birth_date,created_at")
+    .select(
+      "id,full_name,phone,email,notes,birth_date,created_at,acquisition_source,acquisition_source_custom,acquisition_captured_at",
+    )
     .eq("business_id", businessId)
     .order("full_name");
 
@@ -260,6 +265,9 @@ async function loadClients(businessId: string): Promise<Client[]> {
       status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
       rating: computeRating(visits, spent, lastVisit.days),
       history,
+      acquisitionSource: c.acquisition_source,
+      acquisitionSourceCustom: c.acquisition_source_custom,
+      acquisitionCapturedAt: c.acquisition_captured_at,
     };
   });
 }
@@ -418,7 +426,9 @@ export function useClientSegmentSummary(businessId: string | null) {
 async function loadClientDetail(businessId: string, clientId: string): Promise<Client | null> {
   const { data: c, error } = await supabase
     .from("clients")
-    .select("id,full_name,phone,email,notes,birth_date,created_at")
+    .select(
+      "id,full_name,phone,email,notes,birth_date,created_at,acquisition_source,acquisition_source_custom,acquisition_captured_at",
+    )
     .eq("business_id", businessId)
     .eq("id", clientId)
     .maybeSingle();
@@ -463,6 +473,9 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
     lastVisit: lastVisit.label, lastVisitDays: lastVisit.days, isNewThisMonth, vipTag,
     status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
     rating: computeRating(visits, spent, lastVisit.days), history,
+    acquisitionSource: c.acquisition_source,
+    acquisitionSourceCustom: c.acquisition_source_custom,
+    acquisitionCapturedAt: c.acquisition_captured_at,
   };
 }
 
