@@ -20,7 +20,8 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { acquisitionChannelLabel } from "@/lib/acquisition-channels";
+import { ACQUISITION_CHANNELS, acquisitionChannelLabel } from "@/lib/acquisition-channels";
+import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
 import { DateRangePicker, getPreset, type DateRange } from "@/components/date-range-picker";
 import { useClientsData } from "@/hooks/use-clients-data";
 import {
@@ -329,7 +330,14 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 </div>
                 {client.acquisitionSource && (
                   <div className="mt-1.5 inline-flex items-center gap-2 text-sm text-white/70">
-                    <Megaphone className="h-4 w-4 text-white/45" />
+                    {(() => {
+                      const channel = ACQUISITION_CHANNELS.find((c) => c.id === client.acquisitionSource);
+                      return channel ? (
+                        <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <Megaphone className="h-4 w-4 text-white/45" />
+                      );
+                    })()}
                     <span>
                       Nos conoció por{" "}
                       <span className="font-semibold text-white">
@@ -988,12 +996,17 @@ function ClientsPage() {
                     No hay clientes registrados en ese rango de fechas.
                   </div>
                 ) : (
-                  acquisitionStats.map((stat) => (
+                  acquisitionStats.map((stat) => {
+                    const channel = ACQUISITION_CHANNELS.find((c) => c.id === stat.value);
+                    return (
                     <div
                       key={stat.value}
                       className="flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5"
                     >
-                      <div className="text-sm font-medium">{stat.label}</div>
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        {channel ? <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" /> : null}
+                        {stat.label}
+                      </div>
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-muted-foreground">
                           {stat.count} cliente{stat.count === 1 ? "" : "s"}
@@ -1003,7 +1016,8 @@ function ClientsPage() {
                         </span>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

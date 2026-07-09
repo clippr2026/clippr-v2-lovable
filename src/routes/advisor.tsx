@@ -14,6 +14,7 @@ import { useAiRecommendations, type RecommendationAchievement, type UseAiRecomme
 import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
 import { TIER_EMOJI, buildDemandRecommendations } from "@/lib/rejected-analytics";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
+import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
 import { DateRangePicker, type DateRange } from "@/components/date-range-picker";
 import type {
   Recommendation,
@@ -3067,7 +3068,7 @@ function LabProductos({ data }: { data: LabData }) {
 
 // ── FIDELIZACIÓN ───────────────────────────────────────────────────────────
 function LabPublicidad({ data }: { data: LabData }) {
-  const [channel, setChannel] = React.useState<string>(MEASURABLE_CHANNELS[0].value);
+  const [channel, setChannel] = React.useState<string>(MEASURABLE_CHANNELS[0].id);
   const [investment, setInvestment] = React.useState(100_000);
   const [projection, setProjection] = React.useState(100_000);
   const [range, setRange] = React.useState<DateRange>(() => {
@@ -3129,12 +3130,12 @@ function LabPublicidad({ data }: { data: LabData }) {
             ? "evaluar"
             : "no_recomendado";
 
-  const channelLabel = MEASURABLE_CHANNELS.find((c) => c.value === channel)?.label ?? channel;
+  const channelLabel = MEASURABLE_CHANNELS.find((c) => c.id === channel)?.label ?? channel;
 
   // Comparación entre canales medibles (ventana fija de 6 meses) — solo con
   // datos reales de clientes/facturación/recurrencia; no inventa inversión
   // para canales donde el usuario no la cargó.
-  const comparison = MEASURABLE_CHANNELS.map((c) => ({ ...c, ...statsFor(c.value, sixMonthsAgo) })).filter(
+  const comparison = MEASURABLE_CHANNELS.map((c) => ({ ...c, ...statsFor(c.id, sixMonthsAgo) })).filter(
     (c) => c.clientes > 0,
   );
   const bestValue = [...comparison].sort(
@@ -3167,7 +3168,7 @@ function LabPublicidad({ data }: { data: LabData }) {
           Canal publicitario
         </div>
         <LabChips
-          options={MEASURABLE_CHANNELS.map((c) => ({ key: c.value, label: c.label }))}
+          options={MEASURABLE_CHANNELS.map((c) => ({ key: c.id, label: c.label }))}
           value={channel}
           onChange={setChannel}
         />
@@ -3264,8 +3265,11 @@ function LabPublicidad({ data }: { data: LabData }) {
             {comparison
               .sort((a, b) => b.clientes - a.clientes)
               .map((c) => (
-                <div key={c.value} className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-white/80">{c.label}</span>
+                <div key={c.id} className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1.5 font-semibold text-white/80">
+                    <AcquisitionChannelIcon channel={c} className="h-3.5 w-3.5 shrink-0" />
+                    {c.label}
+                  </span>
                   <span className="text-white/50">
                     {c.clientes} cliente{c.clientes === 1 ? "" : "s"} · {fmtDemandARS(Math.round(c.facturacion / c.clientes))} prom.
                   </span>

@@ -32,6 +32,8 @@ import {
 } from "./use-agenda-data";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ServiceImage } from "@/components/ui/service-image";
+import { AcquisitionSourceField } from "@/components/acquisition-source-field";
+import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 
 type Props = {
   open: boolean;
@@ -262,6 +264,8 @@ export function AppointmentDialog({
   const [newClientMode, setNewClientMode] = React.useState(false);
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
+  const [acquisitionSource, setAcquisitionSource] = React.useState("");
+  const [acquisitionCustom, setAcquisitionCustom] = React.useState("");
   const [clientSearch, setClientSearch] = React.useState("");
   const [showClientList, setShowClientList] = React.useState(false);
 
@@ -420,6 +424,8 @@ export function AppointmentDialog({
     setClientEmail("");
     setClientBirth("");
     setClientNote("");
+    setAcquisitionSource("");
+    setAcquisitionCustom("");
     setClientSearch("");
     setShowClientList(false);
     setNewClientMode(false);
@@ -443,6 +449,15 @@ export function AppointmentDialog({
     if (newClientMode && (!clientFirstName.trim() || !clientLastName.trim())) {
       throw new Error("Nombre y apellido son obligatorios para crear un cliente nuevo.");
     }
+    if (newClientMode && isFieldEnabled("email") && !clientEmail.trim()) {
+      throw new Error("El email es obligatorio para crear un cliente nuevo.");
+    }
+    if (newClientMode && !acquisitionSource) {
+      throw new Error("Contanos cómo nos conoció el cliente.");
+    }
+    if (newClientMode && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim()) {
+      throw new Error("Contanos dónde conoció el cliente.");
+    }
 
     const extraNotes = clientNote.trim() || null;
 
@@ -453,6 +468,13 @@ export function AppointmentDialog({
       email: clientEmail.trim() || null,
       birth_date: clientBirth.trim() || null,
       notes: extraNotes,
+      ...(newClientMode
+        ? {
+            acquisition_source: acquisitionSource,
+            acquisition_source_custom: acquisitionChannelRequiresText(acquisitionSource) ? acquisitionCustom.trim() : null,
+            acquisition_captured_at: new Date().toISOString(),
+          }
+        : {}),
     };
 
     const { data: newClient, error } = await supabase
@@ -472,6 +494,10 @@ export function AppointmentDialog({
 
     if (!fullClientName) return toast.error("Indicá el cliente.");
     if (newClientMode && (!clientFirstName.trim() || !clientLastName.trim())) return toast.error("Nombre y apellido son obligatorios.");
+    if (newClientMode && isFieldEnabled("email") && !clientEmail.trim()) return toast.error("El email es obligatorio.");
+    if (newClientMode && !acquisitionSource) return toast.error("Contanos cómo nos conoció el cliente.");
+    if (newClientMode && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim())
+      return toast.error("Contanos dónde conoció el cliente.");
     if (!employeeId) return toast.error("Elegí un profesional.");
     if (!serviceName.trim()) return toast.error("Elegí un servicio.");
     if (!dateValue || !hourValue || !minuteValue) return toast.error("Falta la fecha y hora.");
@@ -634,8 +660,23 @@ export function AppointmentDialog({
           <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
-              <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => { setNewClientMode(true); setClientId(""); setClientSearch(""); setClientName(""); }}>
-                <UserPlus className="h-3.5 w-3.5 mr-1" /> Nuevo
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                onClick={() => {
+                  if (newClientMode) {
+                    setNewClientMode(false);
+                  } else {
+                    setNewClientMode(true);
+                    setClientId("");
+                    setClientSearch("");
+                    setClientName("");
+                  }
+                }}
+              >
+                {newClientMode ? "Cancelar" : (<><UserPlus className="h-3.5 w-3.5 mr-1" /> Nuevo</>)}
               </Button>
             </div>
 
@@ -692,9 +733,18 @@ export function AppointmentDialog({
                   <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido *" />
                 </div>
                 <Input className="h-8 text-sm" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Teléfono *" />
-                {isFieldEnabled("email") && <Input className="h-8 text-sm" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email" />}
+                {isFieldEnabled("email") && <Input className="h-8 text-sm" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email *" />}
                 {isFieldEnabled("notas") && <Input className="h-8 text-sm" value={clientNote} onChange={(e) => setClientNote(e.target.value)} placeholder="Nota" />}
-                <button type="button" className="text-xs text-muted-foreground hover:text-foreground text-left transition" onClick={() => setNewClientMode(false)}>✕ Cancelar</button>
+                <AcquisitionSourceField
+                  value={acquisitionSource}
+                  onChange={setAcquisitionSource}
+                  customValue={acquisitionCustom}
+                  onCustomChange={setAcquisitionCustom}
+                  wrapperClassName="grid grid-cols-2 gap-2"
+                  labelClassName="text-[10px] uppercase tracking-[0.16em] text-muted-foreground"
+                  triggerClassName="h-8 text-sm"
+                  inputClassName="h-8 text-sm"
+                />
               </div>
             )}
           </section>

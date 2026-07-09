@@ -25,8 +25,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ACQUISITION_CHANNELS } from "@/lib/acquisition-channels";
+import { AcquisitionSourceField } from "@/components/acquisition-source-field";
+import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { cn } from "@/lib/utils";
 import {
   type Appointment,
@@ -303,7 +303,7 @@ function PublicBookingPage() {
   // guardado, no volvemos a mostrarle la pregunta "¿Cómo nos conociste?".
   React.useEffect(() => {
     const email = clientEmail.trim();
-    if (!business?.id || !clientFields.email || !email || !email.includes("@")) {
+    if (!business?.id || !email || !email.includes("@")) {
       setSourceAlreadyKnown(false);
       return;
     }
@@ -319,7 +319,7 @@ function PublicBookingPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [business?.id, clientEmail, clientFields.email]);
+  }, [business?.id, clientEmail]);
 
   const selectedServices = React.useMemo(
     () => selectedServiceIds.map((id) => services.find((service) => service.id === id)).filter(Boolean) as Service[],
@@ -687,10 +687,10 @@ function PublicBookingPage() {
     if (!business || selectedServices.length === 0 || !selectedSlot) return;
     if (!clientName.trim()) return toast.error("Ingresá tu nombre.");
     if (!clientPhone.trim()) return toast.error("Ingresá tu teléfono.");
-    if (clientFields.email && !clientEmail.trim()) return toast.error("Ingresá tu email.");
+    if (!clientEmail.trim()) return toast.error("Ingresá tu email.");
     if (clientFields.fecha_nacimiento && !clientBirthDate) return toast.error("Ingresá tu fecha de nacimiento.");
     if (!sourceAlreadyKnown && !acquisitionSource) return toast.error("Contanos cómo nos conociste.");
-    if (!sourceAlreadyKnown && acquisitionSource === "otro" && !acquisitionCustom.trim())
+    if (!sourceAlreadyKnown && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim())
       return toast.error("Contanos dónde nos conociste.");
 
     const serviceName = selectedServices.map((service) => service.name).join(" + ");
@@ -753,7 +753,7 @@ function PublicBookingPage() {
         p_client_birth_date: clientBirthDate || null,
         p_notes: publicNotes || null,
         p_acquisition_source: !sourceAlreadyKnown && acquisitionSource ? acquisitionSource : null,
-        p_acquisition_source_custom: !sourceAlreadyKnown && acquisitionSource === "otro" ? acquisitionCustom.trim() : null,
+        p_acquisition_source_custom: !sourceAlreadyKnown && acquisitionChannelRequiresText(acquisitionSource) ? acquisitionCustom.trim() : null,
       } as any);
 
       if (bookingResult.error) {
@@ -1335,32 +1335,19 @@ function PublicBookingPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2"><Label htmlFor="clientName">Nombre *</Label><Input id="clientName" value={clientName} onChange={(event) => setClientName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu nombre" /></div>
                     <div className="space-y-2"><Label htmlFor="clientPhone">Teléfono *</Label><Input id="clientPhone" value={clientPhone} onChange={(event) => setClientPhone(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="11 1234-5678" /></div>
-                    {clientFields.email ? <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div> : null}
+                    <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div>
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
                   {clientFields.notas ? <div className="space-y-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={notes} onChange={(event) => setNotes(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Ej: corte bajo, barba marcada..." /></div> : null}
                   {!sourceAlreadyKnown ? (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="acquisitionSource">¿Cómo nos conociste? *</Label>
-                        <Select value={acquisitionSource} onValueChange={(value) => { setAcquisitionSource(value); if (value !== "otro") setAcquisitionCustom(""); }}>
-                          <SelectTrigger id="acquisitionSource" className="border-white/10 bg-white/[0.04] text-white">
-                            <SelectValue placeholder="Elegí una opción" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ACQUISITION_CHANNELS.map((channel) => (
-                              <SelectItem key={channel.value} value={channel.value}>{channel.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {acquisitionSource === "otro" ? (
-                        <div className="space-y-2">
-                          <Label htmlFor="acquisitionCustom">Contanos dónde *</Label>
-                          <Input id="acquisitionCustom" value={acquisitionCustom} onChange={(event) => setAcquisitionCustom(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Ej: radio, evento, cartel..." />
-                        </div>
-                      ) : null}
-                    </div>
+                    <AcquisitionSourceField
+                      value={acquisitionSource}
+                      onChange={setAcquisitionSource}
+                      customValue={acquisitionCustom}
+                      onCustomChange={setAcquisitionCustom}
+                      triggerClassName="border-white/10 bg-white/[0.04] text-white"
+                      inputClassName="border-white/10 bg-white/[0.04] text-white"
+                    />
                   ) : null}
                   <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
                     {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
