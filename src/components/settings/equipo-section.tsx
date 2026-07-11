@@ -779,24 +779,25 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   emp,
   tintClass,
   deleting,
+  online,
   onEdit,
-  onToggle,
+  onToggleOnline,
   onRemove,
 }: {
   emp: EmployeeRow;
   tintClass: string;
   deleting?: boolean;
+  online: boolean;
   onEdit: (emp: EmployeeRow) => void;
-  onToggle: (emp: EmployeeRow) => void;
+  onToggleOnline: (emp: EmployeeRow) => void;
   onRemove: (emp: EmployeeRow) => void;
 }) {
   const displayName = emp.full_name || emp.name || "—";
-  const active = emp.is_active !== false;
   return (
     <div
       className={cn(
         "glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity",
-        (!active || deleting) && "opacity-70",
+        (!online || deleting) && "opacity-70",
       )}
     >
       <div className="flex items-center gap-3">
@@ -821,25 +822,30 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           <div className="font-medium text-sm ">{displayName}</div>
           <div className="text-xs text-muted-foreground">{emp.role?.trim() || "Profesional"}</div>
         </div>
+        {/* Refleja directamente el switch "Acepta reservas en línea" del
+            perfil (misma fuente: employeeOnlineMap / _publicVisibility.employees)
+            — no hay un estado "Activo" independiente. Un clic acá alterna el
+            mismo switch, así que sigue habiendo una sola fuente de verdad
+            para la visibilidad del profesional en la página pública. */}
         <button
           type="button"
-          onClick={() => onToggle(emp)}
+          onClick={() => onToggleOnline(emp)}
           disabled={deleting}
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110 disabled:opacity-50",
-            active
+            online
               ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
               : "bg-white/5 ring-white/10 text-muted-foreground",
           )}
-          title={active ? "Desactivar profesional" : "Activar profesional"}
+          title={online ? "Desactivar reservas en línea" : "Activar reservas en línea"}
         >
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              active ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
+              online ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
             )}
           />
-          {active ? "Activo" : "Inactivo"}
+          {online ? "ONLINE" : "OFFLINE"}
         </button>
       </div>
       <div className="mt-3 flex items-center gap-2">
@@ -1916,19 +1922,49 @@ export function EquipoSection() {
     }
   }
 
-  const toggleActive = useCallback(
+  // Alterna "Acepta reservas en línea" directamente desde la tarjeta —
+  // misma fuente de verdad que usa el switch del perfil (form.acceptsOnline,
+  // ver handleEditPro/guardado): persiste en
+  // business_settings.schedule._publicVisibility.employees. No toca
+  // employees.is_active ni crea un estado independiente.
+  const toggleOnline = useCallback(
     async (emp: EmployeeRow) => {
-      const { error } = await supabase
-        .from("employees")
-        .update({ is_active: !(emp.is_active !== false) })
-        .eq("id", emp.id);
-      if (error)
-        return toast.error(
-          "No se pudo actualizar el estado del profesional. Probá de nuevo.",
-        );
-      load();
+      if (!businessId) return;
+      const nextOnline = !(employeeOnlineMap[emp.id] !== false);
+      setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: nextOnline }));
+      const { data: existingRow, error: fetchError } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (fetchError) {
+        setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: !nextOnline }));
+        return toast.error("No se pudo actualizar el estado online. Probá de nuevo.");
+      }
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const visibility = getPublicVisibility(existingSchedule);
+      const employeesVisibility = normalizePublicBooleanMap(
+        visibility.employees ?? existingSchedule._employeeOnline,
+      );
+      const { error } = await supabase.from("business_settings").upsert(
+        {
+          business_id: businessId,
+          schedule: {
+            ...existingSchedule,
+            _publicVisibility: {
+              ...visibility,
+              employees: { ...employeesVisibility, [emp.id]: nextOnline },
+            },
+          },
+        },
+        { onConflict: "business_id" },
+      );
+      if (error) {
+        setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: !nextOnline }));
+        toast.error("No se pudo actualizar el estado online. Probá de nuevo.");
+      }
     },
-    [load],
+    [businessId, employeeOnlineMap],
   );
 
   const remove = useCallback(async (emp: EmployeeRow) => {
@@ -2394,8 +2430,9 @@ export function EquipoSection() {
                   emp={emp}
                   tintClass={tintForId(emp.id)}
                   deleting={deletingId === emp.id}
+                  online={employeeOnlineMap[emp.id] !== false}
                   onEdit={handleEditPro}
-                  onToggle={toggleActive}
+                  onToggleOnline={toggleOnline}
                   onRemove={remove}
                 />
               ))}
