@@ -1037,38 +1037,47 @@ function Tabs({
           );
         })}
       </div>
-      {tab === "resumen" && resumenPanel !== "pendientes" && (
-        <div className="mb-3 hidden w-full flex-wrap items-center justify-end gap-3 sm:flex sm:w-auto sm:shrink-0 sm:flex-nowrap">
-                    {/* En mobile este botón queda oculto: el acceso a Nuevo
-              gasto se movió a la cabecera (ver Header/onNuevoGasto). En
-              desktop sigue igual, al lado de las pestañas. */}
-          {resumenPanel === "gastos" && (
-            <button
-              onClick={onNuevoGasto}
-              className="hidden sm:inline-flex group relative overflow-hidden justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-extrabold transition-all duration-200 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 border border-rose-300/38 ring-1 ring-rose-400/30 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]"
-            >
-              <Wallet className="size-4 transition-transform group-hover:scale-110" />
-              Nuevo gasto
-            </button>
-          )}
+      {tab === "resumen" && (
+        // Contenedor de ancho fijo: los dos botones (Nuevo gasto / Nueva
+        // venta) se apilan en la misma celda de grid, así el track siempre
+        // mide el ancho del más grande ("Nueva venta") sin importar cuál
+        // esté visible. Alternar con opacity (no montar/desmontar) evita que
+        // el contenedor cambie de ancho y la barra de pestañas se
+        // desplace/recentre al pasar entre Ingresos/Pendientes/Gastos. En
+        // Pendientes ambos quedan en opacity-0: mismo espacio, sin botón.
+        <div className="mb-3 hidden sm:grid sm:w-auto sm:shrink-0 sm:place-items-end">
+          <button
+            onClick={onNuevoGasto}
+            tabIndex={resumenPanel === "gastos" ? 0 : -1}
+            aria-hidden={resumenPanel !== "gastos"}
+            className={cn(
+              "col-start-1 row-start-1 inline-flex group relative overflow-hidden justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-extrabold transition-all duration-200 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 border border-rose-300/38 ring-1 ring-rose-400/30 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
+              resumenPanel === "gastos"
+                ? "opacity-100 pointer-events-auto"
+                : "opacity-0 pointer-events-none",
+            )}
+          >
+            <Wallet className="size-4 transition-transform group-hover:scale-110" />
+            Nuevo gasto
+          </button>
 
-          {/* En mobile este botón queda oculto: el acceso a Nueva venta se
-              movió a la cabecera (ver Header/onNuevaVenta). En desktop sigue
-              igual, al lado de las pestañas. */}
-          {resumenPanel === "ingresos" && (
-            <button
-              onClick={() => onChange("nueva")}
-              className={cn(
-                "hidden sm:inline-flex group relative overflow-hidden justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
-                nuevaActive
-                  ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.30),rgba(6,95,70,0.62))] text-emerald-50 border-emerald-300/42 ring-1 ring-emerald-400/32 shadow-[0_0_44px_rgba(16,185,129,0.40),0_0_90px_rgba(16,185,129,0.16),0_1px_0_rgba(255,255,255,0.18)_inset]"
-                  : "bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] text-emerald-50 border-emerald-300/36 ring-1 ring-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]",
-              )}
-            >
-              <Plus className="size-5 transition-transform group-hover:rotate-90" />
-              Nueva venta
-            </button>
-          )}
+          <button
+            onClick={() => onChange("nueva")}
+            tabIndex={resumenPanel === "ingresos" ? 0 : -1}
+            aria-hidden={resumenPanel !== "ingresos"}
+            className={cn(
+              "col-start-1 row-start-1 inline-flex group relative overflow-hidden justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
+              nuevaActive
+                ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.30),rgba(6,95,70,0.62))] text-emerald-50 border-emerald-300/42 ring-1 ring-emerald-400/32 shadow-[0_0_44px_rgba(16,185,129,0.40),0_0_90px_rgba(16,185,129,0.16),0_1px_0_rgba(255,255,255,0.18)_inset]"
+                : "bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] text-emerald-50 border-emerald-300/36 ring-1 ring-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]",
+              resumenPanel === "ingresos"
+                ? "opacity-100 pointer-events-auto"
+                : "opacity-0 pointer-events-none",
+            )}
+          >
+            <Plus className="size-5 transition-transform group-hover:rotate-90" />
+            Nueva venta
+          </button>
         </div>
       )}
     </div>
@@ -1116,36 +1125,6 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
   );
 }
 
-
-function ApprovalModeToggle({ data, equipoEnabled }: { data: ReturnType<typeof useCajaData>; equipoEnabled: boolean }) {
-  if (!data.approvalModeEnabled || !equipoEnabled) return null;
-
-  return (
-    <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-1.5 backdrop-blur-xl">
-      {([
-        { id: "auto", label: "Automático", title: "El profesional cobra desde su panel y el cobro impacta directo en ingresos." },
-        { id: "manual", label: "Manual", title: "El profesional envía el cobro a pendientes y Caja lo confirma." },
-      ] as const).map((opt) => (
-        <button
-          key={opt.id}
-          type="button"
-          onClick={() => data.setApprovalMode(opt.id)}
-          title={opt.title}
-          className={cn(
-            "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
-            data.approvalMode === opt.id
-              ? opt.id === "auto"
-                ? "bg-emerald-400/14 text-emerald-200 ring-1 ring-emerald-300/24"
-                : "bg-sky-400/14 text-sky-200 ring-1 ring-sky-300/24"
-              : "text-white/50 hover:bg-white/[0.045] hover:text-white/80",
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ───────────────────────────── RESUMEN
 function ResumenTab({
@@ -6530,21 +6509,18 @@ function History({
         {/* Header */}
         <div
           className={cn(
-            "flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 border-b",
+            "flex min-h-[64px] items-center gap-3 px-5 py-3 border-b",
             incomeTheme.tableHead,
           )}
         >
-          <div className="flex items-center gap-3 flex-wrap">
-            <h3
-              className={cn(
-                "text-base font-bold tracking-tight",
-                incomeTheme.title,
-              )}
-            >
-              {title}
-            </h3>
-          </div>
-          <ApprovalModeToggle data={data} equipoEnabled={equipoEnabled} />
+          <h3
+            className={cn(
+              "w-full text-base font-bold tracking-tight",
+              incomeTheme.title,
+            )}
+          >
+            {title}
+          </h3>
         </div>
 
         {/* Table header — en mobile, ambos paneles ("ingresos" y

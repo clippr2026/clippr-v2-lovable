@@ -489,21 +489,53 @@ export function useClientDetail(businessId: string | null, clientId: string | nu
 }
 
 export type NewClientInput = {
-  name: string;
-  phone?: string;
-  email?: string;
-  notes?: string;
-  birth_date?: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  acquisitionSource?: string | null;
+  acquisitionCustom?: string | null;
 };
 
+// El email es el identificador único del cliente: nunca deben existir dos
+// clientes con el mismo email dentro de un mismo negocio. Si ya existe uno
+// con ese email, no se crea otro — se completa el origen solo si todavía no
+// lo tenía guardado (un origen ya guardado nunca se pisa).
 async function saveClient(businessId: string, input: NewClientInput): Promise<void> {
+  const email = input.email.trim();
+  const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+
+  const { data: existing, error: lookupError } = await supabase
+    .from("clients")
+    .select("id, acquisition_source")
+    .eq("business_id", businessId)
+    .ilike("email", email)
+    .maybeSingle();
+  if (lookupError) throw new Error("Error al buscar cliente: " + lookupError.message);
+
+  if (existing) {
+    if (!existing.acquisition_source && input.acquisitionSource) {
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          acquisition_source: input.acquisitionSource,
+          acquisition_source_custom: input.acquisitionCustom?.trim() || null,
+          acquisition_captured_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+      if (error) throw new Error("Error al guardar cliente: " + error.message);
+    }
+    return;
+  }
+
   const { error } = await supabase.from("clients").insert({
     business_id: businessId,
-    full_name: input.name.trim(),
-    phone: input.phone?.trim() || null,
-    email: input.email?.trim() || null,
-    notes: input.notes?.trim() || null,
-    birth_date: input.birth_date || null,
+    full_name: fullName,
+    phone: input.phone.trim() || null,
+    email,
+    acquisition_source: input.acquisitionSource || null,
+    acquisition_source_custom: input.acquisitionCustom?.trim() || null,
+    acquisition_captured_at: input.acquisitionSource ? new Date().toISOString() : null,
   });
   if (error) throw new Error("Error al guardar cliente: " + error.message);
 }

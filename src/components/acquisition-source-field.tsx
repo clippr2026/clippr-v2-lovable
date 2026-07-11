@@ -15,12 +15,18 @@ type AcquisitionSourceFieldProps = {
   labelClassName?: string;
   triggerClassName?: string;
   inputClassName?: string;
-  /** Muestra "¿Cómo nos conociste? *" como label arriba del select (en vez
-   * de usarlo como placeholder del propio select). */
+  /** Muestra el label arriba del select (en vez de usarlo como placeholder
+   * del propio select). */
   showLabel?: boolean;
   /** El campo de texto libre de "Otro" abre siempre en su propia fila,
    * debajo del select, nunca al costado (ni en mobile ni en desktop). */
   otroBelow?: boolean;
+  /** Texto de la pregunta. Por defecto "¿Cómo nos conociste?" (segunda
+   * persona, para cuando el propio cliente completa el formulario — Página
+   * Pública, Agenda). Los paneles donde el NEGOCIO carga el dato sobre el
+   * cliente (ej. Clientes → Nuevo cliente) deben pasar "¿Cómo nos conoció?"
+   * (tercera persona) — mismas opciones/emojis/lógica, solo cambia el texto. */
+  questionLabel?: string;
 };
 
 /**
@@ -41,6 +47,7 @@ export function AcquisitionSourceField({
   inputClassName,
   showLabel = false,
   otroBelow = false,
+  questionLabel = "¿Cómo nos conociste?",
 }: AcquisitionSourceFieldProps) {
   const selected = ACQUISITION_CHANNELS.find((c) => c.id === value);
   const selectSpansFull = !selected?.requiresText || otroBelow;
@@ -49,7 +56,7 @@ export function AcquisitionSourceField({
       <div className={cn("space-y-2", selectSpansFull && "col-span-full")}>
         {showLabel ? (
           <Label htmlFor="acquisitionSource" className={cn("whitespace-nowrap text-[13px]", labelClassName)}>
-            ¿Cómo nos conociste? *
+            {questionLabel} *
           </Label>
         ) : null}
         <Select
@@ -60,8 +67,8 @@ export function AcquisitionSourceField({
             if (!nextChannel?.requiresText) onCustomChange("");
           }}
         >
-          <SelectTrigger id="acquisitionSource" className={triggerClassName} aria-label="¿Cómo nos conociste?">
-            <SelectValue placeholder={showLabel ? "Elegí una opción" : "¿Cómo nos conociste? *"} />
+          <SelectTrigger id="acquisitionSource" className={triggerClassName} aria-label={questionLabel}>
+            <SelectValue placeholder={showLabel ? "Elegí una opción" : `${questionLabel} *`} />
           </SelectTrigger>
           <SelectContent>
             {ACQUISITION_CHANNELS.map((channel) => (

@@ -3142,9 +3142,9 @@ export function EquipoSection() {
                         type="button"
                         onClick={() => setCommTab(tabId)}
                         className={cn(
-                          "rounded-xl px-4 py-1.5 text-xs font-semibold transition",
+                          "rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-200",
                           commTab === tabId
-                            ? "bg-white/[0.08] text-foreground ring-1 ring-white/10"
+                            ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_20px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
                             : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
                         )}
                       >
@@ -3153,7 +3153,7 @@ export function EquipoSection() {
                     ))}
                   </div>
 
-                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
+                  <div className="rounded-2xl bg-[linear-gradient(135deg,rgba(139,92,246,0.09),rgba(56,189,248,0.05))] ring-1 ring-white/10 p-4">
                     <div className="font-semibold text-sm">
                       {commTab === "servicios" ? "Servicios" : "Catálogo"}
                     </div>
@@ -3197,7 +3197,7 @@ export function EquipoSection() {
                           <div className="divide-y divide-white/5">
                             {Object.entries(grouped).map(
                               ([category, items]) => (
-                                <div key={category} className="p-4 space-y-3">
+                                <div key={category} className="px-4 py-6 space-y-3">
                                   <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
                                     {category}
                                   </div>
@@ -3254,10 +3254,10 @@ export function EquipoSection() {
                                         <div
                                           key={item.id}
                                           className={cn(
-                                            "rounded-xl ring-1 p-3 transition-all",
+                                            "rounded-xl ring-1 p-3 transition-all duration-200",
                                             cfg.enabled
-                                              ? "bg-white/[0.06] ring-white/10"
-                                              : "bg-white/[0.025] ring-white/5 opacity-75",
+                                              ? "bg-white/[0.08] ring-white/[0.14] shadow-[0_0_24px_-10px_rgba(139,92,246,0.45)]"
+                                              : "bg-white/[0.02] ring-white/5 opacity-70",
                                           )}
                                         >
                                           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
@@ -3316,7 +3316,12 @@ export function EquipoSection() {
                                               </div>
                                             </div>
 
-                                            <div className="flex items-center gap-2">
+                                            <div
+                                              className={cn(
+                                                "flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 transition",
+                                                cfg.enabled ? "bg-white/5" : "bg-white/[0.02]",
+                                              )}
+                                            >
                                               <select
                                                 value={cfg.mode}
                                                 disabled={!cfg.enabled}
@@ -3326,7 +3331,7 @@ export function EquipoSection() {
                                                       .value as CommissionMode,
                                                   })
                                                 }
-                                                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                                                className="border-r border-white/10 bg-transparent px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
                                               >
                                                 <option value="percent">
                                                   % comisión
@@ -3335,7 +3340,7 @@ export function EquipoSection() {
                                                   Monto fijo
                                                 </option>
                                               </select>
-                                              <div className="flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                              <div className="flex items-center gap-1 px-2 py-1.5">
                                                 <input
                                                   type="number"
                                                   min={0}
@@ -3359,18 +3364,23 @@ export function EquipoSection() {
                                           </div>
 
                                           {isServiceKind && (
-                                            <div className="mt-2">
+                                            <div className="mt-2.5">
                                               <button
                                                 type="button"
                                                 onClick={toggleOverrideExpanded}
-                                                className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-200/80 hover:text-violet-200"
+                                                className={cn(
+                                                  "inline-flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition",
+                                                  overrideExpanded
+                                                    ? "bg-violet-500/[0.12] text-violet-200 ring-1 ring-violet-400/25"
+                                                    : "bg-white/[0.03] text-violet-200/80 ring-1 ring-white/10 hover:bg-white/[0.06] hover:text-violet-200",
+                                                )}
                                               >
                                                 <span>
                                                   Personalizar duración y precio
                                                 </span>
                                                 <ChevronDown
                                                   className={cn(
-                                                    "h-3 w-3 transition-transform",
+                                                    "h-3.5 w-3.5 shrink-0 transition-transform",
                                                     overrideExpanded && "rotate-180",
                                                   )}
                                                 />
@@ -3503,7 +3513,7 @@ export function EquipoSection() {
                   type="button"
                   onClick={() => setConfirmDel(editingEmp)}
                   disabled={saving || deletingId === editingEmp.id}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/30 transition hover:bg-red-500/20 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-transparent px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/40 transition hover:bg-red-500/10 disabled:opacity-50"
                 >
                   {deletingId === editingEmp.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -3524,7 +3534,7 @@ export function EquipoSection() {
               <button
                 onClick={saveProfessional}
                 disabled={saving}
-                className="inline-flex min-w-[160px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+                className="inline-flex min-w-[160px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-[0_10px_26px_-10px_rgba(139,92,246,0.65),inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100"
               >
                 {saving ? "Guardando…" : "Guardar"}
               </button>

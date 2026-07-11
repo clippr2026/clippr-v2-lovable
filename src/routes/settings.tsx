@@ -256,15 +256,22 @@ function SettingsPage() {
     <AppShell>
       <SaveStatusIndicator />
       <div className="settings-compact-page -mt-4 sm:-mt-5 lg:-mt-6">
-        <Topbar
-          title="Configuración"
-          subtitle="Tu negocio"
-          action={null}
-        />
+        {/* mt-7 fijo (no responsive) para separar el título del header
+            superior sin tocar el resto del espaciado de Topbar. El grid de
+            abajo (aside + section) lo sigue en el flujo normal, así que
+            todo el bloque izquierdo baja junto — la sección de la derecha
+            se compensa más abajo con -mt-7 para quedar donde ya estaba. */}
+        <div className="mt-7">
+          <Topbar
+            title="Configuración"
+            subtitle="Tu negocio"
+            action={null}
+          />
+        </div>
         <div className="app-premium-shell -mt-3 sm:-mt-4 lg:-mt-5">
           <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
           <div className="space-y-6 animate-fade-up">
-            <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] lg:items-start gap-6">
               {/* Sidebar */}
               <aside className="space-y-5">
                 {groups.map((g) => (
@@ -316,8 +323,13 @@ function SettingsPage() {
                 </div>
               </aside>
 
-              {/* Content */}
-              <section className="space-y-6">
+              {/* Content. lg:-mt-7 cancela el mt-7 agregado arriba del
+                  Topbar, para que esta columna no se mueva de donde ya
+                  estaba — solo aplica en desktop, donde aside/section están
+                  lado a lado; en mobile el grid es una sola columna
+                  apilada (aside arriba, section abajo) y un -mt-7 ahí
+                  metería a la section por encima del aside. */}
+              <section className="space-y-6 lg:-mt-7">
                 {active === "branding" && <BrandingSection />}
 
                 {active === "horarios" && <HorariosSection />}
