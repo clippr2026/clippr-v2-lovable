@@ -15,12 +15,13 @@ import {
   ExternalLink,
   LogOut,
   User as UserIcon,
-  Menu,
-  X,
+  ClipboardList,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
+import { ROLE_LABEL_BY_ID } from "@/components/settings/equipo-section";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +48,30 @@ const ALL_NAV: Array<{
   { label: "Configuración", to: "/settings", icon: Settings, permKey: "configuracion" },
 ];
 
+// Orden de prioridad de la barra inferior móvil, por rol — no es una lista
+// única: cada rol usa la app distinto (un profesional entra a su agenda
+// primero, un recepcionista a Agenda/Caja/Clientes, un dueño a todo). El
+// permiso real sigue siendo el mismo de siempre (`permissions`/`isOwner`);
+// esto solo decide en qué orden se evalúan para elegir cuáles entran en los
+// primeros 4 slots antes de mandar el resto a "Más".
+const MOBILE_NAV_ORDER_DEFAULT: PermKey[] = [
+  "dashboard", "agenda", "caja", "clientes", "profesionales", "asesor_ia", "configuracion",
+];
+const MOBILE_NAV_ORDER_PROFESIONAL: PermKey[] = [
+  "profesionales", "clientes", "dashboard", "agenda", "caja", "asesor_ia", "configuracion",
+];
+const MOBILE_NAV_ORDER_RECEPCIONISTA: PermKey[] = [
+  "agenda", "caja", "clientes", "dashboard", "profesionales", "asesor_ia", "configuracion",
+];
+
+// Etiquetas de rol para el menú de perfil. Los roles de equipo (Admin.
+// General, Socio, etc.) vienen de Configuración → Equipo → Accesos; "owner"
+// es el dueño de la cuenta que creó el negocio (no pasa por team_members).
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Propietario",
+  ...ROLE_LABEL_BY_ID,
+};
+
 function initialsOf(name?: string | null, email?: string | null) {
   const src = (name || email || "").trim();
   if (!src) return "··";
@@ -54,19 +79,6 @@ function initialsOf(name?: string | null, email?: string | null) {
   return (
     ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || src.slice(0, 2).toUpperCase()
   );
-}
-
-// Kept for backwards compatibility with components that imported these.
-type SidebarCtx = { open: boolean; setOpen: (v: boolean) => void };
-const Ctx = React.createContext<SidebarCtx | null>(null);
-
-export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false);
-  return <Ctx.Provider value={{ open, setOpen }}>{children}</Ctx.Provider>;
-}
-export function useSidebarToggle() {
-  const ctx = React.useContext(Ctx);
-  return ctx ?? { open: false, setOpen: () => {} };
 }
 
 function Brand() {
@@ -246,24 +258,51 @@ function NotificationsButton() {
   );
 }
 
+const AVATAR_GRADIENT = "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))";
+
 function UserMenu() {
   const { profile, signOut } = useAuth();
   const initials = initialsOf(profile?.full_name, profile?.email);
+  const roleLabel = (profile?.role && ROLE_LABELS[profile.role]) || "Sin rol asignado";
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Cuenta"
-          className="h-8 w-8 rounded-xl grid place-items-center text-sm font-semibold text-white ring-1 ring-white/10 hover:brightness-110 transition"
-          style={{
-            background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
-          }}
+          className="h-10 w-10 rounded-xl grid place-items-center glass glass-hover transition active:scale-[0.96]"
         >
-          {initials}
+          <span
+            className="grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold text-white"
+            style={{ background: AVATAR_GRADIENT }}
+          >
+            {initials}
+          </span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent
+        align="end"
+        collisionPadding={16}
+        className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-3 shadow-2xl shadow-black/40 backdrop-blur-xl"
+      >
+        <div className="flex items-center gap-3 px-1 py-1.5">
+          <span
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
+            style={{ background: AVATAR_GRADIENT }}
+          >
+            {initials}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-white">
+              {profile?.full_name || "Usuario"}
+            </div>
+            <div className="truncate text-xs text-white/50">{profile?.email || "—"}</div>
+            <div className="mt-1 inline-flex items-center rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/70 ring-1 ring-white/10">
+              {roleLabel}
+            </div>
+          </div>
+        </div>
+        <DropdownMenuSeparator className="my-2" />
         <DropdownMenuItem
           onClick={() => signOut()}
           className="cursor-pointer text-destructive focus:text-destructive"
@@ -419,7 +458,7 @@ function PublicSiteMenu() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Reservas online"
-          className="hidden sm:inline-flex h-9 items-center gap-2 rounded-xl bg-white/[0.04] px-3 text-sm font-medium text-white/85 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
+          className="inline-flex h-10 items-center gap-2 rounded-xl glass glass-hover px-2.5 text-sm font-medium text-white/85 transition active:scale-[0.96] hover:text-white"
         >
           <span className="relative grid h-5 w-5 place-items-center">
             <Globe className="h-4.5 w-4.5" />
@@ -427,24 +466,28 @@ function PublicSiteMenu() {
               WWW
             </span>
           </span>
-          <span>Reservas online</span>
+          {/* En mobile el espacio es reducido: solo el ícono + badge, sin
+              texto. Mismo botón, mismo comportamiento — el label se oculta,
+              no se duplica el trigger. */}
+          <span className="hidden sm:inline">Reservas online</span>
         </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align="end"
-        className="w-[430px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
+        collisionPadding={16}
+        className="w-[calc(100vw-2rem)] sm:w-[430px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
+        {/* Fila 1: ícono + título (se trunca si hace falta) a la izquierda,
+            badge de estado siempre a la derecha, sin superponerse — mismo
+            patrón que Stripe/Linear/Vercel. Fila 2: subtítulo, alineado bajo
+            el título (no bajo el ícono). Sin posiciones absolutas acá, todo
+            resuelto con flex para que nunca puedan invadirse. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <Globe className="h-6 w-6 shrink-0 text-white/65" />
-            <div className="min-w-0">
-              <div className="whitespace-nowrap text-lg font-semibold leading-tight text-white">
-                Sitio Web Público
-              </div>
-              <div className="mt-0.5 text-xs text-white/45">
-                Reservas online
-              </div>
+            <div className="min-w-0 truncate text-lg font-semibold leading-tight text-white">
+              Sitio Web Público
             </div>
           </div>
 
@@ -453,7 +496,7 @@ function PublicSiteMenu() {
             disabled={savingMaintenance || !slug}
             onClick={() => updateMaintenance(!maintenance)}
             className={[
-              "inline-flex shrink-0 items-center gap-3 rounded-full px-2 py-1 text-sm font-semibold ring-1 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45",
+              "inline-flex shrink-0 items-center gap-2 rounded-full px-2 py-1 text-sm font-semibold ring-1 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45",
               maintenance
                 ? "bg-amber-500/12 text-amber-200 ring-amber-500/35"
                 : "bg-emerald-500/12 text-emerald-200 ring-emerald-500/35",
@@ -462,7 +505,7 @@ function PublicSiteMenu() {
           >
             <span
               className={[
-                "relative h-7 w-12 rounded-full ring-1 transition",
+                "relative h-7 w-12 shrink-0 rounded-full ring-1 transition",
                 maintenance
                   ? "bg-amber-500/25 ring-amber-400/35"
                   : "bg-emerald-500/25 ring-emerald-400/35",
@@ -477,10 +520,13 @@ function PublicSiteMenu() {
                 ].join(" ")}
               />
             </span>
-            <span className="min-w-[104px] text-left">
+            <span className="whitespace-nowrap text-left">
               {maintenance ? "Mantenimiento" : "Online"}
             </span>
           </button>
+        </div>
+        <div className="mt-0.5 pl-8 text-xs text-white/45">
+          Reservas online
         </div>
 
         <div className="mt-3 break-all text-base text-white/55">
@@ -514,9 +560,97 @@ function PublicSiteMenu() {
   );
 }
 
-export function AppSidebar() {
-  const { open, setOpen } = useSidebarToggle();
+type MobileNavEntry = {
+  label: string;
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permKey: PermKey;
+};
 
+function MobileBottomNav() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { permissions, profile } = useAuth();
+  const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
+  const isProfessional = profile?.role === "profesional";
+
+  const order =
+    profile?.role === "profesional"
+      ? MOBILE_NAV_ORDER_PROFESIONAL
+      : profile?.role === "recepcionista"
+        ? MOBILE_NAV_ORDER_RECEPCIONISTA
+        : MOBILE_NAV_ORDER_DEFAULT;
+
+  const items: MobileNavEntry[] = order
+    .map((key) => ALL_NAV.find((item) => item.permKey === key))
+    .filter((item): item is (typeof ALL_NAV)[number] & { permKey: PermKey } => !!item)
+    .filter((item) => isOwner || permissions[item.permKey] === true)
+    .map((item) => {
+      if (item.permKey === "profesionales" && isProfessional) {
+        return { ...item, label: "Mi Agenda", icon: ClipboardList };
+      }
+      if (item.permKey === "dashboard") {
+        return { ...item, label: "Inicio" };
+      }
+      return item;
+    });
+
+  if (items.length === 0) return null;
+
+  const overflow = items.length > 5 ? items.slice(4) : [];
+  const primary = overflow.length > 0 ? items.slice(0, 4) : items;
+  const slots = primary.length + (overflow.length > 0 ? 1 : 0);
+
+  return (
+    <nav
+      className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
+      <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${slots}, minmax(0, 1fr))` }}>
+        {primary.map((item) => {
+          const active = pathname === item.to;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition active:scale-[0.96]",
+                active ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+        {overflow.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground transition active:scale-[0.96]">
+                <MoreHorizontal className="h-5 w-5" />
+                <span>Más</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" sideOffset={8} className="w-48">
+              {overflow.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <DropdownMenuItem key={item.to} asChild className="cursor-pointer">
+                    <Link to={item.to}>
+                      <Icon className="h-4 w-4 mr-2" /> {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+export function AppSidebar() {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-black shadow-[0_1px_0_rgba(255,255,255,.05)]">
@@ -532,39 +666,11 @@ export function AppSidebar() {
           <div className="ml-auto flex items-center gap-2">
             <PublicSiteMenu />
             <UserMenu />
-            <button
-              onClick={() => setOpen(true)}
-              className="lg:hidden h-10 w-10 grid place-items-center rounded-xl glass glass-hover"
-              aria-label="Abrir menú"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile drawer */}
-      {open && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <button
-            aria-label="Cerrar menú"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          />
-          <aside className="absolute right-0 top-0 h-full w-72 max-w-[85%] border-l border-border bg-background p-4 animate-fade-up">
-            <div className="flex items-center justify-between mb-6">
-              <Brand />
-              <button
-                onClick={() => setOpen(false)}
-                className="h-9 w-9 grid place-items-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <NavItems vertical onNavigate={() => setOpen(false)} />
-          </aside>
-        </div>
-      )}
+      <MobileBottomNav />
     </>
   );
 }

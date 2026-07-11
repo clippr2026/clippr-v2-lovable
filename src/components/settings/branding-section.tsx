@@ -367,7 +367,7 @@ export function BrandingSection() {
           (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
-        profile_note: (cfg.profile_note as string) ?? "",
+        profile_note: ((cfg.profile_note as string) ?? "").slice(0, 50),
         profile_note_active: cfg.profile_note_active === true,
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
@@ -1045,15 +1045,6 @@ export function BrandingSection() {
 
   return (
     <>
-      <div>
-        <h2 className="text-xl font-display font-semibold">
-          Página de reservas
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configuración de la página pública de reservas
-        </p>
-      </div>
-
       <SectionCard label="Estado">
         <div
           className={cn(
@@ -1082,7 +1073,7 @@ export function BrandingSection() {
               className={cn(
                 "relative h-8 w-16 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary/40",
                 data.profile_note_active
-                  ? "border-violet-400/35 bg-violet-500/25 shadow-[0_0_22px_rgba(139,92,246,0.22)]"
+                  ? "border-violet-400/35 bg-violet-500/25 shadow-[0_0_14px_rgba(139,92,246,0.14)]"
                   : "border-white/8 bg-white/[0.035]",
               )}
             >
@@ -1147,16 +1138,16 @@ export function BrandingSection() {
                 onChange={(e) =>
                   setData((d) => ({
                     ...d,
-                    profile_note: e.target.value.slice(0, 140),
+                    profile_note: e.target.value.slice(0, 50),
                   }))
                 }
-                maxLength={140}
+                maxLength={50}
                 placeholder="🔥 Todos los Miercoles 20% OFF EN EFECTIVO"
                 className={cn(
-                  "w-full rounded-xl px-3 py-2.5 pr-10 text-sm transition focus:outline-none",
+                  "w-full rounded-xl px-3 py-2 pr-10 text-sm transition focus:outline-none",
                   data.profile_note_active
-                    ? "bg-white/5 ring-1 ring-violet-400/40 focus:ring-violet-300/60 text-white"
-                    : "bg-white/[0.035] ring-1 ring-white/10 text-white/60 placeholder:text-white/35 focus:ring-white/20",
+                    ? "bg-white/[0.03] ring-1 ring-violet-400/25 shadow-[0_0_12px_-2px_rgba(139,92,246,0.16)] focus:ring-violet-300/45 text-white"
+                    : "bg-white/[0.025] ring-1 ring-white/[0.07] text-white/60 placeholder:text-white/35 focus:ring-white/20",
                 )}
               />
               {data.profile_note.trim() ? (
@@ -1176,13 +1167,13 @@ export function BrandingSection() {
                 </button>
               ) : null}
             </div>
-            <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>
+            <div className="mt-1.5 flex items-center justify-between text-[10px]">
+              <span className="text-muted-foreground/70">
                 {data.profile_note_active
                   ? "Publicado en tu página pública"
                   : "Guardado como borrador. Activá el switch para publicarlo."}
               </span>
-              <span>{data.profile_note.length}/140</span>
+              <span className="text-muted-foreground/50">{data.profile_note.length}/50</span>
             </div>
           </div>
         </div>

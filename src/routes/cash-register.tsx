@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { resolveServicePricing } from "@/lib/service-pricing";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -6105,6 +6106,21 @@ function CierresTab({
   );
 }
 
+const CHARGE_TYPE_META: Record<string, { label: string; cls: string }> = {
+  auto:   { label: "Automático", cls: "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300" },
+  manual: { label: "Manual",     cls: "bg-blue-500/10  ring-blue-400/25  text-blue-200"  },
+  caja:   { label: "Caja",       cls: "bg-sky-500/10    ring-sky-400/25    text-sky-300"    },
+};
+
+const STATUS_META: Record<string, { label: string; dot: string }> = {
+  cobrado:     { label: "Cobrado",     dot: "bg-emerald-400" },
+  pendiente:   { label: "Pendiente",   dot: "bg-blue-400"   },
+  pending_payment: { label: "Pendiente", dot: "bg-blue-400" },
+  aprobado:    { label: "Aprobado",    dot: "bg-sky-400"     },
+  anulado:     { label: "Anulado",     dot: "bg-rose-400"    },
+  reembolsado: { label: "Reembolsado", dot: "bg-violet-400"  },
+};
+
 function StatusPill({ status }: { status: string }) {
   const m = STATUS_META[status] ?? { label: status, dot: "bg-white/40" };
   return (
@@ -7535,20 +7551,26 @@ type MultiSplit = { method: string; amount: string };
 
 type PendingCharge = ReturnType<typeof useCajaData>["pendingCharges"][number];
 
-function NuevaVentaTab({
+export function NuevaVentaTab({
   data,
   pendingCharge = null,
   onPendingDone,
   onSaleDone,
   userEmail,
+  lockedEmployeeId,
 }: {
   data: ReturnType<typeof useCajaData>;
   pendingCharge?: PendingCharge | null;
   onPendingDone?: () => void;
   onSaleDone?: () => void;
   userEmail: string | null;
+  // Cuando viene seteado (ej. desde Mi Agenda del profesional), el paso
+  // "Profesional" se salta — ya viene elegido y no se puede cambiar.
+  lockedEmployeeId?: string;
 }) {
-  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(pendingCharge ? 4 : 1);
+  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(
+    pendingCharge ? 4 : lockedEmployeeId ? 2 : 1,
+  );
   const [cart, setCart] = React.useState<Record<string, number>>({});
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState<string>("");
@@ -7559,7 +7581,7 @@ function NuevaVentaTab({
   const [email, setEmail] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
   const [employeeId, setEmployeeId] = React.useState<string>(
-    pendingCharge?.employee_id ?? "",
+    pendingCharge?.employee_id ?? lockedEmployeeId ?? "",
   );
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">(
@@ -7629,14 +7651,31 @@ function NuevaVentaTab({
 
   // If the service from pending is NOT in the catalogue we still need to show it in the cart.
   // We build a synthetic catalogue entry and inject it.
+  // Precio efectivo de cada servicio/producto para el profesional ya elegido
+  // (paso 1), resuelto con el mismo `resolveServicePricing` que usan Agenda,
+  // Mi Agenda y la Página Pública — el picker, el carrito y el total salen
+  // todos de esta lista, así que quedan consistentes por construcción.
+  const servicesForEmployee = React.useMemo(() => {
+    if (!employeeId) return data.services;
+    return data.services.map((s) => {
+      if (s.is_catalog) return s;
+      const resolved = resolveServicePricing(
+        { id: s.id, price: s.price, duration_min: s.duration },
+        employeeId,
+        data.employeeServiceOverrides,
+      );
+      return resolved.priceOverridden ? { ...s, price: resolved.price } : s;
+    });
+  }, [data.services, data.employeeServiceOverrides, employeeId]);
+
   const servicesWithSynthetic = React.useMemo(() => {
-    if (!pendingCharge || !syntheticServiceId) return data.services;
-    const alreadyMatched = data.services.some(
+    if (!pendingCharge || !syntheticServiceId) return servicesForEmployee;
+    const alreadyMatched = servicesForEmployee.some(
       (s) =>
         s.name.toLowerCase() ===
         (pendingCharge.service_name ?? "").toLowerCase(),
     );
-    if (alreadyMatched) return data.services;
+    if (alreadyMatched) return servicesForEmployee;
     // Inject a synthetic read-only service
     const synthetic = {
       id: syntheticServiceId,
@@ -7647,8 +7686,8 @@ function NuevaVentaTab({
       stock: null,
       image_url: (pendingCharge as any).image_url ?? (pendingCharge as any).service_image_url ?? null,
     } as (typeof data.services)[0];
-    return [synthetic, ...data.services];
-  }, [data.services, pendingCharge, syntheticServiceId]);
+    return [synthetic, ...servicesForEmployee];
+  }, [servicesForEmployee, pendingCharge, syntheticServiceId]);
 
   // Inject synthetic into cart once services resolve
   React.useEffect(() => {
@@ -8022,6 +8061,11 @@ function NuevaVentaTab({
     { n: 3, label: "Servicios", hint: cartCount > 0 ? `${cartCount} ítem${cartCount === 1 ? "" : "s"}` : "Agregá servicios", icon: ClipboardList },
     { n: 4, label: "Pago", hint: total > 0 ? `$${total.toLocaleString("es-AR")}` : "Confirmá cobro", icon: CreditCard },
   ] as const;
+  // Con profesional bloqueado (ej. Mi Agenda), ese paso no se muestra: ya
+  // viene elegido y no se puede cambiar.
+  const visibleStepItems = lockedEmployeeId
+    ? stepItems.filter((s) => s.n !== 1)
+    : stepItems;
 
   function canOpenStep(target: 1 | 2 | 3 | 4) {
     if (target > 1 && !employeeId) return false;
@@ -8035,8 +8079,8 @@ function NuevaVentaTab({
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
-        <div className="grid grid-cols-4 gap-2">
-          {stepItems.map((s, index) => {
+        <div className={cn("grid gap-2", lockedEmployeeId ? "grid-cols-3" : "grid-cols-4")}>
+          {visibleStepItems.map((s, index) => {
             const active = step === s.n;
             const done = step > s.n;
             const enabled = canOpenStep(s.n);
@@ -8064,7 +8108,7 @@ function NuevaVentaTab({
                   !enabled && !active && "cursor-not-allowed opacity-55",
                 )}
               >
-                {index < stepItems.length - 1 && (
+                {index < visibleStepItems.length - 1 && (
                   <span className={cn(
                     "pointer-events-none absolute right-[-10px] top-1/2 hidden h-px w-5 -translate-y-1/2 md:block",
                     done ? "bg-emerald-300/40" : "bg-white/10",
@@ -8083,7 +8127,11 @@ function NuevaVentaTab({
                   </span>
                   <span className="min-w-0">
                     <span className={cn("block text-sm font-extrabold", active ? "text-white" : "text-current")}>
-                      {s.n} · {s.label}
+                      {/* Con profesional bloqueado (Mi Agenda) no se numeran
+                          los pasos — el paso "Profesional" ya no existe acá,
+                          así que "2 · Cliente" quedaba con una numeración
+                          que no tenía sentido para el profesional. */}
+                      {lockedEmployeeId ? s.label : `${s.n} · ${s.label}`}
                     </span>
                     <span className={cn("mt-0.5 block truncate text-[10px] font-medium", active ? "text-white/75" : "text-white/40")}>
                       {s.hint}
@@ -8637,21 +8685,29 @@ function NuevaVentaTab({
 
       <div className="relative z-20 mt-auto shrink-0 pt-3 pb-4">
         <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3 py-2 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
-          <button
-            onClick={() =>
-              setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s))
-            }
-            disabled={step === 1}
-            className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-40 transition-all"
-          >
-            ← Volver
-          </button>
+          {/* Con profesional bloqueado (Mi Agenda) el flujo arranca en
+              Cliente (paso 2) y no debe poder retroceder al paso
+              Profesional, que ni siquiera existe acá — el botón directamente
+              no se muestra estando en el primer paso visible. */}
+          {step > (lockedEmployeeId ? 2 : 1) && (
+            <button
+              onClick={() =>
+                setStep((s) => {
+                  const floor = lockedEmployeeId ? 2 : 1;
+                  return s > floor ? ((s - 1) as 1 | 2 | 3 | 4) : s;
+                })
+              }
+              className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+            >
+              ← Volver
+            </button>
+          )}
           <div className="min-w-0 flex-1 text-right sm:text-left">
             <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">
               TOTAL
             </p>
             <p className="text-sm text-foreground truncate">
-              Profesional: {selectedEmployee?.name ?? "Sin profesional"} ·
+              {!lockedEmployeeId && `Profesional: ${selectedEmployee?.name ?? "Sin profesional"} · `}
               Cliente:{" "}
               {clientId ? client || "Cliente seleccionado" : "Sin cliente"}
             </p>

@@ -6,20 +6,27 @@ import {
   Check,
   Plus,
   Trash2,
-  ChevronDown,
   Mail,
   UserPlus,
   CheckCircle2,
   XCircle,
   ShieldCheck,
   Loader2,
+  CalendarPlus,
+  Globe,
+  Camera,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SpecialHoursEditor } from "@/components/settings/special-hours-editor";
 import type {
   SpecialDateMap,
   EmployeeSpecialDateMap,
 } from "@/components/agenda/use-agenda-data";
+import {
+  resolveServicePricing,
+  type ServiceOverrideConfig,
+  type EmployeeServiceOverrideMap,
+} from "@/lib/service-pricing";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
   SectionCard,
@@ -153,8 +160,13 @@ type PendingProfessional = {
     role?: string | null;
     acceptsOnline?: boolean;
     commissions?: Record<string, CommissionConfig>;
+    serviceOverrides?: Record<string, ServiceOverrideConfig>;
     schedule?: ScheduleMap;
     specialDates?: SpecialDateMap;
+    approvalEnabled?: boolean;
+    approvalMode?: "auto" | "manual";
+    canAddTurno?: boolean;
+    canCancelTurno?: boolean;
   };
   isNew: boolean;
 };
@@ -165,6 +177,13 @@ type CommissionConfig = {
   enabled: boolean;
   mode: CommissionMode;
   value: string;
+};
+
+const DEFAULT_SERVICE_OVERRIDE: ServiceOverrideConfig = {
+  useStandardDuration: true,
+  duration_min: "",
+  useStandardPrice: true,
+  price: "",
 };
 
 type NewProForm = {
@@ -181,7 +200,12 @@ type NewProForm = {
   commissionPct: string;
   avatarUrl: string;
   commissions: Record<string, CommissionConfig>;
+  serviceOverrides: Record<string, ServiceOverrideConfig>;
   specialDates: SpecialDateMap;
+  approvalEnabled: boolean;
+  approvalMode: "auto" | "manual";
+  canAddTurno: boolean;
+  canCancelTurno: boolean;
 };
 
 const EMPTY_FORM: NewProForm = {
@@ -198,14 +222,261 @@ const EMPTY_FORM: NewProForm = {
   commissionPct: "",
   avatarUrl: "",
   commissions: {},
+  serviceOverrides: {},
   specialDates: {},
+  approvalEnabled: false,
+  approvalMode: "auto",
+  canAddTurno: false,
+  canCancelTurno: false,
 };
 
+/**
+ * Fila compacta ícono + título + descripción + switch — usada por los 4
+ * permisos del profesional (Acepta reservas online, Habilitar modo de
+ * aprobación, Puede agregar turnos, Puede cancelar turnos) para que los
+ * cuatro bloques sean visualmente idénticos.
+ */
+function PermissionToggleRow({
+  icon: Icon,
+  title,
+  desc,
+  on,
+  onChange,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  desc: string;
+  on: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-3 py-2">
+      <div className="h-8 w-8 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+        <Icon className="h-3.5 w-3.5 text-violet-200" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium leading-tight">{title}</div>
+        <div className="text-xs text-muted-foreground mt-0.5 leading-snug">{desc}</div>
+      </div>
+      <Toggle on={on} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * Modo de aprobación de cobros de UN profesional. Antes era un switch global
+ * para todo el negocio (mismo copy/lógica) — ahora vive por profesional,
+ * dentro de su diálogo de edición. Sin lógica de cobro propia: solo define
+ * `approvalEnabled`/`approvalMode`, que Mi Agenda ya sabe interpretar.
+ */
+function ApprovalModeCard({
+  enabled,
+  mode,
+  onToggleEnabled,
+  onChangeMode,
+  canAddTurno,
+  onToggleCanAddTurno,
+  canCancelTurno,
+  onToggleCanCancelTurno,
+}: {
+  enabled: boolean;
+  mode: "auto" | "manual";
+  onToggleEnabled: (v: boolean) => void;
+  onChangeMode: (v: "auto" | "manual") => void;
+  canAddTurno: boolean;
+  onToggleCanAddTurno: (v: boolean) => void;
+  canCancelTurno: boolean;
+  onToggleCanCancelTurno: (v: boolean) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <PermissionToggleRow
+        icon={CalendarPlus}
+        title="Puede agregar turnos desde su panel"
+        desc="Permite crear turnos desde Mi Agenda. Impactan en Agenda general."
+        on={canAddTurno}
+        onChange={onToggleCanAddTurno}
+      />
+      <PermissionToggleRow
+        icon={Trash2}
+        title="Puede cancelar turnos desde su panel"
+        desc="Permite cancelar o eliminar turnos desde Mi Agenda."
+        on={canCancelTurno}
+        onChange={onToggleCanCancelTurno}
+      />
+
+      <PermissionToggleRow
+        icon={ShieldCheck}
+        title="Habilitar modo de aprobación"
+        desc="Cobro directo en Caja o requiere revisión."
+        on={enabled}
+        onChange={onToggleEnabled}
+      />
+
+      {enabled && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 pt-0.5">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onChangeMode("auto")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onChangeMode("auto");
+              }
+            }}
+            className={cn(
+              "group text-left rounded-xl p-3.5 ring-1 transition-all relative overflow-hidden cursor-pointer",
+              mode === "auto"
+                ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
+                : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
+            )}
+          >
+            <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-sky-400/10 blur-3xl" />
+            <div className="relative flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Modo
+                </div>
+                <div className="mt-0.5 text-base font-display font-semibold">
+                  Automático
+                </div>
+              </div>
+              {mode === "auto" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+                  Seleccionado
+                </span>
+              )}
+            </div>
+
+            <div className="relative mt-2">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
+                Descripción
+              </div>
+              <p className="mt-1 text-xs leading-snug text-white/75">
+                El profesional cobra desde su panel y el ingreso se registra
+                automáticamente en Caja.
+              </p>
+            </div>
+
+            <div className="relative mt-2">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
+                Para qué sirve
+              </div>
+              <p className="mt-1 text-xs leading-snug text-white/75">
+                Ideal si cada profesional cobra directamente a sus clientes.
+              </p>
+            </div>
+
+            <div className="relative mt-2">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
+                Ejemplo
+              </div>
+              <p className="mt-1 text-xs leading-snug text-white/60">
+                Juan finaliza un servicio de{" "}
+                <span className="font-semibold text-white/80">$20.000</span> y
+                cobra desde su panel.
+              </p>
+              <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-white/[0.045] px-2.5 py-1.5 ring-1 ring-white/10 text-xs">
+                <span className="font-mono text-[10px] text-white/42">12:00</span>
+                <span className="font-semibold text-white">Juan</span>
+                <span className="text-white/35">→</span>
+                <span className="font-semibold text-emerald-400">Cobró</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onChangeMode("manual")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onChangeMode("manual");
+              }
+            }}
+            className={cn(
+              "group text-left rounded-xl p-3.5 ring-1 transition-all relative overflow-hidden cursor-pointer",
+              mode === "manual"
+                ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
+                : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
+            )}
+          >
+            <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-violet-400/10 blur-3xl" />
+            <div className="relative flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Modo
+                </div>
+                <div className="mt-0.5 text-base font-display font-semibold">
+                  Manual
+                </div>
+              </div>
+              {mode === "manual" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+                  Seleccionado
+                </span>
+              )}
+            </div>
+
+            <div className="relative mt-2">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
+                Descripción
+              </div>
+              <p className="mt-1 text-xs leading-snug text-white/75">
+                El profesional envía el cobro y Recepción lo revisa antes de
+                registrarlo oficialmente.
+              </p>
+            </div>
+
+            <div className="relative mt-2">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
+                Para qué sirve
+              </div>
+              <p className="mt-1 text-xs leading-snug text-white/75">
+                Ideal para que profesionales y Recepción tengan el mismo
+                control sobre los servicios realizados.
+              </p>
+            </div>
+
+            <div className="relative mt-2">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
+                Ejemplo
+              </div>
+              <p className="mt-1 text-xs leading-snug text-white/60">
+                Juan finaliza un servicio de{" "}
+                <span className="font-semibold text-white/80">$20.000</span> y
+                envía el cobro desde su panel.
+              </p>
+              <div className="mt-1.5 space-y-1">
+                <div className="flex items-center gap-2 rounded-lg bg-white/[0.045] px-2.5 py-1.5 ring-1 ring-white/10 text-xs">
+                  <span className="font-mono text-[10px] text-white/42">12:00</span>
+                  <span className="font-semibold text-white">Juan</span>
+                  <span className="text-white/35">→</span>
+                  <span className="font-semibold text-sky-400">Envió a Recepción</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/[0.045] px-2.5 py-1.5 ring-1 ring-white/10 text-xs">
+                  <span className="font-mono text-[10px] text-white/42">12:01</span>
+                  <span className="font-semibold text-white">Recepción</span>
+                  <span className="text-white/35">→</span>
+                  <span className="font-semibold text-emerald-400">Cobró</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 const timeCls =
-  "rounded-md bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs focus:outline-none w-[72px]";
+  "rounded-md bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs focus:outline-none w-[72px] [color-scheme:dark]";
 
 
-type RolePermissionId =
+export type RolePermissionId =
   "admin_general" | "socio" | "admin_local" | "recepcionista" | "profesional";
 
 type PermissionKey =
@@ -251,7 +522,7 @@ type AccessFormState = {
   branch_id: string | null;
 };
 
-const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
+export const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
   admin_general: "Admin. General",
   socio: "Socio",
   admin_local: "Administrador Local",
@@ -609,12 +880,22 @@ export function EquipoSection() {
   const [userPermissions, setUserPermissions] = useState<
     Record<string, PermissionMap>
   >({});
-  const [approvalEnabled, setApprovalEnabled] = useState(false);
-  const [approvalMode, setApprovalMode] = useState<"auto" | "manual">("auto");
-  const [showAutoApprovalExample, setShowAutoApprovalExample] = useState(false);
-  const [showManualApprovalExample, setShowManualApprovalExample] = useState(false);
-  const [showAutoApprovalPurpose, setShowAutoApprovalPurpose] = useState(false);
-  const [showManualApprovalPurpose, setShowManualApprovalPurpose] = useState(false);
+  // Modo de aprobación de cobros — antes un único valor global, ahora un
+  // mapa por profesional (mismo dato, mismo significado, distinta clave).
+  const [employeeApprovalEnabledMap, setEmployeeApprovalEnabledMap] = useState<
+    Record<string, boolean>
+  >({});
+  const [employeeApprovalModeMap, setEmployeeApprovalModeMap] = useState<
+    Record<string, "auto" | "manual">
+  >({});
+  // Permisos propios del profesional dentro de Mi Agenda — mismo patrón que
+  // el modo de aprobación: por profesional, no por login de acceso.
+  const [employeeCanAddTurnoMap, setEmployeeCanAddTurnoMap] = useState<
+    Record<string, boolean>
+  >({});
+  const [employeeCanCancelTurnoMap, setEmployeeCanCancelTurnoMap] = useState<
+    Record<string, boolean>
+  >({});
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [employeeOnlineMap, setEmployeeOnlineMap] = useState<
     Record<string, boolean>
@@ -627,6 +908,15 @@ export function EquipoSection() {
   >({});
   const [employeeSpecialDates, setEmployeeSpecialDates] =
     useState<EmployeeSpecialDateMap>({});
+  // Comisiones y overrides de precio/duración por profesional-servicio,
+  // cargados desde business_settings.schedule para poder hidratar el form al
+  // reabrir "Editar profesional" (antes esto no se cargaba y se perdía al
+  // reabrir el diálogo).
+  const [employeeCommissionsMap, setEmployeeCommissionsMap] = useState<
+    Record<string, Record<string, CommissionConfig>>
+  >({});
+  const [employeeServiceOverridesMap, setEmployeeServiceOverridesMap] =
+    useState<EmployeeServiceOverrideMap>({});
   const [pendingProfessionals, setPendingProfessionals] = useState<
     PendingProfessional[]
   >([]);
@@ -640,6 +930,17 @@ export function EquipoSection() {
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<"perfil" | "horarios" | "comisiones">(
     "perfil",
+  );
+  // Sub-pestañas internas de "Comisiones" — Servicios y Catálogo se editan
+  // por separado sin cerrar ni mover el modal. La pestaña principal sigue
+  // llamándose "Comisiones" en la barra de arriba.
+  const [commTab, setCommTab] = useState<"servicios" | "catalogo">(
+    "servicios",
+  );
+  // Ids de servicios con el bloque "Personalizar duración y precio"
+  // expandido en la pestaña Comisiones — solo estado de UI, no se persiste.
+  const [expandedOverrideIds, setExpandedOverrideIds] = useState<Set<string>>(
+    new Set(),
   );
 
   const load = useCallback(async () => {
@@ -758,12 +1059,11 @@ export function EquipoSection() {
     if (!businessId) return;
     supabase
       .from("business_settings")
-      .select("schedule,approval_mode")
+      .select("schedule")
       .eq("business_id", businessId)
       .maybeSingle()
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
-        const caja = (schedule._caja ?? {}) as Record<string, unknown>;
         setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
         const visibility = getPublicVisibility(schedule);
         setEmployeeOnlineMap(
@@ -796,8 +1096,46 @@ export function EquipoSection() {
             role: employeeRoles[emp.id] ?? emp.role ?? null,
           })),
         );
-        setApprovalEnabled(caja.approvalModeEnabled === true);
-        setApprovalMode(data?.approval_mode === "manual" ? "manual" : "auto");
+        const loadedApprovalEnabled = (
+          schedule._employeeApprovalEnabled &&
+          typeof schedule._employeeApprovalEnabled === "object"
+            ? schedule._employeeApprovalEnabled
+            : {}
+        ) as Record<string, boolean>;
+        setEmployeeApprovalEnabledMap(loadedApprovalEnabled);
+        const loadedApprovalMode = (
+          schedule._employeeApprovalMode &&
+          typeof schedule._employeeApprovalMode === "object"
+            ? schedule._employeeApprovalMode
+            : {}
+        ) as Record<string, "auto" | "manual">;
+        setEmployeeApprovalModeMap(loadedApprovalMode);
+        const loadedCanAddTurno = (
+          schedule._employeeAgendaAdd && typeof schedule._employeeAgendaAdd === "object"
+            ? schedule._employeeAgendaAdd
+            : {}
+        ) as Record<string, boolean>;
+        setEmployeeCanAddTurnoMap(loadedCanAddTurno);
+        const loadedCanCancelTurno = (
+          schedule._employeeAgendaCancel && typeof schedule._employeeAgendaCancel === "object"
+            ? schedule._employeeAgendaCancel
+            : {}
+        ) as Record<string, boolean>;
+        setEmployeeCanCancelTurnoMap(loadedCanCancelTurno);
+        const loadedCommissions = (
+          schedule._employeeCommissions &&
+          typeof schedule._employeeCommissions === "object"
+            ? schedule._employeeCommissions
+            : {}
+        ) as Record<string, Record<string, CommissionConfig>>;
+        setEmployeeCommissionsMap(loadedCommissions);
+        const loadedServiceOverrides = (
+          schedule._employeeServiceOverrides &&
+          typeof schedule._employeeServiceOverrides === "object"
+            ? schedule._employeeServiceOverrides
+            : {}
+        ) as EmployeeServiceOverrideMap;
+        setEmployeeServiceOverridesMap(loadedServiceOverrides);
       });
   }, [businessId]);
 
@@ -839,8 +1177,18 @@ export function EquipoSection() {
           >;
           const existingCommissions = (existingSchedule._employeeCommissions ??
             {}) as Record<string, unknown>;
+          const existingServiceOverrides = (existingSchedule
+            ._employeeServiceOverrides ?? {}) as Record<string, unknown>;
           const existingRoles = (existingSchedule._employeeRoles ??
             {}) as Record<string, string>;
+          const existingApprovalEnabled = (existingSchedule
+            ._employeeApprovalEnabled ?? {}) as Record<string, boolean>;
+          const existingApprovalMode = (existingSchedule
+            ._employeeApprovalMode ?? {}) as Record<string, "auto" | "manual">;
+          const existingCanAddTurno = (existingSchedule
+            ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
+          const existingCanCancelTurno = (existingSchedule
+            ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(
             visibility.employees ?? existingSchedule._employeeOnline,
@@ -857,9 +1205,31 @@ export function EquipoSection() {
                       [inserted.id]: payload.commissions,
                     }
                   : existingCommissions,
+                _employeeServiceOverrides: payload.serviceOverrides
+                  ? {
+                      ...existingServiceOverrides,
+                      [inserted.id]: payload.serviceOverrides,
+                    }
+                  : existingServiceOverrides,
                 _employeeRoles: {
                   ...existingRoles,
                   [inserted.id]: payload.role ?? "Profesional",
+                },
+                _employeeApprovalEnabled: {
+                  ...existingApprovalEnabled,
+                  [inserted.id]: payload.approvalEnabled === true,
+                },
+                _employeeApprovalMode: {
+                  ...existingApprovalMode,
+                  [inserted.id]: payload.approvalMode === "manual" ? "manual" : "auto",
+                },
+                _employeeAgendaAdd: {
+                  ...existingCanAddTurno,
+                  [inserted.id]: payload.canAddTurno === true,
+                },
+                _employeeAgendaCancel: {
+                  ...existingCanCancelTurno,
+                  [inserted.id]: payload.canCancelTurno === true,
                 },
                 _employeeSchedules: payload.schedule
                   ? {
@@ -908,8 +1278,18 @@ export function EquipoSection() {
           >;
           const existingCommissions = (existingSchedule._employeeCommissions ??
             {}) as Record<string, unknown>;
+          const existingServiceOverrides = (existingSchedule
+            ._employeeServiceOverrides ?? {}) as Record<string, unknown>;
           const existingRoles = (existingSchedule._employeeRoles ??
             {}) as Record<string, string>;
+          const existingApprovalEnabled = (existingSchedule
+            ._employeeApprovalEnabled ?? {}) as Record<string, boolean>;
+          const existingApprovalMode = (existingSchedule
+            ._employeeApprovalMode ?? {}) as Record<string, "auto" | "manual">;
+          const existingCanAddTurno = (existingSchedule
+            ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
+          const existingCanCancelTurno = (existingSchedule
+            ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(
             visibility.employees ?? existingSchedule._employeeOnline,
@@ -926,9 +1306,31 @@ export function EquipoSection() {
                       [payload.id]: payload.commissions,
                     }
                   : existingCommissions,
+                _employeeServiceOverrides: payload.serviceOverrides
+                  ? {
+                      ...existingServiceOverrides,
+                      [payload.id]: payload.serviceOverrides,
+                    }
+                  : existingServiceOverrides,
                 _employeeRoles: {
                   ...existingRoles,
                   [payload.id]: payload.role ?? "Profesional",
+                },
+                _employeeApprovalEnabled: {
+                  ...existingApprovalEnabled,
+                  [payload.id]: payload.approvalEnabled === true,
+                },
+                _employeeApprovalMode: {
+                  ...existingApprovalMode,
+                  [payload.id]: payload.approvalMode === "manual" ? "manual" : "auto",
+                },
+                _employeeAgendaAdd: {
+                  ...existingCanAddTurno,
+                  [payload.id]: payload.canAddTurno === true,
+                },
+                _employeeAgendaCancel: {
+                  ...existingCanCancelTurno,
+                  [payload.id]: payload.canCancelTurno === true,
                 },
                 _employeeSchedules: payload.schedule
                   ? {
@@ -969,14 +1371,9 @@ export function EquipoSection() {
     const { error } = await supabase.from("business_settings").upsert(
       {
         business_id: businessId,
-        approval_mode: approvalMode,
         schedule: {
           ...existingSchedule,
           _rolePermissions: cleaned,
-          _caja: {
-            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
-            approvalModeEnabled: approvalEnabled,
-          },
         },
       },
       { onConflict: "business_id" },
@@ -1011,56 +1408,8 @@ export function EquipoSection() {
     userPermissions,
     pendingProfessionals,
     load,
-    approvalEnabled,
-    approvalMode,
   ]);
 
-  async function saveApprovalSettings(
-    nextEnabled = approvalEnabled,
-    nextMode = approvalMode,
-  ) {
-    if (!businessId) return toast.error("No se encontró el negocio");
-
-    const { data: existingRow } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle();
-
-    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
-      string,
-      unknown
-    >;
-
-    const { error } = await supabase.from("business_settings").upsert(
-      {
-        business_id: businessId,
-        approval_mode: nextMode,
-        schedule: {
-          ...existingSchedule,
-          _caja: {
-            ...((existingSchedule._caja ?? {}) as Record<string, unknown>),
-            approvalModeEnabled: nextEnabled,
-          },
-        },
-      },
-      { onConflict: "business_id" },
-    );
-
-    if (error) return toast.error("Error guardando: " + error.message);
-    window.dispatchEvent(new CustomEvent("clippr:caja-settings-updated"));
-    toast.success("Guardado");
-  }
-
-  function updateApprovalEnabled(value: boolean) {
-    setApprovalEnabled(value);
-    void saveApprovalSettings(value, approvalMode);
-  }
-
-  function updateApprovalMode(value: "auto" | "manual") {
-    setApprovalMode(value);
-    void saveApprovalSettings(approvalEnabled, value);
-  }
 
   async function compressProfessionalAvatar(file: File): Promise<Blob> {
     const imageUrl = URL.createObjectURL(file);
@@ -1207,43 +1556,34 @@ export function EquipoSection() {
     }
 
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
-    const payload = {
-      id: editingEmp?.id,
-      full_name: name,
-      is_active: editingEmp ? editingEmp.is_active !== false : true,
-      commission_pct: commission,
-      avatar_url: form.avatarUrl || null,
-      role: form.role.trim() || "Profesional",
-      acceptsOnline: form.acceptsOnline,
-      commissions: form.commissions,
-      schedule: form.schedule,
-      specialDates: form.specialDates,
-    };
 
     if (editingEmp) {
-      setRows((current) =>
-        current.map((emp) =>
-          emp.id === editingEmp.id
-            ? {
-                ...emp,
-                full_name: name,
-                commission_pct: commission,
-                avatar_url: form.avatarUrl || null,
-                role: form.role.trim() || "Profesional",
-              }
-            : emp,
-        ),
-      );
-
-      setEmployeeOnlineMap((current) => ({
-        ...current,
-        [editingEmp.id]: form.acceptsOnline,
-      }));
-
-      // Persistencia INMEDIATA del horario individual del profesional, sin
-      // depender del "Guardar" de la sección (igual que avatar/portada). Esto
-      // garantiza que _employeeSchedules quede en Supabase apenas se acepta.
+      // Guardado INMEDIATO y completo: antes esta rama solo persistía el
+      // horario al toque y dejaba el resto (comisiones, overrides de
+      // precio/duración, rol, aprobación, permisos, nombre/avatar/comisión%)
+      // en una cola (`pendingProfessionals`) que recién se escribía en
+      // Supabase cuando el usuario tocaba el "Guardar" GLOBAL de
+      // Configuración — un segundo paso fácil de pasar por alto. Si el
+      // usuario recargaba la página (o simplemente no llegaba a tocar ese
+      // otro botón) antes de eso, todo lo que quedó en la cola se perdía sin
+      // aviso. Ahora se persiste todo en un solo upsert, igual que ya hace
+      // el alta de un profesional nuevo — "Guardar" en este diálogo
+      // significa guardado de verdad, sin pasos ocultos.
+      setSaving(true);
       try {
+        const { error: empUpdateError } = await supabase
+          .from("employees")
+          .update({
+            full_name: name,
+            commission_pct: commission,
+            avatar_url: form.avatarUrl || null,
+          })
+          .eq("id", editingEmp.id);
+        if (empUpdateError) {
+          toast.error("Error guardando profesional: " + empUpdateError.message);
+          return;
+        }
+
         const { data: existingRow } = await supabase
           .from("business_settings")
           .select("schedule")
@@ -1253,34 +1593,132 @@ export function EquipoSection() {
           string,
           unknown
         >;
+        const existingCommissions = (existingSchedule._employeeCommissions ??
+          {}) as Record<string, unknown>;
+        const existingServiceOverrides = (existingSchedule
+          ._employeeServiceOverrides ?? {}) as Record<string, unknown>;
+        const existingRoles = (existingSchedule._employeeRoles ??
+          {}) as Record<string, string>;
+        const existingApprovalEnabled = (existingSchedule
+          ._employeeApprovalEnabled ?? {}) as Record<string, boolean>;
+        const existingApprovalMode = (existingSchedule
+          ._employeeApprovalMode ?? {}) as Record<string, "auto" | "manual">;
+        const existingCanAddTurno = (existingSchedule
+          ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
+        const existingCanCancelTurno = (existingSchedule
+          ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
         const existingEmpScheds = (existingSchedule._employeeSchedules ??
           {}) as Record<string, unknown>;
-        const { error: schedErr } = await supabase
+        const existingEmpSpecial = (existingSchedule
+          ._employeeSpecialDates ?? {}) as Record<string, unknown>;
+        const visibility = getPublicVisibility(existingSchedule);
+        const employeesVisibility = normalizePublicBooleanMap(
+          visibility.employees ?? existingSchedule._employeeOnline,
+        );
+
+        const { error: settingsErr } = await supabase
           .from("business_settings")
           .upsert(
             {
               business_id: businessId,
               schedule: {
                 ...existingSchedule,
+                _employeeCommissions: {
+                  ...existingCommissions,
+                  [editingEmp.id]: form.commissions,
+                },
+                _employeeServiceOverrides: {
+                  ...existingServiceOverrides,
+                  [editingEmp.id]: form.serviceOverrides,
+                },
+                _employeeRoles: {
+                  ...existingRoles,
+                  [editingEmp.id]: form.role.trim() || "Profesional",
+                },
+                _employeeApprovalEnabled: {
+                  ...existingApprovalEnabled,
+                  [editingEmp.id]: form.approvalEnabled,
+                },
+                _employeeApprovalMode: {
+                  ...existingApprovalMode,
+                  [editingEmp.id]:
+                    form.approvalMode === "manual" ? "manual" : "auto",
+                },
+                _employeeAgendaAdd: {
+                  ...existingCanAddTurno,
+                  [editingEmp.id]: form.canAddTurno,
+                },
+                _employeeAgendaCancel: {
+                  ...existingCanCancelTurno,
+                  [editingEmp.id]: form.canCancelTurno,
+                },
                 _employeeSchedules: {
                   ...existingEmpScheds,
                   [editingEmp.id]: form.schedule,
                 },
                 _employeeSpecialDates: {
-                  ...((existingSchedule._employeeSpecialDates ?? {}) as Record<
-                    string,
-                    unknown
-                  >),
+                  ...existingEmpSpecial,
                   [editingEmp.id]: form.specialDates,
+                },
+                _publicVisibility: {
+                  ...visibility,
+                  employees: {
+                    ...employeesVisibility,
+                    [editingEmp.id]: form.acceptsOnline !== false,
+                  },
                 },
               },
             },
             { onConflict: "business_id" },
           );
-        if (schedErr)
+        if (settingsErr) {
           toast.error(
-            "No se pudo guardar el horario del profesional. Probá de nuevo.",
+            "No se pudo guardar la configuración del profesional. Probá de nuevo.",
           );
+          return;
+        }
+
+        setRows((current) =>
+          current.map((emp) =>
+            emp.id === editingEmp.id
+              ? {
+                  ...emp,
+                  full_name: name,
+                  commission_pct: commission,
+                  avatar_url: form.avatarUrl || null,
+                  role: form.role.trim() || "Profesional",
+                }
+              : emp,
+          ),
+        );
+        setEmployeeOnlineMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.acceptsOnline,
+        }));
+        setEmployeeApprovalEnabledMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.approvalEnabled,
+        }));
+        setEmployeeApprovalModeMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.approvalMode,
+        }));
+        setEmployeeCanAddTurnoMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.canAddTurno,
+        }));
+        setEmployeeCanCancelTurnoMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.canCancelTurno,
+        }));
+        setEmployeeCommissionsMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.commissions,
+        }));
+        setEmployeeServiceOverridesMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.serviceOverrides,
+        }));
         setEmployeeSchedules((current) => ({
           ...current,
           [editingEmp.id]: form.schedule,
@@ -1289,22 +1727,15 @@ export function EquipoSection() {
           ...current,
           [editingEmp.id]: form.specialDates,
         }));
+
+        toast.success("Profesional actualizado.");
+        setOpen(false);
+        setEditingEmp(null);
       } catch {
-        toast.error(
-          "No se pudo guardar el horario del profesional. Probá de nuevo.",
-        );
+        toast.error("No se pudo guardar el profesional. Probá de nuevo.");
+      } finally {
+        setSaving(false);
       }
-
-      setPendingProfessionals((current) => [
-        ...current.filter((item) => item.payload.id !== editingEmp.id),
-        { tempId: editingEmp.id, payload, isNew: false },
-      ]);
-
-      toast.success(
-        "Horario guardado. Tocá Guardar para confirmar los demás cambios.",
-      );
-      setOpen(false);
-      setEditingEmp(null);
       return;
     }
 
@@ -1346,10 +1777,20 @@ export function EquipoSection() {
       >;
       const existingCommissions = (existingSchedule._employeeCommissions ??
         {}) as Record<string, unknown>;
+      const existingServiceOverrides = (existingSchedule
+        ._employeeServiceOverrides ?? {}) as Record<string, unknown>;
       const existingRoles = (existingSchedule._employeeRoles ?? {}) as Record<
         string,
         string
       >;
+      const existingApprovalEnabled = (existingSchedule
+        ._employeeApprovalEnabled ?? {}) as Record<string, boolean>;
+      const existingApprovalMode = (existingSchedule
+        ._employeeApprovalMode ?? {}) as Record<string, "auto" | "manual">;
+      const existingCanAddTurno = (existingSchedule
+        ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
+      const existingCanCancelTurno = (existingSchedule
+        ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
       const existingEmpScheds = (existingSchedule._employeeSchedules ??
         {}) as Record<string, unknown>;
       const visibility = getPublicVisibility(existingSchedule);
@@ -1367,9 +1808,28 @@ export function EquipoSection() {
               _employeeCommissions: form.commissions
                 ? { ...existingCommissions, [newId]: form.commissions }
                 : existingCommissions,
+              _employeeServiceOverrides: form.serviceOverrides
+                ? { ...existingServiceOverrides, [newId]: form.serviceOverrides }
+                : existingServiceOverrides,
               _employeeRoles: {
                 ...existingRoles,
                 [newId]: form.role.trim() || "Profesional",
+              },
+              _employeeApprovalEnabled: {
+                ...existingApprovalEnabled,
+                [newId]: form.approvalEnabled,
+              },
+              _employeeApprovalMode: {
+                ...existingApprovalMode,
+                [newId]: form.approvalMode,
+              },
+              _employeeAgendaAdd: {
+                ...existingCanAddTurno,
+                [newId]: form.canAddTurno,
+              },
+              _employeeAgendaCancel: {
+                ...existingCanCancelTurno,
+                [newId]: form.canCancelTurno,
               },
               _employeeSchedules: {
                 ...existingEmpScheds,
@@ -1413,6 +1873,30 @@ export function EquipoSection() {
       setEmployeeOnlineMap((current) => ({
         ...current,
         [newId]: form.acceptsOnline,
+      }));
+      setEmployeeApprovalEnabledMap((current) => ({
+        ...current,
+        [newId]: form.approvalEnabled,
+      }));
+      setEmployeeApprovalModeMap((current) => ({
+        ...current,
+        [newId]: form.approvalMode,
+      }));
+      setEmployeeCanAddTurnoMap((current) => ({
+        ...current,
+        [newId]: form.canAddTurno,
+      }));
+      setEmployeeCanCancelTurnoMap((current) => ({
+        ...current,
+        [newId]: form.canCancelTurno,
+      }));
+      setEmployeeCommissionsMap((current) => ({
+        ...current,
+        [newId]: form.commissions,
+      }));
+      setEmployeeServiceOverridesMap((current) => ({
+        ...current,
+        [newId]: form.serviceOverrides,
       }));
       setEmployeeSchedules((current) => ({
         ...current,
@@ -1487,11 +1971,27 @@ export function EquipoSection() {
         acceptsOnline: employeeOnlineMap[emp.id] !== false,
         schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
         specialDates: employeeSpecialDates[emp.id] ?? {},
+        approvalEnabled: employeeApprovalEnabledMap[emp.id] === true,
+        approvalMode: employeeApprovalModeMap[emp.id] === "manual" ? "manual" : "auto",
+        canAddTurno: employeeCanAddTurnoMap[emp.id] === true,
+        canCancelTurno: employeeCanCancelTurnoMap[emp.id] === true,
+        commissions: employeeCommissionsMap[emp.id] ?? {},
+        serviceOverrides: employeeServiceOverridesMap[emp.id] ?? {},
       });
       setDlgTab("perfil");
       setOpen(true);
     },
-    [employeeOnlineMap, employeeSchedules, employeeSpecialDates],
+    [
+      employeeOnlineMap,
+      employeeSchedules,
+      employeeSpecialDates,
+      employeeApprovalEnabledMap,
+      employeeApprovalModeMap,
+      employeeCanAddTurnoMap,
+      employeeCanCancelTurnoMap,
+      employeeCommissionsMap,
+      employeeServiceOverridesMap,
+    ],
   );
 
   async function doRemoveEmp() {
@@ -1901,259 +2401,6 @@ export function EquipoSection() {
               ))}
             </div>
           )}
-          <SectionCard label="Aprobación de cobros profesionales">
-            <div className="space-y-5">
-              <div className="flex items-center gap-4 rounded-2xl bg-white/[0.025] ring-1 ring-white/10 p-4">
-                <div className="h-11 w-11 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <ShieldCheck className="h-5 w-5 text-violet-200" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-base">
-                    Habilitar modo de aprobación
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-0.5">
-                    Definí si los cobros de profesionales se registran directo
-                    en Caja o si necesitan revisión.
-                  </div>
-                </div>
-                <Toggle on={approvalEnabled} onChange={updateApprovalEnabled} />
-              </div>
-
-              {approvalEnabled && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => updateApprovalMode("auto")}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        updateApprovalMode("auto");
-                      }
-                    }}
-                    className={cn(
-                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden cursor-pointer",
-                      approvalMode === "auto"
-                        ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
-                        : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
-                    )}
-                  >
-                    <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-sky-400/10 blur-3xl" />
-                    <div className="relative flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                          Modo
-                        </div>
-                        <div className="mt-1 text-xl font-display font-semibold">
-                          Automático
-                        </div>
-                      </div>
-                      {approvalMode === "auto" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
-                          Seleccionado
-                        </span>
-                      )}
-                    </div>
-                    <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
-                      El profesional cobra desde su panel y el ingreso se
-                      registra automáticamente en Caja.
-                    </p>
-                    <div className="relative mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowAutoApprovalPurpose((v) => !v);
-                        }}
-                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
-                      >
-                        <span>💡</span>
-                        <span>¿Para qué sirve?</span>
-                        <ChevronDown
-                          className={cn(
-                            "h-3.5 w-3.5 transition-transform",
-                            showAutoApprovalPurpose && "rotate-180",
-                          )}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowAutoApprovalExample((v) => !v);
-                        }}
-                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
-                      >
-                        <span>❓</span>
-                        <span>¿Cómo funciona?</span>
-                        <ChevronDown
-                          className={cn(
-                            "h-3.5 w-3.5 transition-transform",
-                            showAutoApprovalExample && "rotate-180",
-                          )}
-                        />
-                      </button>
-                    </div>
-
-                    {showAutoApprovalPurpose ? (
-                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
-                          Para qué sirve
-                        </div>
-                        <p className="mt-2 text-sm leading-relaxed text-white/78">
-                          Ideal si cada profesional cobra directamente a sus clientes. Permite registrar el pago desde su propio panel, sin depender de la recepción, agilizando el cobro y reduciendo los tiempos de espera.
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {showAutoApprovalExample ? (
-                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
-                          Ejemplo
-                        </div>
-                        <p className="mt-2 text-sm leading-relaxed text-white/78">
-                          Juan finaliza un servicio de $20.000 y registra el cobro
-                          desde su panel.
-                        </p>
-                        <div className="mt-3 space-y-2">
-                          <div className="text-sm font-semibold text-white">
-                            Resultado:
-                          </div>
-                          <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-white/10 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.7)]">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="font-mono text-xs text-white/42">12:00</span>
-                              <span className="font-semibold text-white">Juan</span>
-                              <span className="text-white/35">→</span>
-                              <span className="font-semibold text-emerald-400">Cobró</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => updateApprovalMode("manual")}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        updateApprovalMode("manual");
-                      }
-                    }}
-                    className={cn(
-                      "group text-left rounded-2xl p-5 ring-1 transition-all relative overflow-hidden cursor-pointer",
-                      approvalMode === "manual"
-                        ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
-                        : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
-                    )}
-                  >
-                    <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-violet-400/10 blur-3xl" />
-                    <div className="relative flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                          Modo
-                        </div>
-                        <div className="mt-1 text-xl font-display font-semibold">
-                          Manual
-                        </div>
-                      </div>
-                      {approvalMode === "manual" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
-                          Seleccionado
-                        </span>
-                      )}
-                    </div>
-                    <p className="relative mt-3 text-sm leading-relaxed text-muted-foreground">
-                      El profesional informa el cobro y Caja lo revisa antes de
-                      registrarlo oficialmente.
-                    </p>
-                    <div className="relative mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowManualApprovalPurpose((v) => !v);
-                        }}
-                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
-                      >
-                        <span>💡</span>
-                        <span>¿Para qué sirve?</span>
-                        <ChevronDown
-                          className={cn(
-                            "h-3.5 w-3.5 transition-transform",
-                            showManualApprovalPurpose && "rotate-180",
-                          )}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowManualApprovalExample((v) => !v);
-                        }}
-                        className="inline-flex items-center gap-2 rounded-full bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:text-white"
-                      >
-                        <span>❓</span>
-                        <span>¿Cómo funciona?</span>
-                        <ChevronDown
-                          className={cn(
-                            "h-3.5 w-3.5 transition-transform",
-                            showManualApprovalExample && "rotate-180",
-                          )}
-                        />
-                      </button>
-                    </div>
-
-                    {showManualApprovalPurpose ? (
-                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
-                          Para qué sirve
-                        </div>
-                        <p className="mt-2 text-sm leading-relaxed text-white/78">
-                          Ideal para que profesionales y Caja tengan el mismo control sobre los servicios realizados. Cada servicio se registra desde el panel del profesional y Caja lo aprueba antes de registrarlo oficialmente.
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {showManualApprovalExample ? (
-                      <div className="relative mt-3 rounded-2xl bg-black/15 ring-1 ring-white/10 p-4">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200/85">
-                          Ejemplo
-                        </div>
-                        <p className="mt-2 text-sm leading-relaxed text-white/78">
-                          Juan finaliza un servicio de $20.000 y registra el cobro
-                          desde su panel.
-                        </p>
-                        <div className="mt-3 space-y-2">
-                          <div className="text-sm font-semibold text-white">
-                            Resultado:
-                          </div>
-                          <div className="rounded-xl bg-white/[0.045] px-3 py-2 ring-1 ring-sky-400/15 shadow-[0_14px_35px_-28px_rgba(56,189,248,0.75)]">
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="font-mono text-xs text-white/42">12:00</span>
-                                <span className="font-semibold text-white">Juan</span>
-                                <span className="text-white/35">→</span>
-                                <span className="font-semibold text-sky-400">Envió a caja</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="font-mono text-xs text-white/42">12:01</span>
-                                <span className="font-semibold text-white">Caja</span>
-                                <span className="text-white/35">→</span>
-                                <span className="font-semibold text-emerald-400">Cobró</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </div>
-          </SectionCard>
         </div>
       )}
 
@@ -2652,42 +2899,16 @@ export function EquipoSection() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(4vh+27px)] sm:pt-[calc(5vh+27px)]"
           onClick={() => !saving && setOpen(false)}
         >
           <div
-            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
+            className="relative flex h-[calc(86vh-12px)] max-h-[888px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 p-4 border-b border-white/5">
-              <div className="h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br from-red-400 to-rose-500 ring-1 ring-white/10">
-                {form.avatarUrl ? (
-                  <img
-                    src={form.avatarUrl}
-                    alt={form.fullName || "Profesional"}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  (form.fullName[0] || "A").toUpperCase()
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold">
-                  {editingEmp ? "Editar profesional" : "Nuevo profesional"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {form.role || "Barbero"}
-                </div>
-              </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="rounded-full p-1.5 ring-1 ring-white/10 hover:bg-white/5 text-muted-foreground"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex items-center gap-6 px-5 border-b border-white/5">
+            {/* Tabs + cerrar — el modal no cambia de tamaño al cambiar de
+                pestaña; solo el contenido de abajo scrollea internamente. */}
+            <div className="flex shrink-0 items-center gap-6 px-5 pt-3 border-b border-white/5">
               {(
                 [
                   ["perfil", "Perfil"],
@@ -2714,14 +2935,20 @@ export function EquipoSection() {
                   </button>
                 );
               })}
+              <button
+                onClick={() => setOpen(false)}
+                className="ml-auto rounded-full p-1.5 ring-1 ring-white/10 hover:bg-white/5 text-muted-foreground"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
               {dlgTab === "perfil" && (
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="h-16 w-16 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-white font-semibold text-xl ring-1 ring-white/10">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-3">
+                    <label className="group relative h-14 w-14 shrink-0 cursor-pointer rounded-full">
+                      <div className="h-14 w-14 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-white font-semibold text-lg ring-1 ring-white/10">
                         {form.avatarUrl ? (
                           <img
                             src={form.avatarUrl}
@@ -2732,55 +2959,50 @@ export function EquipoSection() {
                           (form.fullName[0] || "A").toUpperCase()
                         )}
                       </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-semibold">
-                          Foto del profesional
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          JPG, PNG o WEBP. La app la recorta a 200x200, la
-                          convierte a WebP y la comprime antes de subirla.
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 px-3 py-2 text-xs font-medium">
-                            Subir imagen
-                            <input
-                              type="file"
-                              accept="image/png,image/jpeg,image/webp"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) void uploadProfessionalAvatar(file);
-                                e.currentTarget.value = "";
-                              }}
-                            />
-                          </label>
-                          {form.avatarUrl && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setForm({ ...form, avatarUrl: "" })
-                              }
-                              className="rounded-xl bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 px-3 py-2 text-xs text-red-300"
-                            >
-                              Quitar foto
-                            </button>
-                          )}
-                        </div>
+                      <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-primary text-background ring-2 ring-background shadow-md transition group-hover:brightness-110">
+                        <Camera className="h-3 w-3" />
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void uploadProfessionalAvatar(file);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold">
+                        Foto del profesional
                       </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Tocá la foto para cambiarla.
+                      </div>
+                      {form.avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, avatarUrl: "" })}
+                          className="mt-1 text-xs font-medium text-red-300 hover:text-red-200"
+                        >
+                          Quitar foto
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <Field label="Nombre completo *">
-                    <input
-                      value={form.fullName}
-                      onChange={(e) =>
-                        setForm({ ...form, fullName: e.target.value })
-                      }
-                      className={inputCls}
-                      placeholder="Ej: Alejandro"
-                    />
-                  </Field>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr]">
+                    <Field label="Nombre completo *">
+                      <input
+                        value={form.fullName}
+                        onChange={(e) =>
+                          setForm({ ...form, fullName: e.target.value })
+                        }
+                        className={inputCls}
+                        placeholder="Ej: Alejandro"
+                      />
+                    </Field>
                     <Field label="Teléfono">
                       <input
                         value={form.phone}
@@ -2802,48 +3024,30 @@ export function EquipoSection() {
                       />
                     </Field>
                   </div>
-                  <label className="flex items-center gap-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.acceptsOnline}
-                      onChange={(e) =>
-                        setForm({ ...form, acceptsOnline: e.target.checked })
-                      }
-                      className="sr-only"
-                    />
-                    <span
-                      className={cn(
-                        "h-5 w-9 rounded-full relative transition-colors shrink-0",
-                        form.acceptsOnline ? "bg-primary" : "bg-white/15",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
-                          form.acceptsOnline ? "left-[18px]" : "left-0.5",
-                        )}
-                      />
-                    </span>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">
-                        Acepta reservas en línea
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Este profesional aparecerá disponible para reservas
-                        online
-                      </div>
-                    </div>
-                  </label>
-                  <Field label="Descripción (opcional)">
-                    <textarea
-                      value={form.description}
-                      onChange={(e) =>
-                        setForm({ ...form, description: e.target.value })
-                      }
-                      className={cn(inputCls, "min-h-[90px] resize-y")}
-                      placeholder="Especialidades, experiencia, estilo…"
-                    />
-                  </Field>
+                  <PermissionToggleRow
+                    icon={Globe}
+                    title="Acepta reservas en línea"
+                    desc="Aparece disponible para reservas online."
+                    on={form.acceptsOnline}
+                    onChange={(v) => setForm({ ...form, acceptsOnline: v })}
+                  />
+
+                  <ApprovalModeCard
+                    enabled={form.approvalEnabled}
+                    mode={form.approvalMode}
+                    onToggleEnabled={(v) =>
+                      setForm({ ...form, approvalEnabled: v })
+                    }
+                    onChangeMode={(v) => setForm({ ...form, approvalMode: v })}
+                    canAddTurno={form.canAddTurno}
+                    onToggleCanAddTurno={(v) =>
+                      setForm({ ...form, canAddTurno: v })
+                    }
+                    canCancelTurno={form.canCancelTurno}
+                    onToggleCanCancelTurno={(v) =>
+                      setForm({ ...form, canCancelTurno: v })
+                    }
+                  />
                 </div>
               )}
 
@@ -2926,29 +3130,41 @@ export function EquipoSection() {
                       </div>
                     );
                   })}
-
-                  <SpecialHoursEditor
-                    value={form.specialDates}
-                    onChange={(next) =>
-                      setForm((f) => ({ ...f, specialDates: next }))
-                    }
-                    allowBreak
-                    closedLabel="No disponible"
-                    title="Horario especial"
-                    description="Un día distinto al horario normal (ej. 24/12 09:00–15:00) o no disponible una fecha."
-                  />
                 </div>
               )}
 
               {dlgTab === "comisiones" && (
-                <div className="space-y-5">
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-white/[0.035] p-1.5">
+                    {(["servicios", "catalogo"] as const).map((tabId) => (
+                      <button
+                        key={tabId}
+                        type="button"
+                        onClick={() => setCommTab(tabId)}
+                        className={cn(
+                          "rounded-xl px-4 py-1.5 text-xs font-semibold transition",
+                          commTab === tabId
+                            ? "bg-white/[0.08] text-foreground ring-1 ring-white/10"
+                            : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                        )}
+                      >
+                        {tabId === "servicios" ? "Servicios" : "Catálogo"}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="rounded-2xl bg-white/[0.035] ring-1 ring-white/10 p-4">
                     <div className="font-semibold text-sm">
-                      Comisiones y servicios que realiza
+                      {commTab === "servicios" ? "Servicios" : "Catálogo"}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {commTab === "servicios"
+                        ? "Configurá qué servicios realiza este profesional, su comisión y, si corresponde, su duración y precio personalizados."
+                        : "Configurá qué productos puede vender este profesional y la comisión que recibe por cada venta."}
                     </div>
                   </div>
 
-                  {(["servicios", "catalogo"] as const).map((kind) => {
+                  {([commTab] as const).map((kind) => {
                     const isServiceKind = kind === "servicios";
                     const filtered = commissionItems.filter((item) =>
                       isServiceKind
@@ -2972,17 +3188,6 @@ export function EquipoSection() {
                         key={kind}
                         className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden"
                       >
-                        <div className="px-4 py-3 border-b border-white/5">
-                          <div className="text-sm font-semibold">
-                            {isServiceKind ? "Servicios" : "Catálogo"}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {isServiceKind
-                              ? "Servicios cargados en Configuración → Servicios."
-                              : "Productos cargados en Configuración → Catálogo."}
-                          </div>
-                        </div>
-
                         {Object.keys(grouped).length === 0 ? (
                           <div className="p-4 text-sm text-muted-foreground">
                             No hay {isServiceKind ? "servicios" : "productos"}{" "}
@@ -3012,6 +3217,37 @@ export function EquipoSection() {
                                             ...form.commissions,
                                             [item.id]: { ...cfg, ...patch },
                                           },
+                                        });
+
+                                      const overrideCfg =
+                                        form.serviceOverrides[item.id] ??
+                                        DEFAULT_SERVICE_OVERRIDE;
+                                      const updateOverrideCfg = (
+                                        patch: Partial<ServiceOverrideConfig>,
+                                      ) =>
+                                        setForm({
+                                          ...form,
+                                          serviceOverrides: {
+                                            ...form.serviceOverrides,
+                                            [item.id]: { ...overrideCfg, ...patch },
+                                          },
+                                        });
+                                      // Mismo resolver que usan Agenda/Mi Agenda/Caja/Página
+                                      // Pública, para que la vista previa acá coincida
+                                      // exactamente con lo que se va a cobrar/agendar.
+                                      const resolved = isServiceKind
+                                        ? resolveServicePricing(item, "current", {
+                                            current: { [item.id]: overrideCfg },
+                                          })
+                                        : null;
+                                      const overrideExpanded =
+                                        expandedOverrideIds.has(item.id);
+                                      const toggleOverrideExpanded = () =>
+                                        setExpandedOverrideIds((current) => {
+                                          const next = new Set(current);
+                                          if (next.has(item.id)) next.delete(item.id);
+                                          else next.add(item.id);
+                                          return next;
                                         });
 
                                       return (
@@ -3054,14 +3290,29 @@ export function EquipoSection() {
                                                 {item.name}
                                               </div>
                                               <div className="text-xs text-muted-foreground">
+                                                {isServiceKind && resolved && (
+                                                  <>
+                                                    {resolved.duration_min} min
+                                                    {resolved.durationOverridden && (
+                                                      <span className="text-violet-300">
+                                                        {" "}
+                                                        (personalizado)
+                                                      </span>
+                                                    )}
+                                                    {" · "}
+                                                  </>
+                                                )}
                                                 $
-                                                {Number(
-                                                  item.price ?? 0,
+                                                {(resolved
+                                                  ? resolved.price
+                                                  : Number(item.price ?? 0)
                                                 ).toLocaleString("es-AR")}
-                                                {isServiceKind &&
-                                                item.duration_min
-                                                  ? ` · ${item.duration_min} min`
-                                                  : ""}
+                                                {resolved?.priceOverridden && (
+                                                  <span className="text-violet-300">
+                                                    {" "}
+                                                    (personalizado)
+                                                  </span>
+                                                )}
                                               </div>
                                             </div>
 
@@ -3106,6 +3357,130 @@ export function EquipoSection() {
                                               </div>
                                             </div>
                                           </div>
+
+                                          {isServiceKind && (
+                                            <div className="mt-2">
+                                              <button
+                                                type="button"
+                                                onClick={toggleOverrideExpanded}
+                                                className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-200/80 hover:text-violet-200"
+                                              >
+                                                <span>
+                                                  Personalizar duración y precio
+                                                </span>
+                                                <ChevronDown
+                                                  className={cn(
+                                                    "h-3 w-3 transition-transform",
+                                                    overrideExpanded && "rotate-180",
+                                                  )}
+                                                />
+                                              </button>
+
+                                              {overrideExpanded && (
+                                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                  {/* Duración — valor siempre alineado a la
+                                                      izquierda del campo, estándar o personalizado. */}
+                                                  <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
+                                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                                                      Duración
+                                                    </div>
+                                                    <label className="mt-1 flex items-center gap-2 text-xs">
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={overrideCfg.useStandardDuration}
+                                                        onChange={(e) =>
+                                                          updateOverrideCfg({
+                                                            useStandardDuration:
+                                                              e.target.checked,
+                                                          })
+                                                        }
+                                                        className="h-3.5 w-3.5 accent-primary"
+                                                      />
+                                                      <span>Usar duración estándar</span>
+                                                    </label>
+                                                    <div className="mt-1.5 flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                      {overrideCfg.useStandardDuration ? (
+                                                        <span className="text-sm">
+                                                          {Number(item.duration_min ?? 30) ||
+                                                            30}{" "}
+                                                          min
+                                                        </span>
+                                                      ) : (
+                                                        <>
+                                                          <input
+                                                            type="number"
+                                                            min={1}
+                                                            value={overrideCfg.duration_min}
+                                                            onChange={(e) =>
+                                                              updateOverrideCfg({
+                                                                duration_min:
+                                                                  e.target.value,
+                                                              })
+                                                            }
+                                                            className="w-16 bg-transparent text-sm text-left focus:outline-none"
+                                                            placeholder="30"
+                                                          />
+                                                          <span className="text-xs text-muted-foreground">
+                                                            min
+                                                          </span>
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Precio — valor siempre alineado a la
+                                                      derecha del campo, estándar o personalizado. */}
+                                                  <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
+                                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                                                      Precio
+                                                    </div>
+                                                    <label className="mt-1 flex items-center gap-2 text-xs">
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={overrideCfg.useStandardPrice}
+                                                        onChange={(e) =>
+                                                          updateOverrideCfg({
+                                                            useStandardPrice:
+                                                              e.target.checked,
+                                                          })
+                                                        }
+                                                        className="h-3.5 w-3.5 accent-primary"
+                                                      />
+                                                      <span>Usar precio estándar</span>
+                                                    </label>
+                                                    <div className="mt-1.5 flex items-center justify-end gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                      {overrideCfg.useStandardPrice ? (
+                                                        <span className="text-sm">
+                                                          $
+                                                          {Number(
+                                                            item.price ?? 0,
+                                                          ).toLocaleString("es-AR")}
+                                                        </span>
+                                                      ) : (
+                                                        <>
+                                                          <span className="text-xs text-muted-foreground">
+                                                            $
+                                                          </span>
+                                                          <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={overrideCfg.price}
+                                                            onChange={(e) =>
+                                                              updateOverrideCfg({
+                                                                price: e.target.value,
+                                                              })
+                                                            }
+                                                            className="w-20 bg-transparent text-sm text-right focus:outline-none"
+                                                            placeholder="0"
+                                                          />
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -3122,7 +3497,7 @@ export function EquipoSection() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 p-4 border-t border-white/5">
+            <div className="flex shrink-0 items-center gap-2 px-5 py-3 border-t border-white/5">
               {editingEmp ? (
                 <button
                   type="button"

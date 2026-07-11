@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Clock3,
   Gift,
+  Info,
   Loader2,
   Mail,
   MapPin,
@@ -19,6 +20,7 @@ import {
   Star,
   UserRound,
   UsersRound,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +49,21 @@ import {
 import clipprMark from "@/assets/clippr-mark.png";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { ServiceImage } from "@/components/ui/service-image";
+import {
+  resolveServicePricing,
+  getServiceRange,
+  formatServiceRangeLabel,
+  isPromotionCurrentlyValid,
+  isPromotionApplicable,
+  applyPromotionDiscount,
+  formatPromotionConditions,
+  normalizeClientKeys,
+  hasClientReachedPerClientLimit,
+  getPromotionUsesRemaining,
+  backfillPromotionVigencia,
+  type EmployeeServiceOverrideMap,
+  type Promotion,
+} from "@/lib/service-pricing";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -92,9 +109,10 @@ type Service = {
   image_url?: string | null;
   image_position?: string | null;
   image_offset?: CatalogImageOffset | null;
+  category?: string | null;
 };
 
-type BookingStep = "services" | "professional" | "datetime" | "products" | "details" | "done";
+type BookingStep = "services" | "promo" | "professional" | "datetime" | "products" | "details" | "done";
 type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string; image_position?: string; description?: string };
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
@@ -253,6 +271,17 @@ function PublicBookingPage() {
   const [employeeSchedules, setEmployeeSchedules] = React.useState<Record<string, ScheduleMap>>({});
   const [businessSpecial, setBusinessSpecial] = React.useState<SpecialDateMap>({});
   const [employeeSpecial, setEmployeeSpecial] = React.useState<EmployeeSpecialDateMap>({});
+  // Precio/duración personalizados por profesional-servicio, resueltos con
+  // el mismo `resolveServicePricing` que usan Agenda/Mi Agenda/Caja — ver
+  // src/lib/service-pricing.ts. Único lugar donde la reserva pública calcula
+  // precio: nada más en este archivo debe leer service.price directo una vez
+  // que hay un profesional elegido.
+  const [employeeServiceOverrides, setEmployeeServiceOverrides] =
+    React.useState<EmployeeServiceOverrideMap>({});
+  // Promociones vigentes (Configuración → Promociones), administradas por
+  // completo desde ese único lugar — acá solo se leen y se aplican, nunca
+  // se recalcula el descuento con otra lógica.
+  const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
   // Intervalo de turnos y anticipación máxima configurados en Configuración →
   // Horarios (business_settings.schedule._settings). Los defaults acá abajo
@@ -266,6 +295,16 @@ function PublicBookingPage() {
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
+  // Pestaña activa del paso "Servicios": null = "Todos", siempre primera y
+  // seleccionada por defecto.
+  const [activeServiceCategory, setActiveServiceCategory] = React.useState<string | null>(null);
+  // Paso "¿Tenés algún beneficio?": "none" = sin beneficio, "code" = ingresó
+  // un código, o el id de una promoción listada por nombre.
+  const [promoChoice, setPromoChoice] = React.useState<"none" | "code" | string>("none");
+  const [enteredPromoCode, setEnteredPromoCode] = React.useState("");
+  const [promoCodeError, setPromoCodeError] = React.useState("");
+  const [appliedPromotion, setAppliedPromotion] = React.useState<Promotion | null>(null);
+  const [infoModalPromo, setInfoModalPromo] = React.useState<Promotion | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | "any">("any");
   const [professionalLocked, setProfessionalLocked] = React.useState(false);
   const [selectedSlot, setSelectedSlot] = React.useState<{ time: Date; employeeId: string } | null>(null);
@@ -293,6 +332,8 @@ function PublicBookingPage() {
     time: string;
     duration: number;
     total: number;
+    originalTotal: number;
+    promotionName?: string;
     clientName: string;
     clientPhone: string;
     clientEmail?: string;
@@ -325,15 +366,74 @@ function PublicBookingPage() {
     () => selectedServiceIds.map((id) => services.find((service) => service.id === id)).filter(Boolean) as Service[],
     [selectedServiceIds, services],
   );
+  const serviceCategories = React.useMemo(
+    () =>
+      Array.from(new Set(services.map((service) => service.category?.trim() || "Otro"))).sort((a, b) =>
+        a.localeCompare(b, "es"),
+      ),
+    [services],
+  );
+  const visibleStepServices = activeServiceCategory
+    ? services.filter((service) => (service.category?.trim() || "Otro") === activeServiceCategory)
+    : services;
   const selectedEmployee = employees.find((employee) => employee.id === selectedSlot?.employeeId || employee.id === selectedEmployeeId) ?? null;
-  const totalDuration = selectedServices.reduce((sum, service) => sum + (Number(service.duration_min ?? service.duration ?? 30) || 30), 0) || 30;
-  const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price ?? 0), 0);
+  // Profesional ya decidido para el cálculo de precio/duración: el del turno
+  // elegido si ya se seleccionó horario, si no el elegido en el paso
+  // "profesional" (salvo que sea "any" — "sin preferencia" usa el estándar,
+  // ya que todavía no se sabe qué profesional va a tomar el turno).
+  const pricingEmployeeId =
+    selectedSlot?.employeeId ?? (selectedEmployeeId !== "any" ? selectedEmployeeId : null);
+  // Promociones vigentes ahora mismo (activa, dentro de vigencia, día/hora
+  // habilitado, cupo total no agotado) — se recalcula en cada render, es
+  // barato y evita depender de un reloj propio.
+  const validPromotions = React.useMemo(
+    () => promotions.filter((p) => isPromotionCurrentlyValid(p, new Date())),
+    [promotions],
+  );
+  const namedPromotions = validPromotions.filter((p) => !p.requiresCode);
+  const hasCodePromotions = validPromotions.some((p) => p.requiresCode);
+  const totalDuration =
+    selectedServices.reduce((sum, service) => {
+      const resolved = resolveServicePricing(
+        { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+        pricingEmployeeId,
+        employeeServiceOverrides,
+      );
+      return sum + resolved.duration_min;
+    }, 0) || 30;
+  // Precio con el override de Fase 1 ya resuelto pero SIN el descuento de
+  // la promoción — se usa para mostrar el "tachado" cuando corresponde.
+  const originalTotalPrice = selectedServices.reduce((sum, service) => {
+    const resolved = resolveServicePricing(
+      { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+      pricingEmployeeId,
+      employeeServiceOverrides,
+    );
+    return sum + resolved.price;
+  }, 0);
+  const totalPrice = selectedServices.reduce((sum, service) => {
+    const resolved = resolveServicePricing(
+      { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+      pricingEmployeeId,
+      employeeServiceOverrides,
+    );
+    const applies =
+      appliedPromotion &&
+      isPromotionApplicable(appliedPromotion, {
+        serviceId: service.id,
+        employeeId: pricingEmployeeId,
+        category: service.category ?? null,
+      });
+    return sum + applyPromotionDiscount(resolved.price, applies ? appliedPromotion : null);
+  }, 0);
+  const promoSavings = originalTotalPrice - totalPrice;
   const selectedProducts = React.useMemo(
     () => selectedProductIds.map((id) => recommendedProducts.find((p) => p.id === id)).filter(Boolean) as RecommendedProduct[],
     [selectedProductIds, recommendedProducts],
   );
   const productsTotal = selectedProducts.reduce((sum, p) => sum + productFinalPrice(p), 0);
   const grandTotal = totalPrice + productsTotal;
+  const originalGrandTotal = originalTotalPrice + productsTotal;
   const slots = React.useMemo(
     () =>
       buildSlots(
@@ -497,6 +597,17 @@ function PublicBookingPage() {
             ? (((settingsSchedule as Record<string, unknown>)._catalogImagePositions ?? {}) as Record<string, string>)
             : {};
         const serviceImageOffsetMap = extractCatalogImageOffsets(settingsSchedule);
+        // La vista public_booking_services no tiene columna `category` y
+        // price_catalog no es legible por el rol anónimo — la categoría se
+        // lee espejada desde business_settings.schedule._serviceCategories,
+        // igual que las imágenes.
+        const serviceCategoriesMap =
+          settingsSchedule &&
+          typeof settingsSchedule === "object" &&
+          (settingsSchedule as Record<string, unknown>)._serviceCategories &&
+          typeof (settingsSchedule as Record<string, unknown>)._serviceCategories === "object"
+            ? ((settingsSchedule as Record<string, unknown>)._serviceCategories as Record<string, string>)
+            : {};
         const visibleServices = ((servicesRes.error ? [] : (servicesRes.data ?? [])) as Service[])
           .filter((service) => service.is_active !== false)
           .filter((service) => visibility.services[service.id] !== false)
@@ -505,6 +616,7 @@ function PublicBookingPage() {
             image_url: serviceImageMap[service.id] ?? null,
             image_position: serviceImagePositionMap[service.id] ?? "50% 50%",
             image_offset: serviceImageOffsetMap[service.id] ?? null,
+            category: serviceCategoriesMap[service.id] ?? null,
           }));
 
         if (!cancelled) {
@@ -570,6 +682,20 @@ function PublicBookingPage() {
           }
           setEmployeeSpecial(empSpecial);
 
+          const rawServiceOverrides =
+            rawSchedule &&
+            typeof rawSchedule._employeeServiceOverrides === "object" &&
+            rawSchedule._employeeServiceOverrides
+              ? (rawSchedule._employeeServiceOverrides as EmployeeServiceOverrideMap)
+              : {};
+          setEmployeeServiceOverrides(rawServiceOverrides);
+
+          const rawPromotions =
+            rawSchedule && Array.isArray(rawSchedule._promotions)
+              ? (rawSchedule._promotions as Promotion[])
+              : [];
+          setPromotions(rawPromotions.map(backfillPromotionVigencia));
+
           setClientFields(extractClientFields(settingsSchedule));
           setRecommendedProducts(normalizeRecommendedProducts(settingsSchedule));
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
@@ -611,6 +737,39 @@ function PublicBookingPage() {
 
   function nextFromServices() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
+    setStep(validPromotions.length > 0 ? "promo" : "professional");
+  }
+
+  // Confirma la elección del paso "¿Tenés algún beneficio?": valida el
+  // código si corresponde y determina appliedPromotion para el resto del
+  // flujo. No filtra profesionales/servicios — si la promo no aplica a lo
+  // elegido más adelante, simplemente no se descuenta ahí.
+  function confirmPromoChoice() {
+    setPromoCodeError("");
+    if (promoChoice === "none") {
+      setAppliedPromotion(null);
+      setStep("professional");
+      return;
+    }
+    if (promoChoice === "code") {
+      const entered = enteredPromoCode.trim().toUpperCase();
+      if (!entered) {
+        setPromoCodeError("Ingresá un código.");
+        return;
+      }
+      const match = validPromotions.find(
+        (p) => p.requiresCode && p.code === entered,
+      );
+      if (!match) {
+        setPromoCodeError("Ese código no es válido o ya no está vigente.");
+        return;
+      }
+      setAppliedPromotion(match);
+      setStep("professional");
+      return;
+    }
+    const promo = validPromotions.find((p) => p.id === promoChoice) ?? null;
+    setAppliedPromotion(promo);
     setStep("professional");
   }
 
@@ -694,15 +853,64 @@ function PublicBookingPage() {
     if (!sourceAlreadyKnown && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim())
       return toast.error("Contanos dónde nos conociste.");
 
+    // Límite por cliente: recién acá se conocen teléfono/email. Si esta
+    // promo es "una vez por cliente" y este cliente ya la usó, se descarta
+    // solo para esta reserva (la reserva sigue, sin el descuento) — no
+    // bloquea el turno en sí.
+    const clientKeys = normalizeClientKeys(clientPhone, clientEmail);
+    let effectivePromotion = appliedPromotion;
+    if (effectivePromotion && hasClientReachedPerClientLimit(effectivePromotion, clientKeys)) {
+      toast.error("Esa promoción ya la usaste antes. Vamos a confirmar la reserva sin el descuento.");
+      effectivePromotion = null;
+      setAppliedPromotion(null);
+    }
+
+    // Recalculado local (no el memo reactivo `totalPrice`) porque
+    // `effectivePromotion` puede diferir de `appliedPromotion` recién acá,
+    // por el chequeo de límite por cliente de arriba.
+    function resolveServicesTotal(promo: Promotion | null): number {
+      return selectedServices.reduce((sum, service) => {
+        const resolved = resolveServicePricing(
+          { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+          selectedSlot!.employeeId,
+          employeeServiceOverrides,
+        );
+        const applies =
+          promo &&
+          isPromotionApplicable(promo, {
+            serviceId: service.id,
+            employeeId: selectedSlot!.employeeId,
+            category: service.category ?? null,
+          });
+        return sum + applyPromotionDiscount(resolved.price, applies ? promo : null);
+      }, 0);
+    }
+    const finalServicesPrice = resolveServicesTotal(effectivePromotion);
+    const originalServicesPrice = resolveServicesTotal(null);
+
     const serviceName = selectedServices.map((service) => service.name).join(" + ");
-    const serviceList = selectedServices.map((service) => `${service.name} (${formatMoney(service.price)})`).join("\n- ");
+    const serviceList = selectedServices
+      .map((service) => {
+        const resolved = resolveServicePricing(
+          { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+          selectedSlot.employeeId,
+          employeeServiceOverrides,
+        );
+        return `${service.name} (${formatMoney(resolved.price)})`;
+      })
+      .join("\n- ");
     const addedProducts = selectedProducts.map((p) => ({ name: p.name, price: productFinalPrice(p), image: p.image || "" }));
     const productList = addedProducts.map((p) => `${p.name} (${formatMoney(p.price)})${p.image ? ` [img:${p.image}]` : ""}`).join("\n- ");
+    const promoNote =
+      effectivePromotion && finalServicesPrice < originalServicesPrice
+        ? `Promoción aplicada: ${effectivePromotion.name} (-${formatMoney(originalServicesPrice - finalServicesPrice)})`
+        : null;
     const publicNotes = [
       clientEmail.trim() ? `Email: ${clientEmail.trim()}` : null,
       clientBirthDate ? `Fecha de nacimiento: ${clientBirthDate}` : null,
       selectedServices.length > 1 ? `Servicios seleccionados:\n- ${serviceList}` : null,
       addedProducts.length ? `Productos agregados:\n- ${productList}` : null,
+      promoNote,
       "Origen: reserva online",
     ].filter(Boolean).join("\n\n");
 
@@ -712,7 +920,9 @@ function PublicBookingPage() {
       date: formatDay(selectedSlot.time),
       time: formatTime(selectedSlot.time),
       duration: totalDuration,
-      total: grandTotal,
+      total: finalServicesPrice + productsTotal,
+      originalTotal: originalServicesPrice + productsTotal,
+      promotionName: promoNote ? effectivePromotion!.name : undefined,
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
       clientEmail: clientEmail.trim() || undefined,
@@ -780,6 +990,80 @@ function PublicBookingPage() {
       const returnedBooking = Array.isArray(bookingResult.data) ? bookingResult.data[0] : bookingResult.data;
       confirmationSnapshot.appointmentId = returnedBooking?.id ?? returnedBooking?.appointment_id ?? undefined;
       confirmationSnapshot.manageToken = returnedBooking?.manage_token ?? returnedBooking?.manageToken ?? undefined;
+
+      // El RPC create_public_booking_public_v3 (no versionado en este repo)
+      // calcula precio/duración del lado del servidor a partir del precio
+      // estándar de price_catalog, sin conocer los overrides por
+      // profesional ni las promociones. Si el profesional elegido tiene un
+      // override para algún servicio, o se aplicó una promoción,
+      // corregimos acá con un UPDATE normal — mismo mecanismo que usa el
+      // resto de la app — para que el turno creado quede con el
+      // precio/duración reales. Si las políticas RLS no permiten que un
+      // cliente público actualice la fila que el propio RPC acaba de crear,
+      // este update va a fallar en silencio (solo un warning en consola) y
+      // el turno queda con el precio estándar del RPC — haría falta un
+      // ajuste de RLS/RPC del lado de Supabase para cerrar ese caso.
+      const hasEmployeeOverride = selectedServices.some((service) => {
+        const resolved = resolveServicePricing(
+          { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+          selectedSlot.employeeId,
+          employeeServiceOverrides,
+        );
+        return resolved.priceOverridden || resolved.durationOverridden;
+      });
+      const needsPriceCorrection =
+        hasEmployeeOverride || finalServicesPrice !== originalServicesPrice;
+      if (needsPriceCorrection && confirmationSnapshot.appointmentId) {
+        const { error: overrideUpdateError } = await supabase
+          .from("appointments")
+          .update({
+            service_price: finalServicesPrice,
+            duration_min: totalDuration,
+            ends_at: end.toISOString(),
+            notes: publicNotes || null,
+          })
+          .eq("id", confirmationSnapshot.appointmentId);
+        if (overrideUpdateError) {
+          console.warn(
+            "No se pudo aplicar el precio/duración/promoción del turno de reserva pública (posible restricción de RLS):",
+            overrideUpdateError.message,
+          );
+        }
+      }
+
+      // Incremento best-effort del contador de usos de la promo (mismo
+      // read-modify-write que el resto de business_settings.schedule en
+      // esta app — riesgo de concurrencia ya documentado y aceptado en el
+      // plan, no bloqueante para el volumen de un negocio de barbería).
+      if (promoNote && effectivePromotion) {
+        try {
+          const { data: bsRow } = await supabase
+            .from("business_settings")
+            .select("schedule")
+            .eq("business_id", business.id)
+            .maybeSingle();
+          const existingSchedule = (bsRow?.schedule ?? {}) as Record<string, unknown>;
+          const existingPromotions = Array.isArray(existingSchedule._promotions)
+            ? (existingSchedule._promotions as Promotion[])
+            : [];
+          const updatedPromotions = existingPromotions.map((p) => {
+            if (p.id !== effectivePromotion!.id) return p;
+            const nextUsedByClient = { ...p.usedByClient };
+            for (const key of clientKeys) {
+              nextUsedByClient[key] = (nextUsedByClient[key] ?? 0) + 1;
+            }
+            return { ...p, usageCount: p.usageCount + 1, usedByClient: nextUsedByClient };
+          });
+          await supabase
+            .from("business_settings")
+            .upsert(
+              { business_id: business.id, schedule: { ...existingSchedule, _promotions: updatedPromotions } },
+              { onConflict: "business_id" },
+            );
+        } catch (usageError) {
+          console.warn("No se pudo actualizar el contador de usos de la promoción:", usageError);
+        }
+      }
 
       setAppointments((current) => [
         ...current,
@@ -857,13 +1141,16 @@ function PublicBookingPage() {
   }
 
   const hasProducts = recommendedProducts.length > 0;
-  const totalSteps = hasProducts ? 5 : 4;
+  const hasPromoStep = validPromotions.length > 0;
+  const promoOffset = hasPromoStep ? 1 : 0;
+  const totalSteps = 4 + (hasProducts ? 1 : 0) + promoOffset;
   const stepIndex =
     step === "services" ? 1 :
-    step === "professional" ? 2 :
-    step === "datetime" ? 3 :
-    step === "products" ? 4 :
-    step === "details" ? (hasProducts ? 5 : 4) :
+    step === "promo" ? 2 :
+    step === "professional" ? 1 + promoOffset + 1 :
+    step === "datetime" ? 1 + promoOffset + 2 :
+    step === "products" ? 1 + promoOffset + 3 :
+    step === "details" ? 1 + promoOffset + (hasProducts ? 4 : 3) :
     totalSteps;
   const professionalOptionCount = employees.length + 1;
 
@@ -951,6 +1238,7 @@ function PublicBookingPage() {
                     <p className="text-sm text-white/50">Paso {stepIndex} de {totalSteps}</p>
                     <h2 className="text-2xl font-semibold">
                       {step === "services" && "Elegí tus servicios"}
+                      {step === "promo" && "¿Tenés algún beneficio?"}
                       {step === "professional" && "Elegí profesional"}
                       {step === "datetime" && "Elegí día y horario"}
                       {step === "products" && "Productos recomendados"}
@@ -965,7 +1253,8 @@ function PublicBookingPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (step === "professional") setStep("services");
+                    if (step === "promo") setStep("services");
+                    if (step === "professional") setStep(hasPromoStep ? "promo" : "services");
                     if (step === "datetime") setStep("professional");
                     if (step === "products") setStep("datetime");
                     if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
@@ -979,9 +1268,50 @@ function PublicBookingPage() {
               {step === "services" ? (
                 <div className="mt-5 space-y-4">
                   <p className="text-sm text-white/60">Podés seleccionar uno o varios servicios.</p>
+                  {serviceCategories.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setActiveServiceCategory(null)}
+                        className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
+                        style={
+                          activeServiceCategory === null
+                            ? { background: accent, color: accentButtonText }
+                            : { background: "rgba(255,255,255,0.06)", color: "inherit" }
+                        }
+                      >
+                        Todos
+                      </button>
+                      {serviceCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => setActiveServiceCategory(category)}
+                          className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
+                          style={
+                            activeServiceCategory === category
+                              ? { background: accent, color: accentButtonText }
+                              : { background: "rgba(255,255,255,0.06)", color: "inherit" }
+                          }
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="divide-y divide-white/10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]">
-                    {services.map((service) => {
+                    {visibleStepServices.map((service) => {
                       const checked = selectedServiceIds.includes(service.id);
+                      // Mismo resolver que el resto de la app: rango de
+                      // duración y precio entre los profesionales visibles
+                      // para este servicio. "30 min · $20.000" si no hay
+                      // variación, "30–60 min · Desde $20.000" si la hay —
+                      // ver formatServiceRangeLabel en src/lib/service-pricing.ts.
+                      const range = getServiceRange(
+                        { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+                        employees.map((e) => e.id),
+                        employeeServiceOverrides,
+                      );
                       return (
                         <button key={service.id} type="button" onClick={() => toggleService(service.id)} className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-white/[0.04]">
                           <span className="flex min-w-0 items-center gap-3">
@@ -997,10 +1327,9 @@ function PublicBookingPage() {
                             </span>
                             <span>
                               <span className="block font-medium">{service.name}</span>
-                              <span className="text-sm text-white/50">{Number(service.duration_min ?? service.duration ?? 30)} min</span>
+                              <span className="text-sm text-white/50">{formatServiceRangeLabel(range, formatMoney)}</span>
                             </span>
                           </span>
-                          <span className="font-semibold">{formatMoney(service.price)}</span>
                         </button>
                       );
                     })}
@@ -1008,6 +1337,156 @@ function PublicBookingPage() {
                   <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
                     Continuar
                   </Button>
+                </div>
+              ) : null}
+
+              {step === "promo" ? (
+                <div className="mt-5 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setPromoChoice("none")}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left transition hover:bg-white/[0.04]"
+                  >
+                    <span
+                      className={cn(
+                        "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
+                        promoChoice === "none" ? "border-transparent" : "border-white/25",
+                      )}
+                      style={promoChoice === "none" ? { background: accent } : undefined}
+                    >
+                      {promoChoice === "none" && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
+                    </span>
+                    <span className="font-medium">Sin beneficio</span>
+                  </button>
+
+                  {namedPromotions.map((promo) => {
+                    const remaining = getPromotionUsesRemaining(promo);
+                    return (
+                      <div
+                        key={promo.id}
+                        className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setPromoChoice(promo.id)}
+                          className="flex flex-1 items-center gap-3 text-left"
+                        >
+                          <span
+                            className={cn(
+                              "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
+                              promoChoice === promo.id ? "border-transparent" : "border-white/25",
+                            )}
+                            style={promoChoice === promo.id ? { background: accent } : undefined}
+                          >
+                            {promoChoice === promo.id && (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                            )}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{promo.name}</span>
+                            {remaining != null && (
+                              <span className="block text-xs text-white/50">
+                                {remaining} disponibles
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInfoModalPromo(promo)}
+                          className="shrink-0 rounded-full p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+                        >
+                          <Info className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {hasCodePromotions && (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                      <button
+                        type="button"
+                        onClick={() => setPromoChoice("code")}
+                        className="flex w-full items-center gap-3 text-left"
+                      >
+                        <span
+                          className={cn(
+                            "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
+                            promoChoice === "code" ? "border-transparent" : "border-white/25",
+                          )}
+                          style={promoChoice === "code" ? { background: accent } : undefined}
+                        >
+                          {promoChoice === "code" && (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                          )}
+                        </span>
+                        <span className="font-medium">Tengo un código de descuento</span>
+                      </button>
+                      {promoChoice === "code" && (
+                        <div className="mt-3">
+                          <Label className="text-xs text-white/60">Código de descuento</Label>
+                          <Input
+                            value={enteredPromoCode}
+                            onChange={(e) => {
+                              setEnteredPromoCode(e.target.value.toUpperCase());
+                              setPromoCodeError("");
+                            }}
+                            placeholder="UADE20"
+                            className="mt-1.5 uppercase"
+                          />
+                          {promoCodeError && (
+                            <p className="mt-1.5 text-xs text-rose-400">{promoCodeError}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={confirmPromoChoice}
+                    className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110"
+                    style={{ background: accent, color: accentButtonText }}
+                  >
+                    Continuar
+                  </Button>
+                </div>
+              ) : null}
+
+              {infoModalPromo ? (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+                  onClick={() => setInfoModalPromo(null)}
+                >
+                  <div
+                    className="flex max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between gap-3 p-5 pb-0">
+                      <h3 className="text-lg font-semibold">{infoModalPromo.name}</h3>
+                      <button
+                        type="button"
+                        onClick={() => setInfoModalPromo(null)}
+                        className="shrink-0 rounded-full p-1 text-white/50 hover:bg-white/10 hover:text-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto p-5 pt-3">
+                      {infoModalPromo.imageUrl && (
+                        <img
+                          src={infoModalPromo.imageUrl}
+                          alt={infoModalPromo.name}
+                          className="h-40 w-full rounded-2xl object-cover"
+                        />
+                      )}
+                      {infoModalPromo.description && (
+                        <p className="mt-3 text-sm text-white/70">{infoModalPromo.description}</p>
+                      )}
+                      <p className="mt-3 text-xs text-white/50">
+                        {formatPromotionConditions(infoModalPromo, formatMoney)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
@@ -1045,34 +1524,80 @@ function PublicBookingPage() {
                     </span>
                   </button>
 
-                  {employees.map((employee) => (
-                    <button
-                      key={employee.id}
-                      type="button"
-                      onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
-                      className={cn(
-                        "flex min-w-0 flex-col items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                        professionalOptionCount >= 7 ? "min-h-[116px] p-3" : "min-h-[128px] p-4",
-                      )}
-                    >
-                      <span
+                  {employees.map((employee) => {
+                    // Precio y duración reales para ESTE profesional (mismo
+                    // resolver que el resto de la app), para que el cliente
+                    // vea de entrada si le conviene uno u otro.
+                    const employeeTotals = selectedServices.reduce(
+                      (acc, service) => {
+                        const resolved = resolveServicePricing(
+                          { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+                          employee.id,
+                          employeeServiceOverrides,
+                        );
+                        const applies =
+                          appliedPromotion &&
+                          isPromotionApplicable(appliedPromotion, {
+                            serviceId: service.id,
+                            employeeId: employee.id,
+                            category: service.category ?? null,
+                          });
+                        const finalPrice = applyPromotionDiscount(
+                          resolved.price,
+                          applies ? appliedPromotion : null,
+                        );
+                        return {
+                          price: acc.price + finalPrice,
+                          originalPrice: acc.originalPrice + resolved.price,
+                          duration: acc.duration + resolved.duration_min,
+                        };
+                      },
+                      { price: 0, originalPrice: 0, duration: 0 },
+                    );
+                    return (
+                      <button
+                        key={employee.id}
+                        type="button"
+                        onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
                         className={cn(
-                          "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
-                          professionalOptionCount >= 7 ? "h-11 w-11" : "h-12 w-12",
+                          "flex min-w-0 flex-col items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                          professionalOptionCount >= 7 ? "min-h-[116px] p-3" : "min-h-[128px] p-4",
                         )}
                       >
-                        {employee.avatar_url ? (
-                          <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
-                        ) : (
-                          <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
-                        )}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold">{employee.full_name}</span>
-                        <span className="block truncate text-xs text-white/55">{employee.role?.trim() || "Profesional"}</span>
-                      </span>
-                    </button>
-                  ))}
+                        <span
+                          className={cn(
+                            "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
+                            professionalOptionCount >= 7 ? "h-11 w-11" : "h-12 w-12",
+                          )}
+                        >
+                          {employee.avatar_url ? (
+                            <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
+                          ) : (
+                            <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
+                          )}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold">{employee.full_name}</span>
+                          <span className="block truncate text-xs text-white/55">{employee.role?.trim() || "Profesional"}</span>
+                          {selectedServices.length > 0 && (
+                            <span className="block truncate text-xs text-white/70">
+                              {employeeTotals.duration} min ·{" "}
+                              {employeeTotals.price < employeeTotals.originalPrice ? (
+                                <>
+                                  <span className="line-through text-white/40">
+                                    {formatMoney(employeeTotals.originalPrice)}
+                                  </span>{" "}
+                                  {formatMoney(employeeTotals.price)}
+                                </>
+                              ) : (
+                                formatMoney(employeeTotals.price)
+                              )}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : null}
 
@@ -1486,7 +2011,26 @@ function PublicBookingPage() {
                         style={{ background: `linear-gradient(135deg, color-mix(in oklch, ${cPrimary} 14%, transparent), color-mix(in oklch, ${cSecondary} 14%, transparent))` }}
                       >
                         <span className={cn("text-sm font-medium", isLight ? "text-slate-600" : "text-white/70")}>Total</span>
-                        <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>{formatMoney(confirmedBooking?.total ?? grandTotal)}</span>
+                        <div className="text-right">
+                          {confirmedBooking &&
+                          confirmedBooking.originalTotal > confirmedBooking.total ? (
+                            <>
+                              <span className={cn("mr-2 text-base line-through", isLight ? "text-slate-400" : "text-white/40")}>
+                                {formatMoney(confirmedBooking.originalTotal)}
+                              </span>
+                              <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>
+                                {formatMoney(confirmedBooking.total)}
+                              </span>
+                              <p className={cn("mt-0.5 text-xs font-semibold", isLight ? "text-emerald-600" : "text-emerald-400")}>
+                                Ahorrás {formatMoney(confirmedBooking.originalTotal - confirmedBooking.total)}
+                              </p>
+                            </>
+                          ) : (
+                            <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>
+                              {formatMoney(confirmedBooking?.total ?? grandTotal)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -1538,7 +2082,24 @@ function PublicBookingPage() {
                     </div>
                   </div>
                 ) : null}
-                <div className="flex items-center justify-between border-t border-white/10 pt-4"><span>Total</span><span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span></div>
+                {appliedPromotion ? (
+                  <div className="border-t border-white/10 pt-4">
+                    <p className="text-white/40">Beneficio</p>
+                    <p className="mt-1 font-medium text-white">{appliedPromotion.name}</p>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between border-t border-white/10 pt-4">
+                  <span>Total</span>
+                  {promoSavings > 0 ? (
+                    <span className="text-right">
+                      <span className="mr-2 text-sm text-white/40 line-through">{formatMoney(originalGrandTotal)}</span>
+                      <span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span>
+                      <span className="block text-xs font-semibold text-emerald-400">Ahorrás {formatMoney(promoSavings)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span>
+                  )}
+                </div>
                 <div className="flex items-center justify-between"><span>Duración</span><span className="font-semibold text-white">{totalDuration} min</span></div>
               </div>
             </CardContent>

@@ -17,6 +17,7 @@ import {
   resolveDaySchedule,
   checkDaySchedule,
 } from "@/lib/availability";
+import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
 
 /**
  * Datos de la Agenda. Carga turnos (appointments) del rango visible,
@@ -277,6 +278,15 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   // Horarios especiales por fecha (override puntual).
   const [businessSpecialDates, setBusinessSpecialDates] = React.useState<SpecialDateMap>({});
   const [employeeSpecialDates, setEmployeeSpecialDates] = React.useState<EmployeeSpecialDateMap>({});
+  // Modo de aprobación de cobros por profesional (configurado en Equipo →
+  // Editar profesional). Solo lectura acá — Agenda nunca lo edita.
+  const [employeeApprovalEnabled, setEmployeeApprovalEnabled] = React.useState<Record<string, boolean>>({});
+  const [employeeApprovalMode, setEmployeeApprovalMode] = React.useState<Record<string, "auto" | "manual">>({});
+  // Precio/duración personalizados por profesional-servicio (configurados en
+  // Equipo → Editar profesional → Comisiones). Único mapa que consume el
+  // resolver compartido `resolveServicePricing` — ver src/lib/service-pricing.ts.
+  const [employeeServiceOverrides, setEmployeeServiceOverrides] =
+    React.useState<EmployeeServiceOverrideMap>({});
   const [realtimeStatus, setRealtimeStatus] = React.useState<"connecting" | "connected" | "disconnected">("connecting");
 
   const startIso = rangeStart.toISOString();
@@ -392,6 +402,16 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       if (Object.keys(map).length) normalizedEmpSpecial[empId] = map;
     }
     setEmployeeSpecialDates(normalizedEmpSpecial);
+
+    setEmployeeApprovalEnabled(
+      (rawSchedule?._employeeApprovalEnabled as Record<string, boolean>) ?? {},
+    );
+    setEmployeeApprovalMode(
+      (rawSchedule?._employeeApprovalMode as Record<string, "auto" | "manual">) ?? {},
+    );
+    setEmployeeServiceOverrides(
+      (rawSchedule?._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
+    );
 
     setAppointments(
       aRes.status === "fulfilled" && !aRes.value.error
@@ -550,6 +570,9 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     employeeSchedules,
     businessSpecialDates,
     employeeSpecialDates,
+    employeeApprovalEnabled,
+    employeeApprovalMode,
+    employeeServiceOverrides,
     realtimeStatus,
     refresh: () => load({ silent: true }),
   };

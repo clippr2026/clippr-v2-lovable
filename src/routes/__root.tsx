@@ -1,3 +1,4 @@
+import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -132,6 +133,14 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Safari en iOS solo activa el pseudo-estado :active al tocar si detecta
+  // que la página escucha eventos táctiles; sin esto, botones como el ☰ del
+  // header no dan ningún feedback visual hasta que el click termina de
+  // procesarse, reforzando la sensación de que "no respondió" al primer toque.
+  React.useEffect(() => {
+    document.addEventListener("touchstart", () => {}, { passive: true });
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

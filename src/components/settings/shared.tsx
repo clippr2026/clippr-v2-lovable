@@ -14,18 +14,27 @@ export type PriceRow = {
 
 export function SectionCard({
   label,
+  headerRight,
   children,
   id,
 }: {
-  label: string;
+  // Normalmente un string, pero acepta cualquier nodo (ej. ícono + texto
+  // coloreados) para secciones que quieren reforzar su identidad visual.
+  label: React.ReactNode;
+  // Elemento opcional alineado a la derecha del label (ej. un switch que
+  // habilita/deshabilita el contenido de la sección).
+  headerRight?: React.ReactNode;
   children: React.ReactNode;
   id?: string;
 }) {
   return (
     <div id={id} className="glass rounded-2xl p-4 ring-1 ring-white/5">
       {label ? (
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-4">
-          {label}
+        <div className={cn("flex items-center justify-between gap-3", headerRight ? "mb-3" : "mb-4")}>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            {label}
+          </div>
+          {headerRight}
         </div>
       ) : null}
       {children}

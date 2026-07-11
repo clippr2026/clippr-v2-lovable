@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
+import { AgendaDrawer, AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import {
   Select,
@@ -33,6 +33,10 @@ import {
 import { ServiceImage } from "@/components/ui/service-image";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
+import {
+  resolveServicePricing,
+  type EmployeeServiceOverrideMap,
+} from "@/lib/service-pricing";
 
 type Props = {
   open: boolean;
@@ -51,6 +55,11 @@ type Props = {
   employeeSchedules?: Record<string, import("./use-agenda-data").ScheduleMap>;
   businessSpecialDates?: import("./use-agenda-data").SpecialDateMap;
   employeeSpecialDates?: import("./use-agenda-data").EmployeeSpecialDateMap;
+  employeeServiceOverrides?: EmployeeServiceOverrideMap;
+  // "drawer" (default) = panel lateral, igual que Agenda general.
+  // "modal" = modal centrado en pantalla — usado por Mi Agenda, donde un
+  // panel lateral no encaja con el resto del layout del profesional.
+  presentation?: "drawer" | "modal";
 };
 
 
@@ -246,7 +255,10 @@ export function AppointmentDialog({
   employeeSchedules = {},
   businessSpecialDates = {},
   employeeSpecialDates = {},
+  employeeServiceOverrides = {},
+  presentation = "drawer",
 }: Props) {
+  const Wrapper = presentation === "modal" ? AgendaCenteredModal : AgendaDrawer;
   const isEdit = !!appointment?.id;
   const [busy, setBusy] = React.useState(false);
   const [repeatOpen, setRepeatOpen] = React.useState(false);
@@ -403,12 +415,29 @@ export function AppointmentDialog({
   const pickService = (id: string) => {
     setServiceId(id);
     const s = services.find((x) => x.id === id);
-    if (s) {
-      setServiceName(s.name);
-      setPrice(Number(s.price));
-      if (s.duration) setDuration(Number(s.duration));
-    }
+    if (s) setServiceName(s.name);
   };
+
+  // Precio/duración del servicio elegido, resueltos con el mismo resolver
+  // que usan Caja y la Página Pública (`resolveServicePricing`) — respeta el
+  // override por profesional si existe, o el estándar si no. Se recalcula
+  // si el usuario cambia de profesional después de elegir el servicio. No
+  // corre al abrir un turno YA existente para editar (`serviceId` arranca
+  // vacío en ese caso — ver efecto de arriba), así que nunca pisa el precio
+  // congelado de un turno ya guardado sin que el usuario vuelva a elegir el
+  // servicio explícitamente.
+  React.useEffect(() => {
+    if (!serviceId) return;
+    const s = services.find((x) => x.id === serviceId);
+    if (!s) return;
+    const resolved = resolveServicePricing(
+      { id: s.id, price: s.price, duration_min: s.duration },
+      employeeId || null,
+      employeeServiceOverrides,
+    );
+    setPrice(resolved.price);
+    setDuration(resolved.duration_min);
+  }, [serviceId, employeeId, services, employeeServiceOverrides]);
 
   const resetForAnother = () => {
     setClientId("");
@@ -600,7 +629,7 @@ export function AppointmentDialog({
 
   return (
     <>
-    <AgendaDrawer
+    <Wrapper
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? "Editar reserva" : "Nueva reserva"}
@@ -614,7 +643,7 @@ export function AppointmentDialog({
         </>
       }
     >
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {/* Fecha y hora — compact */}
           <section className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2.5">
             <div className="flex items-center justify-between gap-3">
@@ -627,19 +656,23 @@ export function AppointmentDialog({
             </div>
             <div className="space-y-2">
               <AppointmentDatePicker value={dateValue} onChange={setDateValue} />
-              <div className="grid grid-cols-2 gap-2">
+              {/* "hs" describe el horario completo (hora : minuto), no un
+                  selector individual — así no se lee raro como "14 hs". */}
+              <div className="flex items-center gap-1.5">
                 <Select value={hourValue} onValueChange={setHourValue}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 flex-1 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {hourOptions.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <span className="text-sm font-semibold text-muted-foreground">:</span>
                 <Select value={minuteValue} onValueChange={setMinuteValue}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 flex-1 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {minuteOptions.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <span className="shrink-0 text-sm font-medium text-muted-foreground">hs</span>
               </div>
             </div>
             {repeat.enabled && !isEdit && (
@@ -651,11 +684,9 @@ export function AppointmentDialog({
           <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 px-2.5 text-xs"
+                className="inline-flex h-7 items-center gap-1 rounded-lg bg-white/5 px-2.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/10 hover:text-foreground"
                 onClick={() => {
                   if (newClientMode) {
                     setNewClientMode(false);
@@ -667,8 +698,8 @@ export function AppointmentDialog({
                   }
                 }}
               >
-                {newClientMode ? "Cancelar" : (<><UserPlus className="h-3.5 w-3.5 mr-1" /> Nuevo</>)}
-              </Button>
+                {newClientMode ? "Cancelar" : (<><UserPlus className="h-3.5 w-3.5" /> Nuevo</>)}
+              </button>
             </div>
 
             {!newClientMode && (
@@ -739,27 +770,34 @@ export function AppointmentDialog({
             )}
           </section>
 
-          {/* Profesional y servicio */}
-          <section className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.03] p-3 space-y-3">
-            <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider"><Scissors className="h-3.5 w-3.5 text-emerald-300" /> Profesional y servicio</h3>
+          {/* Servicio (y Profesional, solo cuando hay más de uno para elegir) */}
+          <section className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-3">
+            <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">
+              <Scissors className="h-3.5 w-3.5 text-primary" />
+              {employees.length > 1 ? "Profesional y servicio" : "Servicio"}
+            </h3>
             <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Profesional</Label>
-                <Select value={employeeId} onValueChange={setEmployeeId}>
-                  <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Profesional" /></SelectTrigger>
-                  <SelectContent>
-                    {employees
-                      .filter((e) => e.is_active !== false || e.id === employeeId)
-                      .map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {employees.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Profesional</Label>
+                  <Select value={employeeId} onValueChange={setEmployeeId}>
+                    <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Profesional" /></SelectTrigger>
+                    <SelectContent>
+                      {employees
+                        .filter((e) => e.is_active !== false || e.id === employeeId)
+                        .map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name ?? e.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Servicio</Label>
                 <Select value={serviceId} onValueChange={pickService}>
-                  <SelectTrigger className="h-10 text-sm w-full"><SelectValue placeholder="Servicio" /></SelectTrigger>
+                  <SelectTrigger className="h-10 text-sm w-full border-white/20 hover:border-white/30 transition-colors [&>svg]:opacity-80 data-[placeholder]:text-white/55">
+                    <SelectValue placeholder="Elegí un servicio" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — {Number(s.duration_min ?? 30)} min · ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>)}
+                    {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — {Number(s.duration ?? 30)} min · ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -836,16 +874,16 @@ export function AppointmentDialog({
 
               {serviceId && services.find(s => s.id === serviceId) && (
                 <div className="pt-1 text-[11px] text-muted-foreground">
-                  Duración {Number(services.find(s => s.id === serviceId)?.duration_min ?? 30)} min
+                  Duración {Number(services.find(s => s.id === serviceId)?.duration ?? 30)} min
                 </div>
               )}
             </div>
           </div>
         )}
 
-    </AgendaDrawer>
+    </Wrapper>
 
-      <AgendaDrawer
+      <Wrapper
         open={repeatOpen}
         onOpenChange={setRepeatOpen}
         title="Repetir turno"
@@ -896,7 +934,7 @@ export function AppointmentDialog({
               )}
             </div>
           </div>
-      </AgendaDrawer>
+      </Wrapper>
     </>
   );
 }

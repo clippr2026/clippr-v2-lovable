@@ -50,6 +50,7 @@ import {
   Moon,
   Sun,
   Loader2,
+  Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ServiceImage } from "@/components/ui/service-image";
@@ -59,10 +60,11 @@ import type {
   EmployeeSpecialDateMap,
 } from "@/components/agenda/use-agenda-data";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { ReservasOnlineIcon, BrandingSection } from "@/components/settings/branding-section";
+import { BrandingSection } from "@/components/settings/branding-section";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import { EquipoSection } from "@/components/settings/equipo-section";
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
+import { PromotionsSection } from "@/components/settings/promotions-section";
 import { CuentaSection } from "@/components/settings/cuenta-section";
 import { CajaSection } from "@/components/settings/caja-section";
 import { PlanSection } from "@/components/settings/plan-section";
@@ -88,6 +90,7 @@ type SectionId =
   | "equipo"
   | "servicios"
   | "catalogo"
+  | "promociones"
   | "caja"
   | "cuenta"
   | "plan";
@@ -107,7 +110,7 @@ const groups: { label: string; items: NavItem[] }[] = [
       {
         id: "branding",
         label: "Página de reservas",
-        icon: ReservasOnlineIcon,
+        icon: Globe,
         tint: "text-white",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
       },
@@ -124,13 +127,6 @@ const groups: { label: string; items: NavItem[] }[] = [
     label: "Operaciones",
     items: [
       {
-        id: "equipo",
-        label: "Equipo",
-        icon: Users,
-        tint: "text-[oklch(0.82_0.16_200)]",
-        glow: "from-[oklch(0.82_0.16_200/0.25)] to-[oklch(0.7_0.2_220/0.05)]",
-      },
-      {
         id: "servicios",
         label: "Servicios",
         icon: Zap,
@@ -143,6 +139,20 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Store,
         tint: "text-[oklch(0.82_0.14_75)]",
         glow: "from-[oklch(0.82_0.14_75/0.25)] to-[oklch(0.78_0.17_55/0.05)]",
+      },
+      {
+        id: "equipo",
+        label: "Equipo",
+        icon: Users,
+        tint: "text-[oklch(0.82_0.16_200)]",
+        glow: "from-[oklch(0.82_0.16_200/0.25)] to-[oklch(0.7_0.2_220/0.05)]",
+      },
+      {
+        id: "promociones",
+        label: "Promociones",
+        icon: Percent,
+        tint: "text-[oklch(0.75_0.2_320)]",
+        glow: "from-[oklch(0.75_0.2_320/0.25)] to-[oklch(0.65_0.22_300/0.05)]",
       },
     ],
   },
@@ -315,6 +325,7 @@ function SettingsPage() {
                 {active === "servicios" && <ServiciosSection />}
 
                 {active === "catalogo" && <CatalogoSection />}
+                {active === "promociones" && <PromotionsSection />}
                 {active === "cuenta" && <CuentaSection />}
                 {active === "caja" && <CajaSection />}
                 {active === "plan" && <PlanSection />}

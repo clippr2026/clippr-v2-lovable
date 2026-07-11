@@ -9,6 +9,8 @@ import {
   DollarSign,
   ChevronLeft,
   ChevronRight,
+  CalendarPlus,
+  CreditCard,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -21,8 +23,17 @@ import {
   useProfSales, useProfTurnos,
   type ProfTurno,
 } from "@/hooks/use-professionals-data";
+import { cancelAppointment } from "@/components/agenda/use-agenda-data";
+import { useAgendaData } from "@/components/agenda/use-agenda-data";
+import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
+import { useCajaData } from "@/components/cash-register/use-caja-data";
+import { NuevaVentaTab } from "@/routes/cash-register";
 import { toast } from "sonner";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import {
+  resolveServicePricing,
+  type EmployeeServiceOverrideMap,
+} from "@/lib/service-pricing";
 
 export const Route = createFileRoute("/professionals")({
   component: ProfessionalsPage,
@@ -298,13 +309,27 @@ function ProfessionalsPage() {
     isProfessionalAccess ? ownProfessional?.id === empId : true
   );
 
-  // Load approval_mode from Supabase
-  const [approvalMode, setApprovalMode] = useState<"auto" | "manual" | "disabled">(() => {
-    if (typeof window === "undefined") return "auto";
-    const saved = window.localStorage.getItem("clippr_approval_mode");
-    return saved === "manual" || saved === "disabled" || saved === "auto" ? saved : "auto";
-  });
-  const [approvalModeEnabled, setApprovalModeEnabled] = useState(false);
+  // Modo de aprobación de cobros y switches de agenda — todos por profesional
+  // (configurados en Equipo → Editar profesional, no por rol de login). Se
+  // traen los 4 mapas completos y se deriva el valor del profesional activo.
+  const [employeeApprovalEnabledMap, setEmployeeApprovalEnabledMap] = useState<
+    Record<string, boolean>
+  >({});
+  const [employeeApprovalModeMap, setEmployeeApprovalModeMap] = useState<
+    Record<string, "auto" | "manual">
+  >({});
+  const [employeeCanAddTurnoMap, setEmployeeCanAddTurnoMap] = useState<
+    Record<string, boolean>
+  >({});
+  const [employeeCanCancelTurnoMap, setEmployeeCanCancelTurnoMap] = useState<
+    Record<string, boolean>
+  >({});
+
+  // Un admin/recepción viendo esta pantalla siempre puede agregar/cancelar
+  // turnos; un profesional viendo la suya solo si tiene el switch activado
+  // en Equipo (por profesional, no por rol de login).
+  const canAddTurno = canOperateSelectedPanel && (!isProfessionalAccess || (!!empId && employeeCanAddTurnoMap[empId] === true));
+  const canDeleteTurno = canOperateSelectedPanel && (!isProfessionalAccess || (!!empId && employeeCanCancelTurnoMap[empId] === true));
   useEffect(() => {
     if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
       setActiveId(ownProfessional.id);
@@ -329,16 +354,32 @@ function ProfessionalsPage() {
 
   useEffect(() => {
     if (!businessId) return;
-    supabase.from("business_settings").select("approval_mode,schedule").eq("business_id", businessId).maybeSingle()
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle()
       .then(({ data }) => {
-        if (data?.approval_mode) {
-          setApprovalMode(data.approval_mode as typeof approvalMode);
-          if (typeof window !== "undefined") window.localStorage.setItem("clippr_approval_mode", data.approval_mode);
-        }
-        const caja = ((data?.schedule as Record<string, unknown> | null)?._caja ?? {}) as Record<string, unknown>;
-        setApprovalModeEnabled(caja.approvalModeEnabled === true);
+        const schedule = (data?.schedule as Record<string, unknown> | null) ?? {};
+        setEmployeeApprovalEnabledMap(
+          (schedule._employeeApprovalEnabled as Record<string, boolean>) ?? {},
+        );
+        setEmployeeApprovalModeMap(
+          (schedule._employeeApprovalMode as Record<string, "auto" | "manual">) ?? {},
+        );
+        setEmployeeCanAddTurnoMap(
+          (schedule._employeeAgendaAdd as Record<string, boolean>) ?? {},
+        );
+        setEmployeeCanCancelTurnoMap(
+          (schedule._employeeAgendaCancel as Record<string, boolean>) ?? {},
+        );
       });
   }, [businessId]);
+  // "disabled" acá representa "No cobra servicios" para este profesional
+  // (nunca aparece el botón Cobrar/Enviar) — mismo criterio que antes tenía
+  // el toggle global "Habilitar modo de aprobación" apagado.
+  const approvalModeEnabled = !!empId && employeeApprovalEnabledMap[empId] === true;
+  const approvalMode: "auto" | "manual" | "disabled" = !approvalModeEnabled
+    ? "disabled"
+    : employeeApprovalModeMap[empId ?? ""] === "manual"
+      ? "manual"
+      : "auto";
   const active = useMemo(() => visibleProfessionals.find((p) => p.id === empId) ?? visibleProfessionals[0] ?? null, [visibleProfessionals, empId]);
   const activeColor = useMemo(() => COLORS[(visibleProfessionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [visibleProfessionals, empId]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
@@ -417,15 +458,15 @@ function ProfessionalsPage() {
               <div className="text-sm text-muted-foreground mt-0.5">
                 {active.role_label?.trim() || "Profesional"} {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
               </div>
-              {permissions.equipo && approvalModeEnabled && <div className={cn(
+              {permissions.equipo && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
                 approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
-                approvalMode === "manual" && "bg-cyan-500/10 ring-cyan-400/30 text-cyan-300",
-                approvalMode === "disabled" && "bg-rose-500/10 ring-rose-400/30 text-rose-300",
+                approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
+                approvalMode === "disabled" && "bg-white/5 ring-white/15 text-muted-foreground",
               )}>
-                {approvalMode === "auto" && <>Automático</>}
-                {approvalMode === "manual" && <>Manual</>}
-                {approvalMode === "disabled" && <>Desactivado</>}
+                {approvalMode === "auto" && <>🟢 Cobra directamente</>}
+                {approvalMode === "manual" && <>🟡 Requiere aprobación</>}
+                {approvalMode === "disabled" && <>⚪ No cobra servicios</>}
               </div>}
             </div>
           </div>
@@ -501,109 +542,8 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      <div className="flex justify-end -mt-3">
-        {tab === "turnos" ? (
-          <div className="flex items-center gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
-            <button
-              type="button"
-              onClick={() => {
-                const today = getPresetRange("hoy").from;
-                setRange("hoy");
-                setFromDate(today);
-                setToDate(today);
-                setDayPickerOpen(false);
-              }}
-              className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
-            >
-              Hoy
-            </button>
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setDayPickerOpen((v) => !v)}
-                className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-[#070814]/95 px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
-              >
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="capitalize tabular-nums">{selectedDayLabel}</span>
-              </button>
-
-              {dayPickerOpen && (
-                <div className="absolute right-0 top-11 z-50 w-[336px] overflow-hidden rounded-3xl border border-white/10 bg-[#050612] text-white shadow-[0_24px_80px_rgba(0,0,0,0.62),0_0_0_1px_rgba(124,58,237,0.08)]">
-                  <div className="flex flex-wrap gap-2 border-b border-white/10 p-4">
-                    {[
-                      ["Hoy", getPresetRange("hoy").from],
-                      ["Ayer", toLocalISODate(new Date(Date.now() - 24 * 60 * 60 * 1000))],
-                    ].map(([label, value]) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => selectSingleDay(parseLocalISODate(value))}
-                        className="rounded-full bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-white/60 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="p-4">
-                    <div className="mb-4 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
-                        className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-                        aria-label="Mes anterior"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <div className="text-base font-bold tracking-tight text-white">
-                        {monthLabelEs(visibleMonth)}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
-                        className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-                        aria-label="Mes siguiente"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-y-2 text-center">
-                      {["LU", "MA", "MI", "JU", "VI", "SÁ", "DO"].map((d) => (
-                        <div key={d} className="pb-2 text-[11px] font-semibold tracking-[0.18em] text-white/28">
-                          {d}
-                        </div>
-                      ))}
-
-                      {calendarDays.map((day) => {
-                        const selected = sameLocalDay(day, selectedDateObj);
-                        const inMonth = day.getMonth() === visibleMonth.getMonth();
-                        return (
-                          <button
-                            key={toLocalISODate(day)}
-                            type="button"
-                            onClick={() => selectSingleDay(day)}
-                            className={cn(
-                              "mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold tabular-nums transition",
-                              selected
-                                ? "bg-gradient-to-br from-[#62A8FF] to-[#8B5CF6] text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]"
-                                : inMonth
-                                  ? "text-white/78 hover:bg-white/[0.07] hover:text-white"
-                                  : "text-white/20 hover:bg-white/[0.04]",
-                            )}
-                          >
-                            {day.getDate()}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
+      {tab !== "turnos" && (
+        <div className="flex justify-end -mt-3">
           <DateRangePicker
             from={fromDate}
             to={toDate}
@@ -613,11 +553,127 @@ function ProfessionalsPage() {
               setToDate(to);
             }}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Content */}
-      {tab === "turnos" && <TurnosView businessId={businessId} empId={empId} fromDate={fromDate} toDate={fromDate} approvalMode={approvalMode} approvalModeEnabled={approvalModeEnabled} profile={profile} canOperate={canOperateSelectedPanel} equipoEnabled={approvalModeEnabled} />}
+      {tab === "turnos" && (
+        <TurnosView
+          businessId={businessId}
+          empId={empId}
+          fromDate={fromDate}
+          toDate={fromDate}
+          approvalMode={approvalMode}
+          approvalModeEnabled={approvalModeEnabled}
+          profile={profile}
+          canOperate={canOperateSelectedPanel}
+          equipoEnabled={approvalModeEnabled}
+          canAddTurno={canAddTurno}
+          canDeleteTurno={canDeleteTurno}
+          dateControl={
+            <div className="flex items-center gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
+              <button
+                type="button"
+                onClick={() => {
+                  const today = getPresetRange("hoy").from;
+                  setRange("hoy");
+                  setFromDate(today);
+                  setToDate(today);
+                  setDayPickerOpen(false);
+                }}
+                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
+              >
+                Hoy
+              </button>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setDayPickerOpen((v) => !v)}
+                  className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-[#070814]/95 px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
+                >
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="capitalize tabular-nums">{selectedDayLabel}</span>
+                </button>
+
+                {dayPickerOpen && (
+                  <div className="absolute left-0 top-11 z-50 w-[336px] overflow-hidden rounded-3xl border border-white/10 bg-[#050612] text-white shadow-[0_24px_80px_rgba(0,0,0,0.62),0_0_0_1px_rgba(124,58,237,0.08)]">
+                    <div className="flex flex-wrap gap-2 border-b border-white/10 p-4">
+                      {[
+                        ["Hoy", getPresetRange("hoy").from],
+                        ["Ayer", toLocalISODate(new Date(Date.now() - 24 * 60 * 60 * 1000))],
+                      ].map(([label, value]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => selectSingleDay(parseLocalISODate(value))}
+                          className="rounded-full bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-white/60 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="p-4">
+                      <div className="mb-4 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
+                          className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                          aria-label="Mes anterior"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <div className="text-base font-bold tracking-tight text-white">
+                          {monthLabelEs(visibleMonth)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
+                          className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                          aria-label="Mes siguiente"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-y-2 text-center">
+                        {["LU", "MA", "MI", "JU", "VI", "SÁ", "DO"].map((d) => (
+                          <div key={d} className="pb-2 text-[11px] font-semibold tracking-[0.18em] text-white/28">
+                            {d}
+                          </div>
+                        ))}
+
+                        {calendarDays.map((day) => {
+                          const selected = sameLocalDay(day, selectedDateObj);
+                          const inMonth = day.getMonth() === visibleMonth.getMonth();
+                          return (
+                            <button
+                              key={toLocalISODate(day)}
+                              type="button"
+                              onClick={() => selectSingleDay(day)}
+                              className={cn(
+                                "mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold tabular-nums transition",
+                                selected
+                                  ? "bg-gradient-to-br from-[#62A8FF] to-[#8B5CF6] text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]"
+                                  : inMonth
+                                    ? "text-white/78 hover:bg-white/[0.07] hover:text-white"
+                                    : "text-white/20 hover:bg-white/[0.04]",
+                              )}
+                            >
+                              {day.getDate()}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          }
+        />
+      )}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
@@ -711,10 +767,11 @@ function fmtMoney(n: number) {
 // ── Inline item editor ─────────────────────────────────────────────────────
 // The item row itself becomes the search field — no separate buscador above.
 function ItemPicker({
-  businessId, currentName, currentAmount,
+  businessId, employeeId, currentName, currentAmount,
   onSelect, onClose,
 }: {
   businessId: string;
+  employeeId: string | null;
   currentName: string; currentAmount: string;
   onSelect: (name: string, amount: number) => void;
   onClose: () => void;
@@ -732,16 +789,23 @@ function ItemPicker({
   React.useEffect(() => {
     if (!businessId) return;
     (async () => {
-      const [{ data: svcs }, { data: prods }] = await Promise.all([
-        supabase.from("price_catalog").select("id,name,price").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null).order("name"),
-        supabase.from("price_catalog").select("id,name,price").eq("business_id", businessId).eq("active", true).is("duration_min", null).order("name"),
+      const [{ data: svcs }, { data: prods }, { data: bs }] = await Promise.all([
+        supabase.from("price_catalog").select("id,name,price,duration_min").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null).order("name"),
+        supabase.from("price_catalog").select("id,name,price,duration_min").eq("business_id", businessId).eq("active", true).is("duration_min", null).order("name"),
+        supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
       ]);
+      // Mismo resolver que Agenda/Caja/Página Pública: si el profesional
+      // tiene precio personalizado para el servicio, se sugiere ese precio
+      // en vez del estándar (el monto siempre queda editable a mano).
+      const overrides = ((bs?.schedule as any)?._employeeServiceOverrides ?? {}) as EmployeeServiceOverrideMap;
+      const resolvePrice = (item: { id: string; price: number; duration_min: number | null }) =>
+        resolveServicePricing(item, employeeId, overrides).price;
       setOptions([
-        ...(svcs ?? []).map(s => ({ id: s.id, name: s.name as string, price: Number(s.price ?? 0) })),
+        ...(svcs ?? []).map(s => ({ id: s.id, name: s.name as string, price: resolvePrice(s as any) })),
         ...(prods ?? []).map(p => ({ id: p.id, name: p.name as string, price: Number(p.price ?? 0) })),
       ]);
     })();
-  }, [businessId]);
+  }, [businessId, employeeId]);
 
   React.useEffect(() => {
     // Auto-focus and select all text so user can type immediately
@@ -1039,6 +1103,7 @@ function CobroModal({
                 {editingId === item.id ? (
                   <ItemPicker
                     businessId={businessId}
+                    employeeId={empId}
                     currentName={item.name}
                     currentAmount={String(item.amount)}
                     onSelect={(name, amount) => applyEdit(item.id, name, amount)}
@@ -1067,6 +1132,7 @@ function CobroModal({
             {addingItem ? (
               <ItemPicker
                 businessId={businessId}
+                employeeId={empId}
                 currentName="" currentAmount="0"
                 onSelect={applyAdd}
                 onClose={() => setAddingItem(false)}
@@ -1352,7 +1418,7 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
   );
 }
 
-function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled }: {
+function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, dateControl }: {
   businessId: string | null; empId: string | null;
   fromDate: string;
   toDate: string;
@@ -1361,6 +1427,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   profile: { id: string; email?: string | null } | null;
   canOperate: boolean;
   equipoEnabled: boolean;
+  canAddTurno: boolean;
+  canDeleteTurno: boolean;
+  dateControl?: React.ReactNode;
 }) {
   const from = fromDate;
   const to = toDate;
@@ -1368,6 +1437,18 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const { data: turnos = [], isLoading, refetch } = useProfTurnos(businessId, empId, from, to);
   const [historialVersion, setHistorialVersion] = React.useState(0);
   const [businessSchedule, setBusinessSchedule] = React.useState<any>(null);
+
+  // Mismos datos/hooks que usan Agenda general y Caja — así "+ Nuevo turno" y
+  // "Cliente sin turno" reutilizan sus modales/flujos reales tal cual, sin
+  // reimplementar nada.
+  const agendaRangeStart = React.useMemo(() => new Date(`${from}T00:00:00`), [from]);
+  const agendaRangeEnd = React.useMemo(() => new Date(`${from}T23:59:59`), [from]);
+  const agendaData = useAgendaData(agendaRangeStart, agendaRangeEnd);
+  const lockedEmployees = React.useMemo(
+    () => agendaData.employees.filter((e) => e.id === empId),
+    [agendaData.employees, empId],
+  );
+  const cajaData = useCajaData();
 
   React.useEffect(() => {
     if (!businessId) {
@@ -1389,6 +1470,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   }, [turnos]);
 
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  const [walkInChargeOpen, setWalkInChargeOpen] = useState(false);
+  const [addTurnoOpen, setAddTurnoOpen] = useState(false);
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [canceladosOpen, setCanceladosOpen] = useState(false);
   const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
@@ -1559,7 +1642,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
         const start = minutesOfDayFromISO(t.starts_at);
         const end = t.ends_at
           ? minutesOfDayFromISO(t.ends_at)
-          : start + Math.max(30, Number(t.duration_min ?? 30));
+          : start + 30;
         return [start, end];
       }),
       ...(breakRange ? [breakRange.startMin, breakRange.endMin] : []),
@@ -1582,7 +1665,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const getTurnoEndMin = (t: import("@/hooks/use-professionals-data").ProfTurno) => {
     const startMin = minutesOfDayFromISO(t.starts_at);
     if (t.ends_at) return minutesOfDayFromISO(t.ends_at);
-    return startMin + Math.max(30, Number(t.duration_min ?? 30));
+    return startMin + 30;
   };
   const getBlockHeight = (t: import("@/hooks/use-professionals-data").ProfTurno) => {
     const startMin = minutesOfDayFromISO(t.starts_at);
@@ -1595,10 +1678,40 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   return (
     <div className="w-full space-y-2 animate-fade-up">
 
-      {/* El rango se elige arriba con el calendario tipo Dashboard */}
+      {/* Una sola fila: Hoy/fecha a la izquierda, acciones a la derecha.
+          Dos permisos independientes: el modo de cobro del profesional
+          habilita Cobrar/Enviar (con o sin turno); el switch "Puede agregar
+          turnos" habilita crear turnos agendados. No se mezclan. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 -mt-4 mb-1">
+        {dateControl ?? <div />}
+        {(canAddTurno || approvalMode !== "disabled") && (
+          <div className="flex flex-wrap gap-2">
+            {canAddTurno && (
+              <button
+                type="button"
+                onClick={() => setAddTurnoOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#60A5FA,#3B82F6)] px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(96,165,250,0.55)] transition hover:brightness-110"
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                Nuevo turno
+              </button>
+            )}
+            {approvalMode !== "disabled" && (
+              <button
+                type="button"
+                onClick={() => setWalkInChargeOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#34D399,#10B981)] px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)] transition hover:brightness-110"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Nueva venta
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Status cards — ocupan todo el ancho de la agenda */}
-      <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 -mt-4 mb-1">
+      <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 mb-1">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1669,6 +1782,77 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
               const { isSentToCaja } = getTurnoMeta(t);
 
+              // Celda de acción (historial / botón Cobrar-Enviar / "—") — una
+              // sola definición, reusada tal cual en el layout compacto de
+              // mobile y en el grid de desktop. Misma lógica en los dos
+              // tamaños de pantalla, nunca un botón distinto ni duplicado.
+              const actionCell = historialDisplay.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
+                  {historialDisplay.map((ev, ei) => {
+                    const actionColor =
+                      ev.action === "Envió a caja" ? "text-sky-300" :
+                      ev.action === "Cobró"        ? "text-emerald-300" :
+                      ev.action === "Canceló"      ? "text-rose-300" :
+                      ev.action === "Anuló cobro"  ? "text-orange-300" :
+                      ev.action === "Reembolsó"    ? "text-violet-300" :
+                      "text-muted-foreground";
+                    return (
+                      <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
+                        <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                        <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                        <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : showActionBtn ? (
+                <button
+                  onClick={() => setCobroTurno(t)}
+                  className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
+                    approvalMode === "auto"
+                      ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
+                      : "bg-cyan-500/15 ring-cyan-400/30 text-cyan-300 hover:bg-cyan-500/25"
+                  )}
+                >
+                  {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                </button>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">—</span>
+              );
+
+              const canDeleteThisTurno =
+                canDeleteTurno && !["cancelled", "charged"].includes(t.status);
+              const deleteCell = canDeleteThisTurno ? (
+                <button
+                  type="button"
+                  title="Cancelar turno"
+                  onClick={async () => {
+                    if (!window.confirm("¿Cancelar este turno?")) return;
+                    try {
+                      await cancelAppointment(t.id, {
+                        userId: profile?.id ?? null,
+                        name: profile?.email ?? null,
+                        role: "profesional",
+                      });
+                      appendHistorialCobro(t.id, {
+                        time: new Date().toTimeString().slice(0, 5),
+                        user: emailUsername(profile?.email ?? null),
+                        role: "profesional",
+                        action: "Canceló",
+                      });
+                      toast.success("Turno cancelado");
+                      refetch();
+                    } catch (e) {
+                      toast.error((e as Error).message);
+                    }
+                  }}
+                  className="shrink-0 rounded-lg px-1.5 text-rose-400/70 transition hover:bg-rose-500/10 hover:text-rose-300"
+                >
+                  ✕
+                </button>
+              ) : null;
+
               return (
                 <div
                   key={t.id}
@@ -1678,7 +1862,26 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
                 >
-                  <div className="grid h-full grid-cols-[112px_minmax(120px,0.85fr)_auto_minmax(170px,1.25fr)_auto_auto] items-center gap-3">
+                  {/* Mobile (<sm): fila compacta — hora+cliente a la izquierda,
+                      acción (Cobrar/Enviar/historial) siempre visible a la
+                      derecha. El grid de desktop de abajo queda oculto acá. */}
+                  <div className="flex h-full items-center justify-between gap-2 sm:hidden">
+                    <div className="min-w-0 flex-1">
+                      <div className={cn("text-[10px] font-semibold tabular-nums", style.labelColor)}>
+                        {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
+                      </div>
+                      <div className="truncate text-xs font-semibold text-foreground">
+                        {t.client_name ?? "Sin cliente"}
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-1">
+                      {actionCell}
+                      {deleteCell}
+                    </div>
+                  </div>
+
+                  {/* Desktop (sm+): grid original, sin cambios. */}
+                  <div className="hidden h-full grid-cols-[112px_minmax(120px,0.85fr)_auto_minmax(170px,1.25fr)_auto_auto] items-center gap-3 sm:grid">
                     <div className={cn("min-w-0 text-xs font-semibold tabular-nums", style.labelColor)}>
                       {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
                     </div>
@@ -1716,41 +1919,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       ) : null}
                     </div>
 
-                    <div className="min-w-[92px] max-w-[260px] justify-self-end text-right">
-                      {historialDisplay.length > 0 ? (
-                        <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
-                          {historialDisplay.map((ev, ei) => {
-                            const actionColor =
-                              ev.action === "Envió a caja" ? "text-sky-300" :
-                              ev.action === "Cobró"        ? "text-emerald-300" :
-                              ev.action === "Canceló"      ? "text-rose-300" :
-                              ev.action === "Anuló cobro"  ? "text-orange-300" :
-                              ev.action === "Reembolsó"    ? "text-violet-300" :
-                              "text-muted-foreground";
-                            return (
-                              <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
-                                <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                                <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                                <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : showActionBtn ? (
-                        <button
-                          onClick={() => setCobroTurno(t)}
-                          className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
-                            approvalMode === "auto"
-                              ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                              : "bg-cyan-500/15 ring-cyan-400/30 text-cyan-300 hover:bg-cyan-500/25"
-                          )}
-                        >
-                          {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground">—</span>
-                      )}
+                    <div className="min-w-[92px] max-w-[260px] justify-self-end flex items-center justify-end gap-1 text-right">
+                      {actionCell}
+                      {deleteCell}
                     </div>
                   </div>
                 </div>
@@ -1774,6 +1945,62 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             refetch();
           }}
         />
+      )}
+
+      {/* + Nuevo turno — el mismo AppointmentDialog que usa Agenda → Nuevo
+          turno (misma lógica de guardado, mismas validaciones de horario),
+          con el profesional ya fijo (un solo elemento en `employees`). */}
+      {canAddTurno && addTurnoOpen && businessId && empId && (
+        <AppointmentDialog
+          open={addTurnoOpen}
+          onOpenChange={(open) => { if (!open) setAddTurnoOpen(false); }}
+          appointment={null}
+          defaultEmployeeId={empId}
+          defaultStartsAt={new Date(`${fromDate}T09:00:00`)}
+          employees={lockedEmployees}
+          services={agendaData.services}
+          clients={agendaData.clients}
+          businessId={businessId}
+          createdByName={profile?.email ?? null}
+          createdByRole="profesional"
+          onSaved={() => { setAddTurnoOpen(false); refetch(); }}
+          schedule={agendaData.schedule}
+          employeeSchedules={agendaData.employeeSchedules}
+          businessSpecialDates={agendaData.businessSpecialDates}
+          employeeSpecialDates={agendaData.employeeSpecialDates}
+          employeeServiceOverrides={agendaData.employeeServiceOverrides}
+          presentation="modal"
+        />
+      )}
+
+      {/* Nueva venta — el mismo NuevaVentaTab que usa Caja → Nueva
+          venta (mismo flujo de cobro/envío a caja), con el profesional
+          bloqueado en el paso 1. */}
+      {approvalMode !== "disabled" && walkInChargeOpen && businessId && empId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80"
+          onClick={() => setWalkInChargeOpen(false)}
+        >
+          <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setWalkInChargeOpen(false)}
+              className="absolute -top-3 -right-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20"
+            >
+              ✕
+            </button>
+            <NuevaVentaTab
+              data={cajaData}
+              userEmail={profile?.email ?? null}
+              lockedEmployeeId={empId}
+              onSaleDone={() => {
+                setWalkInChargeOpen(false);
+                refetch();
+                cajaData.refresh();
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {notaTurno && (

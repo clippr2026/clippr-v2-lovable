@@ -2,6 +2,7 @@ import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { loadCajaSession } from "@/components/cash-register/session-actions";
+import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
@@ -193,6 +194,11 @@ export function useCajaData() {
   const [pendingCount, setPendingCount] = React.useState(0);
   const [pendingAmount, setPendingAmount] = React.useState(0);
   const [pendingCharges, setPendingCharges] = React.useState<PendingCharge[]>([]);
+  // Precio personalizado por profesional-servicio (Equipo → Editar
+  // profesional → Comisiones). Único mapa que consume el resolver
+  // compartido `resolveServicePricing` — ver src/lib/service-pricing.ts.
+  const [employeeServiceOverrides, setEmployeeServiceOverrides] =
+    React.useState<EmployeeServiceOverrideMap>({});
 
   const load = React.useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
@@ -350,6 +356,9 @@ export function useCajaData() {
       const schedule = (row.schedule ?? {}) as Record<string, unknown>;
       const caja = (schedule._caja ?? {}) as Record<string, unknown>;
       setApprovalModeEnabled(caja.approvalModeEnabled === true);
+      setEmployeeServiceOverrides(
+        (schedule._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
+      );
       if (caja.methods && typeof caja.methods === "object") {
         const m = caja.methods as Record<string, boolean>;
         setPaymentMethods({
@@ -471,6 +480,7 @@ export function useCajaData() {
     cajaStatus,
     revHoy, cobros, ticket, totalGastos,
     pendingCount, pendingAmount, pendingCharges,
+    employeeServiceOverrides,
     refresh: load,
   };
 }

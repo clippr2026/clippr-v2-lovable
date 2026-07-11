@@ -66,3 +66,76 @@ export function AgendaDrawer({
     </Sheet>
   );
 }
+
+/**
+ * Misma cabecera/pie y mismo contenido que AgendaDrawer, pero centrado en
+ * pantalla en vez de panel lateral — para paneles que se abren desde fuera
+ * de la Agenda general (ej. Mi Agenda) donde un drawer lateral no encaja
+ * con el resto de la pantalla. No es un componente nuevo de verdad, es la
+ * misma cáscara visual con otro layout de posicionamiento.
+ */
+export function AgendaCenteredModal({
+  open,
+  onOpenChange,
+  title,
+  subtitle,
+  children,
+  footer,
+  lockOutside = true,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  lockOutside?: boolean;
+}) {
+  React.useEffect(() => {
+    if (!open || lockOutside) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, lockOutside, onOpenChange]);
+
+  if (!open) return null;
+
+  // Mismo lenguaje visual que el modal de Nueva venta / Cobro de Mi Agenda
+  // (glass-strong, rounded-3xl, max-w-md, centrado con items-center) para
+  // que los dos se sientan parte del mismo sistema — solo el layout de
+  // header/contenido/footer es propio de este wrapper, no la lógica.
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/75"
+      onClick={() => !lockOutside && onOpenChange(false)}
+    >
+      <div
+        className="glass-strong relative flex w-full max-w-md max-h-[92vh] flex-col rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="relative shrink-0 border-b border-white/10 px-4 pt-4 pb-3">
+          <div className="text-[18px] leading-tight font-display tracking-tight pr-9">{title}</div>
+          {subtitle && <div className="text-xs text-muted-foreground mt-0.5 pr-9">{subtitle}</div>}
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={() => onOpenChange(false)}
+            className="absolute right-3 top-3.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+
+        {footer && (
+          <div className="shrink-0 border-t border-white/10 bg-white/[0.025] px-4 py-3 flex items-center justify-between gap-2">
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1384,6 +1384,30 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           return merged;
         };
 
+        // Categoría por servicio, espejada en business_settings.schedule para
+        // que la Página Pública (rol anon) pueda armar las pestañas de
+        // categoría sin acceso a price_catalog (sin RLS pública) ni depender
+        // de que la vista public_booking_services exponga esa columna —
+        // mismo criterio que ya se usa acá arriba para "recomendados" del
+        // Catálogo.
+        const mergeServiceCategories = (
+          existingSchedule: Record<string, unknown>,
+        ): Record<string, string> => {
+          const merged = {
+            ...((existingSchedule._serviceCategories ?? {}) as Record<
+              string,
+              string
+            >),
+          };
+          for (const r of rowsRef.current) {
+            if (r.duration_min == null) continue;
+            const realId = tempIdToReal[r.id] ?? r.id;
+            merged[realId] = r.category?.trim() || "Otro";
+          }
+          for (const id of deletes) delete merged[id];
+          return merged;
+        };
+
         imageMapRef.current = nextImageMap;
         setImageMap(nextImageMap);
         imagePositionMapRef.current = nextImagePositionMap;
@@ -1410,6 +1434,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 _catalogImages: mergeCatalogImages(existingSchedule),
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
                 _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
+                _serviceCategories: mergeServiceCategories(existingSchedule),
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
@@ -1710,6 +1735,21 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       ];
     });
     markSettingsDirty();
+
+    // Persistencia inmediata — mismo motivo que en saveItem(): activar o
+    // desactivar un servicio/producto (el switch que determina si aparece en
+    // la Página Pública) no puede quedar solo en la cola local a la espera
+    // del "Guardar" global de Configuración. Sin este dispatch, un servicio
+    // marcado como "Activo" acá podía seguir figurando como inactivo en
+    // Supabase — y por lo tanto invisible en la reserva online — hasta que
+    // alguien tocara ese otro botón.
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("clippr:save-settings", {
+          detail: { section: isService ? "servicios" : "catalogo", silent: true },
+        }),
+      );
+    }, 150);
   }
 
   // Un servicio/ítem con historial (turno agendado, venta en Caja, etc.) nunca
@@ -2215,10 +2255,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     {row.name}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {row.duration_min ? `${row.duration_min} min` : ""}
-                    {typeof row.stock === "number" && !isService
-                      ? `Stock: ${row.stock}`
-                      : ""}
+                    {isService
+                      ? // Duración primero, precio después — mismo orden que
+                        // Equipo → Comisiones, para que los dos datos
+                        // principales del servicio se lean juntos.
+                        `${row.duration_min ? `${row.duration_min} min` : "—"} · $${Number(row.price ?? 0).toLocaleString("es-AR")}`
+                      : typeof row.stock === "number"
+                        ? `Stock: ${row.stock}`
+                        : ""}
                   </div>
                 </div>
 
@@ -2229,11 +2273,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   </span>
                 )}
 
-                <div className="text-right shrink-0">
-                  <div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">
-                    ${Number(row.price).toLocaleString("es-AR")}
+                {!isService && (
+                  <div className="text-right shrink-0">
+                    <div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">
+                      ${Number(row.price).toLocaleString("es-AR")}
+                    </div>
                   </div>
-                </div>
+                )}
                 <button
                   type="button"
                   onClick={() => toggle(row)}

@@ -110,6 +110,18 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Sin esto, Safari/Chrome en mobile esperan ~300ms antes de disparar
+     "click" en cada botón/link, por si el segundo toque es un doble-tap
+     para hacer zoom (a pesar de que ya declaramos width=device-width en el
+     viewport). Con touch-action: manipulation el navegador descarta esa
+     ambigüedad de entrada y el click sale inmediatamente después del touchend
+     — la causa real de que el botón ☰ (y cualquier botón) se sintiera lento
+     en iPhone, no un problema de render ni de tamaño del área táctil. */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   html, body {
     background-color: var(--color-background);
     color: var(--color-foreground);

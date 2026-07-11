@@ -61,6 +61,7 @@ type Service = {
   is_active?: boolean | null;
   image_url?: string | null;
   image_position?: string | null;
+  category?: string | null;
 };
 
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
@@ -344,6 +345,10 @@ function PublicProfilePage() {
   const [featuredPositions, setFeaturedPositions] = React.useState<Record<string, string>>({});
   const [featuredClients, setFeaturedClients] = React.useState<FeaturedClient[]>([]);
   const [showAllFeaturedClients, setShowAllFeaturedClients] = React.useState(false);
+  // Pestaña activa de "Servicios disponibles": null = "Todos". El cliente
+  // siempre ve primero el listado completo y después puede filtrar por
+  // categoría, nunca al revés.
+  const [activeServiceCategory, setActiveServiceCategory] = React.useState<string | null>(null);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
@@ -467,6 +472,18 @@ function PublicProfilePage() {
         const visibility = extractPublicVisibility(settingsSchedule);
         const serviceImages = extractCatalogImages(settingsSchedule);
         const serviceImagePositions = extractCatalogImagePositions(settingsSchedule);
+        // La vista public_booking_services no expone `category` (no tiene esa
+        // columna) y price_catalog no es legible por el rol anónimo, así que
+        // la categoría de cada servicio se lee espejada desde
+        // business_settings.schedule._serviceCategories — mismo criterio que
+        // ya se usa para las imágenes de servicios/catálogo.
+        const serviceCategoriesMap =
+          settingsSchedule &&
+          typeof settingsSchedule === "object" &&
+          (settingsSchedule as Record<string, unknown>)._serviceCategories &&
+          typeof (settingsSchedule as Record<string, unknown>)._serviceCategories === "object"
+            ? ((settingsSchedule as Record<string, unknown>)._serviceCategories as Record<string, string>)
+            : {};
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
@@ -485,7 +502,12 @@ function PublicProfilePage() {
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
               .filter((service) => visibility.services[service.id] !== false)
-              .map((service) => ({ ...service, image_url: serviceImages[service.id] ?? null, image_position: serviceImagePositions[service.id] ?? "50% 50%" })),
+              .map((service) => ({
+                ...service,
+                image_url: serviceImages[service.id] ?? null,
+                image_position: serviceImagePositions[service.id] ?? "50% 50%",
+                category: serviceCategoriesMap[service.id] ?? null,
+              })),
           );
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
@@ -495,7 +517,7 @@ function PublicProfilePage() {
           setFeaturedPositions((branding.featured_positions && typeof branding.featured_positions === "object" ? branding.featured_positions : {}) as Record<string, string>);
           setFeaturedClients(normalizeFeaturedClients(branding.featured_clients));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
-          setProfileNote(typeof branding.profile_note === "string" ? branding.profile_note.trim().slice(0, 80) : "");
+          setProfileNote(typeof branding.profile_note === "string" ? branding.profile_note.trim().slice(0, 50) : "");
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setTheme(branding.theme === "light" ? "light" : "dark");
@@ -591,6 +613,12 @@ function PublicProfilePage() {
     const bi = featuredCategoryOrder.indexOf(b);
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
   });
+  const serviceCategories = Array.from(
+    new Set(services.map((service) => service.category?.trim() || "Otro")),
+  ).sort((a, b) => a.localeCompare(b, "es"));
+  const visibleServices = activeServiceCategory
+    ? services.filter((service) => (service.category?.trim() || "Otro") === activeServiceCategory)
+    : services;
 
   return (
     <main
@@ -634,9 +662,18 @@ function PublicProfilePage() {
           </div>
           <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
             <div className="relative w-max">
+              {/* Centrado sobre el avatar (flecha centrada bajo el globo,
+                  apuntando al logo). El max-w es el límite matemático real
+                  para que, perfectamente centrado, nunca toque el borde de
+                  pantalla (avatar a ~88px del borde en mobile, ~112px en
+                  sm+): no se puede agrandar más sin perder el centrado o
+                  desbordar. Para que igual entren ~50 caracteres en 2 líneas
+                  dentro de ese ancho, se compensa con letra y padding más
+                  chicos en vez de más ancho. min-w evita que un texto corto
+                  quede angosto y vertical. */}
               {profileNote ? (
-                <div className="absolute bottom-full left-1/2 mb-2 max-w-[280px] -translate-x-1/2 whitespace-nowrap rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-zinc-950 shadow-xl ring-1 ring-black/5">
-                  <span className="block truncate">{profileNote}</span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-fit min-w-[150px] max-w-[176px] rounded-2xl bg-white px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-zinc-950 shadow-xl ring-1 ring-black/5 sm:min-w-[190px] sm:max-w-[224px]">
+                  <span className="block text-center whitespace-normal break-words [word-break:normal]">{profileNote}</span>
                   <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
                 </div>
               ) : null}
@@ -745,8 +782,40 @@ function PublicProfilePage() {
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
+                <>
+                  {serviceCategories.length > 1 && (
+                    <div className="mt-5 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setActiveServiceCategory(null)}
+                        className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
+                        style={
+                          activeServiceCategory === null
+                            ? { background: cAccent, color: accentButtonText }
+                            : { background: "rgba(255,255,255,0.06)", color: "inherit" }
+                        }
+                      >
+                        Todos
+                      </button>
+                      {serviceCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => setActiveServiceCategory(category)}
+                          className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
+                          style={
+                            activeServiceCategory === category
+                              ? { background: cAccent, color: accentButtonText }
+                              : { background: "rgba(255,255,255,0.06)", color: "inherit" }
+                          }
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 <div className="mt-5 divide-y divide-white/10">
-                  {services.map((service) => (
+                  {visibleServices.map((service: Service) => (
                     <div key={service.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
                       <div className="flex min-w-0 items-center gap-3">
                         <ServiceImage
@@ -774,6 +843,7 @@ function PublicProfilePage() {
                     </div>
                   ))}
                 </div>
+                </>
               )}
             </div>
           </GlowCard>

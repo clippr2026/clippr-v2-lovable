@@ -138,7 +138,7 @@ const ROW_PX = 88;
 // del header de profesionales. La grilla muestra ~11 bloques y, si el día tiene
 // más horas visibles, scrollea verticalmente en vez de comprimir las filas.
 const AGENDA_ROW_PX = 64;
-const AGENDA_HEADER_PX = 46;
+const AGENDA_HEADER_PX = 58;
 const AGENDA_VISIBLE_ROWS = 11;
 const AGENDA_SLOT_OPTIONS = [20, 30, 40, 45, 50, 60] as const;
 const AGENDA_SLOT_STORAGE_KEY = "clippr-agenda-slot-minutes";
@@ -1533,6 +1533,7 @@ function AgendaPage() {
           employeeSchedules={data.employeeSchedules}
           businessSpecialDates={data.businessSpecialDates}
           employeeSpecialDates={data.employeeSpecialDates}
+          employeeServiceOverrides={data.employeeServiceOverrides}
         />
       )}
     </AppShell>
@@ -2345,6 +2346,15 @@ const DayView = React.memo(function DayView({
               .slice(0, 2)
               .join("")
               .toUpperCase();
+            // Modo de cobro del profesional — solo lectura acá, se configura
+            // en Equipo → Editar profesional.
+            const chargeEnabled = data.employeeApprovalEnabled[e.id] === true;
+            const chargeMode = data.employeeApprovalMode[e.id] === "manual" ? "manual" : "auto";
+            const chargeBadge = !chargeEnabled
+              ? { emoji: "⚪", label: "No cobra servicios" }
+              : chargeMode === "manual"
+                ? { emoji: "🟡", label: "Requiere aprobación" }
+                : { emoji: "🟢", label: "Cobra directamente" };
             return (
               <div
                 key={e.id}
@@ -2383,6 +2393,12 @@ const DayView = React.memo(function DayView({
                       }}
                     />
                     {total} turno{total === 1 ? "" : "s"}
+                  </div>
+                  <div
+                    className="mt-0.5 truncate text-[9px] leading-none text-muted-foreground/85"
+                    title={chargeBadge.label}
+                  >
+                    {chargeBadge.emoji} {chargeBadge.label}
                   </div>
                 </div>
               </div>
