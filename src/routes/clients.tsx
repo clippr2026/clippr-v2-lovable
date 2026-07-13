@@ -177,6 +177,7 @@ function StatCard({
   featured,
   info,
   onInfoClick,
+  className,
 }: {
   label: string;
   value: string;
@@ -188,12 +189,14 @@ function StatCard({
   featured?: boolean;
   info?: string;
   onInfoClick?: () => void;
+  className?: string;
 }) {
   return (
     <div
       className={cn(
         "glass relative overflow-hidden rounded-2xl p-3 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:ring-white/20",
         featured && "ring-1 ring-violet-400/30 shadow-[0_0_60px_-20px_rgba(139,92,246,0.45)]",
+        className,
       )}
     >
       <div
@@ -297,7 +300,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   const hasNote = Boolean((client.notes ?? "").trim());
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col lg:h-full">
       <div
         className={cn(
           "relative px-6 py-5 border-b border-white/5",
@@ -397,7 +400,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
         </div>
       </div>
 
-      <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto">
+      <div className="p-4 sm:p-5 lg:flex-1 min-h-0 lg:overflow-y-auto">
         {tab === "resumen" && (
           <div className="space-y-5">
             {/* Métricas: una sola banda integrada en vez de 4 cajas sueltas */}
@@ -722,8 +725,18 @@ function ClientsPage() {
     <AppShell>
       <div className="app-premium-shell">
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-        <div className="h-[calc(100dvh-92px)] overflow-hidden animate-fade-up flex flex-col gap-3">
-          {/* KPI cards — siempre arriba, fuera de cualquier scroll */}
+        {/* Mobile: sin altura fija ni overflow-hidden — la página scrollea
+            de forma natural (AppShell ya deja lugar para el nav inferior con
+            pb-[4rem+safe-area] en <main>). Sumamos 40px más acá para que la
+            última tarjeta quede claramente despegada del nav, sin duplicar
+            el safe-area-inset-bottom que ya aplica AppShell. Total ~104–138px
+            según el dispositivo. Desktop (lg+): layout de panes fijo, sin
+            cambios. */}
+        <div className="lg:h-[calc(100dvh-92px)] lg:overflow-hidden animate-fade-up flex flex-col gap-3 pb-10 lg:pb-0">
+          {/* KPI cards — siempre arriba, fuera de cualquier scroll.
+              Mobile: VIP+Activos / Nuevos+Inactivos / Perdidos a pantalla
+              completa (destacado, misma altura que el resto — ver StatCard
+              featured). Desktop (sm+): sin cambios, grilla pareja de 5. */}
           <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard
               label="VIP"
@@ -776,23 +789,25 @@ function ClientsPage() {
               caption={null}
               icon={<AlertTriangle className="h-5 w-5 text-rose-300" />}
               glow="bg-rose-500/20"
+              featured
               info={CLIENT_METRIC_INFO.perdidos.title}
               onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.perdidos)}
               link="Reconquistar"
               onLinkClick={() => showGroup("Clientes perdidos", "perdido")}
+              className="col-span-2 sm:col-span-1"
             />
           </div>
-          <div className="flex shrink-0 justify-end gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <button
               onClick={() => setAcquisitionModalOpen(true)}
-              className="h-10 px-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition"
+              className="h-10 flex-1 sm:flex-none px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition"
             >
               <Megaphone className="h-4 w-4 text-violet-300" />
               Cómo nos conocieron
             </button>
             <button
               onClick={() => setNewClientOpen(true)}
-              className="h-10 px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition"
+              className="h-10 flex-1 sm:flex-none px-4 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 hover:brightness-110 transition"
               style={{
                 background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
               }}
@@ -802,7 +817,7 @@ function ClientsPage() {
             </button>
           </div>
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
-          <div className="glass rounded-2xl p-3 sm:p-4 flex min-h-0 h-full flex-col gap-3 sm:gap-4 overflow-hidden">
+          <div className="glass rounded-2xl p-3 sm:p-4 flex min-h-0 lg:h-full flex-col gap-3 sm:gap-4 lg:overflow-hidden">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -827,7 +842,7 @@ function ClientsPage() {
                 </select>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-2">
+            <div className="lg:flex-1 lg:overflow-y-auto pr-1 -mr-1 space-y-2">
               {filtered.map((c, i) => {
                 return (
                   <button
@@ -911,7 +926,7 @@ function ClientsPage() {
 
           <div
             className={cn(
-              "glass rounded-2xl p-0 h-full min-h-0 overflow-hidden",
+              "glass rounded-2xl p-0 lg:h-full min-h-0 overflow-hidden",
               current?.status === "perdido" && "ring-1 ring-rose-400/30",
               current?.status === "vip" && "ring-1 ring-amber-300/30",
             )}

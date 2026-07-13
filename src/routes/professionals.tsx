@@ -508,7 +508,11 @@ function ProfessionalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      {/* pb-3: separación garantizada hacia la fila de fecha/acciones de
+          abajo — a diferencia de un margin-top ahí, este padding no puede
+          "colapsar" ni perderse, así que asegura el aire pedido sin
+          depender de cómo el navegador resuelva márgenes adyacentes. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pb-3">
         {([
           { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-cyan-300" },
           { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
@@ -571,7 +575,7 @@ function ProfessionalsPage() {
           canAddTurno={canAddTurno}
           canDeleteTurno={canDeleteTurno}
           dateControl={
-            <div className="flex items-center gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
               <button
                 type="button"
                 onClick={() => {
@@ -581,18 +585,18 @@ function ProfessionalsPage() {
                   setToDate(today);
                   setDayPickerOpen(false);
                 }}
-                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
+                className="whitespace-nowrap rounded-full bg-white/[0.04] px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
               >
                 Hoy
               </button>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setDayPickerOpen((v) => !v)}
-                  className="relative inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-[#070814]/95 px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
+                  className="relative inline-flex h-8 cursor-pointer items-center gap-1.5 sm:gap-2 whitespace-nowrap rounded-full bg-[#070814]/95 px-2.5 sm:px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
                 >
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="capitalize tabular-nums">{selectedDayLabel}</span>
                 </button>
 
@@ -1682,36 +1686,43 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           Dos permisos independientes: el modo de cobro del profesional
           habilita Cobrar/Enviar (con o sin turno); el switch "Puede agregar
           turnos" habilita crear turnos agendados. No se mezclan. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 -mt-4 mb-1">
+      {/* Sin margin-top propio: el aire de arriba ya lo garantiza el pb-3 de
+          "Tabs" de arriba + el gap normal entre bloques. mb-4 separa esta
+          fila de "Estados" (colapsa con el space-y-2 de TurnosView y deja
+          ~16px). */}
+      <div className="flex flex-nowrap items-center justify-between gap-2 mb-4">
         {dateControl ?? <div />}
         {(canAddTurno || approvalMode !== "disabled") && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-nowrap gap-1.5 sm:gap-2">
             {canAddTurno && (
               <button
                 type="button"
                 onClick={() => setAddTurnoOpen(true)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#60A5FA,#3B82F6)] px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(96,165,250,0.55)] transition hover:brightness-110"
+                className="inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#60A5FA,#3B82F6)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(96,165,250,0.55)] transition hover:brightness-110"
               >
-                <CalendarPlus className="h-3.5 w-3.5" />
-                Nuevo turno
+                <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
+                <span className="sm:hidden">+ Turno</span>
+                <span className="hidden sm:inline">Nuevo turno</span>
               </button>
             )}
             {approvalMode !== "disabled" && (
               <button
                 type="button"
                 onClick={() => setWalkInChargeOpen(true)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#34D399,#10B981)] px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)] transition hover:brightness-110"
+                className="inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#34D399,#10B981)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)] transition hover:brightness-110"
               >
-                <CreditCard className="h-3.5 w-3.5" />
-                Nueva venta
+                <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                <span className="sm:hidden">+ Venta</span>
+                <span className="hidden sm:inline">Nueva venta</span>
               </button>
             )}
           </div>
         )}
       </div>
 
-      {/* Status cards — ocupan todo el ancho de la agenda */}
-      <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 mb-1">
+      {/* Status cards — ocupan todo el ancho de la agenda. mb-4 (antes mb-1,
+          quedaba pegado a la grilla horaria de abajo). */}
+      <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1738,9 +1749,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       ) : agendaTurnos.length === 0 && !breakRange ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.10] bg-[#111323] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)] -mt-1">
-          <div className="absolute left-0 top-0 bottom-0 w-[84px] bg-[#111323]" />
-          <div className="absolute left-[84px] top-0 bottom-0 w-px bg-white/[0.07]" />
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.10] bg-[#111323] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)]">
+          {/* Columna de horarios: más angosta y discreta en mobile (64px,
+              texto fino y gris apagado — referencia de fondo, no elemento
+              principal) para devolverle ese ancho a la tarjeta del turno.
+              Desktop (sm+) sin cambios: 84px, texto normal. */}
+          <div className="absolute left-0 top-0 bottom-0 w-[48px] sm:w-[84px] bg-[#111323]" />
+          <div className="absolute left-12 sm:left-[84px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div className="relative" style={{ height: timelineHeight }}>
             {timelineHours.map((hour) => (
               <div
@@ -1748,7 +1763,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 className="absolute left-0 right-0 border-t border-white/[0.065]"
                 style={{ top: TIMELINE_TOP_OFFSET + (hour - dayBounds.startHour) * HOUR_HEIGHT }}
               >
-                <div className="absolute left-5 -top-2.5 text-sm text-white/50 tabular-nums">
+                {/* Mobile: más angosto (48px), más fino (font-thin), más
+                    apagado (white/20) y centrado dentro de su franja horaria
+                    (top-10 ≈ mitad de HOUR_HEIGHT=92px) — referencia de
+                    fondo, no protagonista. Desktop (sm+) sin cambios: pegado
+                    a la línea de la hora, como siempre. */}
+                <div className="absolute left-2 top-10 sm:left-5 sm:top-auto sm:-top-2.5 text-[10px] sm:text-sm font-thin sm:font-normal text-white/20 sm:text-white/50 tabular-nums">
                   {String(hour).padStart(2, "0")}:00
                 </div>
               </div>
@@ -1756,7 +1776,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
             {breakRange && (
               <div
-                className="pointer-events-none absolute left-[104px] right-3 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-3 text-center"
+                className="pointer-events-none absolute left-[60px] sm:left-[104px] right-3 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-3 text-center"
                 style={{
                   top: TIMELINE_TOP_OFFSET + ((breakRange.startMin - dayBounds.startHour * 60) / 60) * HOUR_HEIGHT + 6,
                   height: Math.max(44, ((breakRange.endMin - breakRange.startMin) / 60) * HOUR_HEIGHT - 6),
@@ -1857,21 +1877,29 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 <div
                   key={t.id}
                   className={cn(
-                    "absolute left-[104px] right-3 z-[2] rounded-xl border-l-[3px] ring-1 px-3 py-1.5 transition-all overflow-hidden",
+                    "absolute left-[60px] sm:left-[104px] right-3 z-[2] rounded-xl border-l-[3px] ring-1 px-3 py-1.5 transition-all overflow-hidden",
                     style.border, style.bg, style.ring
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
                 >
-                  {/* Mobile (<sm): fila compacta — hora+cliente a la izquierda,
-                      acción (Cobrar/Enviar/historial) siempre visible a la
-                      derecha. El grid de desktop de abajo queda oculto acá. */}
+                  {/* Mobile (<sm): fila compacta — línea 1 hora (fina, celeste)
+                      + nombre del cliente (usa el ancho disponible, trunca
+                      solo si no entra); línea 2 servicio (más chico, gris
+                      claro). Acción (Cobrar/Enviar/historial) + cancelar
+                      siempre visibles a la derecha, sin cambios de lógica ni
+                      tamaño. El grid de desktop de abajo queda oculto acá. */}
                   <div className="flex h-full items-center justify-between gap-2 sm:hidden">
                     <div className="min-w-0 flex-1">
-                      <div className={cn("text-[10px] font-semibold tabular-nums", style.labelColor)}>
-                        {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
+                      <div className="flex items-baseline gap-1.5 min-w-0">
+                        <span className={cn("shrink-0 text-[10px] font-normal tabular-nums", style.labelColor)}>
+                          {minToHHMM(minutesOfDayFromISO(t.starts_at))} · {minToHHMM(getTurnoEndMin(t))}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
+                          {t.client_name ?? "Sin cliente"}
+                        </span>
                       </div>
-                      <div className="truncate text-xs font-semibold text-foreground">
-                        {t.client_name ?? "Sin cliente"}
+                      <div className="truncate text-[10.5px] text-muted-foreground/70">
+                        {t.service_name ?? "—"}
                       </div>
                     </div>
                     <div className="shrink-0 flex items-center gap-1">
@@ -2593,6 +2621,58 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   const totalFacturado = enriched.reduce((s, r) => s + r.total, 0);
   const totalComisiones = enriched.reduce((s, r) => s + r.commission, 0);
 
+  // Vista previa mobile: al entrar a "Historial de ventas" se muestran solo
+  // las últimas 2-3 ventas (mismo `enriched`, ya ordenado por fecha
+  // descendente) con un botón "Ver historial completo" que revela el resto.
+  // Se resetea sola cada vez que se re-entra a esta pestaña porque el
+  // componente se desmonta/monta con el tab (ver ProfessionalsPage). No
+  // afecta a desktop, que siempre muestra la tabla completa.
+  const [showFull, setShowFull] = React.useState(false);
+  const showPreviewGate = !showFull && enriched.length > 3;
+  const mobileRows = showPreviewGate ? enriched.slice(0, 3) : enriched;
+
+  const renderMobileCard = (row: (typeof enriched)[number]) => {
+    const [y, m, d] = row.fecha.split("-");
+    const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
+      .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
+      .replace(".", "");
+    const historialEvents = readHistorialCobro(row.id);
+    return (
+      <div key={row.id} className="glass rounded-2xl p-3 space-y-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</div>
+            <div className="truncate text-sm font-semibold text-foreground">{row.client_name ?? "Sin cliente"}</div>
+          </div>
+          <div className="shrink-0 text-right">
+            <div className="text-sm font-semibold tabular-nums text-foreground">${row.total.toLocaleString("es-AR")}</div>
+            <div className="text-xs font-semibold tabular-nums text-cyan-300">Com. ${row.commission.toLocaleString("es-AR")}</div>
+          </div>
+        </div>
+        <div className="line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
+        {historialEvents.length > 0 && (
+          <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-white/5 pt-1.5">
+            {historialEvents.map((ev, ei) => {
+              const actionColor =
+                ev.action === "Envió a caja" ? "text-sky-300" :
+                ev.action === "Cobró"        ? "text-emerald-300" :
+                ev.action === "Canceló"      ? "text-rose-300" :
+                ev.action === "Anuló cobro"  ? "text-orange-300" :
+                ev.action === "Reembolsó"    ? "text-violet-300" :
+                "text-muted-foreground";
+              return (
+                <div key={ei} className="flex items-baseline gap-1 leading-none">
+                  <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">{ev.time}</span>
+                  <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4 animate-fade-up">
       <div className="max-w-5xl mx-auto space-y-3">
@@ -2605,69 +2685,91 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         ) : enriched.length === 0 ? (
           <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin historial en este período</div>
         ) : (
-          <div className="glass rounded-2xl overflow-hidden">
-            {/* Header — same structure as TurnosView */}
-            <div className="grid grid-cols-[12%_22%_26%_24%_8%_8%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-              <div>Fecha</div>
-              <div>Cliente</div>
-              <div>Servicio / Catálogo</div>
-              <div>Historial</div>
-              <div className="text-right">Total</div>
-              <div className="text-right">Comisión</div>
+          <>
+            {/* Desktop (sm+): tabla actual, sin cambios. */}
+            <div className="hidden sm:block glass rounded-2xl overflow-hidden">
+              {/* Header — same structure as TurnosView */}
+              <div className="grid grid-cols-[12%_22%_26%_24%_8%_8%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                <div>Fecha</div>
+                <div>Cliente</div>
+                <div>Servicio / Catálogo</div>
+                <div>Historial</div>
+                <div className="text-right">Total</div>
+                <div className="text-right">Comisión</div>
+              </div>
+
+              {enriched.map((row, i) => {
+                void historialVersion;
+                const [y, m, d] = row.fecha.split("-");
+                const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
+                  .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
+                  .replace(".", "");
+
+                const historialEvents = readHistorialCobro(row.id);
+
+                return (
+                  <div
+                    key={row.id}
+                    className={cn(
+                      "grid grid-cols-[12%_22%_26%_24%_8%_8%] items-start px-5 py-4 text-sm",
+                      i < enriched.length - 1 && "border-b border-white/5"
+                    )}
+                  >
+                    <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
+                    <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
+                    <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
+
+                    {/* Historial — same renderer as TurnosView */}
+                    <div className="space-y-1.5 pr-2">
+                      {historialEvents.length > 0 ? (
+                        historialEvents.map((ev, ei) => {
+                          const actionColor =
+                            ev.action === "Envió a caja" ? "text-sky-300" :
+                            ev.action === "Cobró"        ? "text-emerald-300" :
+                            ev.action === "Canceló"      ? "text-rose-300" :
+                            ev.action === "Anuló cobro"  ? "text-orange-300" :
+                            ev.action === "Reembolsó"    ? "text-violet-300" :
+                            "text-muted-foreground";
+                          return (
+                            <div key={ei} className="flex items-baseline gap-1.5 leading-none">
+                              <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                              <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                              <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                              <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">—</span>
+                      )}
+                    </div>
+
+                    <div className="text-right font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.total.toLocaleString("es-AR")}</div>
+                    <div className="text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
+                  </div>
+                );
+              })}
             </div>
 
-            {enriched.map((row, i) => {
-              void historialVersion;
-              const [y, m, d] = row.fecha.split("-");
-              const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
-                .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
-                .replace(".", "");
-
-              const historialEvents = readHistorialCobro(row.id);
-
-              return (
-                <div
-                  key={row.id}
-                  className={cn(
-                    "grid grid-cols-[12%_22%_26%_24%_8%_8%] items-start px-5 py-4 text-sm",
-                    i < enriched.length - 1 && "border-b border-white/5"
-                  )}
+            {/* Mobile (<sm): misma info que la tabla, en tarjetas verticales
+                — nada de columnas comprimidas ni texto/importes superpuestos.
+                Mismos datos, mismo `enriched`, ningún dato distinto al de
+                web. Al entrar se ve solo una vista previa (últimas 2-3
+                ventas) con botón para revelar el resto — ver showPreviewGate. */}
+            <div className="sm:hidden space-y-2">
+              {void historialVersion}
+              {mobileRows.map(renderMobileCard)}
+              {showPreviewGate && (
+                <button
+                  type="button"
+                  onClick={() => setShowFull(true)}
+                  className="w-full rounded-xl px-3 py-2.5 text-center text-xs font-semibold text-violet-300 transition hover:text-violet-200"
                 >
-                  <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
-                  <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
-                  <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
-
-                  {/* Historial — same renderer as TurnosView */}
-                  <div className="space-y-1.5 pr-2">
-                    {historialEvents.length > 0 ? (
-                      historialEvents.map((ev, ei) => {
-                        const actionColor =
-                          ev.action === "Envió a caja" ? "text-sky-300" :
-                          ev.action === "Cobró"        ? "text-emerald-300" :
-                          ev.action === "Canceló"      ? "text-rose-300" :
-                          ev.action === "Anuló cobro"  ? "text-orange-300" :
-                          ev.action === "Reembolsó"    ? "text-violet-300" :
-                          "text-muted-foreground";
-                        return (
-                          <div key={ei} className="flex items-baseline gap-1.5 leading-none">
-                            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                            <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">—</span>
-                    )}
-                  </div>
-
-                  <div className="text-right font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.total.toLocaleString("es-AR")}</div>
-                  <div className="text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
-                </div>
-              );
-            })}
-          </div>
+                  Ver historial completo →
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -234,6 +234,10 @@ function SaveStatusIndicator() {
 
 function SettingsPage() {
   const [active, setActive] = useState<SectionId>("branding");
+  const sectionRef = useRef<HTMLElement>(null);
+  // Evita el scroll automático en el montaje inicial de la página — solo
+  // debe dispararse cuando el usuario elige una sección desde el menú.
+  const skipNextScrollRef = useRef(true);
 
   function saveCurrentSection() {
     window.dispatchEvent(
@@ -251,6 +255,21 @@ function SettingsPage() {
     saveCurrentSection();
     setActive(section);
   }
+
+  // Solo mobile (aside arriba, section abajo en una sola columna — ver el
+  // grid de abajo): al cambiar de sección, el contenido nuevo queda debajo
+  // de donde estaba el scroll y hay que bajar a mano para verlo. En
+  // desktop aside/section están lado a lado y ya son visibles juntos, así
+  // que ahí no se toca el scroll.
+  useEffect(() => {
+    if (skipNextScrollRef.current) {
+      skipNextScrollRef.current = false;
+      return;
+    }
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [active]);
 
   return (
     <AppShell>
@@ -329,7 +348,7 @@ function SettingsPage() {
                   lado a lado; en mobile el grid es una sola columna
                   apilada (aside arriba, section abajo) y un -mt-7 ahí
                   metería a la section por encima del aside. */}
-              <section className="space-y-6 lg:-mt-7">
+              <section ref={sectionRef} className="space-y-6 lg:-mt-7">
                 {active === "branding" && <BrandingSection />}
 
                 {active === "horarios" && <HorariosSection />}

@@ -118,6 +118,17 @@ const INFO_CONTENT = {
       "Una ocupación alta permite pensar en subir precios o sumar equipo.",
     ],
   },
+  simuladores: {
+    title: "Cómo funcionan los simuladores",
+    description:
+      "Cada simulador proyecta qué pasaría con tu negocio si tomás una decisión concreta (subir precios, contratar, invertir en publicidad, etc.), antes de que la tomes.",
+    points: [
+      "Qué analiza: el impacto esperado de la decisión en facturación, utilidad y ocupación, comparado contra seguir como estás hoy.",
+      "Qué datos usa: tus servicios, clientes, agenda, horarios y la demanda no atendida (turnos rechazados o sin disponibilidad).",
+      "Cómo calcula: proyecciones con supuestos conservadores — utilidad ~45% sobre facturación y ~55% en productos.",
+      "Qué beneficio aporta: te deja comparar escenarios reales de tu propio negocio antes de invertir tiempo o plata en una decisión.",
+    ],
+  },
 } satisfies Record<string, InfoModalContent>;
 
 // Íconos por clave de indicador de la Radiografía del local (los valores
@@ -200,7 +211,12 @@ function AdvisorRoute() {
           {analysisStarted && !isAnalyzing && (
             <div className="relative flex w-full items-center justify-end sm:w-auto">
               <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
-              <div className="relative flex max-w-full items-center gap-2 overflow-x-auto rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
+              {/* Mobile: grid de 3 columnas iguales — así "Simuladores" (el
+                  label más largo) ya no fuerza un botón más ancho que
+                  "Análisis"/"Gerente IA" y desalinea el grupo. Desktop
+                  (sm+) vuelve a la fila flex de ancho automático de
+                  siempre. */}
+              <div className="relative grid grid-cols-3 max-w-full items-center gap-2 rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl sm:flex sm:overflow-x-auto">
                 {(
                   [
                     {
@@ -237,7 +253,7 @@ function AdvisorRoute() {
                       type="button"
                       onClick={() => setAdvisorTab(t.key)}
                       className={cn(
-                        "group relative min-h-[48px] overflow-hidden rounded-[18px] px-4 py-3 text-sm font-bold tracking-[-0.01em] transition-all duration-300 ring-1 ring-white/10 sm:px-5",
+                        "group relative w-full min-h-[48px] overflow-hidden rounded-[18px] px-4 py-3 text-sm font-bold tracking-[-0.01em] transition-all duration-300 ring-1 ring-white/10 sm:w-auto sm:px-5",
                         "before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent before:opacity-0 before:transition-opacity",
                         "after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.16),transparent_48%)] after:opacity-0 after:transition-opacity",
                         active
@@ -251,7 +267,7 @@ function AdvisorRoute() {
                             ),
                       )}
                     >
-                      <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
+                      <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">
                         <span
                           className={cn(
                             "grid h-7 w-7 place-items-center rounded-full text-[14px] transition-all",
@@ -998,17 +1014,24 @@ function useResultAnimation(enabled = false) {
 
 function StartAnalysis({ onStart }: { onStart: () => void }) {
   return (
-    <div className="relative -mt-2 flex h-[calc(100svh-128px)] min-h-[560px] flex-col items-center justify-center overflow-hidden px-4 py-4">
+    // Mobile: la portada no debe scrollear — cabe entera en una pantalla.
+    // El alto se calcula restando el chrome real de arriba (Topbar, ~90px)
+    // y de abajo (nav inferior fijo de AppShell: 4rem + safe-area-inset) al
+    // svh; el -164px de antes (128px fijo) se quedaba corto y sobraba
+    // contenido. Todos los tamaños/espaciados de acá abajo se achican solo
+    // en mobile (clases base) y vuelven a los valores originales en sm+, que
+    // no tiene esta restricción y queda intacto.
+    <div className="relative -mt-2 flex h-[calc(100svh-164px-env(safe-area-inset-bottom))] min-h-[420px] flex-col items-center justify-center overflow-hidden px-4 py-4 sm:h-[calc(100svh-128px)] sm:min-h-[560px]">
       <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/18 blur-3xl" />
       <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
       <div className="pointer-events-none absolute left-1/2 top-20 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
 
       <div className="relative z-10 flex w-full max-w-4xl flex-col items-center">
-        <div className="relative mb-7">
+        <div className="relative mb-3 sm:mb-7">
           <div className="absolute inset-0 scale-[1.75] rounded-full bg-gradient-to-br from-primary/28 via-violet-500/18 to-sky-500/18 blur-3xl" />
           <div className="absolute inset-0 scale-[1.24] rounded-[2rem] border border-white/10 bg-white/[0.018] backdrop-blur-xl" />
-          <div className="relative grid h-32 w-32 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.12] via-white/[0.045] to-white/[0.02] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.9)] sm:h-36 sm:w-36">
-            <Brain className="h-16 w-16 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.6)] sm:h-20 sm:w-20" />
+          <div className="relative grid h-20 w-20 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.12] via-white/[0.045] to-white/[0.02] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.9)] sm:h-36 sm:w-36">
+            <Brain className="h-10 w-10 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.6)] sm:h-20 sm:w-20" />
           </div>
           <div
             className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping"
@@ -1016,17 +1039,17 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
           />
         </div>
 
-        <div className="mb-7 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl">
-          <span className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.75)]" />
-          <span className="text-base font-semibold text-foreground">Asesor IA listo</span>
+        <div className="mb-3 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:mb-7 sm:gap-3 sm:px-5 sm:py-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.75)] sm:h-3 sm:w-3" />
+          <span className="text-sm font-semibold text-foreground sm:text-base">Asesor IA listo</span>
         </div>
 
         <div className="max-w-3xl text-center">
-          <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl">
+          <h1 className="font-display text-2xl font-bold leading-[1.1] tracking-tight text-white sm:text-6xl sm:leading-[1.08]">
             Descubrí cómo hacer
             <br className="hidden sm:block" /> crecer tu negocio
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:mt-6 sm:text-xl">
             Analizamos tu barbería y te mostramos oportunidades concretas para crecer.
           </p>
         </div>
@@ -1034,12 +1057,12 @@ function StartAnalysis({ onStart }: { onStart: () => void }) {
         <button
           type="button"
           onClick={onStart}
-          className="group relative mt-10 inline-flex h-16 w-full max-w-[360px] items-center justify-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-8 text-lg font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.9)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/1)] sm:min-w-[380px]"
+          className="group relative mt-4 inline-flex h-12 w-full max-w-[360px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-6 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.9)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/1)] sm:mt-10 sm:h-16 sm:min-w-[380px] sm:gap-4 sm:px-8 sm:text-lg"
         >
           <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-          <Brain className="relative h-6 w-6" />
+          <Brain className="relative h-5 w-5 sm:h-6 sm:w-6" />
           <span className="relative">Analizar mi negocio</span>
-          <ArrowRight className="relative h-6 w-6 transition-transform duration-300 group-hover:translate-x-1" />
+          <ArrowRight className="relative h-5 w-5 transition-transform duration-300 group-hover:translate-x-1 sm:h-6 sm:w-6" />
         </button>
       </div>
     </div>
@@ -1058,21 +1081,24 @@ function AnalysisLoader({ step }: { step: number }) {
   const pct = Math.round((safeStep / steps.length) * 100);
 
   return (
-    <div className="relative flex min-h-[68vh] flex-col items-center justify-center overflow-hidden px-4 py-6">
+    // Mobile: igual que StartAnalysis, esta pantalla tampoco debe scrollear.
+    // Se achica todo (ícono, márgenes, tarjetas de paso, padding) en mobile
+    // vía clases base, y sm: restaura los valores originales sin cambios.
+    <div className="relative flex min-h-[50vh] flex-col items-center justify-center overflow-hidden px-4 py-3 sm:min-h-[68vh] sm:py-6">
       <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-violet-500/16 blur-3xl" />
       <div className="pointer-events-none absolute -right-32 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
       <div className="pointer-events-none absolute left-1/2 top-24 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
 
-      <div className="relative z-10 w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-6">
+      <div className="relative z-10 w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-3.5 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-6">
         {/* Header */}
-        <div className="flex flex-col items-center text-center mb-5">
-          <div className="relative mb-4">
+        <div className="flex flex-col items-center text-center mb-3 sm:mb-5">
+          <div className="relative mb-2 sm:mb-4">
             <div className="absolute inset-0 scale-[1.65] rounded-full bg-gradient-to-br from-primary/25 to-accent/20 blur-3xl" />
-            <div className="relative grid h-20 w-20 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)]">
-              <Brain className="h-10 w-10 text-primary" />
+            <div className="relative grid h-14 w-14 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)] sm:h-20 sm:w-20">
+              <Brain className="h-7 w-7 text-primary sm:h-10 sm:w-10" />
             </div>
             <svg
-              className="absolute inset-0 animate-spin"
+              className="absolute inset-0 h-14 w-14 animate-spin sm:h-20 sm:w-20"
               style={{ animationDuration: "3s" }}
               viewBox="0 0 96 96"
               fill="none"
@@ -1104,18 +1130,18 @@ function AnalysisLoader({ step }: { step: number }) {
               </defs>
             </svg>
           </div>
-          <h2 className="font-display text-2xl font-bold tracking-tight">Analizando tu negocio</h2>
-          <p className="mt-2 text-sm text-muted-foreground max-w-md">
+          <h2 className="font-display text-lg font-bold tracking-tight sm:text-2xl">Analizando tu negocio</h2>
+          <p className="mt-1 text-xs text-muted-foreground max-w-md sm:mt-2 sm:text-sm">
             Preparando tu diagnóstico...
           </p>
         </div>
 
         {/* Progress bar premium */}
-        <div className="mb-5">
-          <div className="flex justify-center text-xs text-muted-foreground mb-2">
+        <div className="mb-3 sm:mb-5">
+          <div className="flex justify-center text-xs text-muted-foreground mb-1.5 sm:mb-2">
             <span className="font-semibold text-foreground">{pct}%</span>
           </div>
-          <div className="h-2.5 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10">
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10 sm:h-2.5">
             <div
               className="h-full rounded-full bg-gradient-to-r from-primary via-violet-500 to-accent shadow-[0_0_24px_oklch(0.65_0.28_290/0.65)] transition-all duration-700"
               style={{ width: `${pct}%` }}
@@ -1124,7 +1150,7 @@ function AnalysisLoader({ step }: { step: number }) {
         </div>
 
         {/* Steps */}
-        <div className="space-y-2.5">
+        <div className="space-y-1.5 sm:space-y-2.5">
           {steps.map((item, index) => {
             const done = index < safeStep;
             const current = index === safeStep;
@@ -1134,7 +1160,7 @@ function AnalysisLoader({ step }: { step: number }) {
               <div
                 key={item.label}
                 className={cn(
-                  "flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-500",
+                  "flex items-center gap-2 rounded-2xl border px-3 py-2 transition-all duration-500 sm:gap-3 sm:px-4 sm:py-3",
                   done &&
                     "border-emerald-400/25 bg-emerald-400/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
                   current &&
@@ -1142,24 +1168,24 @@ function AnalysisLoader({ step }: { step: number }) {
                   pending && "border-white/8 bg-white/[0.02] opacity-50",
                 )}
               >
-                <div className="shrink-0 w-7 h-7 flex items-center justify-center">
-                  {done && <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
-                  {current && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-                  {pending && <div className="h-4 w-4 rounded-full border-2 border-white/15" />}
+                <div className="shrink-0 w-6 h-6 flex items-center justify-center sm:w-7 sm:h-7">
+                  {done && <CheckCircle2 className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />}
+                  {current && <Loader2 className="h-4 w-4 animate-spin text-primary sm:h-5 sm:w-5" />}
+                  {pending && <div className="h-3.5 w-3.5 rounded-full border-2 border-white/15 sm:h-4 sm:w-4" />}
                 </div>
                 <span
                   className={cn(
-                    "grid h-8 w-8 shrink-0 place-items-center rounded-xl ring-1",
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-xl ring-1 sm:h-8 sm:w-8",
                     done && "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300",
                     current && "bg-primary/10 ring-primary/20 text-primary",
                     pending && "bg-white/[0.04] ring-white/10 text-muted-foreground",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </span>
                 <span
                   className={cn(
-                    "text-sm font-medium flex-1",
+                    "text-xs font-medium flex-1 sm:text-sm",
                     done && "text-emerald-300",
                     current && "text-white",
                     pending && "text-muted-foreground",
@@ -3315,6 +3341,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
   const data = useLabData(props.businessId, props.ticket, props.clientes);
   const { analytics: a, isLoading: demandLoading } = useRejectedAnalytics(props.businessId ?? null);
   const [sim, setSim] = React.useState<(typeof LAB_SIMS)[number]["key"]>("precios");
+  const [infoOpen, setInfoOpen] = React.useState(false);
 
   const demand: DemandSlice = {
     loading: demandLoading,
@@ -3338,16 +3365,17 @@ function LaboratorioDecisiones(props: SimuladorProps) {
             🧪
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">
+            <h2 className="line-clamp-2 text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">
               Gerente IA · ¿conviene hacerlo en tu negocio?
             </h2>
-            <p className="truncate text-xs text-white/55">
+            <p className="line-clamp-2 text-xs text-white/55">
               Analizo tus datos reales y te digo si conviene tomar la decisión.
             </p>
           </div>
           <button
             type="button"
-            title={`Los simuladores usan tus datos reales (servicios, clientes, agenda, horarios y demanda no atendida). Las proyecciones son estimaciones con supuestos conservadores: utilidad ~${Math.round(LAB_MARGIN * 100)}% sobre facturación y ~${Math.round(LAB_PRODUCT_MARGIN * 100)}% en productos.`}
+            onClick={() => setInfoOpen(true)}
+            title="Los simuladores usan tus datos reales (servicios, clientes, agenda, horarios y demanda no atendida). Las proyecciones son estimaciones con supuestos conservadores."
             aria-label="Cómo funcionan los simuladores"
             className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/[0.08] px-3 text-xs font-bold text-cyan-100 shadow-[0_0_24px_-12px_rgba(34,211,238,0.7)] transition hover:border-cyan-200/35 hover:bg-cyan-400/[0.13] hover:text-white"
           >
@@ -3356,6 +3384,10 @@ function LaboratorioDecisiones(props: SimuladorProps) {
           </button>
         </div>
       </div>
+
+      {infoOpen && (
+        <InfoModal content={INFO_CONTENT.simuladores} onClose={() => setInfoOpen(false)} />
+      )}
 
       {/* Selector de simuladores · solo título */}
       <div className="grid grid-cols-3 gap-2 lg:grid-cols-6">
