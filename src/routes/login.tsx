@@ -130,8 +130,18 @@ function LoginPage() {
         <section className="flex items-center justify-center">
           <div className="relative flex w-full max-w-[680px] flex-col items-center">
             <div className="relative flex h-auto w-full max-w-[630px] flex-col items-center justify-center px-4 py-3 text-center sm:px-8 sm:py-6 lg:h-[560px] lg:py-0">
+              {/* Estas 3 capas con clip-path hexagonal fueron pensadas para
+                  el hero COMPLETO de desktop (h-[560px] con wordmark,
+                  título, descripción e íconos adentro) — a esa escala el
+                  polígono queda grande y difuso, casi no se lee como
+                  forma. En mobile el contenido de adentro se redujo solo
+                  al logo (pedido de dos vueltas atrás), así que este
+                  mismo polígono quedó mucho más chico en proporción a su
+                  propio blur/opacidad y se empezó a leer como una forma
+                  geométrica dura detrás del logo — un "triángulo", pedido
+                  explícito de sacarlo. lg:block: desktop intacto. */}
               <div
-                className="pointer-events-none absolute inset-0"
+                className="pointer-events-none absolute inset-0 hidden lg:block"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   background:
@@ -142,14 +152,14 @@ function LoginPage() {
                 }}
               />
               <div
-                className="pointer-events-none absolute inset-[-30px] opacity-32"
+                className="pointer-events-none absolute inset-[-30px] hidden opacity-32 lg:block"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   border: "0 solid transparent",
                 }}
               />
               <div
-                className="pointer-events-none absolute inset-[-62px] opacity-14"
+                className="pointer-events-none absolute inset-[-62px] hidden opacity-14 lg:block"
                 style={{
                   clipPath: "polygon(25% 6%, 74% 6%, 94% 49%, 76% 94%, 24% 94%, 6% 50%)",
                   border: "0 solid transparent",
@@ -196,6 +206,20 @@ function LoginPage() {
                     width={480}
                     height={480}
                     className="absolute inset-0 h-full w-full object-contain lg:hidden"
+                    // contentVisibility: "visible" pisa una regla global
+                    // (styles.css: "img { content-visibility: auto }",
+                    // pensada para no pintar imágenes fuera de pantalla en
+                    // vistas largas como el dashboard). Sin este override,
+                    // el navegador puede arrancar tratando esta imagen
+                    // como "todavía no relevante" y recién promoverla a
+                    // pintado completo un instante después de la carga
+                    // inicial — ESO es la causa real del "se ve mal y
+                    // mejora solo", no el tamaño del archivo (aunque
+                    // bajarlo de 1024 a 480px, más arriba, también ayuda).
+                    // Con logo siempre visible desde el primer frame (no
+                    // hay forma de que esté "fuera de pantalla"), el ahorro
+                    // de content-visibility no aplica acá y solo perjudica.
+                    style={{ contentVisibility: "visible" }}
                   />
 
                   {/* Desktop: glow e imagen originales, intactos. */}
@@ -224,8 +248,17 @@ function LoginPage() {
                     no el mismo tratamiento que el wordmark de desktop
                     (ese es mixto-case y mucho más grande, pensado para
                     acompañar título/descripción que en mobile ya no
-                    están). */}
-                <span className="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-white lg:hidden">
+                    están). marginRight: -0.35em (mismo valor que el
+                    tracking): letter-spacing agrega espacio DESPUÉS de
+                    cada letra, incluida la última — ese espacio final
+                    quedaba adentro de la caja que centra el flex, corriendo
+                    la palabra visualmente hacia la izquierda. Restando ese
+                    mismo valor del ancho de la caja, el centro geométrico
+                    vuelve a coincidir con el centro real de las letras. */}
+                <span
+                  className="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-white lg:hidden"
+                  style={{ marginRight: "-0.35em" }}
+                >
                   Clippr
                 </span>
 
