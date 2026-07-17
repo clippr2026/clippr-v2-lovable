@@ -123,13 +123,13 @@ function LoginPage() {
           restaura el centrado vertical de siempre en desktop (ahí es una
           sola fila de 2 columnas, no dos filas — no hay nada que
           redistribuir, así que este cambio no le toca nada). */}
-      <div className="relative z-10 grid min-h-screen content-start items-center gap-3 px-5 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:content-center lg:grid-cols-[minmax(560px,1fr)_minmax(390px,0.82fr)] lg:gap-12 lg:px-14 xl:px-20">
+      <div className="relative z-10 grid min-h-screen content-start items-center gap-2 px-5 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:content-center lg:grid-cols-[minmax(560px,1fr)_minmax(390px,0.82fr)] lg:gap-12 lg:px-14 xl:px-20">
         {/* Mobile: colapsa a solo el logo (pedido explícito — nada de
             wordmark, título, descripción ni iconos ahí, ver más abajo cada
             uno con su propio hidden/lg:). Desktop intacto. */}
         <section className="flex items-center justify-center">
           <div className="relative flex w-full max-w-[680px] flex-col items-center">
-            <div className="relative flex h-auto w-full max-w-[630px] flex-col items-center justify-center px-4 py-4 text-center sm:px-8 sm:py-6 lg:h-[560px] lg:py-0">
+            <div className="relative flex h-auto w-full max-w-[630px] flex-col items-center justify-center px-4 py-3 text-center sm:px-8 sm:py-6 lg:h-[560px] lg:py-0">
               <div
                 className="pointer-events-none absolute inset-0"
                 style={{
@@ -157,11 +157,50 @@ function LoginPage() {
               />
 
               <div className="relative z-10 flex flex-col items-center">
-                {/* Logo: 100px en mobile (sin cambios), 185px en desktop
-                    (164px + ~13%, pedido explícito). */}
+                {/* Logo: 100px en mobile (sin cambios de tamaño), 185px en
+                    desktop (164px + ~13%, pedido de la vuelta anterior).
+                    Mobile y desktop ahora usan DOS <img> distintas (una
+                    hidden en cada breakpoint), no una sola compartida:
+                    la fuente original (clippr-powered-logo.webp) es
+                    1024x1024 — mostrada a 100px de ancho en mobile, el
+                    navegador hace un downscale tan agresivo que primero
+                    pinta con un resampleo barato y recién después, ya
+                    decodificada del todo, aplica uno de mejor calidad —
+                    eso es exactamente el "aparece mal y mejora solo" que
+                    se pedía eliminar, no un bug de CSS. clippr-logo-
+                    login.webp es la misma imagen re-exportada a 480x480
+                    (48KB, lossless, generada de la fuente real, no
+                    reinventada) — de sobra para verse nítida a 100px sin
+                    ese salto de calidad. Desktop sigue con el archivo y el
+                    filter original, sin tocar un solo píxel. */}
                 <div className="relative h-[100px] w-[100px] lg:h-[185px] lg:w-[185px]">
+                  {/* Mobile: un solo glow sutil y bien difuminado, sin el
+                      drop-shadow apilado (3 capas) que tenía la versión de
+                      desktop — esa pila, sumada al downscale agresivo de
+                      arriba, era gran parte de por qué el logo se sentía
+                      "pegado" en vez de integrado. Achicando a un único
+                      halo violeta suave alcanza para fundirlo con el
+                      fondo sin que compita ni marque un borde. */}
                   <div
-                    className="pointer-events-none absolute -inset-10 rounded-full opacity-75 blur-3xl"
+                    className="pointer-events-none absolute -inset-7 rounded-full opacity-40 blur-2xl lg:hidden"
+                    style={{
+                      background: "radial-gradient(circle, oklch(0.62 0.24 292 / 0.6), transparent 72%)",
+                    }}
+                  />
+                  <img
+                    src="/clippr-logo-login.webp"
+                    alt="Clippr"
+                    loading="eager"
+                    decoding="sync"
+                    fetchPriority="high"
+                    width={480}
+                    height={480}
+                    className="absolute inset-0 h-full w-full object-contain lg:hidden"
+                  />
+
+                  {/* Desktop: glow e imagen originales, intactos. */}
+                  <div
+                    className="pointer-events-none absolute -inset-10 hidden rounded-full opacity-75 blur-3xl lg:block"
                     style={{
                       background:
                         "radial-gradient(circle, rgba(80,170,255,.30), rgba(175,80,255,.28) 42%, transparent 70%)",
@@ -172,17 +211,30 @@ function LoginPage() {
                     alt="Clippr"
                     loading="eager"
                     decoding="async"
-                    className="absolute inset-0 h-full w-full object-contain"
+                    className="absolute inset-0 hidden h-full w-full object-contain lg:block"
                     style={{
                       filter: "drop-shadow(0 0 34px rgba(70,170,255,.82)) drop-shadow(0 0 82px rgba(170,90,255,.76)) drop-shadow(0 0 150px rgba(120,80,255,.62))"
                     }}
                   />
 </div>
 
-                {/* Wordmark, título y descripción: ocultos en mobile por
-                    completo (pedido explícito — en mobile solo va el logo
-                    de acá arriba y después la tarjeta). Desktop sin
-                    cambios de layout, solo el copy de la descripción. */}
+                {/* CLIPPR: wordmark propio de mobile, pedido explícito
+                    (antes en mobile no había ningún texto de marca debajo
+                    del logo). Mayúsculas + tracking amplio + peso medio,
+                    no el mismo tratamiento que el wordmark de desktop
+                    (ese es mixto-case y mucho más grande, pensado para
+                    acompañar título/descripción que en mobile ya no
+                    están). */}
+                <span className="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-white lg:hidden">
+                  Clippr
+                </span>
+
+                {/* Wordmark de desktop, título y descripción: ocultos en
+                    mobile por completo (pedido explícito de la vuelta
+                    anterior — en mobile solo va el logo + CLIPPR de acá
+                    arriba y después la tarjeta). Desktop sin cambios de
+                    layout, solo el copy de la descripción (vuelta
+                    anterior también). */}
                 <span
                   className="animate-fade-up font-display mt-5 hidden text-5xl font-semibold tracking-tight lg:block md:text-[3.25rem]"
                   style={{ animationDelay: "80ms" }}
