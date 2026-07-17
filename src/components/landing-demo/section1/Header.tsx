@@ -21,7 +21,7 @@ export const Header = React.forwardRef<HTMLDivElement>(function Header(_props, r
       // una vez que el pin está activo y el contenido scrollea por debajo.
       className="relative z-20 flex w-full items-center justify-between px-6 py-4 sm:px-12 sm:py-5 md:px-20 md:py-6"
     >
-      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+      <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
         <div className="relative h-8 w-8 shrink-0 sm:h-9 sm:w-9">
           <div
             className="pointer-events-none absolute -inset-2 rounded-full opacity-70 blur-lg"
@@ -38,7 +38,16 @@ export const Header = React.forwardRef<HTMLDivElement>(function Header(_props, r
             className="relative h-full w-full object-contain"
           />
         </div>
-        <span className="font-display text-base font-medium text-white sm:hidden">
+        {/* Con "Iniciar sesión" ahora visible también en mobile (antes solo
+            desktop), el wordmark de acá compite por el mismo espacio en
+            pantallas muy angostas (~320px, iPhone SE) — hasta el punto de
+            que el texto se superponía con los botones de la derecha. El
+            ícono solo sigue identificando la marca en ese rango; el
+            wordmark vuelve a partir de 380px. (360px se probó primero y
+            medía exactamente 0px de hueco entre "Clippr" y "Iniciar
+            sesión" — technically sin overlap pero sin aire; 380px deja
+            ~13px medidos, no una corazonada). */}
+        <span className="hidden font-display text-base font-medium text-white min-[380px]:inline sm:hidden">
           Clippr
         </span>
         <div className="hidden items-center gap-3 sm:flex">
@@ -54,16 +63,16 @@ export const Header = React.forwardRef<HTMLDivElement>(function Header(_props, r
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 sm:gap-5">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-5">
         <a
           href="/login"
-          className="hidden text-sm font-medium text-white/65 transition hover:text-white sm:inline"
+          className="whitespace-nowrap text-xs font-medium text-white/65 transition hover:text-white sm:text-sm"
         >
           Iniciar sesión
         </a>
         <a
-          href="/onboarding"
-          className="group inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
+          href="/login"
+          className="group inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
           style={{
             background: "linear-gradient(135deg, oklch(0.62 0.24 292), oklch(0.46 0.24 296))",
             boxShadow: "0 10px 30px -10px oklch(0.55 0.26 292 / 0.65)",

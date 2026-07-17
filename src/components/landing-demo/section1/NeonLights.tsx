@@ -1,19 +1,14 @@
-import { SCENE_LIFT_CLASS } from "./Scene";
-
-// Los dos tubos de neón violeta del storyboard: uno alto y brillante junto
-// a la silla, y uno más tenue y corto del lado izquierdo. Son divs propios
-// (no parte de la foto) para poder animarlos/pulsarlos por separado con GSAP.
+// Tubo de neón violeta ambiental del storyboard, del lado izquierdo — corto,
+// tenue, no atado a la silla ni a la foto. (Hubo un segundo tubo acá,
+// "neon-light-primary": una línea fina generada por CSS, sin base ni
+// fixture propio, que arrancaba cerca del borde superior y se apagaba a la
+// altura de la barra del fondo — SIN relación con el tubo alto y brillante
+// que sí es parte real de la foto, junto a la silla. Se sacó por pedido
+// explícito; ese tubo de la foto no se toca. No reintroducir esa línea fina
+// si se vuelve a tocar este archivo.)
 export function NeonLights() {
   return (
     <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {/* El tubo derecho acompaña visualmente a la silla en la foto, así
-          que sube lo mismo que Scene.tsx (misma clase) para seguir
-          integrado con ella. El izquierdo es ambiental, no está atado a la
-          foto, y se queda donde está. */}
-      <NeonTube
-        className={`neon-light-primary absolute right-[27%] top-[6%] h-[68%] w-[3px] sm:right-[30%] sm:w-[4px] ${SCENE_LIFT_CLASS}`}
-        intensity="high"
-      />
       <NeonTube
         className="neon-light-secondary absolute left-[4%] top-[46%] h-[34%] w-[2px] opacity-70 sm:top-[44%]"
         intensity="low"

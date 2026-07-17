@@ -10,7 +10,7 @@ export const Cta = React.forwardRef<HTMLAnchorElement>(function Cta(_props, ref)
   return (
     <a
       ref={ref}
-      href="/onboarding"
+      href="/login"
       className="group mt-8 inline-flex items-center gap-2.5 rounded-full bg-white px-6 py-3.5 text-sm font-semibold text-black transition hover:-translate-y-0.5 sm:mt-9 sm:px-7 sm:py-4 sm:text-base"
       style={{
         boxShadow:

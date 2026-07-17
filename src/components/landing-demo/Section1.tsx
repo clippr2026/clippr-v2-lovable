@@ -82,16 +82,6 @@ export function Section1() {
 
       attachTimelineReplay(sectionRef.current!, tl);
 
-      // Pulso continuo del tubo principal, como un neón real.
-      gsap.to(".neon-light-primary", {
-        opacity: 0.72,
-        duration: 1.8,
-        repeat: -1,
-        yoyo: true,
-        ease: "sine.inOut",
-        delay: 1.6,
-      });
-
       // ScrollTrigger: al scrollear la escena hace un leve parallax y el
       // texto se atenúa, para que la salida de la Sección 1 se sienta viva.
       gsap.to(sceneRef.current, {
