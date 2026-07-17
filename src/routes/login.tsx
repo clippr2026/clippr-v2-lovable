@@ -113,10 +113,23 @@ function LoginPage() {
         ))}
       </div>
 
-      <div className="relative z-10 grid min-h-screen items-center gap-3 px-5 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(560px,1fr)_minmax(390px,0.82fr)] lg:gap-12 lg:px-14 xl:px-20">
+      {/* content-start (mobile): con las dos secciones apiladas en una
+          sola columna y contenido mucho más corto que min-h-screen (logo
+          solo + tarjeta, sin wordmark/título/descripción/iconos), el
+          default de "align-content" repartía el espacio sobrante ENTRE
+          las dos filas — cada bloque quedaba centrado dentro de su propia
+          fila agrandada, así que el hueco entre logo y tarjeta era mucho
+          más grande de lo que se ve en el diseño. lg:content-center
+          restaura el centrado vertical de siempre en desktop (ahí es una
+          sola fila de 2 columnas, no dos filas — no hay nada que
+          redistribuir, así que este cambio no le toca nada). */}
+      <div className="relative z-10 grid min-h-screen content-start items-center gap-3 px-5 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:content-center lg:grid-cols-[minmax(560px,1fr)_minmax(390px,0.82fr)] lg:gap-12 lg:px-14 xl:px-20">
+        {/* Mobile: colapsa a solo el logo (pedido explícito — nada de
+            wordmark, título, descripción ni iconos ahí, ver más abajo cada
+            uno con su propio hidden/lg:). Desktop intacto. */}
         <section className="flex items-center justify-center">
           <div className="relative flex w-full max-w-[680px] flex-col items-center">
-            <div className="relative flex h-auto w-full max-w-[630px] flex-col items-center justify-center px-4 py-8 text-center sm:px-8 sm:py-10 lg:h-[560px] lg:py-0">
+            <div className="relative flex h-auto w-full max-w-[630px] flex-col items-center justify-center px-4 py-4 text-center sm:px-8 sm:py-6 lg:h-[560px] lg:py-0">
               <div
                 className="pointer-events-none absolute inset-0"
                 style={{
@@ -144,7 +157,9 @@ function LoginPage() {
               />
 
               <div className="relative z-10 flex flex-col items-center">
-                <div className="relative h-[100px] w-[100px] lg:h-[164px] lg:w-[164px]">
+                {/* Logo: 100px en mobile (sin cambios), 185px en desktop
+                    (164px + ~13%, pedido explícito). */}
+                <div className="relative h-[100px] w-[100px] lg:h-[185px] lg:w-[185px]">
                   <div
                     className="pointer-events-none absolute -inset-10 rounded-full opacity-75 blur-3xl"
                     style={{
@@ -164,15 +179,19 @@ function LoginPage() {
                   />
 </div>
 
+                {/* Wordmark, título y descripción: ocultos en mobile por
+                    completo (pedido explícito — en mobile solo va el logo
+                    de acá arriba y después la tarjeta). Desktop sin
+                    cambios de layout, solo el copy de la descripción. */}
                 <span
-                  className="animate-fade-up font-display mt-2.5 text-3xl font-semibold tracking-tight sm:mt-5 sm:text-5xl md:text-[3.25rem]"
+                  className="animate-fade-up font-display mt-5 hidden text-5xl font-semibold tracking-tight lg:block md:text-[3.25rem]"
                   style={{ animationDelay: "80ms" }}
                 >
                   Clippr
                 </span>
 
                 <h1
-                  className="animate-fade-up font-display mt-3 max-w-[610px] text-[2.5rem] font-semibold leading-[1.08] tracking-tight sm:mt-10 sm:text-5xl md:text-[3.55rem]"
+                  className="animate-fade-up font-display mt-10 hidden max-w-[610px] text-5xl font-semibold leading-[1.08] tracking-tight lg:block md:text-[3.55rem]"
                   style={{ animationDelay: "120ms" }}
                 >
                   El centro de control
@@ -181,39 +200,41 @@ function LoginPage() {
                 </h1>
 
                 <p
-                  className="animate-fade-up mx-auto mt-2.5 max-w-[520px] text-sm leading-relaxed text-muted-foreground/90 sm:mt-5 sm:text-[17px]"
+                  className="animate-fade-up mx-auto mt-5 hidden max-w-[520px] text-[17px] leading-relaxed text-muted-foreground/90 lg:block"
                   style={{ animationDelay: "170ms" }}
                 >
-                  Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
+                  Todo lo que necesitás para administrar tu barbería desde un solo lugar.
                 </p>
               </div>
             </div>
 
-            {/* Grilla 2x2 compacta en mobile (iconos/tipograf\u00EDa m\u00E1s chicos,
-                menos separaci\u00F3n) \u2014 funciona como vista r\u00E1pida, no como
-                secci\u00F3n propia. Desktop (sm:grid-cols-4) sin cambios. */}
+            {/* Iconos: ocultos por completo en mobile (pedido explícito).
+                En desktop se mantienen los 4, pero mucho más discretos
+                (cajas más chicas, glow/sombra reducidos, texto más tenue)
+                para que no compitan con el título y el formulario — antes
+                tenían el mismo peso visual que el resto de la portada. */}
             <div
-              className="animate-fade-up mt-3 grid w-full max-w-[560px] grid-cols-2 gap-x-0 gap-y-3 sm:mt-7 sm:gap-y-7 sm:grid-cols-4"
+              className="animate-fade-up mt-8 hidden w-full max-w-[520px] grid-cols-4 gap-x-0 lg:grid"
               style={{ animationDelay: "230ms" }}
             >
               {PILLARS.map(({ icon: Icon, title, subtitle, color }, index) => (
-                <div key={title} className="relative flex flex-col items-center justify-start px-4">
-                  {index > 0 && <div className="absolute left-0 top-4 hidden h-14 w-px bg-white/10 sm:block" />}
+                <div key={title} className="relative flex flex-col items-center justify-start px-4 opacity-70">
+                  {index > 0 && <div className="absolute left-0 top-3 h-10 w-px bg-white/10" />}
                   <div
-                    className="grid h-10 w-10 place-items-center rounded-xl ring-1 sm:h-14 sm:w-14 sm:rounded-2xl"
+                    className="grid h-9 w-9 place-items-center rounded-lg ring-1"
                     style={{
                       color,
-                      background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.16)}, transparent)`,
-                      borderColor: colorWithAlpha(color, 0.25),
-                      boxShadow: `0 0 28px -15px ${colorWithAlpha(color, 0.62)}`,
+                      background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.1)}, transparent)`,
+                      borderColor: colorWithAlpha(color, 0.18),
+                      boxShadow: `0 0 14px -10px ${colorWithAlpha(color, 0.5)}`,
                     }}
                   >
-                    <Icon className="h-4 w-4 sm:h-6 sm:w-6" />
+                    <Icon className="h-4 w-4" />
                   </div>
 
-                  <div className="mt-1.5 flex h-9 flex-col items-center justify-start leading-tight sm:mt-3 sm:h-10">
-                    <span className="text-center text-[11px] font-semibold text-white/90 sm:text-[13px]">{title}</span>
-                    <span className="text-center text-[11px] font-medium text-white/80 sm:text-[13px]">{subtitle || "\u00A0"}</span>
+                  <div className="mt-2 flex h-9 flex-col items-center justify-start leading-tight">
+                    <span className="text-center text-[12px] font-medium text-white/70">{title}</span>
+                    <span className="text-center text-[12px] font-normal text-white/55">{subtitle || "\u00A0"}</span>
                   </div>
                 </div>
               ))}
@@ -222,7 +243,24 @@ function LoginPage() {
         </section>
 
         <section className="flex items-center justify-center">
-          <div className="animate-fade-up relative w-full max-w-[430px]" style={{ animationDelay: "150ms" }}>
+          {/* lg:mt-12 (48px): baja la tarjeta para alinearla mejor con el
+              contenido de la izquierda — pedido explícito, solo desktop
+              (mobile ya está ajustado aparte para entrar sin scroll). */}
+          <div
+            className="animate-fade-up relative w-full max-w-[430px] lg:mt-12"
+            style={{ animationDelay: "150ms" }}
+          >
+            {/* Glow violeta muy sutil, propio y separado del glow
+                azul/magenta que ya existía (que sigue igual, ver el div de
+                abajo) — este es más grande, más difuso y centrado, pensado
+                para fundir el borde de la tarjeta con el fondo en vez de
+                acentuar una esquina. */}
+            <div
+              className="pointer-events-none absolute -inset-16 rounded-[48px] opacity-25 blur-[80px]"
+              style={{
+                background: "radial-gradient(circle at 50% 50%, oklch(0.6 0.24 292 / 0.55), transparent 70%)",
+              }}
+            />
             <div
               className="pointer-events-none absolute -inset-10 rounded-[36px] opacity-60 blur-3xl"
               style={{
