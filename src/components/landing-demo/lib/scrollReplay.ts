@@ -61,3 +61,36 @@ export function attachTimelineReplay(
     playStart,
   );
 }
+
+// Para secciones con dos partes distintas: un texto de entrada
+// (título/subtítulo) y, después, una "demo" (tarjetas/gráfico/contador
+// simulando datos reales). Las dos se reproducen UNA sola vez, en
+// secuencia (demoTl arranca sola cuando introTl termina), y quedan
+// estables en su frame final — nada de loop propio: un efecto que se
+// repite solo mientras la sección sigue a la vista se sintió como un
+// parpadeo/re-render constante, no como una demostración. `demoTl` no debe
+// llevar `repeat`/`repeatDelay`. Al salir del todo del viewport ambos
+// timelines se congelan en su frame inicial; al volver a entrar arrancan
+// de cero (intro + demo) — eso sí se conserva, es el mismo criterio que
+// attachTimelineReplay.
+export function attachDemoReplay(
+  trigger: Element,
+  introTl: gsap.core.Timeline,
+  demoTl: gsap.core.Timeline,
+  playStart?: string,
+): () => void {
+  demoTl.pause(0);
+  introTl.eventCallback("onComplete", () => demoTl.restart());
+
+  return createSectionReplay(
+    trigger,
+    {
+      onPlay: () => introTl.restart(),
+      onReset: () => {
+        demoTl.pause(0);
+        introTl.pause(0);
+      },
+    },
+    playStart,
+  );
+}

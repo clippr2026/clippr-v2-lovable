@@ -45,13 +45,13 @@ const PRODUCTS: Product[] = [
 // sugerencia aceptada, no las tres a la vez.
 export function ProductsMockup({ added }: { added: boolean }) {
   return (
-    <div className="w-full max-w-[380px] rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6 lg:max-w-none lg:p-7">
-      <div className="text-base font-bold text-white sm:text-lg">Tentate con estos descuentos</div>
+    <div className="w-full max-w-[380px] rounded-[2rem] border border-white/10 bg-white/[0.03] p-4 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6 lg:max-w-none lg:p-7">
+      <div className="text-sm font-bold text-white sm:text-lg">Tentate con estos descuentos</div>
       <div className="mt-1 text-xs text-white/55 sm:text-sm">
         Sumalos a tu turno y retiralos en el local.
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
+      <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-3">
         {PRODUCTS.map((product, i) => (
           <ProductCard key={product.id} product={product} added={i === 0 && added} />
         ))}

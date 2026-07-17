@@ -52,10 +52,11 @@ export function Section10() {
 
       attachTimelineReplay(sectionRef.current!, tl);
 
-      // Pulso leve del CTA cada varios segundos (no una respiración
-      // continua): un latido corto y una pausa larga entre cada uno. Debe
-      // seguir siendo el CTA más importante de toda la landing.
-      gsap.timeline({ repeat: -1, repeatDelay: 3.2, delay: 2 })
+      // Un único latido del CTA, no un loop: se sentía como un parpadeo
+      // constante mientras la sección seguía a la vista. Sigue siendo el
+      // CTA más importante de la landing, solo que el acento es una vez,
+      // no para siempre.
+      gsap.timeline({ delay: 2 })
         .to(".s10-cta", {
           scale: 1.035,
           boxShadow: "0 26px 70px -14px oklch(0.55 0.26 292 / 1)",

@@ -9,8 +9,8 @@ export function TimePicker({ selected }: { selected?: string }) {
       {/* Encabezado propio, igual que DatePicker: ahora "día" y "horario"
           son dos pasos separados del demo (3 y 4), no un único bloque
           "día y horario" — el título marca ese quiebre visualmente. */}
-      <div className="text-sm font-medium text-white/80">Elegí un horario</div>
-      <div className="mt-3 grid grid-cols-4 gap-2">
+      <div className="text-xs font-medium text-white/80 sm:text-sm">Elegí un horario</div>
+      <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
         {TIMES.map((time) => {
           const active = time === selected;
           return (
@@ -19,7 +19,7 @@ export function TimePicker({ selected }: { selected?: string }) {
               type="button"
               tabIndex={-1}
               className={cn(
-                "rounded-xl bg-white/[0.03] py-2.5 text-sm font-semibold ring-1 transition-all duration-500 ease-out",
+                "rounded-xl bg-white/[0.03] py-2 text-xs font-semibold ring-1 transition-all duration-500 ease-out sm:py-2.5 sm:text-sm",
                 active ? "text-white ring-transparent" : "text-white/60 ring-white/10",
               )}
               style={{

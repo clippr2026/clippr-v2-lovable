@@ -7,7 +7,11 @@ import { Check } from "lucide-react";
 // tiene que transmitir únicamente "turno confirmado", sin resumen ni
 // ningún otro dato. Entra con fade+scale (mismo patrón que ServiceRow:
 // estado local que pasa a "shown" un frame después del mount) para que no
-// sea un corte seco.
+// sea un corte seco. h-full (no un min-h-* propio): el contenedor de
+// BookingCard ya tiene un alto FIJO medido para el estado "form" — este
+// componente solo tiene que llenarlo, nunca decidir su propio tamaño, o
+// la tarjeta (y todo lo que viene después en la página) se movería al
+// entrar/salir de este estado.
 export function Confirmation() {
   const [shown, setShown] = React.useState(false);
 
@@ -18,7 +22,7 @@ export function Confirmation() {
 
   return (
     <div
-      className="flex min-h-[360px] flex-col items-center justify-center gap-5 py-10 text-center sm:min-h-[420px] lg:min-h-[560px]"
+      className="flex h-full flex-col items-center justify-center gap-5 text-center"
       style={{
         opacity: shown ? 1 : 0,
         transform: shown ? "scale(1)" : "scale(0.94)",

@@ -54,6 +54,24 @@ function LoginPage() {
     }
   }, []);
 
+  // El header mobile de la landing linkea acá con "#login-form" (ver
+  // Header.tsx) para no obligar a buscar el formulario a mano. Se saca el
+  // hash de la URL antes de scrollear a mano: si no, el salto instantáneo
+  // nativo del navegador (por el fragment) compite con este scroll suave y
+  // el resultado se ve entrecortado. El pequeño delay deja asentar el
+  // layout (animate-fade-up de arriba) antes de medir dónde está el
+  // formulario.
+  React.useEffect(() => {
+    if (window.location.hash !== "#login-form") return;
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    const el = document.getElementById("login-form");
+    if (!el) return;
+    const t = setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, []);
+
   React.useEffect(() => {
     if (!loading && session) navigate({ to: "/dashboard", replace: true });
   }, [loading, session, navigate]);
@@ -95,10 +113,10 @@ function LoginPage() {
         ))}
       </div>
 
-      <div className="relative z-10 grid min-h-screen items-center gap-8 px-6 py-8 lg:grid-cols-[minmax(560px,1fr)_minmax(390px,0.82fr)] lg:gap-12 lg:px-14 xl:px-20">
+      <div className="relative z-10 grid min-h-screen items-center gap-3 px-5 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(560px,1fr)_minmax(390px,0.82fr)] lg:gap-12 lg:px-14 xl:px-20">
         <section className="flex items-center justify-center">
           <div className="relative flex w-full max-w-[680px] flex-col items-center">
-            <div className="relative flex h-[560px] w-full max-w-[630px] flex-col items-center justify-center px-8 text-center">
+            <div className="relative flex h-auto w-full max-w-[630px] flex-col items-center justify-center px-4 py-8 text-center sm:px-8 sm:py-10 lg:h-[560px] lg:py-0">
               <div
                 className="pointer-events-none absolute inset-0"
                 style={{
@@ -126,7 +144,7 @@ function LoginPage() {
               />
 
               <div className="relative z-10 flex flex-col items-center">
-                <div className="relative h-[164px] w-[164px]">
+                <div className="relative h-[100px] w-[100px] lg:h-[164px] lg:w-[164px]">
                   <div
                     className="pointer-events-none absolute -inset-10 rounded-full opacity-75 blur-3xl"
                     style={{
@@ -147,14 +165,14 @@ function LoginPage() {
 </div>
 
                 <span
-                  className="animate-fade-up font-display mt-5 text-5xl font-semibold tracking-tight md:text-[3.25rem]"
+                  className="animate-fade-up font-display mt-2.5 text-3xl font-semibold tracking-tight sm:mt-5 sm:text-5xl md:text-[3.25rem]"
                   style={{ animationDelay: "80ms" }}
                 >
                   Clippr
                 </span>
 
                 <h1
-                  className="animate-fade-up font-display mt-10 max-w-[610px] text-5xl font-semibold leading-[1.06] tracking-tight md:text-[3.55rem]"
+                  className="animate-fade-up font-display mt-3 max-w-[610px] text-[2.5rem] font-semibold leading-[1.08] tracking-tight sm:mt-10 sm:text-5xl md:text-[3.55rem]"
                   style={{ animationDelay: "120ms" }}
                 >
                   El centro de control
@@ -163,7 +181,7 @@ function LoginPage() {
                 </h1>
 
                 <p
-                  className="animate-fade-up mx-auto mt-5 max-w-[520px] text-[17px] leading-relaxed text-muted-foreground/90"
+                  className="animate-fade-up mx-auto mt-2.5 max-w-[520px] text-sm leading-relaxed text-muted-foreground/90 sm:mt-5 sm:text-[17px]"
                   style={{ animationDelay: "170ms" }}
                 >
                   Agenda, clientes, caja, profesionales e inteligencia artificial en una sola plataforma.
@@ -171,15 +189,18 @@ function LoginPage() {
               </div>
             </div>
 
+            {/* Grilla 2x2 compacta en mobile (iconos/tipograf\u00EDa m\u00E1s chicos,
+                menos separaci\u00F3n) \u2014 funciona como vista r\u00E1pida, no como
+                secci\u00F3n propia. Desktop (sm:grid-cols-4) sin cambios. */}
             <div
-              className="animate-fade-up mt-7 grid w-full max-w-[560px] grid-cols-2 gap-x-0 gap-y-7 sm:grid-cols-4"
+              className="animate-fade-up mt-3 grid w-full max-w-[560px] grid-cols-2 gap-x-0 gap-y-3 sm:mt-7 sm:gap-y-7 sm:grid-cols-4"
               style={{ animationDelay: "230ms" }}
             >
               {PILLARS.map(({ icon: Icon, title, subtitle, color }, index) => (
                 <div key={title} className="relative flex flex-col items-center justify-start px-4">
                   {index > 0 && <div className="absolute left-0 top-4 hidden h-14 w-px bg-white/10 sm:block" />}
                   <div
-                    className="grid h-14 w-14 place-items-center rounded-2xl ring-1"
+                    className="grid h-10 w-10 place-items-center rounded-xl ring-1 sm:h-14 sm:w-14 sm:rounded-2xl"
                     style={{
                       color,
                       background: `linear-gradient(160deg, ${colorWithAlpha(color, 0.16)}, transparent)`,
@@ -187,12 +208,12 @@ function LoginPage() {
                       boxShadow: `0 0 28px -15px ${colorWithAlpha(color, 0.62)}`,
                     }}
                   >
-                    <Icon className="h-6 w-6" />
+                    <Icon className="h-4 w-4 sm:h-6 sm:w-6" />
                   </div>
 
-                  <div className="mt-3 flex h-10 flex-col items-center justify-start leading-tight">
-                    <span className="text-center text-[13px] font-semibold text-white/90">{title}</span>
-                    <span className="text-center text-[13px] font-medium text-white/80">{subtitle || "\u00A0"}</span>
+                  <div className="mt-1.5 flex h-9 flex-col items-center justify-start leading-tight sm:mt-3 sm:h-10">
+                    <span className="text-center text-[11px] font-semibold text-white/90 sm:text-[13px]">{title}</span>
+                    <span className="text-center text-[11px] font-medium text-white/80 sm:text-[13px]">{subtitle || "\u00A0"}</span>
                   </div>
                 </div>
               ))}
@@ -217,7 +238,8 @@ function LoginPage() {
               }}
             />
             <div
-              className="relative rounded-[26px] p-8 backdrop-blur-2xl sm:p-9"
+              id="login-form"
+              className="relative rounded-[26px] p-5 backdrop-blur-2xl sm:p-9"
               style={{
                 background:
                   "linear-gradient(180deg, oklch(0.18 0.045 285 / 0.56), oklch(0.075 0.03 280 / 0.82))",
@@ -225,12 +247,12 @@ function LoginPage() {
                   "0 28px 72px -30px oklch(0.52 0.25 285 / 0.42), inset 0 1px 0 oklch(1 0 0 / 0.065)",
               }}
             >
-              <div className="mb-6 text-center">
+              <div className="mb-4 text-center sm:mb-6">
                 <h2 className="font-display text-2xl font-semibold tracking-tight">Bienvenido de nuevo</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">Ingresá para acceder a tu negocio.</p>
               </div>
 
-              <form onSubmit={onSubmit} className="space-y-4">
+              <form onSubmit={onSubmit} className="space-y-3 sm:space-y-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium tracking-wide text-white/55">
                     Correo electrónico
@@ -271,7 +293,7 @@ function LoginPage() {
                       {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <div className="mt-2 text-right">
+                  <div className="mt-1.5 text-right">
                     <button type="button" className="text-xs text-accent/90 transition hover:text-accent hover:underline">
                       ¿Olvidaste tu contraseña?
                     </button>
@@ -310,7 +332,7 @@ function LoginPage() {
                   {submitting ? "Ingresando…" : "Ingresar"}
                 </button>
 
-                <div className="border-t border-white/10 pt-4 text-center text-sm text-muted-foreground">
+                <div className="border-t border-white/10 pt-3 text-center text-sm text-muted-foreground sm:pt-4">
                   ¿No tenés cuenta aún?{" "}
                   <button type="button" className="font-medium text-accent transition hover:underline">
                     Registrate ›

@@ -24,12 +24,12 @@ const PROFESSIONALS = [
 export function ProfessionalPicker({ selected }: { selected?: string }) {
   return (
     <div>
-      <div className="text-sm font-medium text-white/80">Elegí un profesional</div>
-      <div className="mt-3 flex gap-5">
+      <div className="text-xs font-medium text-white/80 sm:text-sm">Elegí un profesional</div>
+      <div className="mt-2 flex gap-3 sm:mt-3 sm:gap-5">
         {PROFESSIONALS.map((p) => {
           const active = p.name === selected;
           return (
-            <div key={p.id} className="flex flex-col items-center gap-1.5">
+            <div key={p.id} className="flex flex-col items-center gap-1 sm:gap-1.5">
               {/* "aspect-ratio" en un elemento con padding/border propios
                   no da un border-box limpio en 3:2 — probado: el navegador
                   termina calculando el ratio contra el content-box y el
@@ -39,7 +39,7 @@ export function ProfessionalPicker({ selected }: { selected?: string }) {
                   de los archivos) es exacta. No cuadrada, no circular, sin
                   overflow-hidden: no recorta nada, solo encuadra. Mismo
                   tamaño para los tres. */}
-              <div className="relative w-20 sm:w-24" style={{ aspectRatio: "3 / 2" }}>
+              <div className="relative w-16 sm:w-24" style={{ aspectRatio: "3 / 2" }}>
                 {/* Sin object-fit:cover, sin object-position propio, sin
                     scale/translate/transform-origin, sin clip-path, sin
                     border-radius: el archivo se muestra completo tal cual

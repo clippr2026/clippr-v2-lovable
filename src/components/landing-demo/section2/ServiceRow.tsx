@@ -42,14 +42,14 @@ export function ServiceRow({ demoStep }: { demoStep: DemoStep }) {
 
   return (
     <div>
-      <div className="text-sm font-medium text-white/80">Elegí un servicio</div>
-      <div className="mt-3 grid grid-cols-4 gap-2">
+      <div className="text-xs font-medium text-white/80 sm:text-sm">Elegí un servicio</div>
+      <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
         {SERVICES.map((service) => {
           const active = service.name === selected;
           return (
             <div
               key={service.name}
-              className="relative flex h-24 flex-col items-center justify-center gap-1 rounded-xl bg-white/[0.03] px-1 text-center"
+              className="relative flex h-[74px] flex-col items-center justify-center gap-1 rounded-xl bg-white/[0.03] px-1 text-center sm:h-24"
               style={{
                 transform: active ? "scale(1.04)" : "scale(1)",
                 boxShadow: active

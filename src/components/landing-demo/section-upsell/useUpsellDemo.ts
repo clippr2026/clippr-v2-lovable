@@ -27,10 +27,9 @@ export function useUpsellDemo(sectionRef: React.RefObject<HTMLElement | null>): 
       timeouts = [];
     }
 
-    // Una sola pasada por entrada a la sección: base → agregado, y ahí
-    // se queda (sin re-loop mientras sigue a la vista). Se reinicia
-    // desde "base" solo si el usuario sale del todo del viewport y
-    // vuelve a entrar.
+    // base → agregado, una sola vez por entrada a la sección — nada de
+    // loop. Se reinicia desde "base" solo si el usuario sale del todo del
+    // viewport y vuelve a entrar.
     function play() {
       clearTimeouts();
       setAdded(false);

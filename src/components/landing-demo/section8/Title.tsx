@@ -4,7 +4,7 @@ export const Title = React.forwardRef<HTMLHeadingElement>(function Title(_props,
   return (
     <h2
       ref={ref}
-      className="font-display text-[2rem] font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-[3.4rem] xl:text-6xl"
+      className="font-display text-2xl font-semibold leading-[1.15] tracking-tight text-white sm:text-5xl sm:leading-[1.1] lg:text-[3.4rem] xl:text-6xl"
     >
       <span className="block">Mientras vos seguís</span>
       <span className="block">trabajando...</span>

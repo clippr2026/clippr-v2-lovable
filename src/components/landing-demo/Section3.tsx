@@ -2,7 +2,7 @@ import * as React from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion } from "./lib/motion";
-import { attachTimelineReplay } from "./lib/scrollReplay";
+import { attachDemoReplay } from "./lib/scrollReplay";
 import { Title } from "./section3/Title";
 import { Subtitle } from "./section3/Subtitle";
 import { NotificationsList, NOTIFICATION_GLOW_RGB } from "./section3/NotificationsList";
@@ -57,14 +57,15 @@ export function Section3() {
         return;
       }
 
-      // Timeline único (texto + línea de tiempo de notificaciones): una
-      // sola pasada, rápida, cada vez que se entra a la sección. Cada
-      // tarjeta aparece debajo de la anterior (que no se mueve) con su
-      // propio glow de identidad, y la línea conectora se "dibuja" entre
-      // ambas con un pulso en el punto de conexión justo antes de que
-      // aparezca la siguiente — la sensación de que la acción va
-      // avanzando. Termina en "Turno cobrado" con su glow verde sostenido
-      // y ahí se queda fija (ver attachTimelineReplay más abajo).
+      // Dos timelines: introTl (título/subtítulo, una sola vez — no tiene
+      // sentido que el texto parpadee en loop) y demoTl (la línea de
+      // tiempo de notificaciones, que sí es "una demostración" — cada
+      // tarjeta aparece debajo de la anterior con su propio glow de
+      // identidad, la línea conectora se "dibuja" entre ambas con un
+      // pulso justo antes de que aparezca la siguiente). demoTl arranca
+      // sola al terminar introTl y se repite en loop (2s de pausa en
+      // "Turno cobrado") mientras la sección siga a la vista — ver
+      // attachDemoReplay más abajo.
       const FADE_IN = 0.32;
       const GLOW_SETTLE = 0.26;
       const DRAW = 0.28;
@@ -72,17 +73,24 @@ export function Section3() {
       const PULSE_OUT = 0.2;
       const HOLD = 0.45;
 
-      const tl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
-      tl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
-      tl.set(cards, { opacity: 0, y: -8, boxShadow: BASE_SHADOW });
-      tl.set(icons, { scale: 1 });
-      tl.set(connectors, { scaleY: 0 });
-      tl.set(dots, { opacity: 0, scale: 0.4 });
+      const introTl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+      introTl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
+      introTl
+        .to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
+        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35");
 
-      tl.to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
-        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35")
-        // Nueva reserva aparece con un glow violeta suave.
-        .to(cards[0], { opacity: 1, y: 0, boxShadow: CARD_GLOWS[0], duration: FADE_IN }, "-=0.2")
+      const demoTl = gsap.timeline({
+        paused: true,
+        defaults: { ease: "power3.out" },
+      });
+      demoTl.set(cards, { opacity: 0, y: -8, boxShadow: BASE_SHADOW });
+      demoTl.set(icons, { scale: 1 });
+      demoTl.set(connectors, { scaleY: 0 });
+      demoTl.set(dots, { opacity: 0, scale: 0.4 });
+
+      // Nueva reserva aparece con un glow violeta suave.
+      demoTl
+        .to(cards[0], { opacity: 1, y: 0, boxShadow: CARD_GLOWS[0], duration: FADE_IN })
         .to(cards[0], { boxShadow: BASE_SHADOW, duration: GLOW_SETTLE }, "+=0.05");
 
       // Reserva confirmada / Recordatorio enviado: la línea se dibuja, el
@@ -90,7 +98,8 @@ export function Section3() {
       // con su propio glow (azul / violeta) que enseguida se asienta.
       [1, 2].forEach((i) => {
         const label = `card${i}In`;
-        tl.to(connectors[i - 1], { scaleY: 1, duration: DRAW }, `+=${HOLD}`)
+        demoTl
+          .to(connectors[i - 1], { scaleY: 1, duration: DRAW }, `+=${HOLD}`)
           .to(dots[i - 1], { opacity: 1, scale: 1.4, duration: PULSE_IN }, `-=${DRAW * 0.45}`)
           .to(dots[i - 1], { opacity: 0, scale: 0.4, duration: PULSE_OUT })
           .addLabel(label, "<")
@@ -99,7 +108,7 @@ export function Section3() {
 
         // El ícono de "Recordatorio enviado" hace un pequeño "pop" al aparecer.
         if (i === 2) {
-          tl.fromTo(
+          demoTl.fromTo(
             icons[2],
             { scale: 0.7 },
             { scale: 1, duration: 0.45, ease: "back.out(3)" },
@@ -108,16 +117,18 @@ export function Section3() {
         }
       });
 
-      tl
+      demoTl
         // La línea llega a Turno cobrado: el momento más importante.
         .to(connectors[2], { scaleY: 1, duration: DRAW }, `+=${HOLD}`)
         .to(dots[2], { opacity: 1, scale: 1.4, duration: PULSE_IN }, `-=${DRAW * 0.45}`)
         .to(dots[2], { opacity: 0, scale: 0.4, duration: PULSE_OUT })
         // Glow verde final: se sostiene, sin volver a BASE_SHADOW — es el
-        // estado de reposo de la secuencia, no un paso intermedio.
+        // estado de reposo de la secuencia, no un paso intermedio. Con
+        // repeat/repeatDelay esto es lo que queda en pantalla durante los
+        // 2s de pausa antes de que el loop reinicie desde cards[0].
         .to(cards[3], { opacity: 1, y: 0, boxShadow: CARD_GLOWS[3], duration: FADE_IN }, "<");
 
-      attachTimelineReplay(sectionRef.current!, tl);
+      attachDemoReplay(sectionRef.current!, introTl, demoTl);
 
       gsap.to([titleRef.current, subtitleRef.current], {
         opacity: 0.15,

@@ -43,10 +43,10 @@ export function useDemoSequence(sectionRef: React.RefObject<HTMLElement | null>)
       timeouts = [];
     }
 
-    // Una sola pasada por entrada a la sección: Servicio → Profesional →
-    // Día → Horario → Confirmado, y ahí se queda (nada de re-loop
-    // mientras la sección sigue a la vista). Si el usuario sale del todo
-    // del viewport y vuelve, se reinicia desde el paso 1.
+    // Servicio → Profesional → Día → Horario → Confirmado, una sola vez
+    // por entrada a la sección — nada de loop: se queda en "Confirmado"
+    // hasta que el usuario sale del todo del viewport y vuelve a entrar
+    // (ver onReset más abajo), que recién ahí reinicia desde el paso 1.
     function play() {
       clearTimeouts();
       setStep(1);

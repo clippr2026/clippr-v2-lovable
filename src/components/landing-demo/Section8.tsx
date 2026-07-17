@@ -2,7 +2,7 @@ import * as React from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion } from "./lib/motion";
-import { attachTimelineReplay } from "./lib/scrollReplay";
+import { attachDemoReplay } from "./lib/scrollReplay";
 import { Title } from "./section8/Title";
 import { Subtitle } from "./section8/Subtitle";
 import { AdvisorCard } from "./section8/AdvisorCard";
@@ -34,18 +34,32 @@ export function Section8() {
         return;
       }
 
-      const tl = gsap.timeline({
+      // introTl: título/subtítulo, una sola vez. demoTl: la tarjeta del
+      // Asesor IA — score contando, recomendaciones entrando en secuencia
+      // con su glow — que es "la demostración" y por eso se repite sola
+      // (2s de pausa con todo asentado) mientras la sección siga a la
+      // vista. El detalle de "vida" que antes era un loop aparte (flecha/
+      // glow cada varios segundos) ahora es simplemente el cierre natural
+      // de cada ciclo del demo, no una segunda animación corriendo en
+      // paralelo — con las dos a la vez, el reseteo del demo se pisaba con
+      // el pulso idle.
+      const introTl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+      introTl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
+      introTl
+        .to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
+        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35");
+
+      const demoTl = gsap.timeline({
         paused: true,
         defaults: { ease: "power3.out" },
       });
-      tl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
-      tl.set(cardRef.current, { opacity: 0, y: 28, scale: 0.98 });
-      tl.set(".s8-reco", { opacity: 0, y: 12, boxShadow: "0 0 0 0 transparent" });
-      tl.set([".s8-reco-icon", ".s8-cta"], { boxShadow: "0 0 0 0 transparent" });
+      demoTl.set(cardRef.current, { opacity: 0, y: 28, scale: 0.98 });
+      demoTl.set(".s8-reco", { opacity: 0, y: 12, boxShadow: "0 0 0 0 transparent" });
+      demoTl.set([".s8-reco-icon", ".s8-cta"], { boxShadow: "0 0 0 0 transparent" });
+      demoTl.set(".s8-cta-arrow", { x: 0 });
 
-      tl.to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
-        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35")
-        .to(cardRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.6 }, "-=0.25")
+      demoTl
+        .to(cardRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.6 })
         .add(() => {
           const score = cardRef.current?.querySelector<HTMLElement>(".s8-score");
           if (score) {
@@ -73,22 +87,9 @@ export function Section8() {
           "-=0.5",
         )
         .to(".s8-reco-icon", { boxShadow: "0 0 0 0 transparent", duration: 0.5 })
-        .add(() => idleLife.play());
-
-      attachTimelineReplay(sectionRef.current!, tl);
-
-      // Con todo asentado, un microdetalle de vida muy sutil se repite
-      // cada varios segundos: la flecha de cada CTA se desplaza unos px,
-      // el botón hace un glow leve y el borde de la tarjeta un pulso
-      // violeta tenue. Se pausa fuera de vista.
-      const idleLife = gsap.timeline({
-        paused: true,
-        repeat: -1,
-        repeatDelay: 6,
-        defaults: { ease: "power1.inOut" },
-      });
-      idleLife
-        .to(".s8-cta-arrow", { x: 4, duration: 0.35, stagger: 0.08 })
+        // Microdetalle de vida (flecha del CTA + glow del botón/tarjeta),
+        // como cierre del ciclo — se ve una vez por vuelta, no en paralelo.
+        .to(".s8-cta-arrow", { x: 4, duration: 0.35, stagger: 0.08 }, "+=0.3")
         .to(".s8-cta-arrow", { x: 0, duration: 0.35, stagger: 0.08 }, "-=0.15")
         .to(
           ".s8-cta",
@@ -103,13 +104,7 @@ export function Section8() {
         )
         .to(".s8-reco", { boxShadow: "0 0 0 0 transparent", duration: 0.6, stagger: 0.08 });
 
-      ScrollTrigger.create({
-        trigger: sectionRef.current,
-        start: "top 80%",
-        onLeave: () => idleLife.pause(),
-        onEnterBack: () => idleLife.play(),
-        onLeaveBack: () => idleLife.pause(),
-      });
+      attachDemoReplay(sectionRef.current!, introTl, demoTl);
 
       gsap.to(cardRef.current, {
         yPercent: -6,
@@ -140,7 +135,7 @@ export function Section8() {
   return (
     <section
       ref={sectionRef}
-      className="relative isolate flex min-h-svh w-full flex-col items-start justify-center overflow-hidden px-6 py-16 sm:px-12 md:px-16 lg:px-20"
+      className="relative isolate flex w-full flex-col items-start justify-center overflow-hidden px-6 py-8 sm:px-12 sm:py-16 md:px-16 lg:min-h-svh lg:px-20"
     >
       <div className="absolute inset-0 -z-30 bg-[#050308]" />
       <div
@@ -163,7 +158,7 @@ export function Section8() {
           <Title ref={titleRef} />
           <Subtitle ref={subtitleRef} />
         </div>
-        <div className="mt-6 w-full lg:mt-0 lg:flex lg:justify-center">
+        <div className="mt-4 w-full lg:mt-0 lg:flex lg:justify-center">
           <div className="w-full lg:max-w-[500px] xl:max-w-[560px]">
             <AdvisorCard ref={cardRef} />
           </div>

@@ -100,7 +100,7 @@ export function Section2() {
   return (
     <section
       ref={sectionRef}
-      className="relative isolate flex min-h-svh w-full flex-col items-start justify-center overflow-hidden px-6 py-10 sm:px-12 md:px-16 lg:px-20"
+      className="relative isolate flex w-full flex-col items-start justify-center overflow-hidden px-6 py-8 sm:px-12 sm:py-10 md:px-16 lg:min-h-svh lg:px-20"
     >
       {/* Mismo componente que la Sección 1 (no una copia con otros valores):
           así el negro base y el matiz violeta son *exactamente* los mismos
@@ -138,7 +138,7 @@ export function Section2() {
         <div className="flex flex-col items-start text-left">
           <Title ref={titleRef} />
           <Subtitle ref={subtitleRef} />
-          <div ref={stepsRef} className="mt-7">
+          <div ref={stepsRef} className="mt-4 sm:mt-7">
             {/* 4 pasos, uno a uno con demoStep: Servicio → Profesional →
                 Día → Horario. Antes "Día y horario" era un solo paso (3)
                 que absorbía dos momentos del demo (día elegido y luego
@@ -151,7 +151,7 @@ export function Section2() {
             {demoStep !== 5 && <StepIndicator active={demoStep} />}
           </div>
         </div>
-        <div ref={cardRef} className="mt-6 w-full lg:mt-0 lg:flex lg:justify-center">
+        <div ref={cardRef} className="mt-4 w-full sm:mt-6 lg:mt-0 lg:flex lg:justify-center">
           <div className="w-full lg:max-w-[540px] xl:max-w-[660px]">
             <BookingCard demoStep={demoStep} />
           </div>

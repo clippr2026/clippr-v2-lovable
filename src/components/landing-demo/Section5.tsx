@@ -2,7 +2,7 @@ import * as React from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion } from "./lib/motion";
-import { attachTimelineReplay } from "./lib/scrollReplay";
+import { attachDemoReplay } from "./lib/scrollReplay";
 import { Title } from "./section5/Title";
 import { Subtitle } from "./section5/Subtitle";
 import { AgendaCard } from "./section5/AgendaCard";
@@ -17,10 +17,9 @@ gsap.registerPlugin(ScrollTrigger);
 // (StatusLegend) arriba a modo de leyenda de colores — no para explicar
 // "Clientes rechazados" en detalle (eso vive en SectionRejectedClients,
 // aparte), sino para que el visitante asocie el color de cada turno con su
-// estado de un vistazo. Los turnos entran en secuencia una sola vez al
-// llegar a la sección; después, un loop muy sutil hace que un par
-// "parpadeen" de a uno cada tanto, para dar sensación de actividad sin
-// convertir la agenda en un espectáculo.
+// estado de un vistazo. Los turnos entran en secuencia y, como el resto de
+// las demos de la landing, el ciclo completo se repite solo (2s de pausa
+// con la agenda asentada) mientras la sección siga a la vista.
 export function Section5() {
   const sectionRef = React.useRef<HTMLElement>(null);
   const titleRef = React.useRef<HTMLHeadingElement>(null);
@@ -36,19 +35,27 @@ export function Section5() {
         return;
       }
 
-      const tl = gsap.timeline({
+      // introTl: título/subtítulo, una sola vez. demoTl: la agenda —
+      // leyenda, turnos, el cambio de estado de Franco Roesi y el
+      // parpadeo de actividad de dos turnos — que es "la demostración" y
+      // se repite sola mientras la sección siga a la vista.
+      const introTl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+      introTl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
+      introTl
+        .to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
+        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35");
+
+      const demoTl = gsap.timeline({
         paused: true,
         defaults: { ease: "power3.out" },
       });
-      tl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
-      tl.set(cardRef.current, { opacity: 0, y: 28, scale: 0.98 });
-      tl.set(".s5-legend-pill", { opacity: 0, y: 8 });
-      tl.set(".s5-pro-header", { opacity: 0, y: 8 });
-      tl.set(".s5-slot", { opacity: 0, y: 10 });
+      demoTl.set(cardRef.current, { opacity: 0, y: 28, scale: 0.98 });
+      demoTl.set(".s5-legend-pill", { opacity: 0, y: 8 });
+      demoTl.set(".s5-pro-header", { opacity: 0, y: 8 });
+      demoTl.set(".s5-slot", { opacity: 0, y: 10 });
 
-      tl.to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
-        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35")
-        .to(cardRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.6 }, "-=0.25")
+      demoTl
+        .to(cardRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.6 })
         // La leyenda de estados aparece primero, como clave de lectura,
         // antes de que se armen los turnos que la usan.
         .to(".s5-legend-pill", { opacity: 1, y: 0, duration: 0.3, stagger: 0.05 }, "-=0.3")
@@ -78,32 +85,15 @@ export function Section5() {
               },
             );
           }
-        }, "+=0.4");
-
-      attachTimelineReplay(sectionRef.current!, tl);
-
-      // Loop de actividad muy sutil: con la agenda ya asentada, un par de
-      // turnos existentes parpadean de a uno cada varios segundos — como
-      // si se estuvieran confirmando en vivo. Se pausa fuera de vista.
-      const idleLoop = gsap.timeline({
-        paused: true,
-        delay: 2.5,
-        repeat: -1,
-        defaults: { ease: "power1.inOut" },
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: "top 80%",
-          onEnter: () => idleLoop.play(),
-          onEnterBack: () => idleLoop.play(),
-          onLeave: () => idleLoop.pause(),
-          onLeaveBack: () => idleLoop.pause(),
-        },
-      });
-      idleLoop
-        .to('[data-name="Camilo Gómez"]', { opacity: 0.15, duration: 0.4 }, "+=3")
+        }, "+=0.4")
+        // Dos turnos existentes parpadean de a uno, como si se estuvieran
+        // confirmando en vivo — cierre del ciclo antes de la pausa/loop.
+        .to('[data-name="Camilo Gómez"]', { opacity: 0.15, duration: 0.4 }, "+=0.6")
         .to('[data-name="Camilo Gómez"]', { opacity: 1, duration: 0.5 })
-        .to('[data-name="Luciano Díaz"]', { opacity: 0.15, duration: 0.4 }, "+=4")
-        .to('[data-name="Luciano Díaz"]', { opacity: 1, duration: 0.5 }, "+=4");
+        .to('[data-name="Luciano Díaz"]', { opacity: 0.15, duration: 0.4 }, "+=0.5")
+        .to('[data-name="Luciano Díaz"]', { opacity: 1, duration: 0.5 });
+
+      attachDemoReplay(sectionRef.current!, introTl, demoTl);
 
       gsap.to(cardRef.current, {
         yPercent: -8,

@@ -81,7 +81,7 @@ export function SectionUpsell() {
   return (
     <section
       ref={sectionRef}
-      className="relative isolate flex min-h-svh w-full flex-col items-start justify-center overflow-hidden px-6 py-16 sm:px-12 md:px-16 lg:px-20"
+      className="relative isolate flex w-full flex-col items-start justify-center overflow-hidden px-6 py-5 sm:px-12 sm:py-16 md:px-16 lg:min-h-svh lg:px-20"
     >
       <div className="absolute inset-0 -z-30 bg-[#050308]" />
       <div
@@ -101,21 +101,30 @@ export function SectionUpsell() {
         }}
       />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[1fr_auto]">
+      {/* Orden en DOM = orden en mobile (sin grid-template-columns hasta
+          lg, un solo flujo): Título/Texto → Productos/Comparación →
+          Beneficios. En desktop el grid de 2 columnas x 2 filas ubica el
+          mockup a la derecha (spanning ambas filas, centrado) y el texto +
+          beneficios apilados a la izquierda — mismo resultado visual que
+          antes, solo que ahora beneficios es su propia celda en vez de
+          vivir anidado dentro del bloque de texto (lo que permite este
+          reorden en mobile sin tocar el layout de desktop). */}
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-4 lg:gap-12 lg:grid-cols-[1fr_auto]">
         <div className="flex flex-col items-start text-left">
           <Title ref={titleRef} />
           <Subtitle ref={subtitleRef} />
-          {/* mt-10, no mt-8: sin las dos frases de tranquilidad que había
-              antes debajo del subtítulo, los beneficios quedaban pegados
-              al párrafo — un poco más de aire antes de que arranquen. */}
-          <div className="mt-10">
-            <BenefitsList ref={benefitsRef} />
-          </div>
         </div>
 
-        <div ref={mockupColRef} className="mx-auto w-full sm:w-[380px] lg:w-[420px]">
+        <div
+          ref={mockupColRef}
+          className="mx-auto w-full sm:w-[380px] lg:row-span-2 lg:w-[420px]"
+        >
           <ProductsMockup added={added} />
           <ComparisonCard ref={metricRef} added={added} />
+        </div>
+
+        <div>
+          <BenefitsList ref={benefitsRef} />
         </div>
       </div>
     </section>

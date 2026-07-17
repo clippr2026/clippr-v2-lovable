@@ -12,8 +12,8 @@ const DAYS = [
 export function DatePicker({ selected }: { selected?: string }) {
   return (
     <div>
-      <div className="text-sm font-medium text-white/80">Elegí un día</div>
-      <div className="mt-3 grid grid-cols-5 gap-2">
+      <div className="text-xs font-medium text-white/80 sm:text-sm">Elegí un día</div>
+      <div className="mt-2 grid grid-cols-5 gap-1.5 sm:mt-3 sm:gap-2">
         {DAYS.map((day) => {
           const active = day.n === selected;
           return (
@@ -22,7 +22,7 @@ export function DatePicker({ selected }: { selected?: string }) {
               type="button"
               tabIndex={-1}
               className={cn(
-                "relative flex flex-col items-center gap-0.5 overflow-hidden rounded-xl bg-white/[0.03] py-2.5 ring-1 transition-colors duration-500 ease-out",
+                "relative flex flex-col items-center gap-0.5 overflow-hidden rounded-xl bg-white/[0.03] py-2 ring-1 transition-colors duration-500 ease-out sm:py-2.5",
                 active ? "text-white ring-transparent" : "text-white/60 ring-white/10",
               )}
             >

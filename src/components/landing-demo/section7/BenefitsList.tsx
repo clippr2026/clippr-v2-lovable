@@ -24,18 +24,18 @@ const BENEFITS = [
 
 export const BenefitsList = React.forwardRef<HTMLDivElement>(function BenefitsList(_props, ref) {
   return (
-    <div ref={ref} className="flex flex-col gap-5">
+    <div ref={ref} className="flex flex-col gap-2.5 lg:gap-5">
       {BENEFITS.map((b) => (
-        <div key={b.title} className="s7-benefit flex items-start gap-4">
+        <div key={b.title} className="s7-benefit flex items-start gap-3 lg:gap-4">
           <span
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border-2"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border-2 lg:h-11 lg:w-11"
             style={{ borderColor: b.color, color: b.color }}
           >
-            <b.icon className="h-5 w-5" />
+            <b.icon className="h-4 w-4 lg:h-5 lg:w-5" />
           </span>
           <div>
-            <div className="text-base font-semibold text-white">{b.title}</div>
-            <div className="mt-0.5 text-sm text-white/55">{b.text}</div>
+            <div className="text-sm font-semibold text-white lg:text-base">{b.title}</div>
+            <div className="mt-0.5 text-xs text-white/55 lg:text-sm">{b.text}</div>
           </div>
         </div>
       ))}

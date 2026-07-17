@@ -97,25 +97,31 @@ export function Section9() {
         }}
       />
 
-      <div className="relative z-10 flex w-full flex-col items-start justify-center px-6 py-16 text-left sm:px-12 md:px-16 lg:w-1/2 lg:px-20 lg:py-0">
+      <div className="relative z-10 flex w-full flex-col items-start justify-center px-6 pt-10 text-left sm:px-12 sm:pt-16 md:px-16 lg:w-1/2 lg:px-20 lg:py-0">
         <Title ref={titleRef} />
         <Subtitle ref={subtitleRef} />
         <div className="mt-8">
           <Logo ref={logoRef} />
         </div>
+      </div>
 
-        {/* Mobile/tablet: la misma foto, pero en flujo normal debajo del
-            texto y en formato horizontal (sin el tratamiento borde a borde
-            de desktop, que ahí no tiene espacio para respirar). */}
-        <div ref={imageMobileRef} className="mt-10 w-full overflow-hidden lg:hidden">
-          <img
-            src={founderImg}
-            alt=""
-            aria-hidden="true"
-            className="aspect-[16/10] w-full object-cover"
-            style={{ objectPosition: FOUNDER_FOCAL_POSITION }}
-          />
-        </div>
+      {/* Mobile/tablet: la misma foto, en flujo normal debajo del texto,
+          formato horizontal (sin el tratamiento borde a borde de desktop,
+          que ahí no tiene espacio para respirar) pero AFUERA del bloque de
+          texto con su padding grande. Borde a borde de verdad ahora: sin
+          padding lateral propio, sin rounded (la sección en sí no tiene
+          padding horizontal, así que w-full ya es 100% del ancho de
+          pantalla — no hace falta 100vw, que en algunos navegadores
+          desborda por el ancho de la scrollbar y genera scroll
+          horizontal). */}
+      <div ref={imageMobileRef} className="mt-6 w-full pb-10 lg:hidden">
+        <img
+          src={founderImg}
+          alt=""
+          aria-hidden="true"
+          className="aspect-[16/10] w-full object-cover"
+          style={{ objectPosition: FOUNDER_FOCAL_POSITION }}
+        />
       </div>
 
       {/* Desktop: retrato real del fundador, borde a borde, ocupando toda

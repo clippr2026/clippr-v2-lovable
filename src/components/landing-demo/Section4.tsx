@@ -2,7 +2,7 @@ import * as React from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion } from "./lib/motion";
-import { createSectionReplay } from "./lib/scrollReplay";
+import { attachDemoReplay } from "./lib/scrollReplay";
 import { Title } from "./section4/Title";
 import { Subtitle } from "./section4/Subtitle";
 import { CashCard } from "./section4/CashCard";
@@ -11,14 +11,14 @@ gsap.registerPlugin(ScrollTrigger);
 
 // Sección 4: "Cada corte. Cada peso. En un solo lugar." — mismo patrón de
 // layout que la Sección 2 (texto izquierda, mockup protagonista derecha en
-// desktop; una sola columna fiel al storyboard en mobile). A diferencia de
-// las secciones que cuentan una historia o un flujo en loop (reserva,
-// "Clippr trabaja", upselling), esta es un panel de datos: se anima UNA
-// sola vez cada vez que se entra a la sección (no en loop continuo — un
-// dashboard que no deja de moverse deja de sentirse como una app real),
-// y vuelve a jugarse si el usuario sale del viewport y reingresa. Con la
-// tarjeta ya asentada, solo quedan dos microanimaciones idle muy sutiles:
-// el glow de fondo "respirando" y un pulso ocasional en el "+28%".
+// desktop; una sola columna fiel al storyboard en mobile). Panel de datos
+// que cuenta desde $0 y se llena en vivo (facturación, cobros, ticket
+// promedio, barras de método de pago) — igual que el resto de las demos de
+// la landing, se repite sola (2s de pausa con todo asentado) mientras la
+// sección siga a la vista, y arranca de cero si el usuario sale del
+// viewport y reingresa. El glow de fondo "respirando" es ambiente, no
+// parte de la demo — sigue corriendo siempre, sin loop propio ligado a
+// esto.
 export function Section4() {
   const sectionRef = React.useRef<HTMLElement>(null);
   const titleRef = React.useRef<HTMLHeadingElement>(null);
@@ -49,33 +49,30 @@ export function Section4() {
         return;
       }
 
-      // Pulso ocasional del "+28%" — vive fuera de la timeline principal
-      // porque esta NO se repite; se relanza a mano cada vez que la
-      // timeline principal vuelve a arrancar (ver onStart más abajo), y se
-      // mata antes de eso para no pelear con su propio slide de entrada.
-      let deltaPulse: gsap.core.Timeline | null = null;
+      // introTl: título/subtítulo, una sola vez. demoTl: la tarjeta de
+      // Caja — cuenta desde $0 y se llena en vivo (~1.5-2s), para que se
+      // sienta como una app en uso y no una captura estática — que es "la
+      // demostración" y se repite sola (repeat/repeatDelay) mientras la
+      // sección siga a la vista.
+      const introTl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+      introTl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
+      introTl
+        .to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
+        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35");
 
-      const tl = gsap.timeline({
+      const demoTl = gsap.timeline({
         paused: true,
         defaults: { ease: "power3.out" },
-        onStart: () => {
-          deltaPulse?.kill();
-        },
       });
-      tl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 24 });
-      tl.set(cardRef.current, { opacity: 0, y: 28, scale: 0.98 });
-      tl.set(".s4-delta", { opacity: 0, y: 8, scale: 1 });
-      tl.set(".s4-payment-row", { opacity: 0, x: -14 });
+      demoTl.set(cardRef.current, { opacity: 0, y: 28, scale: 0.98 });
+      demoTl.set(".s4-delta", { opacity: 0, y: 8, scale: 1 });
+      demoTl.set(".s4-payment-row", { opacity: 0, x: -14 });
 
-      // La tarjeta cuenta desde $0 y se llena en vivo apenas aparece
-      // (~1.5-2s en total), para que se sienta como una app en uso y no
-      // una captura estática: facturación / cobros / ticket promedio
-      // cuentan, el "+28% vs ayer" entra con un slide breve, y las barras
-      // de métodos de pago se llenan de izquierda a derecha junto con su
-      // porcentaje.
-      tl.to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
-        .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35")
-        .to(cardRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.6 }, "-=0.25")
+      // Facturación / cobros / ticket promedio cuentan, el "+28% vs ayer"
+      // entra con un slide breve y un pulso, y las barras de métodos de
+      // pago se llenan de izquierda a derecha junto con su porcentaje.
+      demoTl
+        .to(cardRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.6 })
         .add(() => {
           // Contadores: facturación, cobros y ticket promedio.
           sectionRef.current
@@ -114,38 +111,21 @@ export function Section4() {
             });
           });
         }, "-=0.3")
-        .add(() => {
-          // La animación de entrada terminó: la tarjeta queda
-          // completamente estática salvo por este pulso muy sutil y
-          // espaciado en el "+28%", cada 8-10s. Un timeline ida-y-vuelta
-          // (no yoyo+repeatDelay en un solo tween) para que el "reposo"
-          // quede en escala 1 y no en el pico — si no, se queda pegado al
-          // tamaño agrandado durante todo el repeatDelay.
-          deltaPulse = gsap.timeline({ delay: 9, repeat: -1, repeatDelay: 8.5 });
-          deltaPulse
-            .to(".s4-delta", { scale: 1.06, duration: 0.25, ease: "power1.out" })
-            .to(".s4-delta", { scale: 1, duration: 0.35, ease: "power1.inOut" });
-        });
+        // Pulso breve en el "+28%" como cierre del ciclo, antes de la
+        // pausa y el reinicio del loop.
+        .to(".s4-delta", { scale: 1.06, duration: 0.25, ease: "power1.out" }, "+=0.4")
+        .to(".s4-delta", { scale: 1, duration: 0.35, ease: "power1.inOut" });
 
-      // Reproduce entera al entrar, resetea al salir del todo del
-      // viewport (y mata el pulso idle del "+28%" para que no siga
-      // corriendo fuera de vista).
-      createSectionReplay(sectionRef.current!, {
-        onPlay: () => tl.restart(),
-        onReset: () => {
-          tl.pause(0);
-          deltaPulse?.kill();
-        },
-      });
+      attachDemoReplay(sectionRef.current!, introTl, demoTl);
 
-      // Glow de fondo "respirando" muy lento (6-8s por ciclo) — la única
-      // otra señal de vida mientras la tarjeta está quieta.
+      // Glow de fondo: se asienta una sola vez en su opacidad final, sin
+      // loop de "respiración" (yoyo/repeat quitados — un fondo que sigue
+      // pulsando para siempre se sentía como un parpadeo constante, no
+      // como vida sutil).
       gsap.to(glowRef.current, {
         opacity: 0.85,
-        duration: 4,
-        ease: "sine.inOut",
-        yoyo: true,
-        repeat: -1,
+        duration: 1.2,
+        ease: "sine.out",
       });
 
       gsap.to(cardRef.current, {

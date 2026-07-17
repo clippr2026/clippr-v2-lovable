@@ -70,7 +70,7 @@ export function Section7() {
   return (
     <section
       ref={sectionRef}
-      className="relative isolate flex min-h-svh w-full flex-col items-start justify-center overflow-hidden px-6 py-16 sm:px-12 md:px-16 lg:px-20"
+      className="relative isolate flex w-full flex-col items-start justify-center overflow-hidden px-6 py-8 sm:px-12 sm:py-16 md:px-16 lg:min-h-svh lg:px-20"
     >
       <div className="absolute inset-0 -z-30 bg-[#050308]" />
       <div
@@ -81,18 +81,18 @@ export function Section7() {
         }}
       />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[58%_42%]">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-5 lg:grid-cols-[58%_42%] lg:gap-12">
         <div className="flex flex-col items-start text-left">
           <Title ref={titleRef} />
           <Subtitle ref={subtitleRef} />
-          <div className="mt-8">
+          <div className="mt-4 lg:mt-8">
             <BenefitsList ref={benefitsRef} />
           </div>
         </div>
 
         <div
           ref={imagePlaceholderRef}
-          className="mx-auto h-[420px] w-full max-w-[280px] sm:h-[480px] lg:h-[560px] lg:max-w-none"
+          className="mx-auto h-[430px] w-full max-w-[260px] sm:h-[480px] sm:max-w-[300px] lg:h-[560px] lg:max-w-none"
         >
           <img
             src={phoneHome}

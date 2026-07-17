@@ -14,7 +14,7 @@ export function BookButton({ active = true }: { active?: boolean }) {
     <button
       type="button"
       tabIndex={-1}
-      className="w-full rounded-2xl py-4 text-center text-base font-bold text-white transition-all duration-500 ease-out hover:brightness-110"
+      className="w-full rounded-2xl py-3 text-center text-sm font-bold text-white transition-all duration-500 ease-out hover:brightness-110 sm:py-4 sm:text-base"
       style={{
         background: "linear-gradient(135deg, oklch(0.62 0.24 292), oklch(0.46 0.24 296))",
         boxShadow: active

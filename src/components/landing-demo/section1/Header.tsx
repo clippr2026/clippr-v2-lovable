@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 
 // Barra de navegación de la portada: marca a la izquierda (ícono + wordmark
@@ -64,14 +65,34 @@ export const Header = React.forwardRef<HTMLDivElement>(function Header(_props, r
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-5">
-        <a
-          href="/login"
-          className="whitespace-nowrap text-xs font-medium text-white/65 transition hover:text-white sm:text-sm"
+        {/* <Link> de TanStack Router, no <a href>: navegación del lado del
+            cliente (sin recarga completa del documento) — con <a> plano
+            cada tap en estos botones disparaba una recarga entera de la
+            app (re-descarga de JS, re-montaje de todo), lo que en Safari
+            iOS se sentía como pantalla negra/parpadeo/salto antes de que
+            la sección siguiente terminara de cargar. Con <Link>, cambiar
+            de "/" a "/login" es un swap de componente dentro de la misma
+            página — inmediato, sin flash. Mobile: linkea directo al
+            formulario (hash="login-form") y ese hash dispara un scroll
+            suave hasta ahí en login.tsx — evita que haya que buscarlo a
+            mano debajo del hero de esa página. Desktop no lo necesita (el
+            form ya se ve sin scrollear ahí), por eso son dos links
+            distintos y no uno solo con el hash siempre puesto. */}
+        <Link
+          to="/login"
+          hash="login-form"
+          className="whitespace-nowrap text-xs font-medium text-white/65 transition hover:text-white sm:hidden"
         >
           Iniciar sesión
-        </a>
-        <a
-          href="/login"
+        </Link>
+        <Link
+          to="/login"
+          className="hidden whitespace-nowrap text-sm font-medium text-white/65 transition hover:text-white sm:inline"
+        >
+          Iniciar sesión
+        </Link>
+        <Link
+          to="/login"
           className="group inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
           style={{
             background: "linear-gradient(135deg, oklch(0.62 0.24 292), oklch(0.46 0.24 296))",
@@ -80,7 +101,7 @@ export const Header = React.forwardRef<HTMLDivElement>(function Header(_props, r
         >
           Comenzar ahora
           <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 sm:h-4 sm:w-4" />
-        </a>
+        </Link>
       </div>
     </div>
   );

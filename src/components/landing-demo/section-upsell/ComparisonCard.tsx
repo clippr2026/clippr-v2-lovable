@@ -57,7 +57,7 @@ export const ComparisonCard = React.forwardRef<HTMLDivElement, { added: boolean 
     return (
       <div
         ref={ref}
-        className="s-up-metric relative mt-5 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] px-6 py-6 sm:px-8 sm:py-7"
+        className="s-up-metric relative mt-4 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:mt-5 sm:px-8 sm:py-7"
       >
         {/* Glow sesgado a la derecha, detrás de la columna "Turno con
             Clippr" — el ojo tiene que ir ahí primero. */}
@@ -68,7 +68,7 @@ export const ComparisonCard = React.forwardRef<HTMLDivElement, { added: boolean 
           }}
         />
 
-        <div className="relative grid grid-cols-2 gap-4 sm:gap-6">
+        <div className="relative grid grid-cols-2 gap-3 sm:gap-6">
           {/* Turno normal — recibo chico, sin glow, a propósito apagado
               al lado del de la derecha. */}
           <div>
@@ -154,11 +154,11 @@ export const ComparisonCard = React.forwardRef<HTMLDivElement, { added: boolean 
           </div>
         </div>
 
-        <div className="relative mt-5 flex flex-col gap-1 border-t border-white/10 pt-4">
-          <div className="text-lg font-bold sm:text-xl" style={{ color: "oklch(0.74 0.2 292)" }}>
+        <div className="relative mt-3 flex flex-col gap-1 border-t border-white/10 pt-3 sm:mt-5 sm:pt-4">
+          <div className="text-base font-bold sm:text-xl" style={{ color: "oklch(0.74 0.2 292)" }}>
             + $17.500 en el mismo cliente
           </div>
-          <div className="text-sm font-medium text-white/60 sm:text-base">
+          <div className="text-xs font-medium text-white/60 sm:text-base">
             Vendé más sin conseguir más clientes.
           </div>
         </div>

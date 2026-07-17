@@ -9,7 +9,7 @@ export const Title = React.forwardRef<
   return (
     <h2
       ref={ref}
-      className="font-display text-[2.25rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-5xl md:text-[3.25rem] lg:text-[3.6rem] xl:text-[4.25rem]"
+      className="font-display text-2xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl sm:leading-[1.08] md:text-[3.25rem] lg:text-[3.6rem] xl:text-[4.25rem]"
     >
       {lines.map((line) => (
         <span key={line} className="block">

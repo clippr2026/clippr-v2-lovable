@@ -2,7 +2,7 @@ import * as React from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion } from "./lib/motion";
-import { attachTimelineReplay } from "./lib/scrollReplay";
+import { attachDemoReplay } from "./lib/scrollReplay";
 import { Title } from "./section6/Title";
 import { StatsGrid } from "./section6/StatsGrid";
 import { RevenueChart } from "./section6/RevenueChart";
@@ -47,19 +47,26 @@ export function Section6() {
         line.style.strokeDashoffset = String(length);
       }
 
-      const tl = gsap.timeline({
+      // introTl: título, una sola vez. demoTl: tarjetas + contadores +
+      // trazo del gráfico — "la demostración" en sí, que se repite sola
+      // (2s de pausa con el gráfico completo) mientras la sección siga a
+      // la vista. El .set(line, {strokeDashoffset: length}) vive DENTRO
+      // de demoTl (no una sola vez afuera) para que cada repetición del
+      // loop vuelva a dibujar el trazo desde cero en vez de arrancar ya
+      // completo.
+      const introTl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+      introTl.set(titleRef.current, { opacity: 0, y: 24 });
+      introTl.to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 });
+
+      const demoTl = gsap.timeline({
         paused: true,
         defaults: { ease: "power3.out" },
       });
-      tl.set(titleRef.current, { opacity: 0, y: 24 });
-      tl.set(".s6-card", { opacity: 0, y: 24 });
-      // Vuelve el trazo del gráfico a su punto de partida en cada
-      // reproducción — sin esto, un replay podría arrancar desde donde
-      // había quedado dibujado la vez anterior.
-      if (line) tl.set(line, { strokeDashoffset: length });
+      demoTl.set(".s6-card", { opacity: 0, y: 24 });
+      if (line) demoTl.set(line, { strokeDashoffset: length });
 
-      tl.to(titleRef.current, { opacity: 1, y: 0, duration: 0.6 })
-        .to(".s6-card", { opacity: 1, y: 0, duration: 0.5, stagger: 0.1 }, "-=0.3")
+      demoTl
+        .to(".s6-card", { opacity: 1, y: 0, duration: 0.5, stagger: 0.1 })
         .add(() => {
           sectionRef.current?.querySelectorAll<HTMLElement>("[data-target]").forEach((el) => {
             const target = Number(el.dataset.target ?? 0);
@@ -78,8 +85,10 @@ export function Section6() {
         .to(line ?? {}, { strokeDashoffset: 0, duration: 1.3, ease: "power2.inOut" }, "-=0.9")
         .to(".s6-chart-area", { opacity: 1, duration: 0.6 }, "-=0.5")
         .to(".s6-chart-dot", { opacity: 1, duration: 0.35, stagger: 0.08 }, "-=0.6");
+      // El gráfico completo queda en pantalla durante repeatDelay (2s) antes
+      // de que el loop reinicie desde el .set() de arriba.
 
-      attachTimelineReplay(sectionRef.current!, tl);
+      attachDemoReplay(sectionRef.current!, introTl, demoTl);
 
       gsap.to([titleRef.current, statsRef.current, chartRef.current], {
         opacity: 0.15,
