@@ -27,8 +27,10 @@ export function Section2() {
   const stepsRef = React.useRef<HTMLDivElement>(null);
   const cardRef = React.useRef<HTMLDivElement>(null);
   // Única fuente de verdad de la demo (indicador izquierdo + toda la
-  // tarjeta) — ver useDemoSequence.ts.
-  const demoStep = useDemoSequence(sectionRef);
+  // tarjeta) — ver useDemoSequence.ts. "visible" es el crossfade del loop
+  // (única sección de la landing que reinicia sola sin scroll) — Section2
+  // no lo usa para nada propio, solo lo reenvía a BookingCard.
+  const { step: demoStep, visible: demoVisible } = useDemoSequence(sectionRef);
 
   React.useLayoutEffect(() => {
     const ctx = gsap.context(() => {
@@ -145,15 +147,16 @@ export function Section2() {
                 horario elegido) — ahora cada uno tiene su propio paso, así
                 el indicador avanza en el instante exacto en que cada
                 elección ocurre, sin capar demoStep.
-                En demoStep 5 no se muestra: la pantalla de confirmación
-                (ver Confirmation.tsx) tiene que ser lo único visible del
-                flujo de reserva durante esos ~2s, sin los pasos de fondo. */}
-            {demoStep !== 5 && <StepIndicator active={demoStep} />}
+                Siempre montado, incluso en demoStep 5 (confirmación) —
+                "hidden" lo apaga con opacity, no lo saca del DOM: sacarlo
+                colapsaba este bloque y todo lo de abajo pegaba un salto
+                (ver el comentario largo en StepIndicator.tsx). */}
+            <StepIndicator active={demoStep === 5 ? 4 : demoStep} hidden={demoStep === 5} />
           </div>
         </div>
         <div ref={cardRef} className="mt-4 w-full sm:mt-6 lg:mt-0 lg:flex lg:justify-center">
           <div className="w-full lg:max-w-[540px] xl:max-w-[660px]">
-            <BookingCard demoStep={demoStep} />
+            <BookingCard demoStep={demoStep} visible={demoVisible} />
           </div>
         </div>
       </div>

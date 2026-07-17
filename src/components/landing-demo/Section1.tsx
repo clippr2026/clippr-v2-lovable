@@ -1,7 +1,7 @@
 import * as React from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { prefersReducedMotion } from "./lib/motion";
+import { prefersReducedMotion, isMobileViewport } from "./lib/motion";
 import { attachTimelineReplay } from "./lib/scrollReplay";
 import { Background } from "./section1/Background";
 import { Overlay } from "./section1/Overlay";
@@ -57,6 +57,17 @@ export function Section1() {
         return;
       }
 
+      // Mobile: el CTA se sacó del slide-up (y:28→0) del resto del bloque
+      // y del fade-out scrub más abajo — con las dos animaciones tocando
+      // "y"/"opacity" del mismo elemento casi al mismo tiempo (la entrada
+      // dispara casi en el instante en que el usuario empieza a scrollear,
+      // ya que la Sección 1 está a la vista desde que carga la página), el
+      // botón se veía "pegar un salto"/tildarse. En mobile ahora solo
+      // aparece con fade (sin y) y no vuelve a moverse — "aparece en su
+      // posición final y se queda ahí", pedido explícito. Desktop sin
+      // cambios.
+      const mobile = isMobileViewport();
+
       // Entrada al hacer scroll a la sección: se reproduce entera al
       // entrar, queda fija en el estado final mientras la sección sigue a
       // la vista, y se resetea/repite si el usuario sale del todo del
@@ -66,10 +77,8 @@ export function Section1() {
         defaults: { ease: "power3.out" },
       });
       tl.set(headerRef.current, { opacity: 0, y: -16 });
-      tl.set([titleRef.current, subtitleRef.current, ctaRef.current], {
-        opacity: 0,
-        y: 28,
-      });
+      tl.set([titleRef.current, subtitleRef.current], { opacity: 0, y: 28 });
+      tl.set(ctaRef.current, mobile ? { opacity: 0 } : { opacity: 0, y: 28 });
       tl.set(sceneRef.current, { opacity: 0, scale: 1.04 });
       tl.set(".neon-light", { opacity: 0 });
 
@@ -78,7 +87,13 @@ export function Section1() {
         .to(subtitleRef.current, { opacity: 1, y: 0, duration: 0.55 }, "-=0.35")
         .to(sceneRef.current, { opacity: 1, scale: 1, duration: 1 }, "-=0.45")
         .to(".neon-light", { opacity: 1, duration: 1, stagger: 0.1 }, "-=0.8")
-        .to(ctaRef.current, { opacity: 1, y: 0, duration: 0.5 }, "-=0.3");
+        .to(
+          ctaRef.current,
+          mobile
+            ? { opacity: 1, duration: 0.5 }
+            : { opacity: 1, y: 0, duration: 0.5 },
+          "-=0.3",
+        );
 
       attachTimelineReplay(sectionRef.current!, tl);
 
@@ -96,8 +111,10 @@ export function Section1() {
       });
       // El header queda afuera de este fade-out: con sticky, debe
       // mantenerse fijo y nítido mientras el resto del contenido se
-      // desplaza y se atenúa por debajo.
-      gsap.to([titleRef.current, subtitleRef.current, ctaRef.current], {
+      // desplaza y se atenúa por debajo. El CTA también queda afuera en
+      // mobile (ver comentario arriba) — solo título/subtítulo se atenúan
+      // ahí; en desktop el CTA sigue incluido, sin cambios.
+      gsap.to([titleRef.current, subtitleRef.current, ...(mobile ? [] : [ctaRef.current])], {
         opacity: 0.15,
         y: -40,
         ease: "none",

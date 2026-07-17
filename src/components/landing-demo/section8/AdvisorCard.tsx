@@ -48,25 +48,63 @@ export const AdvisorCard = React.forwardRef<HTMLDivElement>(function AdvisorCard
   return (
     <div ref={ref} className="flex w-full flex-col gap-2 lg:gap-3">
       <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-4 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6 lg:p-7">
-        <div className="flex items-center gap-2">
-          <span
-            className="grid h-6 w-6 place-items-center rounded-full text-white lg:h-7 lg:w-7"
-            style={{ background: "oklch(0.65 0.19 155)" }}
-          >
-            <Sparkles className="h-3 w-3 lg:h-3.5 lg:w-3.5" />
-          </span>
-          <span className="text-xs font-semibold text-white lg:text-sm">Asesor IA</span>
+        {/* Mobile: "82/100" + "Vas por buen camino" pasan a una columna a
+            la DERECHA en vez de apilarse debajo de "Asesor IA / Salud de
+            tu negocio" — apilado tapaba ese texto. Es un reflow real (fila
+            en vez de columna), no algo resoluble con las mismas clases que
+            desktop, así que son dos bloques separados: éste (lg:hidden) y
+            el de abajo (hidden lg:block, contenido/clases intactas). Los
+            dos ".s8-score" están sincronizados por Section8.tsx
+            (querySelectorAll, no querySelector) — cuentan juntos, solo se
+            ve el del breakpoint activo. */}
+        <div className="flex items-start justify-between gap-3 lg:hidden">
+          <div>
+            <div className="flex items-center gap-2">
+              <span
+                className="grid h-6 w-6 place-items-center rounded-full text-white"
+                style={{ background: "oklch(0.65 0.19 155)" }}
+              >
+                <Sparkles className="h-3 w-3" />
+              </span>
+              <span className="text-xs font-semibold text-white">Asesor IA</span>
+            </div>
+            <div className="mt-1.5 text-xs font-medium" style={{ color: "oklch(0.65 0.19 155)" }}>
+              Salud de tu negocio
+            </div>
+          </div>
+          <div className="shrink-0 text-right">
+            <div className="flex items-baseline justify-end gap-1 font-display text-4xl font-bold">
+              <span className="s8-score" data-target="82" style={{ color: "oklch(0.62 0.24 292)" }}>
+                0
+              </span>
+              <span className="text-xl font-semibold text-white/40">/100</span>
+            </div>
+            <div className="mt-1 text-xs text-white/60">Vas por buen camino 🚀</div>
+          </div>
         </div>
-        <div className="mt-1.5 text-xs font-medium lg:mt-2 lg:text-sm" style={{ color: "oklch(0.65 0.19 155)" }}>
-          Salud de tu negocio
+
+        {/* Desktop: layout original, sin tocar. */}
+        <div className="hidden lg:block">
+          <div className="flex items-center gap-2">
+            <span
+              className="grid h-7 w-7 place-items-center rounded-full text-white"
+              style={{ background: "oklch(0.65 0.19 155)" }}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-sm font-semibold text-white">Asesor IA</span>
+          </div>
+          <div className="mt-2 text-sm font-medium" style={{ color: "oklch(0.65 0.19 155)" }}>
+            Salud de tu negocio
+          </div>
+          <div className="mt-1 flex items-baseline gap-1 font-display text-6xl font-bold">
+            <span className="s8-score" data-target="82" style={{ color: "oklch(0.62 0.24 292)" }}>
+              0
+            </span>
+            <span className="text-2xl font-semibold text-white/40">/100</span>
+          </div>
+          <div className="mt-1 text-sm text-white/60">Vas por buen camino 🚀</div>
         </div>
-        <div className="mt-1 flex items-baseline gap-1 font-display text-4xl font-bold lg:text-6xl">
-          <span className="s8-score" data-target="82" style={{ color: "oklch(0.62 0.24 292)" }}>
-            0
-          </span>
-          <span className="text-xl font-semibold text-white/40 lg:text-2xl">/100</span>
-        </div>
-        <div className="mt-1 text-xs text-white/60 lg:text-sm">Vas por buen camino 🚀</div>
       </div>
 
       <div className="mt-1 text-xs font-medium text-white/80 lg:mt-2 lg:text-sm">

@@ -48,7 +48,23 @@ const PROFESSIONALS: {
         service: "Coloración",
         status: "confirmed",
       },
+      {
+        kind: "appt",
+        start: 11 * 60 + 30,
+        end: 12 * 60 + 15,
+        name: "Nahuel Ortiz",
+        service: "Corte + Barba",
+        status: "confirmed",
+      },
       { kind: "break", start: 13 * 60, end: 13 * 60 + 30 },
+      {
+        kind: "appt",
+        start: 14 * 60 + 15,
+        end: 15 * 60,
+        name: "Tomás Aguirre",
+        service: "Barba",
+        status: "pending",
+      },
       {
         kind: "appt",
         start: 16 * 60,
@@ -85,9 +101,17 @@ const PROFESSIONALS: {
       { kind: "break", start: 13 * 60 + 30, end: 14 * 60 },
       {
         kind: "appt",
+        start: 14 * 60 + 30,
+        end: 15 * 60 + 15,
+        name: "Bautista Cruz",
+        service: "Corte clásico",
+        status: "confirmed",
+      },
+      {
+        kind: "appt",
         start: 16 * 60,
         end: 16 * 60 + 45,
-        name: "Sofía Ruiz",
+        name: "Diego Ruiz",
         service: "Barba",
         status: "no_show",
       },
@@ -98,7 +122,23 @@ const PROFESSIONALS: {
     name: "Lucas",
     photo: photoLucas,
     blocks: [
+      {
+        kind: "appt",
+        start: 10 * 60 + 30,
+        end: 11 * 60 + 15,
+        name: "Ezequiel Sosa",
+        service: "Degradé",
+        status: "confirmed",
+      },
       { kind: "break", start: 12 * 60 + 30, end: 13 * 60 },
+      {
+        kind: "appt",
+        start: 13 * 60 + 30,
+        end: 14 * 60 + 15,
+        name: "Mateo Funes",
+        service: "Corte clásico",
+        status: "charged",
+      },
       {
         kind: "appt",
         start: 15 * 60,
@@ -150,7 +190,7 @@ export const AgendaCard = React.forwardRef<HTMLDivElement>(function AgendaCard(_
           columna, no un listado aparte. Anillo neutro (no de color): el
           color acá lo llevan los turnos, no la foto, para no competir con
           los estados de arriba. */}
-      <div className="mt-5 flex">
+      <div className="mt-3 flex lg:mt-5">
         <div className="w-9 shrink-0 sm:w-11" />
         <div className="flex flex-1 divide-x divide-white/10 border-b border-white/10 pb-3">
           {PROFESSIONALS.map((p) => {
@@ -179,9 +219,20 @@ export const AgendaCard = React.forwardRef<HTMLDivElement>(function AgendaCard(_
 
       {/* Grilla: gutter de horarios compartido + una columna independiente
           por profesional, claramente separadas (divide-x), cada una con
-          sus propios turnos y descansos posicionados por horario real. */}
-      <div className="mt-2 flex">
-        <div className="relative w-9 shrink-0 sm:w-11" style={{ height: GRID_HEIGHT }}>
+          sus propios turnos y descansos posicionados por horario real.
+          Mobile: recorte puramente visual (no se toca HOURS/DAY_START) que
+          arranca la vista en las 10:00 en vez de las 9:00 — la fila 9-10
+          estaba siempre vacía (el primer turno de cualquier profesional es
+          a las 10:00), así que ese espacio de arriba no mostraba nada.
+          overflow-hidden + alto recortado en un contenedor exterior,
+          -mt-10 en el interior para correr todo el contenido hacia arriba
+          exactamente un HOUR_PX (48px) y que la franja 9-10 quede afuera
+          de la ventana visible. Desktop (lg:) vuelve a mostrar la agenda
+          completa de 9 a 17, sin recorte — el mismo contenido, sin tocar
+          nada de la lógica ni los datos. */}
+      <div className="h-[336px] overflow-hidden lg:h-auto lg:overflow-visible">
+        <div className="-mt-10 flex lg:mt-2">
+          <div className="relative w-9 shrink-0 sm:w-11" style={{ height: GRID_HEIGHT }}>
           {HOURS.map((h) => (
             <span
               key={h}
@@ -239,6 +290,7 @@ export const AgendaCard = React.forwardRef<HTMLDivElement>(function AgendaCard(_
               )}
             </div>
           ))}
+        </div>
         </div>
       </div>
     </div>

@@ -29,8 +29,13 @@ export function Section8() {
       if (reduced) {
         gsap.set([titleRef.current, subtitleRef.current, cardRef.current], { opacity: 1, y: 0 });
         gsap.set(".s8-reco", { opacity: 1, y: 0 });
-        const score = cardRef.current?.querySelector<HTMLElement>(".s8-score");
-        if (score) score.textContent = "82";
+        // querySelectorAll, no querySelector: hay dos ".s8-score" en el
+        // DOM (bloque mobile y bloque desktop, uno de los dos oculto por
+        // CSS según el breakpoint — ver AdvisorCard.tsx) y los dos tienen
+        // que quedar en 82, sin importar cuál esté visible.
+        cardRef.current
+          ?.querySelectorAll<HTMLElement>(".s8-score")
+          .forEach((score) => (score.textContent = "82"));
         return;
       }
 
@@ -61,15 +66,19 @@ export function Section8() {
       demoTl
         .to(cardRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.6 })
         .add(() => {
-          const score = cardRef.current?.querySelector<HTMLElement>(".s8-score");
-          if (score) {
+          // Ídem: dos ".s8-score" en el DOM (mobile/desktop), los dos
+          // cuentan juntos desde el mismo counter — solo se ve uno por
+          // breakpoint, pero ambos quedan sincronizados en 82.
+          const scores = cardRef.current?.querySelectorAll<HTMLElement>(".s8-score");
+          if (scores && scores.length) {
             const counter = { value: 0 };
             gsap.to(counter, {
               value: 82,
               duration: 1,
               ease: "power2.out",
               onUpdate: () => {
-                score.textContent = String(Math.round(counter.value));
+                const text = String(Math.round(counter.value));
+                scores.forEach((score) => (score.textContent = text));
               },
             });
           }

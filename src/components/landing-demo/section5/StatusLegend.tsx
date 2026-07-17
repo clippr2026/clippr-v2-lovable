@@ -5,15 +5,18 @@ import { STATUSES } from "./statuses";
 // hardcodeado a mano porque los datos de la agenda también lo están, pero
 // number por number coincide con lo que realmente se muestra, igual que en
 // la app real (el chip cuenta los turnos del día, no un número inventado).
+// Si se agregan/sacan turnos en AgendaCard.tsx, este objeto hay que
+// actualizarlo a mano también — no se calcula solo.
 // Cuenta el estado "asentado" (Franco Roesi ya pasó de Por confirmar a
 // Confirmados vía Section5, que es como se ve la agenda la mayor parte
-// del tiempo): Martín López (pending) + Camilo Gómez, Julián Pérez y
-// Franco Roesi (confirmed) + Luciano Díaz (charged) + Bruno Vega
-// (cancelled) + Sofía Ruiz (no_show) = 7 turnos.
+// del tiempo): Martín López y Tomás Aguirre (pending) + Camilo Gómez,
+// Julián Pérez, Franco Roesi, Nahuel Ortiz, Bautista Cruz y Ezequiel Sosa
+// (confirmed) + Luciano Díaz y Mateo Funes (charged) + Bruno Vega
+// (cancelled) + Diego Ruiz (no_show) = 12 turnos.
 const COUNTS: Record<string, number> = {
-  pending: 1,
-  confirmed: 3,
-  charged: 1,
+  pending: 2,
+  confirmed: 6,
+  charged: 2,
   cancelled: 1,
   no_show: 1,
   // Rechazados existe como estado del sistema (por eso sigue en la barra)

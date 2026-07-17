@@ -14,10 +14,20 @@ const STEPS = [
 // (n > active, solo el anillo). Todo transiciona suave (mismas
 // propiedades, solo cambian color/relleno) para que el avance del demo de
 // BookingCard se sienta continuo, no un corte entre estados.
-export const StepIndicator = React.forwardRef<HTMLDivElement, { active?: number }>(
-  function StepIndicator({ active = 1 }, ref) {
+export const StepIndicator = React.forwardRef<HTMLDivElement, { active?: number; hidden?: boolean }>(
+  function StepIndicator({ active = 1, hidden = false }, ref) {
     return (
-      <div ref={ref} className="flex items-start">
+      <div
+        ref={ref}
+        // opacity, no unmount condicional desde afuera: sacar este bloque
+        // del DOM (como se hacía antes) le colapsaba el alto al contenedor
+        // — en mobile eso es una sola columna en flujo normal, así que la
+        // tarjeta de abajo (y todo lo que sigue en la página) pegaba un
+        // salto hacia arriba en el instante en que aparece "Turno
+        // confirmado". Con opacity el espacio queda reservado siempre.
+        className={cn("flex items-start transition-opacity duration-300", hidden ? "opacity-0" : "opacity-100")}
+        aria-hidden={hidden}
+      >
         {STEPS.map((step, i) => {
           const completed = step.n < active;
           const isActive = step.n === active;

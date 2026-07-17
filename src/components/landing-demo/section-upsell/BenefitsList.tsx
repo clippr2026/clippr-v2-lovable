@@ -2,9 +2,19 @@ import * as React from "react";
 import { TrendingUp, Banknote, Bot } from "lucide-react";
 
 const BENEFITS = [
-  { icon: TrendingUp, color: "oklch(0.62 0.24 292)", text: "Más ticket promedio" },
-  { icon: Banknote, color: "oklch(0.72 0.19 155)", text: "Más facturación con los mismos clientes" },
-  { icon: Bot, color: "oklch(0.7 0.16 220)", text: "Recomendaciones automáticas" },
+  { icon: TrendingUp, color: "oklch(0.62 0.24 292)", text: "Más ticket promedio", mobile: true },
+  {
+    icon: Banknote,
+    color: "oklch(0.72 0.19 155)",
+    text: "Más facturación con los mismos clientes",
+    mobile: true,
+  },
+  // mobile: false — "Recomendaciones automáticas" se saca por completo en
+  // mobile (pedido explícito), sigue en desktop tal cual estaba. Se marca
+  // acá con un flag en vez de filtrar el array, así el pedido "solo
+  // mobile" queda como una clase (hidden/lg:flex) y no como dos arrays de
+  // datos separados para mantener.
+  { icon: Bot, color: "oklch(0.7 0.16 220)", text: "Recomendaciones automáticas", mobile: false },
 ];
 
 // Mobile/tablet: grilla 2 columnas, iconos y texto más chicos, mucho menos
@@ -15,7 +25,13 @@ export const BenefitsList = React.forwardRef<HTMLDivElement>(function BenefitsLi
   return (
     <div ref={ref} className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:flex lg:flex-col lg:gap-4">
       {BENEFITS.map((b) => (
-        <div key={b.text} className="s-up-benefit flex items-center gap-2 lg:gap-3.5">
+        <div
+          key={b.text}
+          className={
+            "s-up-benefit items-center gap-2 lg:flex lg:gap-3.5" +
+            (b.mobile ? " flex" : " hidden lg:flex")
+          }
+        >
           <span
             className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 lg:h-10 lg:w-10 lg:rounded-xl"
             style={{ borderColor: b.color, color: b.color }}

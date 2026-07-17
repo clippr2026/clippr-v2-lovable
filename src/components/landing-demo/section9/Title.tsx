@@ -6,7 +6,7 @@ export const Title = React.forwardRef<HTMLHeadingElement>(function Title(_props,
   return (
     <h2
       ref={ref}
-      className="font-display text-[1.9rem] font-extrabold uppercase leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl xl:text-[4rem]"
+      className="font-display text-[2.75rem] font-extrabold uppercase leading-[1.04] tracking-tight text-white sm:text-5xl sm:leading-[1.08] lg:text-6xl xl:text-[4rem]"
     >
       <span className="block">Creado por</span>
       <span className="block" style={{ color: VIOLET }}>

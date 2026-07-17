@@ -23,7 +23,14 @@ export const NotificationsList = React.forwardRef<HTMLDivElement>(function Notif
     <div ref={ref} className="flex w-full max-w-sm flex-col">
       {NOTIFICATIONS.map((n, i) => (
         <React.Fragment key={n.title}>
-          <div className="s3-notification flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#08070d]/95 px-4 py-3 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
+          {/* opacity-0 estático (no solo el .set() de GSAP en Section3.tsx):
+              GSAP corre client-side después de hidratar, así que sin esto
+              el HTML servido por SSR pinta las 4 tarjetas visibles de
+              entrada — un flash real antes de que JS las oculte y recién
+              ahí empiece a animarlas una por una. Con la clase puesta acá,
+              nunca hay nada que mostrar de más; GSAP simplemente toma la
+              posta desde el mismo estado oculto. */}
+          <div className="s3-notification flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#08070d]/95 px-4 py-3 opacity-0 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
             <span
               className="s3-icon grid h-10 w-10 shrink-0 place-items-center rounded-full text-white"
               style={{ background: n.iconBg }}
@@ -34,7 +41,7 @@ export const NotificationsList = React.forwardRef<HTMLDivElement>(function Notif
           </div>
           {i < NOTIFICATIONS.length - 1 && (
             <div className="relative flex h-7 items-center justify-center">
-              <span className="s3-connector block h-full w-px origin-top bg-white/15" />
+              <span className="s3-connector block h-full w-px origin-top scale-y-0 bg-white/15" />
               <span
                 className="s3-dot pointer-events-none absolute bottom-0 left-1/2 h-1.5 w-1.5 -translate-x-1/2 translate-y-1/2 rounded-full opacity-0"
                 style={{
