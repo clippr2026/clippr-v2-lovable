@@ -47,6 +47,7 @@ function LoginPage() {
   );
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const rootRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (localStorage.getItem("clippr_remember_login") === "1") {
@@ -54,22 +55,23 @@ function LoginPage() {
     }
   }, []);
 
-  // El header mobile de la landing linkea acá con "#login-form" (ver
-  // Header.tsx) para no obligar a buscar el formulario a mano. Se saca el
-  // hash de la URL antes de scrollear a mano: si no, el salto instantáneo
-  // nativo del navegador (por el fragment) compite con este scroll suave y
-  // el resultado se ve entrecortado. El pequeño delay deja asentar el
-  // layout (animate-fade-up de arriba) antes de medir dónde está el
-  // formulario.
+  // Forzar el inicio de la vista a scrollTop 0 al entrar a /login, tanto en
+  // window como en el propio div raíz (que tiene overflow-hidden y por eso
+  // cuenta como su propio "scrolling box": cualquier scrollIntoView/scrollTop
+  // que le hayan seteado antes queda visualmente igual a un scroll de página,
+  // aunque window.scrollY reporte 0). Antes acá vivía un scrollIntoView hacia
+  // "#login-form" para el link mobile de la landing (hash="login-form" en
+  // Header.tsx) — tenía sentido cuando el login mobile era alto y había que
+  // bajar para ver el formulario. Con el rediseño mobile actual (logo +
+  // CLIPPR + tarjeta, todo entra en una pantalla) ese scroll ya no tiene
+  // destino útil: solo empujaba la página hacia abajo y cortaba el logo. Sin
+  // "behavior: smooth" ni delay: instantáneo, sin salto visible.
   React.useEffect(() => {
-    if (window.location.hash !== "#login-form") return;
-    history.replaceState(null, "", window.location.pathname + window.location.search);
-    const el = document.getElementById("login-form");
-    if (!el) return;
-    const t = setTimeout(() => {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 150);
-    return () => clearTimeout(t);
+    if (window.location.hash) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    window.scrollTo(0, 0);
+    rootRef.current?.scrollTo(0, 0);
   }, []);
 
   React.useEffect(() => {
@@ -90,7 +92,7 @@ function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#05040b] text-foreground">
+    <div ref={rootRef} className="relative min-h-screen w-full overflow-hidden bg-[#05040b] text-foreground">
       <style>{`
         
       `}</style>

@@ -72,15 +72,17 @@ export const Header = React.forwardRef<HTMLDivElement>(function Header(_props, r
             iOS se sentía como pantalla negra/parpadeo/salto antes de que
             la sección siguiente terminara de cargar. Con <Link>, cambiar
             de "/" a "/login" es un swap de componente dentro de la misma
-            página — inmediato, sin flash. Mobile: linkea directo al
-            formulario (hash="login-form") y ese hash dispara un scroll
-            suave hasta ahí en login.tsx — evita que haya que buscarlo a
-            mano debajo del hero de esa página. Desktop no lo necesita (el
-            form ya se ve sin scrollear ahí), por eso son dos links
-            distintos y no uno solo con el hash siempre puesto. */}
+            página — inmediato, sin flash. Antes el link mobile llevaba
+            hash="login-form" para autoscrollear hasta el formulario (login
+            mobile era alto). Con el rediseño mobile actual (logo + CLIPPR +
+            tarjeta, todo entra en una pantalla) eso ya no hace falta — y de
+            hecho rompía la entrada: el propio scroll-restoration del router
+            (o el scrollIntoView del hash) terminaba desplazando el
+            contenedor raíz de login.tsx (overflow-hidden, cuenta como su
+            propio scroll box) y el logo entraba cortado arriba. Un solo
+            link, sin hash, para los dos breakpoints. */}
         <Link
           to="/login"
-          hash="login-form"
           className="whitespace-nowrap text-xs font-medium text-white/65 transition hover:text-white sm:hidden"
         >
           Iniciar sesión
