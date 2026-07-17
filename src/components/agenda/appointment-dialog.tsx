@@ -31,6 +31,7 @@ import {
   type Service,
 } from "./use-agenda-data";
 import { ServiceImage } from "@/components/ui/service-image";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import {
@@ -259,6 +260,7 @@ export function AppointmentDialog({
   presentation = "drawer",
 }: Props) {
   const Wrapper = presentation === "modal" ? AgendaCenteredModal : AgendaDrawer;
+  const isMobileView = useIsMobile();
   const isEdit = !!appointment?.id;
   const [busy, setBusy] = React.useState(false);
   const [repeatOpen, setRepeatOpen] = React.useState(false);
@@ -824,8 +826,12 @@ export function AppointmentDialog({
           </div>
         </div>
 
-        {/* Premium summary — only when enough data */}
-        {(serviceName || previewClientName) && (
+        {/* Premium summary — solo desktop. En mobile el formulario ya
+            muestra fecha/hora, cliente, servicio y nota arriba: repetir
+            todo eso acá abajo en una tarjeta aparte era puro scroll extra
+            sin info nueva. !isMobileView evita el render directamente (no
+            un className hidden que igual reserve el espacio). */}
+        {!isMobileView && (serviceName || previewClientName) && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Resumen</div>
 

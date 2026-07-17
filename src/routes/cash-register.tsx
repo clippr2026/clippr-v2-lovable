@@ -7765,7 +7765,11 @@ export function NuevaVentaTab({
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
   const receivedNumber = Number(received || 0);
   const change =
-    method === "cash" && receivedNumber > total ? receivedNumber - total : 0;
+    method === "cash" && receivedNumber >= total ? receivedNumber - total : 0;
+  const cashShortfall =
+    method === "cash" && receivedNumber > 0 && receivedNumber < total
+      ? total - receivedNumber
+      : 0;
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
   const splitsRemaining = total - splitsTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
@@ -8055,7 +8059,7 @@ export function NuevaVentaTab({
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
-        <div className={cn("grid gap-2", lockedEmployeeId ? "grid-cols-3" : "grid-cols-4")}>
+        <div className={cn("grid gap-1.5 sm:gap-2", lockedEmployeeId ? "grid-cols-3" : "grid-cols-4")}>
           {visibleStepItems.map((s, index) => {
             const active = step === s.n;
             const done = step > s.n;
@@ -8075,7 +8079,7 @@ export function NuevaVentaTab({
                   setStep(s.n);
                 }}
                 className={cn(
-                  "group relative overflow-hidden rounded-2xl border px-3 py-1.5 text-left transition-all duration-300",
+                  "group relative overflow-hidden rounded-2xl border px-2 py-1.5 text-left transition-all duration-300 sm:px-3",
                   active
                     ? "border-blue-200/38 bg-[linear-gradient(135deg,rgba(96,165,250,0.86),rgba(139,92,246,0.88))] text-white shadow-[0_0_34px_rgba(99,102,241,0.28),0_18px_45px_-24px_rgba(0,0,0,0.90),0_1px_0_rgba(255,255,255,0.24)_inset]"
                     : done
@@ -8090,19 +8094,19 @@ export function NuevaVentaTab({
                     done ? "bg-emerald-300/40" : "bg-white/10",
                   )} />
                 )}
-                <div className="relative flex items-center gap-3">
+                <div className="relative flex items-center gap-2 sm:gap-3">
                   <span className={cn(
-                    "grid size-7 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105",
+                    "grid size-6 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105 sm:size-7",
                     active
                       ? "bg-white/18 text-white ring-white/35"
                       : done
                         ? "bg-emerald-400/14 text-emerald-200 ring-emerald-300/24"
                         : "bg-white/[0.045] text-white/55 ring-white/10",
                   )}>
-                    {done ? <Check className="size-4" /> : <Icon className="size-4" />}
+                    {done ? <Check className="size-3.5 sm:size-4" /> : <Icon className="size-3.5 sm:size-4" />}
                   </span>
                   <span className="min-w-0">
-                    <span className={cn("block text-sm font-extrabold", active ? "text-white" : "text-current")}>
+                    <span className={cn("block truncate text-xs font-extrabold sm:text-sm", active ? "text-white" : "text-current")}>
                       {/* Con profesional bloqueado (Mi Agenda) no se numeran
                           los pasos — el paso "Profesional" ya no existe acá,
                           así que "2 · Cliente" quedaba con una numeración
@@ -8136,7 +8140,7 @@ export function NuevaVentaTab({
               value={professionalSearch}
               onChange={(event) => setProfessionalSearch(event.target.value)}
               placeholder="Buscar profesional..."
-              className="h-11 w-full rounded-2xl border border-white/[0.075] bg-black/35 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-blue-300/35 focus:ring-2 focus:ring-blue-400/10"
+              className="h-11 w-full rounded-2xl border border-white/[0.075] bg-black/35 pl-11 pr-4 text-base text-white outline-none placeholder:text-white/35 focus:border-blue-300/35 focus:ring-2 focus:ring-blue-400/10"
             />
           </div>
 
@@ -8333,13 +8337,13 @@ export function NuevaVentaTab({
                       setClientId(null);
                     }}
                     placeholder="Nombre *"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
                   />
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="Teléfono *"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
                   />
                   {isFieldEnabled("email") && (
                     <input
@@ -8347,7 +8351,7 @@ export function NuevaVentaTab({
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Email *"
                       type="email"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
                     />
                   )}
                   {isFieldEnabled("notas") && (
@@ -8355,7 +8359,7 @@ export function NuevaVentaTab({
                       value={clientNotes}
                       onChange={(e) => setClientNotes(e.target.value)}
                       placeholder="Notas"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
                     />
                   )}
                   <button
@@ -8379,7 +8383,7 @@ export function NuevaVentaTab({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar servicio o producto..."
-              className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+              className="flex-1 bg-transparent outline-none text-base placeholder:text-muted-foreground"
             />
           </Card>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -8567,10 +8571,16 @@ export function NuevaVentaTab({
                     <p className="text-white/45">Ingresá con cuánto dinero pagó el cliente.</p>
                     {receivedNumber > 0 && (
                       <div className="text-right">
-                        <p className="text-white/60">
-                          Entregado: ${receivedNumber.toLocaleString("es-AR")}
-                        </p>
-                        {change > 0 && (
+                        {/* "Entregado" era redundante — el monto recibido ya
+                            se lee arriba en el campo. Lo útil acá es el
+                            resultado: cuánto vuelto dar, o cuánto falta si
+                            no alcanza (y en ese caso no se deja confirmar el
+                            cobro, ver el botón de abajo). */}
+                        {cashShortfall > 0 ? (
+                          <p className="font-bold text-red-300">
+                            Faltan: ${cashShortfall.toLocaleString("es-AR")}
+                          </p>
+                        ) : (
                           <p className="font-bold text-emerald-300">
                             Vuelto: ${change.toLocaleString("es-AR")}
                           </p>
@@ -8599,7 +8609,7 @@ export function NuevaVentaTab({
                       onChange={(e) =>
                         updateSplit(idx, "method", e.target.value)
                       }
-                      className="h-10 rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
+                      className="h-10 rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-base font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
                     >
                       {paymentOptions.map((o) => (
                         <option key={o.id} value={o.id}>
@@ -8707,7 +8717,8 @@ export function NuevaVentaTab({
                 !clientId ||
                 cartCount === 0 ||
                 submitting ||
-                (paymentMode === "multiple" && splitsRemaining !== 0)
+                (paymentMode === "multiple" && splitsRemaining !== 0) ||
+                (paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
               onClick={handleCobrar}
               className="inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
@@ -8794,7 +8805,7 @@ function ClientAutocomplete({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Buscar por nombre, teléfono o email..."
-          className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+          className="flex-1 bg-transparent outline-none text-base placeholder:text-muted-foreground"
         />
         {value && (
           <button

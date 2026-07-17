@@ -170,6 +170,16 @@ export function DateRangePicker({ from, to, onChange, className }: {
     return () => document.removeEventListener("mousedown", fn);
   }, [open]);
 
+  // El panel ya queda clampeado dentro del viewport (ver el className de
+  // abajo), pero por las dudas de cualquier layout externo que igual
+  // generara scroll horizontal mientras está abierto, se bloquea acá.
+  React.useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflowX;
+    document.body.style.overflowX = "hidden";
+    return () => { document.body.style.overflowX = prev; };
+  }, [open]);
+
   function handleSelectDay(d: string) {
     const today = toISO(startOfDay(new Date()));
     if (d > today) return;
@@ -234,13 +244,30 @@ export function DateRangePicker({ from, to, onChange, className }: {
       </button>
 
       {open && (
-        <div
-          className="absolute top-full left-0 mt-2 z-50 w-[288px] rounded-2xl shadow-2xl overflow-hidden"
-          style={{
-            background: "oklch(0.10 0.04 275)",
-            boxShadow: "0 0 0 1px rgba(255,255,255,0.08), 0 24px 48px -12px rgba(0,0,0,0.7)",
-          }}
-        >
+        <>
+          {/* Backdrop solo en mobile: ahí el panel pasa a comportarse como
+              modal centrado (ver abajo), no como dropdown anclado al
+              trigger — necesita algo que lo separe visualmente del
+              contenido de atrás. En sm+ sigue siendo un dropdown normal,
+              sin backdrop. */}
+          <div
+            className="fixed inset-0 z-40 bg-black/70 sm:hidden"
+            onClick={() => { setOpen(false); setStep("from"); setTempFrom(null); }}
+          />
+          <div
+            // Mobile (default): fixed + inset-x-3 (12px de margen a cada
+            // lado, "calc(100vw - 24px)" de ancho sin necesidad de
+            // calcularlo a mano) y centrado verticalmente en el viewport —
+            // el ancho fijo de 288px anclado "left-0" al trigger (que vive
+            // pegado al borde derecho por el justify-end del contenedor)
+            // era lo que lo mandaba fuera de pantalla en iPhone. sm+:
+            // vuelve al dropdown anclado de siempre, sin tocarle nada.
+            className="fixed inset-x-3 top-1/2 z-50 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl shadow-2xl sm:absolute sm:inset-x-auto sm:top-full sm:left-0 sm:mt-2 sm:max-h-none sm:w-[288px] sm:translate-y-0 sm:overflow-hidden"
+            style={{
+              background: "oklch(0.10 0.04 275)",
+              boxShadow: "0 0 0 1px rgba(255,255,255,0.08), 0 24px 48px -12px rgba(0,0,0,0.7)",
+            }}
+          >
           {/* Presets */}
           <div className="p-3 flex flex-wrap gap-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             {PRESETS.map(p => (
@@ -313,6 +340,7 @@ export function DateRangePicker({ from, to, onChange, className }: {
             {step === "to" ? "Seleccioná la fecha final" : "Seleccioná la fecha inicial"}
           </div>
         </div>
+        </>
       )}
     </div>
   );

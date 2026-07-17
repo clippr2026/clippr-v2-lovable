@@ -1,6 +1,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 /**
  * Shared right-side drawer for every Agenda panel (detail, add/edit turno,
@@ -99,6 +100,14 @@ export function AgendaCenteredModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, lockOutside, onOpenChange]);
+
+  // A diferencia de AgendaDrawer (Sheet con modal={false}, pensado para
+  // convivir con la Agenda de fondo en desktop), este modal centrado se abre
+  // sobre paneles como Mi Agenda / Profesionales y debe comportarse como un
+  // modal real: con el contenido de atrás completamente bloqueado mientras
+  // está abierto, para que el scroll dentro del formulario no arrastre la
+  // pantalla que queda debajo.
+  useBodyScrollLock(open);
 
   if (!open) return null;
 

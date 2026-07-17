@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -471,39 +472,46 @@ function ProfessionalsPage() {
             </div>
           </div>
 
-          {/* Barber selector */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {visibleProfessionals.map((p, idx) => {
-              const isActive = p.id === empId;
-              const isInactive = p.is_active === false;
-              const c = COLORS[idx % COLORS.length];
-              const ini = (p.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0,2).join("").toUpperCase();
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    if (!isProfessional) setActiveId(p.id);
-                  }}
-                  title={`${p.full_name ?? "Profesional"}${isInactive ? " · Inactivo" : ""}`}
-                  className={cn(
-                    "h-9 w-9 rounded-full overflow-hidden grid place-items-center text-[13px] font-semibold transition-all ring-1",
-                    isActive
-                      ? `bg-gradient-to-br ${c.color} text-background ${c.ring} ring-2 shadow-[0_0_20px_-2px_rgba(251,191,36,0.45)]`
-                      : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20",
-                    isInactive && "opacity-45 grayscale",
-                    isProfessional && "cursor-default"
-                  )}
-                  aria-label={p.full_name ?? ""}
-                >
-                  {p.avatar_url ? (
-                    <img src={p.avatar_url} alt={p.full_name ?? "Profesional"} className="h-full w-full object-cover" loading="lazy" />
-                  ) : (
-                    ini
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {/* Barber selector: solo tiene sentido para cuentas que pueden
+              administrar varios profesionales (Admin/Socio/Dueño). Una
+              cuenta Profesional ya solo ve su propia ficha arriba (ver
+              visibleProfessionals más abajo, que la colapsa a un único
+              elemento) — renderizar igual esta fila para ese caso era
+              directamente muerto: un solo avatar clickeable que no lleva a
+              ningún lado. !isProfessional evita el render por completo (no
+              un CSS hidden que deje el hueco), aprovechando mejor el alto
+              de la tarjeta. */}
+          {!isProfessional && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {visibleProfessionals.map((p, idx) => {
+                const isActive = p.id === empId;
+                const isInactive = p.is_active === false;
+                const c = COLORS[idx % COLORS.length];
+                const ini = (p.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0,2).join("").toUpperCase();
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setActiveId(p.id)}
+                    title={`${p.full_name ?? "Profesional"}${isInactive ? " · Inactivo" : ""}`}
+                    className={cn(
+                      "h-9 w-9 rounded-full overflow-hidden grid place-items-center text-[13px] font-semibold transition-all ring-1",
+                      isActive
+                        ? `bg-gradient-to-br ${c.color} text-background ${c.ring} ring-2 shadow-[0_0_20px_-2px_rgba(251,191,36,0.45)]`
+                        : "bg-white/[0.03] text-muted-foreground ring-white/10 hover:ring-white/20",
+                      isInactive && "opacity-45 grayscale",
+                    )}
+                    aria-label={p.full_name ?? ""}
+                  >
+                    {p.avatar_url ? (
+                      <img src={p.avatar_url} alt={p.full_name ?? "Profesional"} className="h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      ini
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1475,6 +1483,10 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [walkInChargeOpen, setWalkInChargeOpen] = useState(false);
+  // El modal de "+ Venta" es un div fixed a mano (no Radix), así que no
+  // bloquea el scroll de fondo por su cuenta — sin esto, hacer scroll
+  // dentro del formulario también arrastraba la pantalla de atrás.
+  useBodyScrollLock(approvalMode !== "disabled" && walkInChargeOpen && !!businessId && !!empId);
   const [addTurnoOpen, setAddTurnoOpen] = useState(false);
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [canceladosOpen, setCanceladosOpen] = useState(false);
@@ -2006,7 +2018,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           bloqueado en el paso 1. */}
       {approvalMode !== "disabled" && walkInChargeOpen && businessId && empId && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80"
+          // overflow-y-auto + items-start acá (no solo items-center): la
+          // tarjeta interna mide su alto en base a 100vh, que en iOS no se
+          // achica cuando aparece el teclado — sin poder scrollear este
+          // overlay, la parte de abajo del formulario (botón de confirmar)
+          // quedaba inalcanzable, tapada detrás del teclado.
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 py-6 sm:items-center bg-black/80"
           onClick={() => setWalkInChargeOpen(false)}
         >
           <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
