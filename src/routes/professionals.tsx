@@ -1938,8 +1938,7 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
 
       <div className="flex items-start justify-between mb-4">
         <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Comisión por servicio</div>
-          <div className="mt-0.5 text-2xl font-display font-light tracking-tight">Desglose</div>
+          <div className="text-2xl font-display font-light tracking-tight">Desglose</div>
         </div>
         {/* Tabs */}
         <div className="flex gap-1 rounded-xl bg-white/[0.05] p-1">
