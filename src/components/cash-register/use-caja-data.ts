@@ -6,6 +6,25 @@ import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
+// Aviso instantáneo entre pestañas/ventanas del MISMO navegador (no
+// reemplaza al canal realtime de Supabase, que es el que cruza entre
+// dispositivos distintos — este es un refuerzo que no depende de la red ni
+// de que la tabla tenga Realtime habilitado en el proyecto de Supabase).
+// Se llama después de enviar/cobrar/rechazar un pendiente para que
+// cualquier otra pestaña de Caja abierta en la misma máquina se actualice
+// al instante, sin esperar el round-trip de Supabase Realtime.
+const CAJA_BROADCAST_CHANNEL = "clippr-caja-pendientes";
+export function notifyCajaPendientesChanged() {
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+  try {
+    const bc = new BroadcastChannel(CAJA_BROADCAST_CHANNEL);
+    bc.postMessage("changed");
+    bc.close();
+  } catch {
+    // Safari en modo privado, etc. — el canal realtime sigue cubriendo esto.
+  }
+}
+
 export type ClientLiteResult = {
   id: string;
   name: string;
@@ -207,9 +226,15 @@ export function useCajaData() {
   // compartido `resolveServicePricing` — ver src/lib/service-pricing.ts.
   const [employeeServiceOverrides, setEmployeeServiceOverrides] =
     React.useState<EmployeeServiceOverrideMap>({});
+  // Numera cada llamada a load() para poder descartar respuestas que
+  // lleguen desordenadas (ver el chequeo más abajo, después del
+  // Promise.allSettled) — importante porque el canal realtime puede
+  // disparar varios load() seguidos en poco tiempo.
+  const loadSeqRef = React.useRef(0);
 
   const load = React.useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
+    const mySeq = ++loadSeqRef.current;
     setLoading(true);
 
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -268,6 +293,18 @@ export function useCajaData() {
         .not("status", "in", "(charged,cancelled,blocked)")
         .order("starts_at", { ascending: true }),
     ]);
+
+    // Con el canal realtime (INSERT/UPDATE/DELETE sobre appointments y
+    // business_settings) disparando load() en cadena — varios envíos/
+    // cobros/rechazos seguidos, cada uno dispara su propio load() — nada
+    // garantiza que las respuestas lleguen en el mismo orden en que salieron
+    // las llamadas. Sin este chequeo, una respuesta VIEJA que tarda más en
+    // volver podía pisar el estado ya actualizado por una llamada más
+    // nueva que respondió antes — eso hacía que un envío recién llegado
+    // apareciera "en el medio" o con datos de un instante anterior. Si ya
+    // se lanzó un load() más nuevo mientras este esperaba, esta respuesta
+    // se descarta entera (ningún setState de acá abajo corre).
+    if (loadSeqRef.current !== mySeq) return;
 
     // Services
     const svcRaw = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
@@ -459,6 +496,15 @@ export function useCajaData() {
     const refresh = () => load();
     window.addEventListener("clippr:caja-settings-updated", refresh);
     return () => window.removeEventListener("clippr:caja-settings-updated", refresh);
+  }, [load]);
+
+  // Ver notifyCajaPendientesChanged() más arriba — refresco instantáneo
+  // entre pestañas del mismo navegador, sin depender de la red.
+  React.useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const bc = new BroadcastChannel(CAJA_BROADCAST_CHANNEL);
+    bc.onmessage = () => load();
+    return () => bc.close();
   }, [load]);
 
   // Realtime: la cola de Pendientes depende de otro dispositivo (el

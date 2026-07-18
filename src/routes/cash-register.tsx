@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   useCajaData,
   searchClientsLite,
+  notifyCajaPendientesChanged,
   type ClientLiteResult,
 } from "@/components/cash-register/use-caja-data";
 import {
@@ -6506,6 +6507,7 @@ function History({
       }
       toast.success("Cobro pendiente rechazado");
       await data.refresh();
+      notifyCajaPendientesChanged();
     } catch (e) {
       toast.error((e as Error).message || "No se pudo rechazar el pendiente");
     } finally {
@@ -8156,6 +8158,7 @@ export function NuevaVentaTab({
         });
 
         toast.success("✓ Enviado a Caja");
+        notifyCajaPendientesChanged();
         return;
       }
 
@@ -8211,6 +8214,7 @@ export function NuevaVentaTab({
         if (writeError) throw writeError;
 
         toast.success("✓ Enviado a Caja");
+        notifyCajaPendientesChanged();
         await onManualSend?.({
           total,
           items: items.map((i) => ({ serviceName: i.serviceName, amount: i.amount })),
@@ -8278,6 +8282,7 @@ export function NuevaVentaTab({
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
         onPendingDone?.();
         await data.refresh();
+        notifyCajaPendientesChanged();
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
         return;
       }
@@ -8341,6 +8346,7 @@ export function NuevaVentaTab({
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
         onPendingDone?.();
+        notifyCajaPendientesChanged();
       } else {
         // ── FLUJO NORMAL: nueva venta desde cero ──
         await registerPayment({
