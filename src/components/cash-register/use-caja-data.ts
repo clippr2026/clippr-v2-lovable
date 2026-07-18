@@ -231,11 +231,22 @@ export function useCajaData() {
   // Promise.allSettled) — importante porque el canal realtime puede
   // disparar varios load() seguidos en poco tiempo.
   const loadSeqRef = React.useRef(0);
+  // Revalidación silenciosa: "loading" (que dispara las pantallas
+  // "Cargando…") solo se prende para la carga inicial. Los refrescos
+  // posteriores — realtime, BroadcastChannel, o el refresh() manual tras
+  // enviar/cobrar/rechazar — mantienen los datos anteriores visibles hasta
+  // que los nuevos están listos, sin parpadeo.
+  const hasLoadedRef = React.useRef(false);
+  const loadedBusinessIdRef = React.useRef<string | null>(null);
 
   const load = React.useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
+    if (loadedBusinessIdRef.current !== businessId) {
+      loadedBusinessIdRef.current = businessId;
+      hasLoadedRef.current = false;
+    }
     const mySeq = ++loadSeqRef.current;
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
 
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
@@ -477,6 +488,7 @@ export function useCajaData() {
       }
     }
 
+    hasLoadedRef.current = true;
     setLoading(false);
   }, [businessId]);
 
@@ -528,21 +540,6 @@ export function useCajaData() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [businessId, load]);
-
-  // Red de contención además del canal realtime de arriba: que Pendientes
-  // se actualice solo NO puede depender de un ajuste externo (que las
-  // tablas "appointments"/"business_settings" tengan Realtime habilitado
-  // en el panel de Supabase — Database → Replication — algo que esta app
-  // no controla ni puede verificar por código, y que si está apagado hace
-  // fallar el canal de arriba en silencio, sin ningún error visible). Con
-  // este poll, aunque el canal realtime nunca llegue a disparar, Caja igual
-  // se pone al día sola en como mucho unos segundos, sin recargar la
-  // página a mano.
-  React.useEffect(() => {
-    if (!businessId) return;
-    const interval = setInterval(() => load(), 5000);
-    return () => clearInterval(interval);
   }, [businessId, load]);
 
   // Auto-close at midnight if session is still open
