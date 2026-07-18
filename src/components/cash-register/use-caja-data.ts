@@ -14,12 +14,25 @@ const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 // cualquier otra pestaña de Caja abierta en la misma máquina se actualice
 // al instante, sin esperar el round-trip de Supabase Realtime.
 const CAJA_BROADCAST_CHANNEL = "clippr-caja-pendientes";
+// Instancia única a nivel de módulo, nunca cerrada explícitamente — crear
+// un BroadcastChannel y llamar postMessage() + close() en el mismo tick
+// (como hacía la versión anterior) corre el riesgo real de cerrar el canal
+// antes de que el mensaje llegue a otras pestañas, según el navegador.
+let cajaBroadcastChannel: BroadcastChannel | null = null;
+function getCajaBroadcastChannel(): BroadcastChannel | null {
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return null;
+  if (!cajaBroadcastChannel) {
+    try {
+      cajaBroadcastChannel = new BroadcastChannel(CAJA_BROADCAST_CHANNEL);
+    } catch {
+      return null;
+    }
+  }
+  return cajaBroadcastChannel;
+}
 export function notifyCajaPendientesChanged() {
-  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
   try {
-    const bc = new BroadcastChannel(CAJA_BROADCAST_CHANNEL);
-    bc.postMessage("changed");
-    bc.close();
+    getCajaBroadcastChannel()?.postMessage("changed");
   } catch {
     // Safari en modo privado, etc. — el canal realtime sigue cubriendo esto.
   }
