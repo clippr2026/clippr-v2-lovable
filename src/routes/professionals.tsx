@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
-import { registerPayment, type PayMethod } from "@/components/cash-register/register-payment";
+import { registerPayment, type PayMethod, PAY_METHOD_LABEL } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfStats, useProfPayments,
@@ -2213,6 +2213,13 @@ function methodLabel(method?: string | null) {
   return METHOD_LABELS[method] ?? METHOD_LABELS[method.toLowerCase()] ?? method;
 }
 
+// "Efectivo" o, si fue pago múltiple, "Efectivo • Transferencia" — sin
+// importes por método (eso es del detalle de la venta, no de este listado).
+function methodsSummary(methods: string[]): string {
+  if (methods.length === 0) return "—";
+  return methods.map((m) => PAY_METHOD_LABEL[m as PayMethod] ?? methodLabel(m)).join(" • ");
+}
+
 function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
   // ── Cargar turnos del período (misma fuente que TurnosView) ─────────────
   const { data: turnos = [], isLoading: turnosLoading } = useProfTurnos(businessId, empId, from, to);
@@ -2231,6 +2238,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     total: number;
     commission: number;
     sourceType: "turno" | "venta-directa";
+    // Método(s) de pago usados — varios si fue pago múltiple (ej. Efectivo +
+    // Transferencia). Sin importes acá a propósito: eso es para el detalle
+    // de la venta, no para este listado.
+    methods: string[];
   }[]>([]);
   const [enrichLoading, setEnrichLoading] = React.useState(false);
 
@@ -2262,15 +2273,43 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       const toDate = new Date(to + "T23:59:59");
       toDate.setDate(toDate.getDate() + 1);
 
-      const { data: payments } = await supabase
+      // "splits" (métodos de pago múltiple) puede no existir todavía como
+      // columna en `payments` — un SELECT con una columna inexistente tira
+      // error duro (PGRST 42703), y sin chequear `error` acá `payments`
+      // quedaba en null (rompiendo TODO el merge de pagos, no solo los
+      // métodos). Reintentar sin "splits" evita perder el resto del
+      // Historial si la columna no está.
+      let payments: any[] | null;
+      let paymentsError: { code?: string; message: string } | null;
+      ({ data: payments, error: paymentsError } = await supabase
         .from("payments")
-        .select("id,appointment_id,client_name,service_name,total,amount,created_at")
+        .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,splits,created_at")
         .eq("business_id", businessId)
         .eq("employee_id", empId)
         .gte("created_at", fromDate.toISOString())
-        .lte("created_at", toDate.toISOString());
+        .lte("created_at", toDate.toISOString()));
+      if (paymentsError?.code === "42703") {
+        ({ data: payments } = await supabase
+          .from("payments")
+          .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,created_at")
+          .eq("business_id", businessId)
+          .eq("employee_id", empId)
+          .gte("created_at", fromDate.toISOString())
+          .lte("created_at", toDate.toISOString()));
+      }
 
-      const payByAppt = new Map<string, { id: string; total: number | null; amount: number | null }>();
+      // Métodos usados por un pago — varios si fue pago múltiple (splits),
+      // uno solo si no. Sin importes: eso queda para el detalle de la venta.
+      const methodsOf = (p: { method?: string | null; payment_method?: string | null; splits?: unknown }): string[] => {
+        const splits = p.splits as { method: string }[] | null | undefined;
+        if (Array.isArray(splits) && splits.length > 0) {
+          return splits.map((s) => s.method).filter(Boolean);
+        }
+        const single = p.method ?? p.payment_method ?? null;
+        return single ? [single] : [];
+      };
+
+      const payByAppt = new Map<string, { id: string; total: number | null; amount: number | null; method?: string | null; payment_method?: string | null; splits?: unknown }>();
       for (const p of payments ?? []) {
         if (p.appointment_id) payByAppt.set(p.appointment_id, p);
       }
@@ -2296,6 +2335,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           total: pay ? Number(pay.total ?? pay.amount ?? t.service_price ?? 0) : Number(t.service_price ?? 0),
           commission: 0,
           sourceType: "turno",
+          methods: pay ? methodsOf(pay) : [],
         });
       }
 
@@ -2313,6 +2353,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           total: Number(p.total ?? p.amount ?? 0),
           commission: 0,
           sourceType: "venta-directa",
+          methods: methodsOf(p),
         });
       }
 
@@ -2345,15 +2386,18 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
       .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
       .replace(".", "");
-    // Un solo evento relevante (Cobró > Envió a caja), no el historial
-    // completo con horarios — acá lo que importa es "quién", con la
-    // fórmula que pidieron: "Cobrado por X" / "Enviado por X".
+    // Un solo evento relevante (Cobró > Envió a caja) en el mismo formato
+    // "HH:MM Nombre → Acción" que ya tenía Mi Agenda — misma posición de
+    // siempre (donde antes decía "Cobrado por X"), sin moverla.
     const historialEvents = readHistorialCobro(row.id);
     const attributionEvent =
       historialEvents.find((e) => e.action === "Cobró") ??
       historialEvents.find((e) => e.action === "Envió a caja") ??
       null;
-    const attributionPrefix = attributionEvent?.action === "Cobró" ? "Cobrado por" : "Enviado por";
+    const actionColor =
+      attributionEvent?.action === "Envió a caja" ? "text-sky-300" :
+      attributionEvent?.action === "Cobró" ? "text-emerald-300" :
+      "text-muted-foreground";
     return (
       <div key={row.id} className="glass rounded-2xl p-3 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
@@ -2362,14 +2406,18 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
             <div className="truncate text-sm font-semibold text-foreground">{row.client_name ?? "Sin cliente"}</div>
           </div>
           <div className="shrink-0 text-right">
+            <div className="text-[11px] text-muted-foreground">{methodsSummary(row.methods)}</div>
             <div className="text-sm font-semibold tabular-nums text-foreground">${row.total.toLocaleString("es-AR")}</div>
             <div className="text-xs font-semibold tabular-nums text-cyan-300">Com. ${row.commission.toLocaleString("es-AR")}</div>
           </div>
         </div>
         <div className="line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
         {attributionEvent && (
-          <div className="border-t border-white/5 pt-1.5 text-xs text-muted-foreground">
-            {attributionPrefix} <span className="font-semibold text-foreground/85">{attributionEvent.user}</span>
+          <div className="flex items-baseline gap-1.5 border-t border-white/5 pt-1.5 leading-none">
+            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{attributionEvent.time}</span>
+            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{attributionEvent.user}</span>
+            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+            <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{attributionEvent.action}</span>
           </div>
         )}
       </div>
@@ -2395,12 +2443,11 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                 ya no compite por su propia columna. */}
             <div className="hidden sm:block glass rounded-2xl overflow-hidden">
               {/* Header — same structure as TurnosView */}
-              <div className="grid grid-cols-[14%_26%_32%_14%_14%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+              <div className="grid grid-cols-[14%_24%_34%_28%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                 <div>Fecha</div>
                 <div>Cliente</div>
                 <div>Servicio / Catálogo</div>
-                <div className="text-right">Total</div>
-                <div className="text-right">Comisión</div>
+                <div className="text-right">Pago / Total / Comisión</div>
               </div>
 
               {enriched.map((row, i) => {
@@ -2415,7 +2462,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                   historialEvents.find((e) => e.action === "Cobró") ??
                   historialEvents.find((e) => e.action === "Envió a caja") ??
                   null;
-                const attributionPrefix = attributionEvent?.action === "Cobró" ? "Cobrado por" : "Enviado por";
+                const actionColor =
+                  attributionEvent?.action === "Envió a caja" ? "text-sky-300" :
+                  attributionEvent?.action === "Cobró" ? "text-emerald-300" :
+                  "text-muted-foreground";
 
                 return (
                   <div
@@ -2425,16 +2475,29 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                       i < enriched.length - 1 && "border-b border-white/5"
                     )}
                   >
-                    <div className="grid grid-cols-[14%_26%_32%_14%_14%] items-start">
+                    <div className="grid grid-cols-[14%_24%_34%_28%] items-start">
                       <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
                       <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
                       <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
-                      <div className="text-right font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.total.toLocaleString("es-AR")}</div>
-                      <div className="text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
+                      {/* Columna derecha: método(s) de pago, Total, Comisión
+                          — apilados, sin importe por método (eso es del
+                          detalle de la venta). */}
+                      <div className="text-right pt-0.5">
+                        <div className="text-[11px] text-muted-foreground truncate">{methodsSummary(row.methods)}</div>
+                        <div className="font-semibold tabular-nums whitespace-nowrap text-xs">${row.total.toLocaleString("es-AR")}</div>
+                        <div className="text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs">Comisión ${row.commission.toLocaleString("es-AR")}</div>
+                      </div>
                     </div>
+                    {/* Línea inferior: mismo lugar y formato que ya tenía Mi
+                        Agenda (hora, nombre, flecha, acción con color) — no
+                        se mueve de acá, solo se reemplaza el texto que
+                        había ("Cobrado por X"). */}
                     {attributionEvent && (
-                      <div className="mt-1.5 text-right text-[11px] text-muted-foreground">
-                        {attributionPrefix} <span className="font-semibold text-foreground/80">{attributionEvent.user}</span>
+                      <div className="mt-1.5 flex items-baseline justify-end gap-1.5 leading-none">
+                        <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{attributionEvent.time}</span>
+                        <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{attributionEvent.user}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                        <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{attributionEvent.action}</span>
                       </div>
                     )}
                   </div>

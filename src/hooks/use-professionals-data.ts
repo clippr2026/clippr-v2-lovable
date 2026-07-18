@@ -42,6 +42,11 @@ export type ProfSale = {
   total: number;
   created_at: string;
   method: string | null;
+  // Pago múltiple (ej. Efectivo + Transferencia): lista de métodos usados,
+  // sin importes por método — eso queda para el detalle de la venta, no
+  // para el listado de Historial de ventas. null/vacío = un solo método,
+  // usar `method` en su lugar.
+  splits: { method: string; amount: number }[] | null;
 };
 
 export type ProfTurno = {
@@ -202,14 +207,31 @@ export function useProfSales(
     queryKey: ["prof-sales", businessId, empId, from, to],
     queryFn: async (): Promise<ProfSale[]> => {
       if (!from || !to || isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) return [];
-      const { data, error } = await supabase
+      // "splits" (métodos de pago múltiple) puede no existir todavía como
+      // columna en `payments` — a diferencia de un UPDATE, un SELECT con una
+      // columna inexistente tira error duro (PGRST 42703) en vez de fallar
+      // en silencio, así que un reintento sin "splits" evita romper todo
+      // Historial de ventas / Rendimiento si la columna no está.
+      let data: any[] | null;
+      let error: { code?: string; message: string } | null;
+      ({ data, error } = await supabase
         .from("payments")
-        .select("id,client_name,service_name,total,amount,method,payment_method,created_at")
+        .select("id,client_name,service_name,total,amount,method,payment_method,splits,created_at")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
         .gte("created_at", from + "T00:00:00")
         .lte("created_at", to + "T23:59:59")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }));
+      if (error?.code === "42703") {
+        ({ data, error } = await supabase
+          .from("payments")
+          .select("id,client_name,service_name,total,amount,method,payment_method,created_at")
+          .eq("business_id", businessId!)
+          .eq("employee_id", empId!)
+          .gte("created_at", from + "T00:00:00")
+          .lte("created_at", to + "T23:59:59")
+          .order("created_at", { ascending: false }));
+      }
       if (error) throw new Error(error.message);
       return (data ?? []).map((p) => ({
         id: p.id,
@@ -217,6 +239,7 @@ export function useProfSales(
         service_name: p.service_name,
         total: Number(p.total ?? p.amount ?? 0),
         method: (p.method ?? p.payment_method ?? null) as string | null,
+        splits: ((p as { splits?: unknown }).splits ?? null) as { method: string; amount: number }[] | null,
         created_at: p.created_at,
       }));
     },

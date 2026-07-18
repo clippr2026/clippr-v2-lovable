@@ -134,5 +134,21 @@ export async function registerPayment(input: RegisterPaymentInput) {
     throw new Error("Supabase no devolvió el pago guardado (¿RLS?).");
   }
 
+  // Pago múltiple: los métodos usados (para mostrar "Efectivo • Transferencia"
+  // en Historial de ventas) se guardan en un UPDATE aparte, después de que el
+  // cobro ya quedó confirmado — nunca en el INSERT de arriba. Si la columna
+  // "splits" todavía no existe en `payments`, esto falla en silencio y el
+  // cobro en sí no se ve afectado (mismo patrón defensivo que cobro_events).
+  if (input.splits && input.splits.length > 0) {
+    try {
+      await supabase
+        .from("payments")
+        .update({ splits: input.splits } as Record<string, unknown>)
+        .eq("id", data[0].id);
+    } catch {
+      // Columna puede no existir aún — el método principal ya quedó guardado.
+    }
+  }
+
   return data;
 }
