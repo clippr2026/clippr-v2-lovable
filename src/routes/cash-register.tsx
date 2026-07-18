@@ -8807,6 +8807,38 @@ export function NuevaVentaTab({
         </Card>
       )}
 
+      {/* Resumen compacto del cobro — solo en el paso Pago, siempre pegado
+          justo encima de Volver/Confirmar cobro. No es una Card grande
+          como el resto de las secciones a propósito: es una última
+          verificación visual antes de confirmar, no otro bloque más que
+          compita por atención. Sale directo de cartItems/total (mismo
+          estado que ya arma el carrito), así que se actualiza solo apenas
+          se agrega, edita o saca un ítem — no hay nada que sincronizar a
+          mano. */}
+      {step === 4 && cartItems.length > 0 && (
+        <div className="shrink-0 space-y-1.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2.5 text-xs">
+          {cartItems.slice(0, 4).map(({ svc, qty }) => (
+            <div key={svc.id} className="flex items-center justify-between gap-3">
+              <span className="truncate text-white/65">
+                {svc.name}
+                {qty > 1 ? ` ×${qty}` : ""}
+              </span>
+              <span className="shrink-0 tabular-nums text-white/65">
+                ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+              </span>
+            </div>
+          ))}
+          {cartItems.length > 4 && (
+            <div className="text-white/40">+{cartItems.length - 4} ítems</div>
+          )}
+          <div className="h-px bg-white/10" />
+          <div className="flex items-center justify-between gap-3 text-sm font-semibold text-white">
+            <span>Total</span>
+            <span className="tabular-nums">${total.toLocaleString("es-AR")}</span>
+          </div>
+        </div>
+      )}
+
       <div className="relative z-20 mt-auto shrink-0 pt-3 pb-4">
         <Card
           className={cn(
