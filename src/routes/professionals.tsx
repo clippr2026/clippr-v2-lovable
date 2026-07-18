@@ -2022,8 +2022,11 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           // tarjeta interna mide su alto en base a 100vh, que en iOS no se
           // achica cuando aparece el teclado — sin poder scrollear este
           // overlay, la parte de abajo del formulario (botón de confirmar)
-          // quedaba inalcanzable, tapada detrás del teclado.
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 py-6 sm:items-center bg-black/80"
+          // quedaba inalcanzable, tapada detrás del teclado. pb usa
+          // env(safe-area-inset-bottom): el mismo cálculo se replica en el
+          // style de NuevaVentaTab (variant="modal") para que su alto
+          // encaje exacto con lo que este padding realmente consume.
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:items-center bg-black/80"
           onClick={() => setWalkInChargeOpen(false)}
         >
           <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
@@ -2038,6 +2041,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               data={cajaData}
               userEmail={profile?.email ?? null}
               lockedEmployeeId={empId}
+              variant="modal"
+              onCancel={() => setWalkInChargeOpen(false)}
               onSaleDone={() => {
                 setWalkInChargeOpen(false);
                 refetch();

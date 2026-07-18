@@ -2,6 +2,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /**
  * Shared right-side drawer for every Agenda panel (detail, add/edit turno,
@@ -30,6 +31,16 @@ export function AgendaDrawer({
   footer?: React.ReactNode;
   lockOutside?: boolean;
 }) {
+  // modal={false} en el Sheet es a propósito (ver comentario del
+  // componente): en desktop este panel es angosto y la Agenda de fondo
+  // sigue siendo útil/visible al lado. Pero en mobile el panel ocupa
+  // w-full — no queda nada usable de la Agenda detrás, así que dejar el
+  // fondo scrolleable ahí no aporta nada y era justo la causa de que la
+  // pantalla de atrás se moviera al scrollear el formulario. Por eso el
+  // bloqueo de scroll se activa solo en mobile.
+  const isMobileView = useIsMobile();
+  useBodyScrollLock(open && isMobileView);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent
@@ -122,11 +133,16 @@ export function AgendaCenteredModal({
   // header/contenido/footer es propio de este wrapper, no la lógica.
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/75"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-black/75"
       onClick={() => !lockOutside && onOpenChange(false)}
     >
       <div
-        className="glass-strong relative flex w-full max-w-md max-h-[92vh] flex-col rounded-3xl"
+        // max-h-[92dvh], no 92vh: mismo motivo que en sheet.tsx (ver
+        // comentario ahí) — 100vh en iOS Safari no contempla el colapso
+        // dinámico de la barra de direcciones, así que un 92vh "de sobra"
+        // podía en la práctica seguir siendo más alto que el viewport
+        // real visible, empujando el footer fuera de pantalla.
+        className="glass-strong relative flex w-full max-w-md max-h-[92dvh] flex-col rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative shrink-0 border-b border-white/10 px-4 pt-4 pb-3">

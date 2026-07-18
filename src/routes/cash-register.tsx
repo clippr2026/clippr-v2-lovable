@@ -7532,17 +7532,31 @@ export function NuevaVentaTab({
   pendingCharge = null,
   onPendingDone,
   onSaleDone,
+  onCancel,
   userEmail,
   lockedEmployeeId,
+  variant = "page",
 }: {
   data: ReturnType<typeof useCajaData>;
   pendingCharge?: PendingCharge | null;
   onPendingDone?: () => void;
   onSaleDone?: () => void;
+  // Solo se usa en variant="modal": cierra el modal desde el primer paso
+  // visible (Cliente, cuando el profesional viene bloqueado), donde no
+  // hay a qué "volver" — la acción correcta ahí es cancelar del todo.
+  onCancel?: () => void;
   userEmail: string | null;
   // Cuando viene seteado (ej. desde Mi Agenda del profesional), el paso
   // "Profesional" se salta — ya viene elegido y no se puede cambiar.
   lockedEmployeeId?: string;
+  // "page": tab normal dentro de la página completa de Caja — el alto se
+  // calcula descontando el header de esa página (contexto original de
+  // este componente). "modal": este mismo componente montado dentro de un
+  // modal centrado (ej. "+ Venta" de Mi Agenda en Profesionales) sin ese
+  // header arriba — la fórmula de "page" no tiene sentido ahí, así que
+  // usa un cálculo propio basado en el alto real del viewport (dvh) menos
+  // el padding del propio overlay del modal.
+  variant?: "page" | "modal";
 }) {
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(
     pendingCharge ? 4 : lockedEmployeeId ? 2 : 1,
@@ -8055,7 +8069,24 @@ export function NuevaVentaTab({
   }
 
   return (
-    <div className="relative mx-auto flex h-[calc(100vh-235px)] min-h-[560px] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl sm:h-[calc(100vh-262px)] sm:mb-6">
+    <div
+      className={cn(
+        "relative mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl",
+        variant === "modal"
+          ? "min-h-[420px]"
+          : "h-[calc(100vh-235px)] min-h-[560px] sm:h-[calc(100vh-262px)] sm:mb-6",
+      )}
+      style={
+        variant === "modal"
+          // Espeja exacto el padding del overlay que envuelve este modal
+          // en professionals.tsx (pt-6 + pb-[max(1.5rem,safe-area)]), para
+          // que la tarjeta ocupe justo el alto real disponible del
+          // dispositivo sin sobrar ni faltar contra la barra superior o
+          // inferior.
+          ? { height: "calc(100dvh - 1.5rem - max(1.5rem, env(safe-area-inset-bottom, 0px)))" }
+          : undefined
+      }
+    >
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
@@ -8094,18 +8125,26 @@ export function NuevaVentaTab({
                     done ? "bg-emerald-300/40" : "bg-white/10",
                   )} />
                 )}
-                <div className="relative flex items-center gap-2 sm:gap-3">
+                <div className="relative flex items-center gap-0 sm:gap-3">
+                  {/* El ícono se saca por completo en mobile (hidden, no
+                      solo opacity/visibility): con 3 pasos compitiendo por
+                      el mismo ancho angosto, cada ícono + su gap le
+                      robaban espacio al texto y "Servicios" terminaba
+                      cortado. hidden = display:none, así que ni siquiera
+                      reserva el hueco del gap — el texto pasa a ocupar
+                      todo el ancho del botón. Desktop (sm+, 4 columnas con
+                      más aire) sigue mostrando el ícono sin cambios. */}
                   <span className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105 sm:size-7",
+                    "hidden shrink-0 place-items-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105 sm:grid sm:size-7",
                     active
                       ? "bg-white/18 text-white ring-white/35"
                       : done
                         ? "bg-emerald-400/14 text-emerald-200 ring-emerald-300/24"
                         : "bg-white/[0.045] text-white/55 ring-white/10",
                   )}>
-                    {done ? <Check className="size-3.5 sm:size-4" /> : <Icon className="size-3.5 sm:size-4" />}
+                    {done ? <Check className="size-4" /> : <Icon className="size-4" />}
                   </span>
-                  <span className="min-w-0">
+                  <span className="min-w-0 w-full text-center sm:w-auto sm:text-left">
                     <span className={cn("block truncate text-xs font-extrabold sm:text-sm", active ? "text-white" : "text-current")}>
                       {/* Con profesional bloqueado (Mi Agenda) no se numeran
                           los pasos — el paso "Profesional" ya no existe acá,
@@ -8670,38 +8709,71 @@ export function NuevaVentaTab({
       )}
 
       <div className="relative z-20 mt-auto shrink-0 pt-3 pb-4">
-        <Card className="rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3 py-2 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
-          {/* Con profesional bloqueado (Mi Agenda) el flujo arranca en
-              Cliente (paso 2) y no debe poder retroceder al paso
-              Profesional, que ni siquiera existe acá — el botón directamente
-              no se muestra estando en el primer paso visible. */}
-          {step > (lockedEmployeeId ? 2 : 1) && (
-            <button
-              onClick={() =>
-                setStep((s) => {
-                  const floor = lockedEmployeeId ? 2 : 1;
-                  return s > floor ? ((s - 1) as 1 | 2 | 3 | 4) : s;
-                })
-              }
-              className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
-            >
-              ← Volver
-            </button>
+        <Card
+          className={cn(
+            "rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3 py-2 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]",
+            variant === "modal" && "justify-between",
           )}
-          <div className="min-w-0 flex-1 text-right sm:text-left">
-            <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">
-              TOTAL
-            </p>
-            <p className="text-sm text-foreground truncate">
-              {!lockedEmployeeId && `Profesional: ${selectedEmployee?.name ?? "Sin profesional"} · `}
-              Cliente:{" "}
-              {clientId ? client || "Cliente seleccionado" : "Sin cliente"}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              Servicios: {serviceSummary}
-            </p>
-          </div>
-          <Money value={total} />
+        >
+          {/* variant="modal": sin el resumen (TOTAL/Cliente/Servicios) de
+              acá abajo — repetía info que ya se ve arriba, en el propio
+              paso, y en Cliente ("Sin cliente") ni siquiera aportaba nada
+              real. En Cliente (primer paso visible acá, profesional ya
+              viene bloqueado) el botón secundario cierra el modal
+              (Cancelar); en Servicios/Pago retrocede un paso (Volver). En
+              variant="page" (Caja completa) esto no cambia. */}
+          {variant === "modal" ? (
+            step === 2 ? (
+              <button
+                onClick={onCancel}
+                className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+              >
+                Cancelar
+              </button>
+            ) : (
+              <button
+                onClick={() => setStep((s) => (s > 2 ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
+                className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+              >
+                ← Volver
+              </button>
+            )
+          ) : (
+            <>
+              {/* Con profesional bloqueado (Mi Agenda) el flujo arranca en
+                  Cliente (paso 2) y no debe poder retroceder al paso
+                  Profesional, que ni siquiera existe acá — el botón
+                  directamente no se muestra estando en el primer paso
+                  visible. */}
+              {step > (lockedEmployeeId ? 2 : 1) && (
+                <button
+                  onClick={() =>
+                    setStep((s) => {
+                      const floor = lockedEmployeeId ? 2 : 1;
+                      return s > floor ? ((s - 1) as 1 | 2 | 3 | 4) : s;
+                    })
+                  }
+                  className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                >
+                  ← Volver
+                </button>
+              )}
+              <div className="min-w-0 flex-1 text-right sm:text-left">
+                <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">
+                  TOTAL
+                </p>
+                <p className="text-sm text-foreground truncate">
+                  {!lockedEmployeeId && `Profesional: ${selectedEmployee?.name ?? "Sin profesional"} · `}
+                  Cliente:{" "}
+                  {clientId ? client || "Cliente seleccionado" : "Sin cliente"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  Servicios: {serviceSummary}
+                </p>
+              </div>
+              <Money value={total} />
+            </>
+          )}
           {step < 4 ? (
             <button
               onClick={goNext}
