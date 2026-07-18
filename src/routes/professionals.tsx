@@ -1250,8 +1250,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 className="inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#34D399,#10B981)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)] transition hover:brightness-110"
               >
                 <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                <span className="sm:hidden">+ Venta</span>
-                <span className="hidden sm:inline">Nueva venta</span>
+                <span className="sm:hidden">{approvalMode === "manual" ? "Enviar" : "+ Venta"}</span>
+                <span className="hidden sm:inline">{approvalMode === "manual" ? "Enviar" : "Nueva venta"}</span>
               </button>
             )}
           </div>
@@ -1340,13 +1340,17 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
               const { isSentToCaja } = getTurnoMeta(t);
 
-              // Celda de acción (botón Cobrar-Enviar / "—") — una sola
-              // definición, reusada tal cual en el layout compacto de
+              // Celda de acción (botón Cobrar-Enviar / Enviado / "—") — una
+              // sola definición, reusada tal cual en el layout compacto de
               // mobile y en el grid de desktop. Ya NO muestra quién
               // cobró/envió acá: esa info vive únicamente en Historial de
               // ventas (pedido explícito — Mi Agenda queda limpia, solo
               // información del turno y su estado). historialDisplay solo
               // se usa para decidir si el botón sigue teniendo sentido.
+              // Enviado (gris, deshabilitado, ✓): reemplaza al botón
+              // Enviar en cuanto el profesional lo tocó, para que no se
+              // pueda enviar dos veces — el turno en sí no cambia de
+              // estado ni de color, solo cambia el botón.
               const actionCell = showActionBtn ? (
                 <button
                   onClick={() => setCobroTurno(t)}
@@ -1357,6 +1361,14 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   )}
                 >
                   {approvalMode === "auto" ? "Cobrar" : "Enviar"}
+                </button>
+              ) : isSentToCaja ? (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 whitespace-nowrap bg-white/5 ring-white/15 text-muted-foreground cursor-not-allowed"
+                >
+                  <span aria-hidden>✓</span> Enviado
                 </button>
               ) : (
                 <span className="text-[11px] text-muted-foreground">—</span>
@@ -1623,6 +1635,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               variant="modal"
               onCancel={() => setWalkInChargeOpen(false)}
               onSaleDone={() => {
+                setWalkInChargeOpen(false);
+                refetch();
+                cajaData.refresh();
+              }}
+              turnoChargeMode={approvalMode === "manual" ? "manual" : "auto"}
+              chargedByName={profile?.full_name ?? null}
+              onManualSend={async () => {
                 setWalkInChargeOpen(false);
                 refetch();
                 cajaData.refresh();

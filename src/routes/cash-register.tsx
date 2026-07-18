@@ -283,6 +283,35 @@ function removeLocalManualPendingCharge(id: string) {
   }
 }
 
+// Venta de mostrador enviada a Caja en modo "Enviar" sin turno previo (botón
+// "Enviar" del panel, no desde una fila de Mi Agenda) — no hay un appointment
+// real de por medio, así que se guarda como pending charge puramente local.
+// La cola de Pendientes de Caja ya combina estos registros con turnos reales
+// enviados (ver use-caja-data.ts, pendingFromLocal), así que aparece ahí sin
+// necesitar UI nueva.
+function saveLocalManualPendingCharge(charge: {
+  id: string;
+  business_id: string;
+  employee_id: string | null;
+  client_name: string | null;
+  service_name: string | null;
+  service_price: number | null;
+  starts_at: string;
+  notes?: string | null;
+}) {
+  if (typeof window === "undefined") return;
+  try {
+    const rows = JSON.parse(
+      window.localStorage.getItem(MANUAL_PENDING_KEY) || "[]",
+    ) as Array<{ id: string }>;
+    const next = [charge, ...rows.filter((item) => item.id !== charge.id)];
+    window.localStorage.setItem(MANUAL_PENDING_KEY, JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
+  } catch {
+    // ignore
+  }
+}
+
 function displayCashActor(row: any, fallback = "Usuario") {
   const candidates = [
     row?.charged_by_name,
@@ -7591,6 +7620,20 @@ export function NuevaVentaTab({
   // (ej. "aurostyloadmi"), por eso "Cobrar turno" desde Mi Agenda sí lo pasa.
   chargedByName?: string | null;
 }) {
+  // Modo "Enviar" (turnoChargeMode="manual"): el profesional no cobra, así
+  // que no existe paso de Pago — el flujo termina en Servicios con el botón
+  // "Enviar a caja". Modo normal: termina en Pago con "Confirmar cobro",
+  // sin cambios de comportamiento.
+  const isManualFlow = turnoChargeMode === "manual";
+  const finalStep: 1 | 2 | 3 | 4 = isManualFlow ? 3 : 4;
+  // pendingChargeInitialStep=3 solo lo pasa professionals.tsx al abrir este
+  // modal desde una fila de turno (Cobrar/Enviar) — el cliente ya viene del
+  // turno, así que ni se muestra el paso Cliente ni se puede retroceder a
+  // él. La cola de Pendientes de Caja (que confirma cobro arrancando en
+  // Pago, paso 4) no pasa este prop, así que no se ve afectada.
+  const hideClienteStep = pendingChargeInitialStep === 3;
+  const minStep: 1 | 2 | 3 | 4 = hideClienteStep ? 3 : lockedEmployeeId ? 2 : 1;
+
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(
     pendingCharge ? (pendingChargeInitialStep ?? 4) : lockedEmployeeId ? 2 : 1,
   );
@@ -7889,7 +7932,7 @@ export function NuevaVentaTab({
       toast.error("Agregá al menos un servicio o producto.");
       return;
     }
-    setStep((s) => (s < 4 ? ((s + 1) as 1 | 2 | 3 | 4) : s));
+    setStep((s) => (s < finalStep ? ((s + 1) as 1 | 2 | 3 | 4) : s));
   }
 
   async function saveClientIfNeeded(): Promise<string | null> {
@@ -8036,35 +8079,78 @@ export function NuevaVentaTab({
         return;
       }
 
+      if (!pendingCharge && turnoChargeMode === "manual") {
+        // ── Venta de mostrador en modo "Enviar" (botón del panel, sin
+        // partir de un turno) ── no hay appointment real de por medio: se
+        // guarda como pending charge puramente local, que la cola de
+        // Pendientes de Caja ya combina con los turnos reales enviados.
+        const localId = `walkin-${crypto.randomUUID()}`;
+        const clientNameFinal = client.trim() || "Cliente del mostrador";
+        const itemsStr = items
+          .map((i) => `${i.serviceName} $${Math.round(i.amount).toLocaleString("es-AR")}`)
+          .join(", ");
+
+        saveLocalManualPendingCharge({
+          id: localId,
+          business_id: data.businessId,
+          employee_id: employeeId || null,
+          client_name: clientNameFinal,
+          service_name: serviceSummary,
+          service_price: total,
+          starts_at: new Date().toISOString(),
+          notes: `[PENDIENTE_CAJA] ${itemsStr}`,
+        });
+
+        await appendHistorialCobro(localId, {
+          time: new Date().toTimeString().slice(0, 5),
+          user: chargedByName || chargedByUsername(userEmail),
+          action: "Envió a caja",
+        });
+
+        toast.success("✓ Enviado a Caja");
+        await onManualSend?.({
+          total,
+          items: items.map((i) => ({ serviceName: i.serviceName, amount: i.amount })),
+        });
+        return;
+      }
+
       if (pendingCharge) {
+        // "walkin-": venta de mostrador enviada a Caja sin turno real de
+        // por medio (rama de arriba) — no hay fila en `appointments` que
+        // actualizar, así que se saltea ese paso y el pago se registra
+        // suelto (sin appointment_id).
+        const isWalkInPending = pendingCharge.id.startsWith("walkin-");
         const professionalNote = getCashRowNote(pendingCharge, pendingCharge.service_name);
 
-        // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
-        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno.
-        //    .select("id") + chequeo de filas: si ya estaba cobrado (o
-        //    cancelado) por otra acción mientras el modal seguía abierto,
-        //    el .in("status", ...) no matchea nada — sin este chequeo se
-        //    seguía de largo igual y se registraba un pago duplicado.
-        const { data: chargedRows, error: updateError } = await supabase
-          .from("appointments")
-          .update({ status: "charged", notes: professionalNote || null })
-          .eq("id", pendingCharge.id)
-          .in("status", [
-            "pending_payment",
-            "pending",
-            "confirmed",
-            "in_service",
-          ])
-          .select("id");
+        if (!isWalkInPending) {
+          // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
+          // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno.
+          //    .select("id") + chequeo de filas: si ya estaba cobrado (o
+          //    cancelado) por otra acción mientras el modal seguía abierto,
+          //    el .in("status", ...) no matchea nada — sin este chequeo se
+          //    seguía de largo igual y se registraba un pago duplicado.
+          const { data: chargedRows, error: updateError } = await supabase
+            .from("appointments")
+            .update({ status: "charged", notes: professionalNote || null })
+            .eq("id", pendingCharge.id)
+            .in("status", [
+              "pending_payment",
+              "pending",
+              "confirmed",
+              "in_service",
+            ])
+            .select("id");
 
-        if (updateError) throw updateError;
-        if (!chargedRows || chargedRows.length === 0) {
-          toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
-          return;
+          if (updateError) throw updateError;
+          if (!chargedRows || chargedRows.length === 0) {
+            toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
+            return;
+          }
         }
 
-        // 2. Registrar el pago vinculado al appointment existente
-        await registerPayment({
+        // 2. Registrar el pago vinculado al appointment existente (o suelto, si es venta de mostrador)
+        const paymentRows = await registerPayment({
           businessId: data.businessId,
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
@@ -8077,22 +8163,38 @@ export function NuevaVentaTab({
           items,
           method,
           splits: validSplits,
-          appointmentId: pendingCharge.id,
+          appointmentId: isWalkInPending ? null : pendingCharge.id,
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "manual",
           notes: professionalNote || null,
         });
 
-        // 3. Registrar en el historial del turno que el usuario de caja cobró el
+        // 3. Registrar en el historial que el usuario de caja cobró el
         //    pendiente. Persiste en appointments.cobro_events (Supabase).
         const now = new Date();
         const hhmm = now.toTimeString().slice(0, 5);
-        appendHistorialCobro(pendingCharge.id, {
+        const chargedEvent = {
           time: hhmm,
           user: chargedByName || chargedByUsername(userEmail),
           action: "Cobró",
-        });
+        };
+        if (isWalkInPending) {
+          // Traspasar "Envió a caja" (y cualquier evento previo) del id
+          // local temporal al id real del pago recién creado — Historial
+          // de ventas busca eventos por el id de `payments` para ventas
+          // directas (sin turno), no por este id sintético que solo
+          // existía en la cola de Pendientes.
+          const newPaymentId = paymentRows?.[0]?.id as string | undefined;
+          if (newPaymentId) {
+            for (const ev of getHistorialCobro(pendingCharge.id)) {
+              await appendHistorialCobro(newPaymentId, ev);
+            }
+            await appendHistorialCobro(newPaymentId, chargedEvent);
+          }
+        } else {
+          appendHistorialCobro(pendingCharge.id, chargedEvent);
+        }
 
         // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);
@@ -8147,12 +8249,18 @@ export function NuevaVentaTab({
     { n: 4, label: "Pago", hint: total > 0 ? `$${total.toLocaleString("es-AR")}` : "Confirmá cobro", icon: CreditCard },
   ] as const;
   // Con profesional bloqueado (ej. Mi Agenda), ese paso no se muestra: ya
-  // viene elegido y no se puede cambiar.
-  const visibleStepItems = lockedEmployeeId
-    ? stepItems.filter((s) => s.n !== 1)
-    : stepItems;
+  // viene elegido y no se puede cambiar. hideClienteStep: el cliente ya
+  // viene del turno (ver arriba). isManualFlow: modo "Enviar", no existe
+  // paso de Pago (ver finalStep).
+  const visibleStepItems = stepItems.filter((s) => {
+    if (lockedEmployeeId && s.n === 1) return false;
+    if (hideClienteStep && s.n === 2) return false;
+    if (isManualFlow && s.n === 4) return false;
+    return true;
+  });
 
   function canOpenStep(target: 1 | 2 | 3 | 4) {
+    if (target > finalStep) return false;
     if (target > 1 && !employeeId) return false;
     if (target > 2 && !hasSelectedClient) return false;
     if (target > 3 && cartItems.length === 0) return false;
@@ -8861,7 +8969,7 @@ export function NuevaVentaTab({
               (Cancelar); en Servicios/Pago retrocede un paso (Volver). En
               variant="page" (Caja completa) esto no cambia. */}
           {variant === "modal" ? (
-            step === 2 ? (
+            step === minStep ? (
               <button
                 onClick={onCancel}
                 className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
@@ -8870,7 +8978,7 @@ export function NuevaVentaTab({
               </button>
             ) : (
               <button
-                onClick={() => setStep((s) => (s > 2 ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
+                onClick={() => setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
                 className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
                 ← Volver
@@ -8883,13 +8991,10 @@ export function NuevaVentaTab({
                   Profesional, que ni siquiera existe acá — el botón
                   directamente no se muestra estando en el primer paso
                   visible. */}
-              {step > (lockedEmployeeId ? 2 : 1) && (
+              {step > minStep && (
                 <button
                   onClick={() =>
-                    setStep((s) => {
-                      const floor = lockedEmployeeId ? 2 : 1;
-                      return s > floor ? ((s - 1) as 1 | 2 | 3 | 4) : s;
-                    })
+                    setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))
                   }
                   className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
                 >
@@ -8912,7 +9017,7 @@ export function NuevaVentaTab({
               <Money value={total} />
             </>
           )}
-          {step < 4 ? (
+          {step < finalStep ? (
             <button
               onClick={goNext}
               disabled={!canContinue}
@@ -8927,15 +9032,19 @@ export function NuevaVentaTab({
                 !clientId ||
                 cartCount === 0 ||
                 submitting ||
-                (paymentMode === "multiple" && splitsRemaining !== 0) ||
-                (paymentMode === "simple" && method === "cash" && cashShortfall > 0)
+                (!isManualFlow && paymentMode === "multiple" && splitsRemaining !== 0) ||
+                (!isManualFlow && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
               onClick={handleCobrar}
               className="inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
             >
               {submitting ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" /> Confirmando…
+                  <Loader2 className="size-4 animate-spin" /> {isManualFlow ? "Enviando…" : "Confirmando…"}
+                </>
+              ) : isManualFlow ? (
+                <>
+                  Enviar a caja <ArrowRight className="size-4" />
                 </>
               ) : (
                 <>
