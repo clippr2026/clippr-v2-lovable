@@ -15,6 +15,7 @@ import {
   Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB } from "@/lib/cobro-historial";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -216,6 +217,20 @@ function AgendaPage() {
   }, [view, cursor]);
 
   const data = useAgendaData(range.start, range.end);
+
+  // Trae de Supabase (cobro_events) el historial de los turnos cancelados
+  // que están en pantalla, para poder mostrar "Cancelado por X" también acá
+  // aunque la cancelación se haya hecho desde otro dispositivo/sesión —
+  // readHistorialCobro solo lee de localStorage, así que sin este sync la
+  // Agenda web nunca vería cancelaciones hechas en otro lado.
+  const cancelledAppointmentIds = React.useMemo(
+    () => data.appointments.filter((a) => a.status === "cancelled").map((a) => a.id),
+    [data.appointments],
+  );
+  React.useEffect(() => {
+    if (cancelledAppointmentIds.length > 0) syncHistorialFromDB(cancelledAppointmentIds);
+  }, [cancelledAppointmentIds]);
+
   const [senasConfig, setSenasConfig] = React.useState<{
     enabled: boolean;
     services: string[];
@@ -866,6 +881,17 @@ function AgendaPage() {
             status: "cancelled",
           })
           .eq("id", a.id);
+        // Este cancel bypasea cancelAppointment (tiene su lógica propia de
+        // seña), así que el registro de "quién canceló" hay que escribirlo
+        // acá a mano — mismo mecanismo que usa cancelAppointment.
+        if (profile?.full_name) {
+          appendHistorialCobro(a.id, {
+            time: new Date().toTimeString().slice(0, 5),
+            user: profile.full_name,
+            role: profile?.role === "profesional" ? "profesional" : "recepcion",
+            action: "Canceló",
+          }).catch(() => {});
+        }
         toast.success("Seña devuelta y egreso registrado en Caja");
       } catch (e) {
         toast.error((e as Error).message);
@@ -881,6 +907,14 @@ function AgendaPage() {
             status: "cancelled",
           })
           .eq("id", a.id);
+        if (profile?.full_name) {
+          appendHistorialCobro(a.id, {
+            time: new Date().toTimeString().slice(0, 5),
+            user: profile.full_name,
+            role: profile?.role === "profesional" ? "profesional" : "recepcion",
+            action: "Canceló",
+          }).catch(() => {});
+        }
         // If prof share > 0, register compensation
         // (senasConfig is loaded at page level)
         toast.success("Seña marcada como perdida");
@@ -3616,20 +3650,36 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   const noShow = appointment.status === "no_show";
 
                   if (cancelled || noShow) {
+                    // "Cancelado por X" — mismo historial (cobro_events)
+                    // que ya usa Mi Agenda, ahora también escrito desde acá
+                    // (ver onChangeStatus/onCancelWithDeposit) y sincronizado
+                    // desde Supabase al cargar (ver arriba), no solo un
+                    // username/email crudo.
+                    const cancelEvent = cancelled
+                      ? readHistorialCobro(appointment.id).find((e) => e.action === "Canceló")
+                      : null;
                     return (
-                      <div
-                        className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                        style={{
-                          background: withAlpha(dot, 0.12),
-                          color: dot,
-                          boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.38)}`,
-                        }}
-                      >
-                        <span
-                          className="h-1.5 w-1.5 rounded-full"
-                          style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
-                        />
-                        {noShow ? "No asistió" : "Cancelado"}
+                      <div className="space-y-1.5">
+                        <div
+                          className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                          style={{
+                            background: withAlpha(dot, 0.12),
+                            color: dot,
+                            boxShadow: `inset 0 0 0 1px ${withAlpha(dot, 0.38)}`,
+                          }}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ background: dot, boxShadow: `0 0 10px ${dot}` }}
+                          />
+                          {noShow ? "No asistió" : "Cancelado"}
+                        </div>
+                        {cancelEvent && (
+                          <div className="text-center text-xs text-muted-foreground">
+                            Cancelado por <span className="font-semibold text-foreground/85">{cancelEvent.user}</span>
+                            {" · "}{cancelEvent.time}
+                          </div>
+                        )}
                       </div>
                     );
                   }

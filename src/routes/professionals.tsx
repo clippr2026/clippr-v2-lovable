@@ -28,6 +28,7 @@ import {
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
 import { resolveDaySchedule } from "@/lib/availability";
+import { type HistorialEvento, readHistorialCobro, appendHistorialCobro, syncHistorialFromDB } from "@/lib/cobro-historial";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { useCajaData } from "@/components/cash-register/use-caja-data";
 import { NuevaVentaTab } from "@/routes/cash-register";
@@ -134,100 +135,6 @@ function saveManualPendingCharge(charge: ManualPendingCharge) {
   const next = [charge, ...current.filter((item) => item.id !== charge.id)];
   window.localStorage.setItem(MANUAL_PENDING_KEY, JSON.stringify(next));
   window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
-}
-
-// ─── HISTORIAL DE COBROS ─────────────────────────────────────────────────────
-// Eventos persistidos en appointments.cobro_events (JSONB array en Supabase).
-// localStorage actúa únicamente como caché para la sesión actual.
-// NUNCA se recalcula desde payment_status ni desde el modo de cobro actual.
-
-const HISTORIAL_LS_KEY = "clippr_cobros_historial_v2";
-
-type HistorialEvento = {
-  ts: string;        // ISO timestamp completo — fuente de verdad
-  time: string;      // HH:MM — display
-  user: string;      // nombre corto del usuario
-  role: "profesional" | "recepcion" | "sistema";
-  action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó";
-};
-
-// ── Lectura: Supabase primero, localStorage como cache ────────────────────────
-function readHistorialLS(appointmentId: string): HistorialEvento[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_LS_KEY) || "{}") as Record<string, HistorialEvento[]>;
-    return all[appointmentId] ?? [];
-  } catch { return []; }
-}
-
-function writeHistorialLS(appointmentId: string, events: HistorialEvento[]) {
-  if (typeof window === "undefined") return;
-  try {
-    const all = JSON.parse(window.localStorage.getItem(HISTORIAL_LS_KEY) || "{}") as Record<string, HistorialEvento[]>;
-    all[appointmentId] = events;
-    window.localStorage.setItem(HISTORIAL_LS_KEY, JSON.stringify(all));
-  } catch { /* silently fail */ }
-}
-
-// Lee los eventos del turno. Cache local tiene prioridad en misma sesión.
-function readHistorialCobro(appointmentId: string): HistorialEvento[] {
-  return readHistorialLS(appointmentId).sort((a, b) => {
-    const at = a.ts ? new Date(a.ts).getTime() : 0;
-    const bt = b.ts ? new Date(b.ts).getTime() : 0;
-    return at - bt;
-  });
-}
-
-// Agrega un evento — escribe a localStorage inmediatamente y persiste a Supabase.
-// NUNCA modifica eventos anteriores.
-async function appendHistorialCobro(
-  appointmentId: string,
-  evento: Omit<HistorialEvento, "ts">
-) {
-  const full: HistorialEvento = { ...evento, ts: new Date().toISOString() };
-
-  // 1. Leer estado local actual
-  const prev = readHistorialLS(appointmentId);
-
-  // Deduplicar: no agregar si ya existe el mismo (action + time iguales)
-  if (prev.some(e => e.time === full.time && e.action === full.action)) return;
-
-  const next = [...prev, full];
-
-  // 2. Escribir a localStorage de inmediato (UI reactiva sin esperar red)
-  writeHistorialLS(appointmentId, next);
-
-  // 3. Persistir a Supabase (cobro_events es columna JSONB en appointments)
-  try {
-    await supabase
-      .from("appointments")
-      .update({ cobro_events: next } as Record<string, unknown>)
-      .eq("id", appointmentId);
-  } catch {
-    // Columna puede no existir aún — el localStorage tiene los datos seguros
-  }
-}
-
-// Cuando se carga la vista, sincronizar Supabase → localStorage para cada turno
-// Esto cubre el caso de que otro dispositivo haya escrito eventos
-async function syncHistorialFromDB(appointmentIds: string[]): Promise<void> {
-  if (!appointmentIds.length) return;
-  try {
-    const { data } = await supabase
-      .from("appointments")
-      .select("id, cobro_events")
-      .in("id", appointmentIds);
-
-    for (const row of data ?? []) {
-      const dbEvents = row.cobro_events as HistorialEvento[] | null;
-      if (!dbEvents?.length) continue;
-      const local = readHistorialLS(row.id);
-      // Merge: usar el que tenga más eventos
-      if (dbEvents.length > local.length) {
-        writeHistorialLS(row.id, dbEvents);
-      }
-    }
-  } catch { /* red no disponible — local sigue siendo válido */ }
 }
 
 function shortName(email: string | null | undefined): string {
@@ -978,7 +885,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   toDate: string;
   approvalMode: "auto" | "manual" | "disabled";
   approvalModeEnabled: boolean;
-  profile: { id: string; email?: string | null } | null;
+  profile: { id: string; email?: string | null; full_name?: string | null } | null;
   canOperate: boolean;
   equipoEnabled: boolean;
   canAddTurno: boolean;
@@ -1051,6 +958,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const [addTurnoOpen, setAddTurnoOpen] = useState(false);
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [canceladosOpen, setCanceladosOpen] = useState(false);
+  const [confirmadosOpen, setConfirmadosOpen] = useState(false);
+  useBodyScrollLock(canceladosOpen || confirmadosOpen);
   const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
     if (!businessId) return new Set();
     return new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id));
@@ -1121,6 +1030,10 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     turnos.filter(t => t.status === "cancelled" || t.status === "blocked"),
     [turnos]
   );
+  const confirmedTurnos = React.useMemo(() =>
+    turnos.filter(t => t.status === "confirmed" || t.status === "approved"),
+    [turnos]
+  );
 
   // Style per status
   function getBlockStyle(t: import("@/hooks/use-professionals-data").ProfTurno) {
@@ -1174,6 +1087,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       bg: "bg-violet-500/10",
       ring: "ring-violet-400/20",
       dot: "bg-violet-400",
+      onClick: counts.confirmados > 0 ? () => setConfirmadosOpen(true) : undefined,
     },
     {
       label: "Cobrados",
@@ -1423,16 +1337,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   onClick={async () => {
                     if (!window.confirm("¿Cancelar este turno?")) return;
                     try {
+                      // name: nombre visible real (profile.full_name), no el
+                      // email — cancelAppointment ahora escribe el evento
+                      // "Canceló" del historial internamente con este valor.
                       await cancelAppointment(t.id, {
                         userId: profile?.id ?? null,
-                        name: profile?.email ?? null,
+                        name: profile?.full_name ?? emailUsername(profile?.email ?? null),
                         role: "profesional",
-                      });
-                      appendHistorialCobro(t.id, {
-                        time: new Date().toTimeString().slice(0, 5),
-                        user: emailUsername(profile?.email ?? null),
-                        role: "profesional",
-                        action: "Canceló",
                       });
                       toast.success("Turno cancelado");
                       refetch();
@@ -1590,7 +1501,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 });
                 await appendHistorialCobro(cobroTurno.id, {
                   time: new Date().toTimeString().slice(0, 5),
-                  user: emailUsername(profile?.email ?? null),
+                  user: profile?.full_name ?? emailUsername(profile?.email ?? null),
                   role: "profesional",
                   action: "Envió a caja",
                 });
@@ -1749,6 +1660,41 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmados modal — mismo patrón que Cancelados: X, click afuera,
+          scroll de fondo bloqueado mientras está abierto. */}
+      {confirmadosOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={() => setConfirmadosOpen(false)}>
+          <div className="glass-strong rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 shrink-0">
+              <div>
+                <div className="font-semibold text-base">Turnos confirmados</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{confirmedTurnos.length} turno{confirmedTurnos.length !== 1 ? "s" : ""} confirmado{confirmedTurnos.length !== 1 ? "s" : ""}</div>
+              </div>
+              <button type="button" onClick={() => setConfirmadosOpen(false)}
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+              {confirmedTurnos.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Sin turnos confirmados en este período.</p>
+              ) : confirmedTurnos.map((t) => (
+                <div key={t.id} className="rounded-2xl bg-violet-500/[0.06] ring-1 ring-violet-400/15 border-l-[3px] border-l-violet-400 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 bg-violet-500/10 ring-violet-400/20 text-violet-300">Confirmado</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

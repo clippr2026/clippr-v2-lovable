@@ -18,6 +18,7 @@ import {
   checkDaySchedule,
 } from "@/lib/availability";
 import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
+import { appendHistorialCobro } from "@/lib/cobro-historial";
 
 /**
  * Datos de la Agenda. Carga turnos (appointments) del rango visible,
@@ -686,6 +687,25 @@ export async function cancelAppointment(
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
+
+  // Deja registro de QUIÉN canceló (nombre visible, nunca username/email
+  // crudo — eso es responsabilidad del caller: `by.name` debe venir ya
+  // resuelto, ej. profile.full_name) para que "Cancelado por X" se pueda
+  // mostrar tanto en Mi Agenda como en la Agenda general — antes esto se
+  // escribía a mano solo desde Mi Agenda (professionals.tsx), así que la
+  // Agenda web nunca tenía este dato.
+  if (by.name) {
+    try {
+      await appendHistorialCobro(id, {
+        time: new Date().toTimeString().slice(0, 5),
+        user: by.name,
+        role: by.role === "profesional" ? "profesional" : "recepcion",
+        action: "Canceló",
+      });
+    } catch {
+      // No bloquear la cancelación (ya confirmada arriba) si esto falla.
+    }
+  }
 }
 
 export async function rescheduleAppointment(
