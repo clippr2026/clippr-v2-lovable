@@ -64,6 +64,10 @@ type HistorialEvento = {
   time: string;
   user: string;
   action: string;
+  // ISO completo — opcional, solo lo escribe el envío a caja de un turno
+  // (ver handleCobrar) para poder ordenar Pendientes por fecha/hora real de
+  // envío, no solo por "HH:MM" (ambiguo entre días).
+  ts?: string;
 };
 
 function setHistorialCobroLS(appointmentId: string, events: HistorialEvento[]) {
@@ -6447,6 +6451,53 @@ function History({
 
   const rows = panel === "ingresos" ? data.paymentsToday : [];
   const pendingRows = panel === "pendientes" ? data.pendingCharges : [];
+  const [rejectingId, setRejectingId] = React.useState<string | null>(null);
+
+  // Rechazar un pendiente ("✕" en Acción): saca la venta de la cola sin
+  // cobrarla. Turno: solo se limpia el marcador "[PENDIENTE_CAJA]" de sus
+  // notas (el turno vuelve a su estado normal, no se cancela ni se toca su
+  // horario). Venta de mostrador sin turno: se saca directamente de
+  // business_settings.schedule._pendingWalkInSales.
+  async function handleRechazarPendiente(p: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
+    if (!data.businessId || rejectingId) return;
+    if (!window.confirm("¿Rechazar este cobro pendiente? No se va a cobrar.")) return;
+    setRejectingId(p.id);
+    try {
+      if (p.id.startsWith("walkin-")) {
+        const { data: existingRow, error: readError } = await supabase
+          .from("business_settings")
+          .select("schedule")
+          .eq("business_id", data.businessId)
+          .maybeSingle();
+        if (readError) throw readError;
+        const schedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+        const currentPending = Array.isArray((schedule as Record<string, unknown>)._pendingWalkInSales)
+          ? ((schedule as Record<string, unknown>)._pendingWalkInSales as Array<{ id: string }>)
+          : [];
+        const { error: writeError } = await supabase
+          .from("business_settings")
+          .upsert(
+            { business_id: data.businessId, schedule: { ...schedule, _pendingWalkInSales: currentPending.filter((s) => s.id !== p.id) } },
+            { onConflict: "business_id" },
+          );
+        if (writeError) throw writeError;
+      } else {
+        const cleanNote = getCashRowNote(p, p.service_name);
+        const { error: updateError } = await supabase
+          .from("appointments")
+          .update({ notes: cleanNote || null })
+          .eq("id", p.id);
+        if (updateError) throw updateError;
+      }
+      toast.success("Cobro pendiente rechazado");
+      await data.refresh();
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo rechazar el pendiente");
+    } finally {
+      setRejectingId(null);
+    }
+  }
+
   const [closeoutOpen, setCloseoutOpen] = React.useState(false);
   const [selectedMethod, setSelectedMethod] = React.useState<string | null>(
     null,
@@ -6536,7 +6587,7 @@ function History({
           <div className="min-w-[1080px]">
             <div
               className={cn(
-                panel === "pendientes" ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase" : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
+                panel === "pendientes" ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase" : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                 incomeTheme.tableHead,
               )}
             >
@@ -6571,21 +6622,23 @@ function History({
                     data.employees.find((e) => e.id === p.employee_id)?.name ??
                     "—";
                   const pendingNote = getCashRowNote(p, p.service_name);
-                  const historialEvents = getHistorialCobro(p.id);
-                  // Mostrar "Cobrar" si: existe "Envió a caja" y NO existe "Cobró"
-                  const envioACaja = historialEvents.some(
-                    (e) => e.action === "Envió a caja",
-                  );
+                  // p.events viene ya resuelto (appointments.cobro_events o
+                  // el propio registro de venta de mostrador) — no depende
+                  // de un historial local del dispositivo, que puede no
+                  // tener el evento si Caja está en otro aparato distinto
+                  // al que envió. getHistorialCobro(p.id) queda como
+                  // respaldo por si el registro no trae events todavía.
+                  const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
                   const yaCobro = historialEvents.some(
                     (e) => e.action === "Cobró",
                   );
-                  const showCobrarBtn = envioACaja && !yaCobro;
+                  const showCobrarBtn = !yaCobro;
 
                   return (
                     <div
                       key={`pending-${p.id}`}
                       className={cn(
-                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200",
+                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200",
                         incomeTheme.rowHover,
                       )}
                     >
@@ -6624,7 +6677,7 @@ function History({
                       <div>
                         <HistorialCell events={historialEvents} />
                       </div>
-                      <div onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         {showCobrarBtn && (
                           <button
                             type="button"
@@ -6634,6 +6687,15 @@ function History({
                             Cobrar
                           </button>
                         )}
+                        <button
+                          type="button"
+                          title="Rechazar"
+                          disabled={rejectingId === p.id}
+                          onClick={() => handleRechazarPendiente(p)}
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-rose-400/70 ring-1 ring-rose-400/20 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
                   );
@@ -6914,14 +6976,11 @@ function History({
                     data.employees.find((e) => e.id === p.employee_id)?.name ??
                     "—";
                   const pendingNote = getCashRowNote(p, p.service_name);
-                  const historialEvents = getHistorialCobro(p.id);
-                  const envioACaja = historialEvents.some(
-                    (e) => e.action === "Envió a caja",
-                  );
+                  const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
                   const yaCobro = historialEvents.some(
                     (e) => e.action === "Cobró",
                   );
-                  const showCobrarBtn = envioACaja && !yaCobro;
+                  const showCobrarBtn = !yaCobro;
 
                   return (
                     <div
@@ -6977,17 +7036,26 @@ function History({
                         </div>
                         <HistorialCell events={historialEvents} />
                       </div>
-                      {showCobrarBtn && (
-                        <div className="mt-2.5 border-t border-white/[0.06] pt-2.5">
+                      <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5">
+                        {showCobrarBtn && (
                           <button
                             type="button"
                             onClick={() => onCobrarPendiente(p)}
-                            className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-2 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] ring-1 ring-emerald-400/20 transition active:brightness-110"
+                            className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-2 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] ring-1 ring-emerald-400/20 transition active:brightness-110"
                           >
                             Cobrar
                           </button>
-                        </div>
-                      )}
+                        )}
+                        <button
+                          type="button"
+                          title="Rechazar"
+                          disabled={rejectingId === p.id}
+                          onClick={() => handleRechazarPendiente(p)}
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -7108,7 +7176,7 @@ function History({
                 <div
                   className={cn(
                     panel === "pendientes"
-                      ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase"
+                      ? "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase"
                       : "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
                     incomeTheme.tableHead,
                   )}
@@ -7214,22 +7282,16 @@ function History({
                             month: "numeric",
                           })
                         : "—";
-                      const time = created
-                        ? `${created.toLocaleTimeString("es-AR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                          })}hs`
-                        : "—";
                       const amount = Number(p.service_price ?? p.amount ?? 0);
-                      const responsible = displayCashActor(p, "Profesional");
                       const pendingNote = getCashRowNote(p, p.service_name);
+                      const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
+                      const yaCobro = historialEvents.some((e: HistorialEvento) => e.action === "Cobró");
 
                       return (
                         <div
                           key={`historial-pendiente-${p.id}`}
                           className={cn(
-                            "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_100px] items-center gap-x-3 border-b border-white/[0.055] px-6 py-2 text-xs transition-all duration-200 last:border-0",
+                            "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 border-b border-white/[0.055] px-6 py-2 text-xs transition-all duration-200 last:border-0",
                             incomeTheme.rowHover,
                           )}
                         >
@@ -7264,21 +7326,30 @@ function History({
                             ${amount.toLocaleString("es-AR")}
                           </div>
                           <div className="truncate text-muted-foreground">—</div>
-                          <div className="truncate text-muted-foreground">
-                            <span>{time}</span>{" "}
-                            <span className="font-semibold text-foreground">{responsible}</span>{" "}
-                            <span className={incomeTheme.amount}>→ Envió a caja</span>
+                          <div>
+                            <HistorialCell events={historialEvents} />
                           </div>
-                          <div className="flex justify-end">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {!yaCobro && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCloseoutOpen(false);
+                                  onCobrarPendiente(p);
+                                }}
+                                className="rounded-full border border-emerald-300/45 bg-emerald-400/18 px-4 py-1.5 text-xs font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] transition hover:bg-emerald-400/28 hover:border-emerald-300/70 hover:text-white"
+                              >
+                                Cobrar
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => {
-                                setCloseoutOpen(false);
-                                onCobrarPendiente(p);
-                              }}
-                              className="rounded-full border border-emerald-300/45 bg-emerald-400/18 px-4 py-1.5 text-xs font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] transition hover:bg-emerald-400/28 hover:border-emerald-300/70 hover:text-white"
+                              title="Rechazar"
+                              disabled={rejectingId === p.id}
+                              onClick={() => handleRechazarPendiente(p)}
+                              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-rose-400/70 ring-1 ring-rose-400/20 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40"
                             >
-                              Cobrar
+                              ✕
                             </button>
                           </div>
                         </div>
@@ -7416,16 +7487,10 @@ function History({
                               year: "numeric",
                             })
                           : "—";
-                        const time = created
-                          ? `${created.toLocaleTimeString("es-AR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: false,
-                            })}hs`
-                          : "—";
                         const amount = Number(p.service_price ?? p.amount ?? 0);
-                        const responsible = displayCashActor(p, "Profesional");
                         const pendingNote = getCashRowNote(p, p.service_name);
+                        const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
+                        const yaCobro = historialEvents.some((e: HistorialEvento) => e.action === "Cobró");
 
                         return (
                           <div
@@ -7482,22 +7547,29 @@ function History({
                               <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
                                 Historial
                               </div>
-                              <div className="whitespace-nowrap">
-                                <span className="text-muted-foreground">{time}</span>{" "}
-                                <span className="font-semibold text-foreground">{responsible}</span>{" "}
-                                <span className={incomeTheme.amount}>→ Envió a caja</span>
-                              </div>
+                              <HistorialCell events={historialEvents} />
                             </div>
-                            <div className="mt-2.5 border-t border-white/[0.06] pt-2.5">
+                            <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5">
+                              {!yaCobro && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCloseoutOpen(false);
+                                    onCobrarPendiente(p);
+                                  }}
+                                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-2 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] transition active:brightness-110"
+                                >
+                                  Cobrar
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setCloseoutOpen(false);
-                                  onCobrarPendiente(p);
-                                }}
-                                className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-2 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] transition active:brightness-110"
+                                title="Rechazar"
+                                disabled={rejectingId === p.id}
+                                onClick={() => handleRechazarPendiente(p)}
+                                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
                               >
-                                Cobrar
+                                ✕
                               </button>
                             </div>
                           </div>
@@ -8058,6 +8130,7 @@ export function NuevaVentaTab({
 
         await appendHistorialCobro(pendingCharge.id, {
           time: new Date().toTimeString().slice(0, 5),
+          ts: new Date().toISOString(),
           user: chargedByName || chargedByUsername(userEmail),
           action: "Envió a caja",
         });

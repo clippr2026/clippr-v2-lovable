@@ -120,6 +120,14 @@ export type PendingCharge = {
   starts_at: string;
   notes?: string | null;
   status?: string | null;
+  // Quién y cuándo lo envió a caja ("Alan → Envió a caja") — viene ya
+  // resuelto acá (de appointments.cobro_events para turnos, o del propio
+  // registro para ventas de mostrador sin turno) para no depender de un
+  // historial local por dispositivo que puede no tener el evento.
+  events?: { time: string; user: string; action: string }[];
+  // Timestamp real de cuándo se envió (ISO) — para ordenar Pendientes por
+  // más reciente primero, no por nombre/cliente ni por la fecha del turno.
+  sentAt?: string;
 };
 
 export type Expense = {
@@ -254,7 +262,7 @@ export function useCajaData() {
       // única señal real de "enviado, todavía no cobrado".
       supabase
         .from("appointments")
-        .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status")
+        .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status,cobro_events")
         .eq("business_id", businessId)
         .ilike("notes", "%[PENDIENTE_CAJA]%")
         .not("status", "in", "(charged,cancelled,blocked)")
@@ -331,13 +339,25 @@ export function useCajaData() {
 
     // Pending charges — el query ya filtra por el marcador en notas; este
     // segundo chequeo es solo defensivo (por si algún día se relaja el
-    // .ilike/.not de la consulta).
-    const pendingFromDb =
+    // .ilike/.not de la consulta). "events"/"sentAt" salen acá de
+    // appointments.cobro_events (no de un historial local por dispositivo,
+    // que puede no tener el evento si Caja está en otro aparato) para poder
+    // mostrar "Alan → Envió a caja" y ordenar por fecha real de envío.
+    const pendingFromDb: PendingCharge[] = (
       pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
-        ? ((pendingChargeRes.value.data ?? []) as PendingCharge[]).filter((a) =>
-            String(a.notes ?? "").includes("[PENDIENTE_CAJA]")
-          )
-        : [];
+        ? ((pendingChargeRes.value.data ?? []) as Array<PendingCharge & { cobro_events?: unknown }>)
+        : []
+    )
+      .filter((a) => String(a.notes ?? "").includes("[PENDIENTE_CAJA]"))
+      .map((a) => {
+        const events = (Array.isArray(a.cobro_events) ? a.cobro_events : []) as { time: string; user: string; action: string; ts?: string }[];
+        const sendEvent = events.find((e) => e.action === "Envió a caja");
+        return {
+          ...a,
+          events,
+          sentAt: sendEvent?.ts ?? a.starts_at,
+        };
+      });
 
     const pendingFromLocal = readLocalManualPendingCharges(businessId).map((item) => ({
       id: item.id,
@@ -348,6 +368,7 @@ export function useCajaData() {
       starts_at: item.starts_at,
       notes: item.notes,
       status: "pending_payment",
+      sentAt: item.starts_at,
     }));
 
     // Settings (schedule se parsea acá arriba porque también trae las
@@ -372,11 +393,17 @@ export function useCajaData() {
       starts_at: String(w.starts_at ?? new Date().toISOString()),
       notes: null,
       status: "pending",
+      events: (Array.isArray(w.events) ? w.events : []) as { time: string; user: string; action: string }[],
+      sentAt: String(w.starts_at ?? new Date().toISOString()),
     })).filter((w) => w.id);
 
     const pendingMap = new Map<string, PendingCharge>();
     [...pendingFromLocal, ...pendingFromDb, ...pendingFromWalkIn].forEach((item) => pendingMap.set(item.id, item));
-    const allPending = Array.from(pendingMap.values());
+    // Más nuevo primero — por el timestamp real de envío a caja, no por
+    // nombre/cliente ni por la fecha original del turno.
+    const allPending = Array.from(pendingMap.values()).sort(
+      (a, b) => new Date(b.sentAt ?? b.starts_at).getTime() - new Date(a.sentAt ?? a.starts_at).getTime(),
+    );
 
     setPendingCharges(allPending);
     setPendingCount(allPending.length);
