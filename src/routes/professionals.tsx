@@ -414,6 +414,19 @@ function ProfessionalsPage() {
     setDayPickerOpen(false);
   }, []);
 
+  // El selector de fecha de Mi Agenda pasa a modal centrado + portal (ver
+  // el JSX más abajo) por el mismo motivo que CobroModal/AgendaCenteredModal:
+  // fondo bloqueado mientras está abierto, y cierre con Esc en desktop.
+  useBodyScrollLock(dayPickerOpen);
+  React.useEffect(() => {
+    if (!dayPickerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDayPickerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dayPickerOpen]);
+
   const calendarDays = useMemo(() => buildMonthDays(visibleMonth), [visibleMonth]);
 
   if (isLoading) return (
@@ -609,78 +622,97 @@ function ProfessionalsPage() {
                   <span className="capitalize tabular-nums">{selectedDayLabel}</span>
                 </button>
 
-                {dayPickerOpen && (
-                  <div className="absolute left-0 top-11 z-50 w-[336px] overflow-hidden rounded-3xl border border-white/10 bg-[#050612] text-white shadow-[0_24px_80px_rgba(0,0,0,0.62),0_0_0_1px_rgba(124,58,237,0.08)]">
-                    <div className="flex flex-wrap gap-2 border-b border-white/10 p-4">
-                      {[
-                        ["Hoy", getPresetRange("hoy").from],
-                        ["Ayer", toLocalISODate(new Date(Date.now() - 24 * 60 * 60 * 1000))],
-                      ].map(([label, value]) => (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => selectSingleDay(parseLocalISODate(value))}
-                          className="rounded-full bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-white/60 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="p-4">
-                      <div className="mb-4 flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
-                          className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-                          aria-label="Mes anterior"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <div className="text-base font-bold tracking-tight text-white">
-                          {monthLabelEs(visibleMonth)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
-                          className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-                          aria-label="Mes siguiente"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-7 gap-y-2 text-center">
-                        {["LU", "MA", "MI", "JU", "VI", "SÁ", "DO"].map((d) => (
-                          <div key={d} className="pb-2 text-[11px] font-semibold tracking-[0.18em] text-white/28">
-                            {d}
-                          </div>
+                {dayPickerOpen && typeof document !== "undefined" && createPortal(
+                  // createPortal a document.body + fixed centrado: antes
+                  // era un "absolute left-0 top-11" anclado al botón
+                  // trigger, sin portal — vivía dentro del <div
+                  // className="relative z-10"> de AppShell (mismo trap de
+                  // siempre) y con ancho fijo (336px) sin clamping,
+                  // así que en mobile se abría pegado abajo y quedaba
+                  // cortado por la barra "Mi Agenda". Ahora es un modal
+                  // real: centrado, con backdrop, cierre al tocar afuera
+                  // o con Esc, fondo bloqueado, y max-h con scroll interno
+                  // si no entra completo.
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] bg-black/75"
+                    onClick={() => setDayPickerOpen(false)}
+                  >
+                    <div
+                      className="glass-strong w-full max-w-[336px] shrink-0 overflow-hidden rounded-3xl border border-white/10 bg-[#050612] text-white shadow-[0_24px_80px_rgba(0,0,0,0.62),0_0_0_1px_rgba(124,58,237,0.08)]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex flex-wrap gap-2 border-b border-white/10 p-4">
+                        {[
+                          ["Hoy", getPresetRange("hoy").from],
+                          ["Ayer", toLocalISODate(new Date(Date.now() - 24 * 60 * 60 * 1000))],
+                        ].map(([label, value]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => selectSingleDay(parseLocalISODate(value))}
+                            className="rounded-full bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-white/60 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:text-white"
+                          >
+                            {label}
+                          </button>
                         ))}
+                      </div>
 
-                        {calendarDays.map((day) => {
-                          const selected = sameLocalDay(day, selectedDateObj);
-                          const inMonth = day.getMonth() === visibleMonth.getMonth();
-                          return (
-                            <button
-                              key={toLocalISODate(day)}
-                              type="button"
-                              onClick={() => selectSingleDay(day)}
-                              className={cn(
-                                "mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold tabular-nums transition",
-                                selected
-                                  ? "bg-gradient-to-br from-[#62A8FF] to-[#8B5CF6] text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]"
-                                  : inMonth
-                                    ? "text-white/78 hover:bg-white/[0.07] hover:text-white"
-                                    : "text-white/20 hover:bg-white/[0.04]",
-                              )}
-                            >
-                              {day.getDate()}
-                            </button>
-                          );
-                        })}
+                      <div className="p-4">
+                        <div className="mb-4 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
+                            className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                            aria-label="Mes anterior"
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          <div className="text-base font-bold tracking-tight text-white">
+                            {monthLabelEs(visibleMonth)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
+                            className="rounded-full p-2 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+                            aria-label="Mes siguiente"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-y-2 text-center">
+                          {["LU", "MA", "MI", "JU", "VI", "SÁ", "DO"].map((d) => (
+                            <div key={d} className="pb-2 text-[11px] font-semibold tracking-[0.18em] text-white/28">
+                              {d}
+                            </div>
+                          ))}
+
+                          {calendarDays.map((day) => {
+                            const selected = sameLocalDay(day, selectedDateObj);
+                            const inMonth = day.getMonth() === visibleMonth.getMonth();
+                            return (
+                              <button
+                                key={toLocalISODate(day)}
+                                type="button"
+                                onClick={() => selectSingleDay(day)}
+                                className={cn(
+                                  "mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold tabular-nums transition",
+                                  selected
+                                    ? "bg-gradient-to-br from-[#62A8FF] to-[#8B5CF6] text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]"
+                                    : inMonth
+                                      ? "text-white/78 hover:bg-white/[0.07] hover:text-white"
+                                      : "text-white/20 hover:bg-white/[0.04]",
+                                )}
+                              >
+                                {day.getDate()}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </div>,
+                  document.body,
                 )}
               </div>
             </div>
