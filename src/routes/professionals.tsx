@@ -794,221 +794,8 @@ function UniversalDateFilter({
 }
 
 
-// ── Cobro modal ────────────────────────────────────────────────────────────
-
-type LineItem = { id: string; name: string; amount: number };
-type SplitEntry = { method: PayMethod; amount: string };
-
-const PAY_LABELS: Record<PayMethod, string> = {
-  cash: "Efectivo", transfer: "Transfer.", card: "Tarjeta",
-  mp: "Mercado P.", qr: "QR", cuenta: "Cuenta",
-};
-const ALL_METHODS: PayMethod[] = ["cash", "transfer", "card", "mp", "qr"];
-
 function fmtMoney(n: number) {
   return "$" + Math.round(n).toLocaleString("es-AR");
-}
-
-// ── Item picker modal ──────────────────────────────────────────────────────
-// Compartido por Cobrar y Enviar a Caja (vía CobroModal), y por "Agregar
-// ítem" y "Editar" un ítem existente — un solo componente, un solo
-// comportamiento en los cuatro casos. Al abrir no activa ningún input ni
-// muestra teclado: arranca en la pestaña "Servicios" mostrando la lista
-// directamente. Recién al tocar "Buscar" aparece el campo y se enfoca.
-type ItemOption = { id: string; name: string; price: number; category: string | null; isService: boolean };
-type ItemPickerTab = "servicios" | "productos" | "bebidas" | "buscar";
-const ITEM_PICKER_TABS: Array<{ key: ItemPickerTab; label: string }> = [
-  { key: "servicios", label: "Servicios" },
-  { key: "productos", label: "Productos" },
-  { key: "bebidas", label: "Bebidas" },
-  { key: "buscar", label: "Buscar" },
-];
-
-function ItemPicker({
-  businessId, employeeId, currentName, currentAmount,
-  onSelect, onClose,
-}: {
-  businessId: string;
-  employeeId: string | null;
-  currentName: string; currentAmount: string;
-  onSelect: (name: string, amount: number) => void;
-  onClose: () => void;
-}) {
-  const [options, setOptions] = useState<ItemOption[]>([]);
-  const [tab, setTab] = useState<ItemPickerTab>("servicios");
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<{ name: string; price: number } | null>(
-    currentName ? { name: currentName, price: Number(currentAmount) || 0 } : null
-  );
-  const [editAmount, setEditAmount] = useState(currentAmount);
-  const searchInputRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    if (!businessId) return;
-    (async () => {
-      const [{ data: svcs }, { data: prods }, { data: bs }] = await Promise.all([
-        supabase.from("price_catalog").select("id,name,price,duration_min,category").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null).order("name"),
-        supabase.from("price_catalog").select("id,name,price,duration_min,category").eq("business_id", businessId).eq("active", true).is("duration_min", null).order("name"),
-        supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
-      ]);
-      // Mismo resolver que Agenda/Caja/Página Pública: si el profesional
-      // tiene precio personalizado para el servicio, se sugiere ese precio
-      // en vez del estándar (el monto siempre queda editable a mano).
-      const overrides = ((bs?.schedule as any)?._employeeServiceOverrides ?? {}) as EmployeeServiceOverrideMap;
-      const resolvePrice = (item: { id: string; price: number; duration_min: number | null }) =>
-        resolveServicePricing(item, employeeId, overrides).price;
-      setOptions([
-        ...(svcs ?? []).map((s: any) => ({ id: s.id, name: s.name as string, price: resolvePrice(s), category: s.category ?? null, isService: true })),
-        ...(prods ?? []).map((p: any) => ({ id: p.id, name: p.name as string, price: Number(p.price ?? 0), category: p.category ?? null, isService: false })),
-      ]);
-    })();
-  }, [businessId, employeeId]);
-
-  useBodyScrollLock(true);
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  // Foco y teclado SOLO al entrar a la pestaña Buscar — nunca automático
-  // al abrir el modal (pedido explícito: nada de teclado hasta que el
-  // usuario toque Buscar o el campo).
-  React.useEffect(() => {
-    if (tab === "buscar") searchInputRef.current?.focus();
-  }, [tab]);
-
-  const isBebida = (o: ItemOption) => /bebidas?/i.test(o.category ?? "");
-
-  const visibleItems =
-    tab === "servicios" ? options.filter(o => o.isService)
-    : tab === "bebidas" ? options.filter(o => !o.isService && isBebida(o))
-    : tab === "productos" ? options.filter(o => !o.isService && !isBebida(o))
-    : query.trim() ? options.filter(o => o.name.toLowerCase().includes(query.trim().toLowerCase()))
-    : [];
-
-  function pick(opt: { name: string; price: number }) {
-    setSelected(opt);
-    setEditAmount(String(opt.price));
-  }
-
-  const canSave = selected !== null;
-
-  if (typeof document === "undefined") return null;
-
-  // createPortal + max-h con dvh/safe-area: mismo patrón que
-  // CobroModal/AgendaCenteredModal — modal real, centrado, con footer
-  // siempre visible y sin quedar tapado por la barra inferior.
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] bg-black/75"
-      onClick={onClose}
-    >
-      <div
-        className="glass-strong flex w-full max-w-md flex-col overflow-hidden rounded-3xl max-h-[calc(100dvh-3rem)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Tabs de categoría */}
-        <div className="grid shrink-0 grid-cols-4 gap-1.5 border-b border-white/10 p-3">
-          {ITEM_PICKER_TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={cn(
-                "truncate rounded-xl py-2 text-xs font-semibold transition",
-                tab === key
-                  ? "bg-primary/20 text-primary ring-1 ring-primary/40"
-                  : "text-muted-foreground hover:bg-white/[0.05] hover:text-white",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Lista / buscador */}
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {tab === "buscar" && (
-            <div className="relative mb-2">
-              <input
-                ref={searchInputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar servicio, producto o bebida…"
-                className="w-full rounded-xl bg-white/[0.07] ring-1 ring-primary/30 px-3 py-2.5 text-base font-medium text-white outline-none focus:ring-primary/50 placeholder:font-normal placeholder:text-muted-foreground/60"
-              />
-            </div>
-          )}
-          {visibleItems.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">
-              {tab === "buscar"
-                ? (query.trim() ? "Sin resultados." : "Escribí para buscar.")
-                : "No hay ítems en esta categoría."}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {visibleItems.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => pick(opt)}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition",
-                    selected?.name === opt.name
-                      ? "bg-primary/15 ring-1 ring-primary/40"
-                      : "ring-1 ring-transparent hover:bg-white/[0.06]",
-                  )}
-                >
-                  <span className="truncate">{opt.name}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtMoney(opt.price)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Ítem seleccionado + precio editable */}
-        {selected && (
-          <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
-            <div className="truncate text-xs text-muted-foreground">
-              Seleccionado: <span className="font-medium text-white">{selected.name}</span>
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value.replace(/\D/g, ""))}
-                className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 pl-6 pr-3 py-2.5 text-base tabular-nums text-white outline-none focus:ring-primary/40"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Footer fijo */}
-        <div className="flex shrink-0 gap-3 border-t border-white/10 p-4 pt-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl py-2.5 text-sm text-muted-foreground ring-1 ring-white/10 transition hover:text-white"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            disabled={!canSave}
-            onClick={() => canSave && onSelect(selected!.name, Math.max(0, Number(editAmount) || 0))}
-            className="flex-1 rounded-xl bg-primary/15 py-2.5 text-sm font-semibold text-primary ring-1 ring-primary/30 transition hover:bg-primary/25 disabled:opacity-40"
-          >
-            Listo
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
 }
 
 type ProfessionalAppointmentProduct = {
@@ -1049,375 +836,6 @@ function stripBookingMetadataFromNote(raw?: string | null): string | null {
     .trim();
 
   return clean || null;
-}
-
-function CobroModal({
-  turno, empId, businessId, mode, userEmail, onClose, onDone,
-}: {
-  turno: import("@/hooks/use-professionals-data").ProfTurno;
-  empId: string; businessId: string; mode: "auto" | "manual";
-  userEmail: string | null; onClose: () => void; onDone: () => void;
-}) {
-  // ── Items ──────────────────────────────────────────────────────────────────
-  // Nombre del profesional del turno (para el historial "Envió a caja"). No debe
-  // salir del email de la cuenta logueada, sino del barbero asociado.
-  const { data: profsList = [] } = useProfessionals(businessId);
-  const professionalName =
-    profsList.find((p) => p.id === empId)?.full_name?.trim() || null;
-
-  const initPrice = Number(turno.service_price ?? 0);
-  const reservedProducts = React.useMemo(
-    () => parseProfessionalProductsFromNotes(turno.notes),
-    [turno.notes],
-  );
-  const [items, setItems] = useState<LineItem[]>(() => [
-    { id: "main", name: turno.service_name ?? "Servicio", amount: initPrice },
-    ...reservedProducts.map((product, index) => ({
-      id: `reserved-product-${index}`,
-      name: product.name,
-      amount: product.amount,
-    })),
-  ]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [addingItem, setAddingItem] = useState(false);
-
-  const total = items.reduce((s, i) => s + i.amount, 0);
-
-  function applyEdit(id: string, name: string, amount: number) {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, name, amount } : i));
-    setEditingId(null);
-  }
-  function applyAdd(name: string, amount: number) {
-    setItems(prev => [...prev, { id: crypto.randomUUID(), name, amount }]);
-    setAddingItem(false);
-  }
-  function removeItem(id: string) {
-    setItems(prev => prev.filter(i => i.id !== id));
-    if (editingId === id) setEditingId(null);
-  }
-
-  // ── Pagos ──────────────────────────────────────────────────────────────────
-  const [multiPay, setMultiPay] = useState(false);
-  const [splits, setSplits] = useState<SplitEntry[]>([{ method: "cash", amount: "" }]);
-
-  // Keep single-pay amount in sync with total when not manually edited
-  const splitTotal = splits.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const remaining = total - splitTotal;
-  const isBalanced = Math.abs(remaining) < 1;
-  const hasCash = splits.some(s => s.method === "cash");
-  const isOver = splitTotal > total;
-  const overAmount = splitTotal - total;
-  const showVuelto = isOver && hasCash;
-
-  function addSplit() {
-    const used = new Set(splits.map(s => s.method));
-    const next = ALL_METHODS.find(m => !used.has(m));
-    if (!next) return;
-    setSplits(prev => [...prev, { method: next, amount: "" }]);
-  }
-  function removeSplit(idx: number) {
-    setSplits(prev => prev.filter((_, i) => i !== idx));
-  }
-  function setSplitMethod(idx: number, m: PayMethod) {
-    setSplits(prev => prev.map((e, i) => i === idx ? { ...e, method: m } : e));
-  }
-  function setSplitAmount(idx: number, v: string) {
-    setSplits(prev => prev.map((e, i) => i === idx ? { ...e, amount: v.replace(/[^0-9]/g, "") } : e));
-  }
-  function fillRemaining(idx: number) {
-    const rem = total - splits.reduce((s, e, i) => i !== idx ? s + (Number(e.amount) || 0) : s, 0);
-    if (rem > 0) setSplitAmount(idx, String(Math.round(rem)));
-  }
-
-  // ── Nota ──────────────────────────────────────────────────────────────────
-  const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  // In single pay mode, if no amount typed, treat as NOT covered (require explicit entry)
-  const effectiveSplitTotal = splitTotal;
-  const effectiveRemaining = total - effectiveSplitTotal;
-  const effectiveIsBalanced = Math.abs(effectiveRemaining) < 1;
-  const effectiveIsOver = effectiveSplitTotal > total;
-  const effectiveShowVuelto = effectiveIsOver && splits.some(s => s.method === "cash");
-
-  const canConfirm = mode !== "auto" || (
-    splits.length > 0 && splitTotal > 0 && (effectiveIsBalanced || effectiveShowVuelto)
-  );
-
-  // Mismo motivo que en AgendaCenteredModal (ver src/components/agenda/
-  // agenda-drawer.tsx): fondo bloqueado mientras el modal está abierto.
-  useBodyScrollLock(true);
-
-  // ── Confirm ───────────────────────────────────────────────────────────────
-  async function confirm() {
-    if (mode === "auto" && !effectiveIsBalanced && !effectiveShowVuelto) {
-      toast.error(`Falta distribuir ${fmtMoney(effectiveRemaining)}.`);
-      return;
-    }
-    setSaving(true);
-    try {
-      const now = new Date();
-      const hhmm = now.toTimeString().slice(0, 5);
-      const primaryMethod: PayMethod = splits[0]?.method ?? "cash";
-
-      if (mode === "auto") {
-        await registerPayment({
-          businessId, employeeId: empId,
-          clientName: turno.client_name ?? "Sin cliente",
-          items: items.map(i => ({ serviceName: i.name, amount: i.amount })),
-          method: primaryMethod,
-          appointmentId: turno.id, chargeOrigin: "auto", chargedBy: userEmail,
-          notes: note || null,
-        });
-        await supabase.from("appointments").update({ status: "charged", notes: note || null }).eq("id", turno.id);
-        appendHistorialCobro(turno.id, { time: hhmm, user: emailUsername(userEmail), role: "profesional", action: "Cobró" });
-        toast.success("✓ Cobro registrado");
-      } else {
-        const marker = "[PENDIENTE_CAJA]";
-        const itemsStr = items.map(i => `${i.name} ${fmtMoney(i.amount)}`).join(", ");
-        const noteParts = [note.trim(), itemsStr].filter(Boolean).join(" | ");
-        const nextNotes = noteParts ? `${marker} ${noteParts}` : marker;
-        await supabase.from("appointments").update({ status: "pending_payment", notes: nextNotes }).eq("id", turno.id);
-        saveManualPendingCharge({
-          id: turno.id, business_id: businessId, employee_id: empId,
-          client_name: turno.client_name ?? null,
-          service_name: items.map(i => i.name).join(" + "),
-          service_price: total, starts_at: turno.starts_at, notes: nextNotes,
-        });
-        appendHistorialCobro(turno.id, { time: hhmm, user: professionalName ?? emailUsername(userEmail), role: "profesional", action: "Envió a caja" });
-        toast.success("✓ Enviado a Caja");
-      }
-      onDone(); onClose();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally { setSaving(false); }
-  }
-
-  if (typeof document === "undefined") return null;
-
-  // createPortal a document.body: mismo fix que AgendaCenteredModal (ver
-  // ese componente para la explicación completa) — este modal vivía
-  // dentro del <div className="relative z-10"> que AppShell pone
-  // alrededor del contenido de la página, así que su z-50 nunca llegaba a
-  // competir con la barra inferior "Mi Agenda" (z-40, pero hermana de
-  // <main> en el árbol raíz) y terminaba tapado por ella en iPhone.
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-black/75" onClick={onClose}>
-      {/* max-h-[92dvh], no 92vh: 100vh en iOS Safari no descuenta la
-          barra de direcciones visible, así que un 92vh "de sobra" podía
-          seguir siendo más alto que el viewport real y empujar el footer
-          (Cancelar/Confirmar cobro) fuera de pantalla. */}
-      <div className="glass-strong rounded-3xl w-full max-w-md flex flex-col max-h-[92dvh]" onClick={e => e.stopPropagation()}>
-
-        {/* ── Scrollable body ── */}
-        <div className="overflow-y-auto flex-1 p-5 space-y-4">
-
-          {/* Mode banner */}
-          <div className={cn("rounded-2xl px-4 py-2.5 text-sm ring-1",
-            mode === "auto" ? "bg-emerald-500/10 ring-emerald-400/20 text-emerald-200" : "bg-cyan-500/10 ring-cyan-400/20 text-cyan-200")}>
-            <span className="font-semibold">{mode === "auto" ? "Cobro automático" : "Enviar a Caja"}</span>
-            <span className="text-xs opacity-70 ml-2">{mode === "auto" ? "Se registra directamente en caja." : "Recepción revisará y confirmará."}</span>
-          </div>
-
-          {/* Client + total */}
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-display font-semibold text-lg leading-tight">{turno.client_name ?? "Sin cliente"}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {new Date(turno.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
-              </div>
-            </div>
-            <div className="font-display text-2xl font-light tabular-nums">{fmtMoney(total)}</div>
-          </div>
-
-          {/* ── Items ── */}
-          <div className="space-y-2">
-            {items.map((item) => (
-              <div key={item.id}>
-                {editingId === item.id ? (
-                  <ItemPicker
-                    businessId={businessId}
-                    employeeId={empId}
-                    currentName={item.name}
-                    currentAmount={String(item.amount)}
-                    onSelect={(name, amount) => applyEdit(item.id, name, amount)}
-                    onClose={() => setEditingId(null)}
-                  />
-                ) : (
-                  <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                    <div className="flex-1 min-w-0 text-sm font-medium truncate">{item.name}</div>
-                    {items.length > 1 && (
-                      <div className="text-sm font-semibold tabular-nums shrink-0">{fmtMoney(item.amount)}</div>
-                    )}
-                    <button type="button" onClick={() => setEditingId(item.id)}
-                      className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-white transition px-2 py-1 rounded-lg hover:bg-white/[0.06]">
-                      Editar
-                    </button>
-                    {items.length > 1 && (
-                      <button type="button" onClick={() => removeItem(item.id)}
-                        className="shrink-0 text-rose-400/60 hover:text-rose-300 transition text-xs px-1">✕</button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Add item picker */}
-            {addingItem ? (
-              <ItemPicker
-                businessId={businessId}
-                employeeId={empId}
-                currentName="" currentAmount="0"
-                onSelect={applyAdd}
-                onClose={() => setAddingItem(false)}
-              />
-            ) : (
-              <button type="button" onClick={() => setAddingItem(true)}
-                className="w-full rounded-2xl border border-dashed border-white/15 hover:border-white/25 hover:bg-white/[0.02] transition py-2.5 text-xs font-semibold text-muted-foreground flex items-center justify-center gap-2">
-                <span className="text-base leading-none">+</span> Agregar ítem
-              </button>
-            )}
-          </div>
-
-          {/* ── Pago (solo modo auto) ── */}
-          {mode === "auto" && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Método de pago</div>
-                {!multiPay ? (
-                  <button type="button" onClick={() => {
-                    setMultiPay(true);
-                    setSplits([{ method: splits[0]?.method ?? "cash", amount: splits[0]?.amount ?? "" }]);
-                  }}
-                    className="text-[10px] font-semibold text-primary hover:text-primary/80 transition">
-                    Pago múltiple
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => {
-                    setMultiPay(false);
-                    setSplits([{ method: "cash", amount: "" }]);
-                  }}
-                    className="text-[10px] font-semibold text-muted-foreground hover:text-white transition">
-                    Pago simple
-                  </button>
-                )}
-              </div>
-
-              {!multiPay ? (
-                /* ── Single method: selector + amount field ── */
-                <div className="space-y-2">
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                    {ALL_METHODS.map(m => (
-                      <button key={m} type="button"
-                        onClick={() => setSplits([{ method: m, amount: splits[0]?.amount ?? "" }])}
-                        className={cn("rounded-xl py-2 text-xs font-medium ring-1 transition-all",
-                          splits[0]?.method === m
-                            ? "bg-primary/20 ring-primary/50 text-foreground"
-                            : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:ring-white/20")}>
-                        {PAY_LABELS[m]}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Amount input */}
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                    <input
-                      type="text" inputMode="numeric"
-                      value={splits[0]?.amount ?? ""}
-                      onChange={e => setSplits([{ method: splits[0]?.method ?? "cash", amount: e.target.value.replace(/\D/g, "") }])}
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-base tabular-nums focus:outline-none focus:border-primary/40"
-                    />
-                  </div>
-                  {/* Balance for single pay */}
-                  {splits[0]?.amount && (
-                    <div className={cn("rounded-xl px-4 py-2 text-xs font-semibold flex items-center justify-between",
-                      isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
-                      : showVuelto ? "bg-sky-500/10 ring-1 ring-sky-400/20 text-sky-300"
-                      : isOver && !hasCash ? "hidden"
-                      : "bg-cyan-500/10 ring-1 ring-cyan-400/20 text-cyan-300")}>
-                      {isBalanced ? <span>✓ Total cubierto</span>
-                      : showVuelto ? <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
-                      : <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* ── Multi method rows ── */
-                <div className="space-y-2">
-                  {splits.map((entry, idx) => {
-                    const usedMethods = new Set(splits.filter((_, i) => i !== idx).map(s => s.method));
-                    return (
-                      <div key={idx} className="flex items-center gap-2">
-                        <div className="relative">
-                          <select value={entry.method}
-                            onChange={e => setSplitMethod(idx, e.target.value as PayMethod)}
-                            className="appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-base text-white focus:outline-none focus:border-primary/40 pr-7 cursor-pointer">
-                            {ALL_METHODS.filter(m => !usedMethods.has(m)).map(m => (
-                              <option key={m} value={m}>{PAY_LABELS[m]}</option>
-                            ))}
-                          </select>
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">▾</span>
-                        </div>
-                        <div className="relative flex-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                          <input type="text" inputMode="numeric" value={entry.amount}
-                            placeholder={idx === splits.length - 1 && remaining > 0 ? String(Math.round(remaining)) : "0"}
-                            onFocus={() => !entry.amount && fillRemaining(idx)}
-                            onChange={e => setSplitAmount(idx, e.target.value)}
-                            className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-base tabular-nums focus:outline-none focus:border-primary/40" />
-                        </div>
-                        {splits.length > 1 && (
-                          <button type="button" onClick={() => removeSplit(idx)}
-                            className="rounded-xl px-2.5 py-2.5 text-xs text-rose-400/60 hover:text-rose-300 hover:bg-rose-500/10 transition ring-1 ring-rose-400/15">✕</button>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {splits.length < ALL_METHODS.length && (
-                    <button type="button" onClick={addSplit}
-                      className="w-full text-[10px] font-semibold text-primary hover:text-primary/80 transition py-1">
-                      + Agregar método
-                    </button>
-                  )}
-                  {/* Balance */}
-                  {splitTotal > 0 && (
-                    <div className={cn("rounded-xl px-4 py-2 text-xs font-semibold flex items-center justify-between",
-                      isBalanced ? "bg-emerald-500/10 ring-1 ring-emerald-400/20 text-emerald-300"
-                      : showVuelto ? "bg-sky-500/10 ring-1 ring-sky-400/20 text-sky-300"
-                      : isOver && !hasCash ? "hidden"
-                      : "bg-cyan-500/10 ring-1 ring-cyan-400/20 text-cyan-300")}>
-                      {isBalanced ? <span>✓ Total cubierto</span>
-                      : showVuelto ? <><span>Vuelto</span><span className="tabular-nums">{fmtMoney(overAmount)}</span></>
-                      : <><span>Falta cubrir</span><span className="tabular-nums">{fmtMoney(remaining)}</span></>}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Nota */}
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Nota opcional…"
-            className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-base focus:outline-none focus:ring-white/30" />
-        </div>
-
-        {/* ── Footer fijo ── */}
-        <div className="p-4 pt-0 flex gap-3 border-t border-white/[0.06]">
-          <button onClick={onClose}
-            className="flex-1 rounded-xl ring-1 ring-white/10 py-3 text-sm text-muted-foreground hover:text-foreground transition">
-            Cancelar
-          </button>
-          <button onClick={confirm} disabled={saving || !canConfirm}
-            className={cn("flex-1 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-40",
-              mode === "auto" ? "bg-gradient-to-r from-emerald-400 to-emerald-500 text-background"
-                             : "bg-gradient-to-r from-cyan-300 to-cyan-500 text-background")}>
-            {saving ? "Guardando…" : mode === "auto" ? "Confirmar cobro" : "Enviar a Caja"}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
 }
 
 // ── Shared helpers (mirrors agenda.tsx) ──────────────────────────────────────
@@ -2095,19 +1513,80 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       )}
 
       {/* Modals */}
-      {canOperate && cobroTurno && businessId && empId && (
-        <CobroModal
-          turno={cobroTurno}
-          empId={empId}
-          businessId={businessId}
-          mode={approvalMode === "manual" ? "manual" : "auto"}
-          userEmail={profile?.email ?? null}
-          onClose={() => setCobroTurno(null)}
-          onDone={() => {
-            if (cobroTurno) setSentToCajaIds((prev) => new Set([...prev, cobroTurno.id]));
-            refetch();
-          }}
-        />
+      {/* Cobrar/Enviar un turno — mismo componente y flujo que "+ Venta"
+          (NuevaVentaTab), no un diseño de cobro aparte. Se precarga como
+          pendingCharge (mismo mecanismo que usa Caja → Pendientes) pero
+          arrancando en el paso Servicios (pendingChargeInitialStep=3) para
+          poder revisar/agregar antes de pagar, con los productos ya
+          reservados en las notas del turno precargados también
+          (pendingChargeExtraItems). turnoChargeMode bifurca el cobro:
+          "auto" cobra directo (mismo camino que la cola de Pendientes),
+          "manual" envía a Caja sin cobrar (onManualSend hace el guardado
+          local + historial que antes hacía el CobroModal viejo). */}
+      {canOperate && cobroTurno && businessId && empId && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:items-center bg-black/80"
+          onClick={() => setCobroTurno(null)}
+        >
+          <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setCobroTurno(null)}
+              className="absolute -top-3 -right-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20"
+            >
+              ✕
+            </button>
+            <NuevaVentaTab
+              data={cajaData}
+              userEmail={profile?.email ?? null}
+              lockedEmployeeId={empId}
+              variant="modal"
+              onCancel={() => setCobroTurno(null)}
+              pendingCharge={{
+                id: cobroTurno.id,
+                client_name: cobroTurno.client_name,
+                service_name: cobroTurno.service_name,
+                service_price: cobroTurno.service_price,
+                employee_id: empId,
+                starts_at: cobroTurno.starts_at,
+                notes: cobroTurno.notes,
+                status: cobroTurno.status,
+              }}
+              pendingChargeInitialStep={3}
+              pendingChargeExtraItems={parseProfessionalProductsFromNotes(cobroTurno.notes).map((p) => ({ name: p.name, price: p.amount }))}
+              turnoChargeMode={approvalMode === "manual" ? "manual" : "auto"}
+              onManualSend={async ({ total, items }) => {
+                if (!cobroTurno) return;
+                const itemsStr = items.map((i) => `${i.serviceName} ${fmtMoney(i.amount)}`).join(", ");
+                saveManualPendingCharge({
+                  id: cobroTurno.id,
+                  business_id: businessId,
+                  employee_id: empId,
+                  client_name: cobroTurno.client_name ?? null,
+                  service_name: items.map((i) => i.serviceName).join(" + "),
+                  service_price: total,
+                  starts_at: cobroTurno.starts_at,
+                  notes: `[PENDIENTE_CAJA] ${itemsStr}`,
+                });
+                await appendHistorialCobro(cobroTurno.id, {
+                  time: new Date().toTimeString().slice(0, 5),
+                  user: emailUsername(profile?.email ?? null),
+                  role: "profesional",
+                  action: "Envió a caja",
+                });
+                setSentToCajaIds((prev) => new Set([...prev, cobroTurno.id]));
+                setCobroTurno(null);
+                refetch();
+              }}
+              onPendingDone={() => {
+                setCobroTurno(null);
+                refetch();
+                cajaData.refresh();
+              }}
+            />
+          </div>
+        </div>,
+        document.body,
       )}
 
       {/* + Nuevo turno — el mismo AppointmentDialog que usa Agenda → Nuevo

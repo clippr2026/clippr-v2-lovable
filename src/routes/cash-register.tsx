@@ -7536,6 +7536,10 @@ export function NuevaVentaTab({
   userEmail,
   lockedEmployeeId,
   variant = "page",
+  pendingChargeInitialStep,
+  pendingChargeExtraItems,
+  turnoChargeMode,
+  onManualSend,
 }: {
   data: ReturnType<typeof useCajaData>;
   pendingCharge?: PendingCharge | null;
@@ -7557,9 +7561,31 @@ export function NuevaVentaTab({
   // usa un cálculo propio basado en el alto real del viewport (dvh) menos
   // el padding del propio overlay del modal.
   variant?: "page" | "modal";
+  // ── "Cobrar turno" desde Mi Agenda (Profesionales) ──────────────────────
+  // Reutiliza exactamente el mecanismo de pendingCharge (mismo shape que
+  // la cola de "Pendientes" de Caja: appointment ya existente, servicio a
+  // precargar), pero con tres diferencias puntuales:
+  // 1. pendingChargeInitialStep: la cola de Caja siempre arranca en Pago
+  //    (paso 4, comportamiento default sin este prop) porque ahí ya está
+  //    todo cargado y solo falta cobrar. "Cobrar turno" en cambio quiere
+  //    arrancar en Servicios (paso 3) para poder revisar/agregar productos
+  //    antes de pagar.
+  // 2. pendingChargeExtraItems: productos ya reservados en las notas del
+  //    turno (parseProfessionalProductsFromNotes en professionals.tsx) —
+  //    el mecanismo original de pendingCharge solo precargaba UN servicio.
+  // 3. turnoChargeMode/onManualSend: la cola de Pendientes de Caja siempre
+  //    cobra directo al confirmar (ya pasó por aprobación). "Cobrar turno"
+  //    en modo manual necesita en cambio ENVIAR a Caja (no cobrar
+  //    directo) — mismo comportamiento que tenía el CobroModal viejo.
+  //    Sin este prop (undefined), el comportamiento es exactamente el de
+  //    siempre: cobra directo.
+  pendingChargeInitialStep?: 3 | 4;
+  pendingChargeExtraItems?: { name: string; price: number }[];
+  turnoChargeMode?: "auto" | "manual";
+  onManualSend?: (args: { total: number; items: { serviceName: string; amount: number }[] }) => void | Promise<void>;
 }) {
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(
-    pendingCharge ? 4 : lockedEmployeeId ? 2 : 1,
+    pendingCharge ? (pendingChargeInitialStep ?? 4) : lockedEmployeeId ? 2 : 1,
   );
   const [cart, setCart] = React.useState<Record<string, number>>({});
   const [query, setQuery] = React.useState("");
@@ -7600,7 +7626,7 @@ export function NuevaVentaTab({
 
     pendingHydrateRef.current = pendingCharge.id;
     pendingInjectedRef.current = false;
-    setStep(4);
+    setStep(pendingChargeInitialStep ?? 4);
     setEmployeeId(pendingCharge.employee_id ?? "");
     setClientId(`__pending_client__${pendingCharge.id}`);
     setClient(pendingCharge.client_name ?? "Cliente del mostrador");
@@ -7614,30 +7640,48 @@ export function NuevaVentaTab({
     setSplits([{ method: "cash", amount: "" }]);
   }, [pendingCharge]);
 
-  // When pendingCharge arrives and services are loaded, inject the service into the cart
+  // Servicio principal del pendingCharge + productos ya reservados (turno
+  // cobrado desde Mi Agenda, ver pendingChargeExtraItems) — todos se
+  // precargan igual: se intenta matchear por nombre contra el catálogo
+  // real, y si no hay match se arma una entrada sintética de solo lectura
+  // con el precio ya guardado en el turno. Antes esto solo contemplaba UN
+  // servicio; ahora es una lista para poder precargar varios ítems.
+  const pendingLineItems = React.useMemo(() => {
+    if (!pendingCharge) return [] as { name: string; price: number }[];
+    const items: { name: string; price: number }[] = [];
+    if (pendingCharge.service_name) {
+      items.push({ name: pendingCharge.service_name, price: Number(pendingCharge.service_price ?? 0) });
+    }
+    for (const extra of pendingChargeExtraItems ?? []) {
+      if (extra.name) items.push({ name: extra.name, price: Number(extra.price ?? 0) });
+    }
+    return items;
+  }, [pendingCharge, pendingChargeExtraItems]);
+
+  // When pendingCharge arrives and services are loaded, inject every
+  // pending line item into the cart (matched catalog ID, or synthetic).
   React.useEffect(() => {
     if (
       !pendingCharge ||
       pendingInjectedRef.current ||
-      data.services.length === 0
+      data.services.length === 0 ||
+      pendingLineItems.length === 0
     )
       return;
 
-    // Try to match by name (case-insensitive)
-    const match = data.services.find(
-      (s) =>
-        s.name.toLowerCase() ===
-        (pendingCharge.service_name ?? "").toLowerCase(),
-    );
-
-    if (match) {
-      setCart({ [match.id]: 1 });
-      pendingInjectedRef.current = true;
-    } else if (pendingCharge.service_name && syntheticServiceId) {
-      setCart({ [syntheticServiceId]: 1 });
+    const nextCart: Record<string, number> = {};
+    pendingLineItems.forEach((item, index) => {
+      const match = data.services.find(
+        (s) => s.name.toLowerCase() === item.name.toLowerCase(),
+      );
+      const id = match?.id ?? (syntheticServiceId ? `${syntheticServiceId}__${index}` : null);
+      if (id) nextCart[id] = (nextCart[id] ?? 0) + 1;
+    });
+    if (Object.keys(nextCart).length > 0) {
+      setCart(nextCart);
       pendingInjectedRef.current = true;
     }
-  }, [pendingCharge, data.services, syntheticServiceId]);
+  }, [pendingCharge, data.services, syntheticServiceId, pendingLineItems]);
 
   // If the service from pending is NOT in the catalogue we still need to show it in the cart.
   // We build a synthetic catalogue entry and inject it.
@@ -7659,42 +7703,28 @@ export function NuevaVentaTab({
   }, [data.services, data.employeeServiceOverrides, employeeId]);
 
   const servicesWithSynthetic = React.useMemo(() => {
-    if (!pendingCharge || !syntheticServiceId) return servicesForEmployee;
-    const alreadyMatched = servicesForEmployee.some(
-      (s) =>
-        s.name.toLowerCase() ===
-        (pendingCharge.service_name ?? "").toLowerCase(),
-    );
-    if (alreadyMatched) return servicesForEmployee;
-    // Inject a synthetic read-only service
-    const synthetic = {
-      id: syntheticServiceId,
-      name: pendingCharge.service_name ?? "Servicio",
-      price: Number(pendingCharge.service_price ?? 0),
-      category: "Servicios",
-      is_catalog: false,
-      stock: null,
-      image_url: (pendingCharge as any).image_url ?? (pendingCharge as any).service_image_url ?? null,
-    } as (typeof data.services)[0];
-    return [synthetic, ...servicesForEmployee];
-  }, [servicesForEmployee, pendingCharge, syntheticServiceId]);
-
-  // Inject synthetic into cart once services resolve
-  React.useEffect(() => {
-    if (!pendingCharge || !syntheticServiceId || pendingInjectedRef.current)
-      return;
-    if (data.services.length === 0) return; // wait for load
-
-    const alreadyMatched = data.services.some(
-      (s) =>
-        s.name.toLowerCase() ===
-        (pendingCharge.service_name ?? "").toLowerCase(),
-    );
-    if (!alreadyMatched) {
-      setCart({ [syntheticServiceId]: 1 });
-    }
-    pendingInjectedRef.current = true;
-  }, [pendingCharge, syntheticServiceId, data.services]);
+    if (!pendingCharge || !syntheticServiceId || pendingLineItems.length === 0) return servicesForEmployee;
+    // Una entrada sintética por cada ítem pendiente que NO matchea un
+    // servicio/producto real del catálogo (antes: como mucho una sola).
+    const synthetics = pendingLineItems
+      .map((item, index) => {
+        const alreadyMatched = servicesForEmployee.some(
+          (s) => s.name.toLowerCase() === item.name.toLowerCase(),
+        );
+        if (alreadyMatched) return null;
+        return {
+          id: `${syntheticServiceId}__${index}`,
+          name: item.name,
+          price: item.price,
+          category: "Servicios",
+          is_catalog: false,
+          stock: null,
+          image_url: null,
+        } as (typeof data.services)[0];
+      })
+      .filter((s): s is (typeof data.services)[0] => s !== null);
+    return synthetics.length > 0 ? [...synthetics, ...servicesForEmployee] : servicesForEmployee;
+  }, [servicesForEmployee, pendingCharge, syntheticServiceId, pendingLineItems]);
 
   // Build categories: services first, then catalog categories (no "Todos")
   const categories = React.useMemo(() => {
@@ -7901,31 +7931,37 @@ export function NuevaVentaTab({
       return;
     }
 
-    if (paymentMode === "simple") {
-      if (method === "cash") {
-        if (!received.trim() || Number(received) <= 0) {
-          toast.error("Ingresá el monto abonado.");
+    // turnoChargeMode="manual": no cobra ahora, envía a Caja para que
+    // recepción confirme el cobro después — no tiene sentido pedir monto
+    // abonado / distribución de pago múltiple para algo que todavía no se
+    // está cobrando.
+    if (turnoChargeMode !== "manual") {
+      if (paymentMode === "simple") {
+        if (method === "cash") {
+          if (!received.trim() || Number(received) <= 0) {
+            toast.error("Ingresá el monto abonado.");
+            return;
+          }
+          if (Number(received) < total) {
+            toast.error(
+              `El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${total.toLocaleString("es-AR")}).`,
+            );
+            return;
+          }
+        }
+      }
+
+      if (paymentMode === "multiple") {
+        if (splits.filter((s) => Number(s.amount) > 0).length < 1) {
+          toast.error("Cargá al menos un monto en pago múltiple.");
           return;
         }
-        if (Number(received) < total) {
+        if (Math.round(splitsTotal) !== Math.round(total)) {
           toast.error(
-            `El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${total.toLocaleString("es-AR")}).`,
+            `El pago múltiple debe sumar $${total.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`,
           );
           return;
         }
-      }
-    }
-
-    if (paymentMode === "multiple") {
-      if (splits.filter((s) => Number(s.amount) > 0).length < 1) {
-        toast.error("Cargá al menos un monto en pago múltiple.");
-        return;
-      }
-      if (Math.round(splitsTotal) !== Math.round(total)) {
-        toast.error(
-          `El pago múltiple debe sumar $${total.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`,
-        );
-        return;
       }
     }
 
@@ -7954,12 +7990,55 @@ export function NuevaVentaTab({
               }))
           : undefined;
 
+      if (pendingCharge && turnoChargeMode === "manual") {
+        // ── Cobrar turno (modo manual) ── no se cobra ahora: se envía a
+        // Caja para que recepción lo confirme después. Mismo marcador
+        // interno "[PENDIENTE_CAJA]" que usaba el CobroModal viejo, para
+        // que el resto del sistema (Caja → Pendientes) lo reconozca igual.
+        const cleanNote = getCashRowNote(pendingCharge, pendingCharge.service_name);
+        const itemsStr = items
+          .map((i) => `${i.serviceName} $${Math.round(i.amount).toLocaleString("es-AR")}`)
+          .join(", ");
+        const noteParts = [cleanNote, itemsStr].filter(Boolean).join(" | ");
+        const nextNotes = noteParts ? `[PENDIENTE_CAJA] ${noteParts}` : "[PENDIENTE_CAJA]";
+
+        // .select("id") + chequeo de filas afectadas: si el turno ya fue
+        // cobrado/cancelado/enviado por otra acción mientras este modal
+        // estaba abierto (doble tap, otra pestaña), el .in("status", ...)
+        // no matchea ninguna fila — sin este chequeo, Supabase no tira
+        // error igual y el código seguía de largo, pudiendo duplicar el
+        // envío a Caja del mismo turno.
+        const { data: sentRows, error: sendError } = await supabase
+          .from("appointments")
+          .update({ status: "pending_payment", notes: nextNotes })
+          .eq("id", pendingCharge.id)
+          .in("status", ["pending", "confirmed", "in_service"])
+          .select("id");
+        if (sendError) throw sendError;
+        if (!sentRows || sentRows.length === 0) {
+          toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
+          return;
+        }
+
+        await onManualSend?.({
+          total,
+          items: items.map((i) => ({ serviceName: i.serviceName, amount: i.amount })),
+        });
+
+        toast.success("✓ Enviado a Caja");
+        return;
+      }
+
       if (pendingCharge) {
         const professionalNote = getCashRowNote(pendingCharge, pendingCharge.service_name);
 
         // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
-        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno
-        const { error: updateError } = await supabase
+        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno.
+        //    .select("id") + chequeo de filas: si ya estaba cobrado (o
+        //    cancelado) por otra acción mientras el modal seguía abierto,
+        //    el .in("status", ...) no matchea nada — sin este chequeo se
+        //    seguía de largo igual y se registraba un pago duplicado.
+        const { data: chargedRows, error: updateError } = await supabase
           .from("appointments")
           .update({ status: "charged", notes: professionalNote || null })
           .eq("id", pendingCharge.id)
@@ -7968,9 +8047,14 @@ export function NuevaVentaTab({
             "pending",
             "confirmed",
             "in_service",
-          ]);
+          ])
+          .select("id");
 
         if (updateError) throw updateError;
+        if (!chargedRows || chargedRows.length === 0) {
+          toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
+          return;
+        }
 
         // 2. Registrar el pago vinculado al appointment existente
         await registerPayment({
