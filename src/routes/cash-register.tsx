@@ -8152,7 +8152,16 @@ export function NuevaVentaTab({
                           que no tenía sentido para el profesional. */}
                       {lockedEmployeeId ? s.label : `${s.n} · ${s.label}`}
                     </span>
-                    <span className={cn("mt-0.5 block truncate text-[10px] font-medium", active ? "text-white/75" : "text-white/40")}>
+                    {/* Hint ("Agregá servicios", "Confirmá cobro", etc.):
+                        oculto en mobile, no solo por espacio — con 3 pasos
+                        angostos y sin ícono, esa segunda línea competía
+                        con el label por ser lo primero que se lee y
+                        rompía la idea de "Cliente / Servicios / Pago"
+                        como tres botones parejos. hidden = display:none,
+                        no reserva alto: los tres quedan con el mismo
+                        alto real. Desktop (más aire, 4 columnas con
+                        ícono) lo conserva. */}
+                    <span className={cn("mt-0.5 hidden truncate text-[10px] font-medium sm:block", active ? "text-white/75" : "text-white/40")}>
                       {s.hint}
                     </span>
                   </span>
@@ -8462,67 +8471,73 @@ export function NuevaVentaTab({
                 return (
                   <Card
                     key={it.id}
-                    className={cn("p-4 space-y-3 rounded-2xl border-white/[0.07] bg-[linear-gradient(145deg,rgba(8,11,20,0.94),rgba(5,8,15,0.96),rgba(2,4,12,0.98))] shadow-[0_20px_60px_-36px_rgba(0,0,0,1)] hover:-translate-y-0.5 hover:border-blue-300/24 hover:shadow-[0_26px_72px_-36px_rgba(0,0,0,1),0_0_28px_rgba(96,165,250,0.10)] transition-all duration-200", qty > 0 && "border-blue-300/35 bg-[linear-gradient(145deg,rgba(30,64,175,0.20),rgba(8,11,20,0.95),rgba(2,4,12,0.98))] shadow-[0_0_28px_rgba(96,165,250,0.14),0_20px_60px_-36px_rgba(0,0,0,1)]", noStock && "opacity-50")}
+                    // p-2.5 (mobile) vs p-4 (md+): en mobile la tarjeta es
+                    // una sola fila (imagen / nombre+categoría / contador+
+                    // precio apilados a la derecha) en vez de las dos filas
+                    // de antes (imagen+nombre+precio arriba, stock+contador
+                    // abajo) — bajarle el padding y sacar la fila extra es
+                    // lo que realmente la hace más fina y baja, no achicar
+                    // el contador (ver más abajo, mismo tamaño de botón).
+                    className={cn("p-2.5 rounded-2xl border-white/[0.07] bg-[linear-gradient(145deg,rgba(8,11,20,0.94),rgba(5,8,15,0.96),rgba(2,4,12,0.98))] shadow-[0_20px_60px_-36px_rgba(0,0,0,1)] hover:-translate-y-0.5 hover:border-blue-300/24 hover:shadow-[0_26px_72px_-36px_rgba(0,0,0,1),0_0_28px_rgba(96,165,250,0.10)] transition-all duration-200 md:p-4", qty > 0 && "border-blue-300/35 bg-[linear-gradient(145deg,rgba(30,64,175,0.20),rgba(8,11,20,0.95),rgba(2,4,12,0.98))] shadow-[0_0_28px_rgba(96,165,250,0.14),0_20px_60px_-36px_rgba(0,0,0,1)]", noStock && "opacity-50")}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <ServiceImage
-                          src={imageSrc}
-                          alt={it.name ?? "Ítem"}
-                          position={it.image_position}
-                          className="size-11 rounded-xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(96,165,250,0.10),rgba(139,92,246,0.10))] text-lg text-blue-100 shadow-[0_0_22px_rgba(96,165,250,0.10)]"
-                          fallback={<span>{it.is_catalog ? "□" : "✂"}</span>}
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">
-                            {it.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground capitalize">
-                            {it.category ?? "ítem"}
-                            {it.duration ? ` · ${it.duration} min` : ""}
-                            {noStock && (
-                              <span className="ml-2 text-rose-300">
-                                Sin stock
-                              </span>
-                            )}
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <ServiceImage
+                        src={imageSrc}
+                        alt={it.name ?? "Ítem"}
+                        position={it.image_position}
+                        className="size-10 shrink-0 rounded-xl border border-white/[0.08] bg-[linear-gradient(135deg,rgba(96,165,250,0.10),rgba(139,92,246,0.10))] text-lg text-blue-100 shadow-[0_0_22px_rgba(96,165,250,0.10)] md:size-11"
+                        fallback={<span>{it.is_catalog ? "□" : "✂"}</span>}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {it.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground capitalize truncate">
+                          {it.category ?? "ítem"}
+                          {it.duration ? ` · ${it.duration} min` : ""}
+                          {it.is_catalog && typeof it.stock === "number" && (
+                            noStock ? (
+                              <span className="text-rose-300"> · Sin stock</span>
+                            ) : (
+                              ` · Stock ${it.stock}`
+                            )
+                          )}
+                        </p>
                       </div>
-                      <span className="shrink-0 text-sm font-semibold text-foreground tabular-nums">
-                        ${Number(it.price).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      {it.is_catalog && typeof it.stock === "number" ? (
-                        <span className="text-[11px] text-muted-foreground">
-                          Stock {it.stock}
+                      {/* Contador arriba, precio debajo — mismo bloque a la
+                          derecha, apilado (antes: precio arriba junto al
+                          nombre, contador abajo en su propia fila). Los
+                          botones −/+ quedan exactamente del mismo tamaño
+                          (size-8 = 32px) que antes: lo que se compacta es
+                          el espacio alrededor, no el área táctil. */}
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="flex items-center gap-1 rounded-xl border border-white/[0.10] bg-black/35 p-1 shadow-[0_1px_0_rgba(255,255,255,0.05)_inset]">
+                          <button
+                            onClick={() => sub(it.id)}
+                            disabled={noStock && qty === 0}
+                            className="size-8 grid place-items-center rounded-lg hover:bg-white/8 text-muted-foreground hover:text-foreground"
+                          >
+                            <Minus className="size-3.5" />
+                          </button>
+                          <span className="w-6 text-center text-sm tabular-nums">
+                            {qty}
+                          </span>
+                          <button
+                            onClick={() => add(it.id)}
+                            disabled={
+                              noStock ||
+                              (it.is_catalog &&
+                                typeof it.stock === "number" &&
+                                qty >= it.stock)
+                            }
+                            className="size-8 grid place-items-center rounded-lg hover:bg-white/8 text-foreground disabled:opacity-40"
+                          >
+                            <Plus className="size-3.5" />
+                          </button>
+                        </div>
+                        <span className="text-sm font-semibold text-foreground tabular-nums">
+                          ${Number(it.price).toLocaleString("es-AR")}
                         </span>
-                      ) : (
-                        <span />
-                      )}
-                      <div className="flex items-center gap-1 rounded-xl border border-white/[0.10] bg-black/35 p-1 shadow-[0_1px_0_rgba(255,255,255,0.05)_inset]">
-                        <button
-                          onClick={() => sub(it.id)}
-                          disabled={noStock && qty === 0}
-                          className="size-8 grid place-items-center rounded-lg hover:bg-white/8 text-muted-foreground hover:text-foreground"
-                        >
-                          <Minus className="size-3.5" />
-                        </button>
-                        <span className="w-8 text-center text-sm tabular-nums">
-                          {qty}
-                        </span>
-                        <button
-                          onClick={() => add(it.id)}
-                          disabled={
-                            noStock ||
-                            (it.is_catalog &&
-                              typeof it.stock === "number" &&
-                              qty >= it.stock)
-                          }
-                          className="size-8 grid place-items-center rounded-lg hover:bg-white/8 text-foreground disabled:opacity-40"
-                        >
-                          <Plus className="size-3.5" />
-                        </button>
                       </div>
                     </div>
                   </Card>
