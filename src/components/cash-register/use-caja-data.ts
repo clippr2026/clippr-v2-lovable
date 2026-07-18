@@ -350,8 +350,32 @@ export function useCajaData() {
       status: "pending_payment",
     }));
 
+    // Settings (schedule se parsea acá arriba porque también trae las
+    // ventas de mostrador enviadas sin turno — ver pendingFromWalkIn).
+    const bsSchedule: Record<string, unknown> =
+      bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data
+        ? ((bsRes.value.data.schedule ?? {}) as Record<string, unknown>)
+        : {};
+
+    // Venta de mostrador enviada a Caja en modo "Enviar" sin partir de un
+    // turno: no existe un appointment de por medio (no debe ocuparse un
+    // horario en la agenda), así que se guarda acá, en el mismo JSONB de
+    // settings que ya usan _employeeServiceOverrides/_catalogImages.
+    const pendingFromWalkIn: PendingCharge[] = (
+      Array.isArray(bsSchedule._pendingWalkInSales) ? (bsSchedule._pendingWalkInSales as Array<Record<string, unknown>>) : []
+    ).map((w) => ({
+      id: String(w.id ?? ""),
+      client_name: (w.client_name as string | null) ?? null,
+      service_name: (w.service_name as string | null) ?? null,
+      service_price: (w.service_price as number | null) ?? null,
+      employee_id: (w.employee_id as string | null) ?? null,
+      starts_at: String(w.starts_at ?? new Date().toISOString()),
+      notes: null,
+      status: "pending",
+    })).filter((w) => w.id);
+
     const pendingMap = new Map<string, PendingCharge>();
-    [...pendingFromLocal, ...pendingFromDb].forEach((item) => pendingMap.set(item.id, item));
+    [...pendingFromLocal, ...pendingFromDb, ...pendingFromWalkIn].forEach((item) => pendingMap.set(item.id, item));
     const allPending = Array.from(pendingMap.values());
 
     setPendingCharges(allPending);
@@ -363,11 +387,10 @@ export function useCajaData() {
       const row = bsRes.value.data;
       const mode = row.approval_mode;
       setApprovalModeState(mode === "manual" ? "manual" : "auto");
-      const schedule = (row.schedule ?? {}) as Record<string, unknown>;
-      const caja = (schedule._caja ?? {}) as Record<string, unknown>;
+      const caja = (bsSchedule._caja ?? {}) as Record<string, unknown>;
       setApprovalModeEnabled(caja.approvalModeEnabled === true);
       setEmployeeServiceOverrides(
-        (schedule._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
+        (bsSchedule._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
       );
       if (caja.methods && typeof caja.methods === "object") {
         const m = caja.methods as Record<string, boolean>;
@@ -401,6 +424,29 @@ export function useCajaData() {
     window.addEventListener("clippr:caja-settings-updated", refresh);
     return () => window.removeEventListener("clippr:caja-settings-updated", refresh);
   }, [load]);
+
+  // Realtime: la cola de Pendientes depende de otro dispositivo (el
+  // profesional envía desde su celular, Caja mira desde otro aparato) — sin
+  // esto, Caja solo se enteraba de un envío nuevo si recargaba la página a
+  // mano, porque el resto de los listeners de acá arriba son solo
+  // same-tab/same-browser (CustomEvent, storage).
+  React.useEffect(() => {
+    if (!businessId) return;
+    const channel = supabase
+      .channel(`caja-pendientes-${businessId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` },
+        () => load(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` },
+        () => load(),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [businessId, load]);
 
   // Auto-close at midnight if session is still open
   React.useEffect(() => {

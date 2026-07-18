@@ -51,10 +51,14 @@ import {
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { resolveServicePricing } from "@/lib/service-pricing";
-import { saveAppointment } from "@/components/agenda/use-agenda-data";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
+// Marca al inicio de payments.observations para guardar el historial
+// "Envió a caja" / "Cobró" de una venta de mostrador sin turno — no hay
+// appointment al que asociar appointments.cobro_events en ese caso, así que
+// se usa esta columna de texto libre (ya probada, sin columnas nuevas).
+const PAY_HIST_MARKER = "[[HIST]]";
 
 type HistorialEvento = {
   time: string;
@@ -8069,51 +8073,122 @@ export function NuevaVentaTab({
 
       if (!pendingCharge && turnoChargeMode === "manual") {
         // ── Venta de mostrador en modo "Enviar" (botón del panel, sin
-        // partir de un turno) ── no hay turno previo, así que se crea un
-        // appointment nuevo para que exista un registro real en Supabase:
-        // guardarlo solo en localStorage lo hacía invisible para Caja en
-        // cualquier dispositivo que no sea el del profesional (el bug
-        // reportado — "dice Enviado pero no aparece en Caja"). duration_min:
-        // 0 a propósito — dos horarios de duración cero nunca se solapan
-        // (rango vacío), así que esta fila jamás choca contra la exclusion
-        // constraint de turnos superpuestos del mismo profesional, sin
-        // importar qué otro turno real tenga encima a esta hora. status:
-        // "pending" (válido) — igual que con un turno, nunca se toca para
-        // marcarlo "enviado": esa señal vive solo en las notas.
+        // partir de un turno) ── NO debe crear ni ocupar un turno: un
+        // intento anterior creaba un appointment (aun con duración 0) y
+        // terminaba apareciendo en la agenda del profesional, superpuesto
+        // con turnos reales — lo cual está mal, no es un turno. En cambio
+        // se guarda en business_settings.schedule._pendingWalkInSales
+        // (mismo JSONB que ya usan _employeeServiceOverrides/_catalogImages
+        // en este mismo archivo de settings — columna ya probada, sin
+        // arriesgar un valor de status no soportado como pasó con
+        // appointments.status = "pending_payment"). Es visible desde
+        // cualquier dispositivo porque se persiste en Supabase, no en
+        // localStorage.
         const clientNameFinal = client.trim() || "Cliente del mostrador";
-        const itemsStr = items
-          .map((i) => `${i.serviceName} $${Math.round(i.amount).toLocaleString("es-AR")}`)
-          .join(", ");
-
-        const created = await saveAppointment({
-          business_id: data.businessId,
-          client_id: savedClientId?.startsWith?.("__pending_client__") ? null : savedClientId,
-          client_name: clientNameFinal,
-          employee_id: employeeId || null,
-          service_name: serviceSummary,
-          service_price: total,
-          starts_at: new Date().toISOString(),
-          duration_min: 0,
-          status: "pending",
-          notes: `[PENDIENTE_CAJA] ${itemsStr}`,
-          created_by_name: chargedByName || chargedByUsername(userEmail),
-          created_by_role: "profesional",
-        });
-        if (!created?.id) {
-          throw new Error("No se pudo crear la venta pendiente.");
-        }
-
-        await appendHistorialCobro(created.id, {
+        const walkInId = `walkin-${crypto.randomUUID()}`;
+        const sendEvent = {
           time: new Date().toTimeString().slice(0, 5),
           user: chargedByName || chargedByUsername(userEmail),
           action: "Envió a caja",
-        });
+        };
+
+        const { data: existingRow, error: readError } = await supabase
+          .from("business_settings")
+          .select("schedule")
+          .eq("business_id", data.businessId)
+          .maybeSingle();
+        if (readError) throw readError;
+
+        const schedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+        const currentPending = Array.isArray((schedule as Record<string, unknown>)._pendingWalkInSales)
+          ? ((schedule as Record<string, unknown>)._pendingWalkInSales as unknown[])
+          : [];
+        const newSale = {
+          id: walkInId,
+          employee_id: employeeId || null,
+          client_name: clientNameFinal,
+          service_name: serviceSummary,
+          service_price: total,
+          starts_at: new Date().toISOString(),
+          events: [sendEvent],
+        };
+        const { error: writeError } = await supabase
+          .from("business_settings")
+          .upsert(
+            { business_id: data.businessId, schedule: { ...schedule, _pendingWalkInSales: [...currentPending, newSale] } },
+            { onConflict: "business_id" },
+          );
+        if (writeError) throw writeError;
 
         toast.success("✓ Enviado a Caja");
         await onManualSend?.({
           total,
           items: items.map((i) => ({ serviceName: i.serviceName, amount: i.amount })),
         });
+        return;
+      }
+
+      if (pendingCharge && pendingCharge.id.startsWith("walkin-")) {
+        // ── Confirmar cobro de una venta de mostrador enviada sin turno ──
+        // No hay appointment que actualizar: se registra el pago suelto y
+        // se saca la entrada de business_settings.schedule._pendingWalkInSales.
+        const { data: existingRow, error: readError } = await supabase
+          .from("business_settings")
+          .select("schedule")
+          .eq("business_id", data.businessId)
+          .maybeSingle();
+        if (readError) throw readError;
+
+        const schedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+        const currentPending = Array.isArray((schedule as Record<string, unknown>)._pendingWalkInSales)
+          ? ((schedule as Record<string, unknown>)._pendingWalkInSales as Array<{ id: string; events?: HistorialEvento[] }>)
+          : [];
+        const thisSale = currentPending.find((s) => s.id === pendingCharge.id);
+        if (!thisSale) {
+          toast.error("Esta venta ya fue cobrada o actualizada — recargá la caja.");
+          return;
+        }
+
+        const now = new Date();
+        const hhmm = now.toTimeString().slice(0, 5);
+        // Traspasar "Envió a caja" + agregar "Cobró" al mismo historial —
+        // se guardan juntos en payments.observations (columna de texto
+        // libre ya usada, sin riesgo de constraint) porque no hay
+        // appointment.cobro_events al que asociarlos.
+        const fullHist: HistorialEvento[] = [
+          ...(thisSale.events ?? []),
+          { time: hhmm, user: chargedByName || chargedByUsername(userEmail), action: "Cobró" },
+        ];
+
+        await registerPayment({
+          businessId: data.businessId,
+          employeeId: employeeId || null,
+          employeeName: selectedEmployee?.name ?? null,
+          commissionPct: selectedEmployee?.commission_pct ?? null,
+          clientName: client.trim() || pendingCharge.client_name || "Cliente del mostrador",
+          clientId: savedClientId?.startsWith?.("__pending_client__") ? null : savedClientId,
+          items,
+          method,
+          splits: validSplits,
+          appointmentId: null,
+          sessionId: data.cashSessionId,
+          chargedBy: data.profileId,
+          chargeOrigin: "manual",
+          notes: `${PAY_HIST_MARKER}${JSON.stringify(fullHist)}`,
+        });
+
+        const { error: removeError } = await supabase
+          .from("business_settings")
+          .upsert(
+            { business_id: data.businessId, schedule: { ...schedule, _pendingWalkInSales: currentPending.filter((s) => s.id !== pendingCharge.id) } },
+            { onConflict: "business_id" },
+          );
+        if (removeError) throw removeError;
+
+        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        onPendingDone?.();
+        await data.refresh();
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
         return;
       }
 

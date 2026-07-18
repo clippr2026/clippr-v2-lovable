@@ -110,6 +110,21 @@ function getPresetRange(range: Exclude<RangeKey, "custom">) {
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
+// Ventas de mostrador enviadas sin turno (botón "Enviar" del panel, sin
+// appointment de por medio) guardan su historial "Envió a caja"/"Cobró"
+// directo en payments.observations, con este marcador al principio —
+// mismo mecanismo/constante que usa cash-register.tsx al escribirlo.
+const PAY_HIST_MARKER = "[[HIST]]";
+function decodePayHistNotes(observations: string | null | undefined): { time: string; user: string; action: string }[] {
+  const raw = String(observations ?? "");
+  if (!raw.startsWith(PAY_HIST_MARKER)) return [];
+  try {
+    return JSON.parse(raw.slice(PAY_HIST_MARKER.length));
+  } catch {
+    return [];
+  }
+}
+
 type ManualPendingCharge = {
   id: string;
   business_id: string;
@@ -2271,6 +2286,11 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     // Transferencia). Sin importes acá a propósito: eso es para el detalle
     // de la venta, no para este listado.
     methods: string[];
+    // Historial completo (Envió a caja / Cobró), en orden cronológico —
+    // para turnos sale de appointments.cobro_events (readHistorialCobro);
+    // para ventas directas sin turno, del marcador en payments.observations
+    // (no hay appointment al que asociar cobro_events en ese caso).
+    histEvents: { time: string; user: string; action: string }[];
   }[]>([]);
   const [enrichLoading, setEnrichLoading] = React.useState(false);
 
@@ -2312,7 +2332,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       let paymentsError: { code?: string; message: string } | null;
       ({ data: payments, error: paymentsError } = await supabase
         .from("payments")
-        .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,splits,created_at")
+        .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,splits,observations,created_at")
         .eq("business_id", businessId)
         .eq("employee_id", empId)
         .gte("created_at", fromDate.toISOString())
@@ -2320,7 +2340,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       if (paymentsError?.code === "42703") {
         ({ data: payments } = await supabase
           .from("payments")
-          .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,created_at")
+          .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,observations,created_at")
           .eq("business_id", businessId)
           .eq("employee_id", empId)
           .gte("created_at", fromDate.toISOString())
@@ -2365,6 +2385,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           commission: 0,
           sourceType: "turno",
           methods: pay ? methodsOf(pay) : [],
+          histEvents: readHistorialCobro(t.id),
         });
       }
 
@@ -2383,6 +2404,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           commission: 0,
           sourceType: "venta-directa",
           methods: methodsOf(p),
+          histEvents: decodePayHistNotes(p.observations),
         });
       }
 
@@ -2415,18 +2437,11 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
       .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
       .replace(".", "");
-    // Un solo evento relevante (Cobró > Envió a caja) en el mismo formato
-    // "HH:MM Nombre → Acción" que ya tenía Mi Agenda — misma posición de
-    // siempre (donde antes decía "Cobrado por X"), sin moverla.
-    const historialEvents = readHistorialCobro(row.id);
-    const attributionEvent =
-      historialEvents.find((e) => e.action === "Cobró") ??
-      historialEvents.find((e) => e.action === "Envió a caja") ??
-      null;
-    const actionColor =
-      attributionEvent?.action === "Envió a caja" ? "text-sky-300" :
-      attributionEvent?.action === "Cobró" ? "text-emerald-300" :
-      "text-muted-foreground";
+    // Todos los eventos (Envió a caja / Cobró), uno debajo del otro en
+    // orden cronológico — mismo formato "HH:MM Nombre → Acción" que ya
+    // tenía Mi Agenda, misma posición de siempre (donde antes decía
+    // "Cobrado por X"), sin moverla.
+    const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
     return (
       <div key={row.id} className="glass rounded-2xl p-3">
         <div className="flex items-start justify-between gap-2">
@@ -2445,12 +2460,16 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
             queden pegados, un solo bloque — sin tocar la separación hacia
             la línea de atribución de abajo (mt-1.5, igual que antes). */}
         <div className="mt-0 line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
-        {attributionEvent && (
-          <div className="mt-1.5 flex items-baseline gap-1.5 border-t border-white/5 pt-1.5 leading-none">
-            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{attributionEvent.time}</span>
-            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{attributionEvent.user}</span>
-            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-            <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{attributionEvent.action}</span>
+        {historialEvents.length > 0 && (
+          <div className="mt-1.5 space-y-0.5 border-t border-white/5 pt-1.5">
+            {historialEvents.map((ev, i) => (
+              <div key={i} className="flex items-baseline gap-1.5 leading-none">
+                <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : "text-muted-foreground")}>{ev.action}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -2490,15 +2509,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                   .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
                   .replace(".", "");
 
-                const historialEvents = readHistorialCobro(row.id);
-                const attributionEvent =
-                  historialEvents.find((e) => e.action === "Cobró") ??
-                  historialEvents.find((e) => e.action === "Envió a caja") ??
-                  null;
-                const actionColor =
-                  attributionEvent?.action === "Envió a caja" ? "text-sky-300" :
-                  attributionEvent?.action === "Cobró" ? "text-emerald-300" :
-                  "text-muted-foreground";
+                const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
 
                 return (
                   <div
@@ -2521,16 +2532,20 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                         <div className="text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs">Comisión ${row.commission.toLocaleString("es-AR")}</div>
                       </div>
                     </div>
-                    {/* Línea inferior: mismo lugar y formato que ya tenía Mi
-                        Agenda (hora, nombre, flecha, acción con color) — no
-                        se mueve de acá, solo se reemplaza el texto que
-                        había ("Cobrado por X"). */}
-                    {attributionEvent && (
-                      <div className="mt-1.5 flex items-baseline justify-end gap-1.5 leading-none">
-                        <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{attributionEvent.time}</span>
-                        <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{attributionEvent.user}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                        <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{attributionEvent.action}</span>
+                    {/* Línea(s) inferior(es): mismo lugar y formato que ya
+                        tenía Mi Agenda (hora, nombre, flecha, acción con
+                        color) — Envió a caja y Cobró, una debajo de la
+                        otra en orden cronológico cuando hay ambas. */}
+                    {historialEvents.length > 0 && (
+                      <div className="mt-1.5 space-y-0.5">
+                        {historialEvents.map((ev, idx) => (
+                          <div key={idx} className="flex items-baseline justify-end gap-1.5 leading-none">
+                            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
+                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
+                            <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : "text-muted-foreground")}>{ev.action}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
