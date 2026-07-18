@@ -239,7 +239,12 @@ export function useCajaData() {
   const hasLoadedRef = React.useRef(false);
   const loadedBusinessIdRef = React.useRef<string | null>(null);
 
-  const load = React.useCallback(async () => {
+  // TEMPORAL — logging para encontrar qué dispara cada load() en
+  // producción (pedido explícito: identificar la causa exacta antes de
+  // tocar nada más). Sacar una vez confirmado cuál es el disparador real.
+  const load = React.useCallback(async (reason: string = "unknown") => {
+    // eslint-disable-next-line no-console
+    console.log(`[Caja refresh] ${reason} @ ${new Date().toISOString()}`);
     if (!businessId) { setLoading(false); return; }
     if (loadedBusinessIdRef.current !== businessId) {
       loadedBusinessIdRef.current = businessId;
@@ -492,20 +497,21 @@ export function useCajaData() {
     setLoading(false);
   }, [businessId]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => { load("component mount / businessId cambió"); }, [load]);
 
   React.useEffect(() => {
-    const refreshPending = () => load();
-    window.addEventListener("clippr:manual-pending-updated", refreshPending);
-    window.addEventListener("storage", refreshPending);
+    const onManualPending = () => load("custom event: clippr:manual-pending-updated");
+    const onStorage = () => load("custom event: storage");
+    window.addEventListener("clippr:manual-pending-updated", onManualPending);
+    window.addEventListener("storage", onStorage);
     return () => {
-      window.removeEventListener("clippr:manual-pending-updated", refreshPending);
-      window.removeEventListener("storage", refreshPending);
+      window.removeEventListener("clippr:manual-pending-updated", onManualPending);
+      window.removeEventListener("storage", onStorage);
     };
   }, [load]);
 
   React.useEffect(() => {
-    const refresh = () => load();
+    const refresh = () => load("custom event: clippr:caja-settings-updated");
     window.addEventListener("clippr:caja-settings-updated", refresh);
     return () => window.removeEventListener("clippr:caja-settings-updated", refresh);
   }, [load]);
@@ -515,7 +521,7 @@ export function useCajaData() {
   React.useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
     const bc = new BroadcastChannel(CAJA_BROADCAST_CHANNEL);
-    bc.onmessage = () => load();
+    bc.onmessage = () => load("BroadcastChannel (otra pestaña)");
     return () => bc.close();
   }, [load]);
 
@@ -531,14 +537,17 @@ export function useCajaData() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` },
-        () => load(),
+        (payload) => load(`realtime appointments ${payload.eventType} id=${(payload.new as { id?: string } | null)?.id ?? (payload.old as { id?: string } | null)?.id ?? "?"}`),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` },
-        () => load(),
+        (payload) => load(`realtime business_settings ${payload.eventType}`),
       )
-      .subscribe();
+      .subscribe((status) => {
+        // eslint-disable-next-line no-console
+        console.log(`[Caja refresh] canal realtime status: ${status}`);
+      });
     return () => { supabase.removeChannel(channel); };
   }, [businessId, load]);
 
@@ -631,6 +640,6 @@ export function useCajaData() {
     revHoy, cobros, ticket, totalGastos,
     pendingCount, pendingAmount, pendingCharges,
     employeeServiceOverrides,
-    refresh: load,
+    refresh: (reason?: string) => load(reason ?? "manual refresh() call"),
   };
 }
