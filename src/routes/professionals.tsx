@@ -27,6 +27,7 @@ import {
 } from "@/hooks/use-professionals-data";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
+import { resolveDaySchedule } from "@/lib/availability";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { useCajaData } from "@/components/cash-register/use-caja-data";
 import { NuevaVentaTab } from "@/routes/cash-register";
@@ -1001,6 +1002,25 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     () => agendaData.employees.filter((e) => e.id === empId),
     [agendaData.employees, empId],
   );
+
+  // Hora por defecto de "+ Nuevo turno": la hora de INICIO de la jornada
+  // laboral configurada para este profesional en `from` (prioridad especial
+  // del profesional → semanal del profesional → especial del negocio →
+  // semanal del negocio, misma resolución que usa Agenda/reserva online) —
+  // nunca un valor fijo. "09:00" solo queda como último recurso si el día
+  // no tiene horario configurado (nada que resolver).
+  const defaultTurnoStartsAt = React.useMemo(() => {
+    const day = resolveDaySchedule(
+      agendaData.schedule,
+      agendaData.employeeSchedules,
+      agendaData.businessSpecialDates,
+      agendaData.employeeSpecialDates,
+      empId,
+      agendaRangeStart,
+    );
+    const startTime = day?.enabled && day.start ? day.start : "09:00";
+    return new Date(`${from}T${startTime}:00`);
+  }, [agendaData.schedule, agendaData.employeeSchedules, agendaData.businessSpecialDates, agendaData.employeeSpecialDates, empId, agendaRangeStart, from]);
   const cajaData = useCajaData();
 
   React.useEffect(() => {
@@ -1598,7 +1618,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           onOpenChange={(open) => { if (!open) setAddTurnoOpen(false); }}
           appointment={null}
           defaultEmployeeId={empId}
-          defaultStartsAt={new Date(`${fromDate}T09:00:00`)}
+          defaultStartsAt={defaultTurnoStartsAt}
           employees={lockedEmployees}
           services={agendaData.services}
           clients={agendaData.clients}
