@@ -245,11 +245,19 @@ export function useCajaData() {
       // Clients are searched on demand in the cobro picker (server-side ILIKE),
       // so we no longer load every client here.
       Promise.resolve({ data: null, error: null }),
+      // "pending_payment" NUNCA es un valor válido de appointments.status —
+      // la restricción "appointments_status_check" de Supabase no lo admite
+      // (solo pending/confirmed/completed/cancelled/no_show/charged/blocked),
+      // así que filtrar por ese status acá dejaba esta consulta en cero
+      // filas SIEMPRE: ningún turno "enviado a caja" podía llegar a existir
+      // con ese status. El marcador "[PENDIENTE_CAJA]" en las notas es la
+      // única señal real de "enviado, todavía no cobrado".
       supabase
         .from("appointments")
         .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status")
         .eq("business_id", businessId)
-        .eq("status", "pending_payment")
+        .ilike("notes", "%[PENDIENTE_CAJA]%")
+        .not("status", "in", "(charged,cancelled,blocked)")
         .order("starts_at", { ascending: true }),
     ]);
 
@@ -321,11 +329,13 @@ export function useCajaData() {
     setPaymentsToday(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
     setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
 
-    // Pending charges
+    // Pending charges — el query ya filtra por el marcador en notas; este
+    // segundo chequeo es solo defensivo (por si algún día se relaja el
+    // .ilike/.not de la consulta).
     const pendingFromDb =
       pendingChargeRes.status === "fulfilled" && !pendingChargeRes.value.error
         ? ((pendingChargeRes.value.data ?? []) as PendingCharge[]).filter((a) =>
-            a.status === "pending_payment" || String(a.notes ?? "").includes("[PENDIENTE_CAJA]")
+            String(a.notes ?? "").includes("[PENDIENTE_CAJA]")
           )
         : [];
 

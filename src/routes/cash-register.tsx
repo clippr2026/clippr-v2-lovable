@@ -51,6 +51,7 @@ import {
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { resolveServicePricing } from "@/lib/service-pricing";
+import { saveAppointment } from "@/components/agenda/use-agenda-data";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -277,35 +278,6 @@ function removeLocalManualPendingCharge(id: string) {
       MANUAL_PENDING_KEY,
       JSON.stringify(rows.filter((item) => item.id !== id)),
     );
-    window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
-  } catch {
-    // ignore
-  }
-}
-
-// Venta de mostrador enviada a Caja en modo "Enviar" sin turno previo (botón
-// "Enviar" del panel, no desde una fila de Mi Agenda) — no hay un appointment
-// real de por medio, así que se guarda como pending charge puramente local.
-// La cola de Pendientes de Caja ya combina estos registros con turnos reales
-// enviados (ver use-caja-data.ts, pendingFromLocal), así que aparece ahí sin
-// necesitar UI nueva.
-function saveLocalManualPendingCharge(charge: {
-  id: string;
-  business_id: string;
-  employee_id: string | null;
-  client_name: string | null;
-  service_name: string | null;
-  service_price: number | null;
-  starts_at: string;
-  notes?: string | null;
-}) {
-  if (typeof window === "undefined") return;
-  try {
-    const rows = JSON.parse(
-      window.localStorage.getItem(MANUAL_PENDING_KEY) || "[]",
-    ) as Array<{ id: string }>;
-    const next = [charge, ...rows.filter((item) => item.id !== charge.id)];
-    window.localStorage.setItem(MANUAL_PENDING_KEY, JSON.stringify(next));
     window.dispatchEvent(new CustomEvent("clippr:manual-pending-updated"));
   } catch {
     // ignore
@@ -8045,6 +8017,16 @@ export function NuevaVentaTab({
         // Caja para que recepción lo confirme después. Mismo marcador
         // interno "[PENDIENTE_CAJA]" que usaba el CobroModal viejo, para
         // que el resto del sistema (Caja → Pendientes) lo reconozca igual.
+        //
+        // IMPORTANTE: nunca tocar appointments.status acá. La restricción
+        // "appointments_status_check" de Supabase no admite "pending_payment"
+        // (los valores válidos son pending/confirmed/completed/cancelled/
+        // no_show/charged/blocked) — escribirlo tiraba el update entero
+        // abajo (incluida la nota), así que el turno JAMÁS quedaba marcado
+        // como enviado en la base, solo en el caché local del dispositivo
+        // del profesional. Caja, en otro dispositivo, nunca lo veía. El
+        // marcador "[PENDIENTE_CAJA]" en las notas es la única fuente de
+        // verdad — no requiere ninguna columna nueva.
         const cleanNote = getCashRowNote(pendingCharge, pendingCharge.service_name);
         const itemsStr = items
           .map((i) => `${i.serviceName} $${Math.round(i.amount).toLocaleString("es-AR")}`)
@@ -8060,7 +8042,7 @@ export function NuevaVentaTab({
         // envío a Caja del mismo turno.
         const { data: sentRows, error: sendError } = await supabase
           .from("appointments")
-          .update({ status: "pending_payment", notes: nextNotes })
+          .update({ notes: nextNotes })
           .eq("id", pendingCharge.id)
           .in("status", ["pending", "confirmed", "in_service"])
           .select("id");
@@ -8069,6 +8051,12 @@ export function NuevaVentaTab({
           toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
           return;
         }
+
+        await appendHistorialCobro(pendingCharge.id, {
+          time: new Date().toTimeString().slice(0, 5),
+          user: chargedByName || chargedByUsername(userEmail),
+          action: "Envió a caja",
+        });
 
         await onManualSend?.({
           total,
@@ -8081,27 +8069,41 @@ export function NuevaVentaTab({
 
       if (!pendingCharge && turnoChargeMode === "manual") {
         // ── Venta de mostrador en modo "Enviar" (botón del panel, sin
-        // partir de un turno) ── no hay appointment real de por medio: se
-        // guarda como pending charge puramente local, que la cola de
-        // Pendientes de Caja ya combina con los turnos reales enviados.
-        const localId = `walkin-${crypto.randomUUID()}`;
+        // partir de un turno) ── no hay turno previo, así que se crea un
+        // appointment nuevo para que exista un registro real en Supabase:
+        // guardarlo solo en localStorage lo hacía invisible para Caja en
+        // cualquier dispositivo que no sea el del profesional (el bug
+        // reportado — "dice Enviado pero no aparece en Caja"). duration_min:
+        // 0 a propósito — dos horarios de duración cero nunca se solapan
+        // (rango vacío), así que esta fila jamás choca contra la exclusion
+        // constraint de turnos superpuestos del mismo profesional, sin
+        // importar qué otro turno real tenga encima a esta hora. status:
+        // "pending" (válido) — igual que con un turno, nunca se toca para
+        // marcarlo "enviado": esa señal vive solo en las notas.
         const clientNameFinal = client.trim() || "Cliente del mostrador";
         const itemsStr = items
           .map((i) => `${i.serviceName} $${Math.round(i.amount).toLocaleString("es-AR")}`)
           .join(", ");
 
-        saveLocalManualPendingCharge({
-          id: localId,
+        const created = await saveAppointment({
           business_id: data.businessId,
-          employee_id: employeeId || null,
+          client_id: savedClientId?.startsWith?.("__pending_client__") ? null : savedClientId,
           client_name: clientNameFinal,
+          employee_id: employeeId || null,
           service_name: serviceSummary,
           service_price: total,
           starts_at: new Date().toISOString(),
+          duration_min: 0,
+          status: "pending",
           notes: `[PENDIENTE_CAJA] ${itemsStr}`,
+          created_by_name: chargedByName || chargedByUsername(userEmail),
+          created_by_role: "profesional",
         });
+        if (!created?.id) {
+          throw new Error("No se pudo crear la venta pendiente.");
+        }
 
-        await appendHistorialCobro(localId, {
+        await appendHistorialCobro(created.id, {
           time: new Date().toTimeString().slice(0, 5),
           user: chargedByName || chargedByUsername(userEmail),
           action: "Envió a caja",
@@ -8116,41 +8118,29 @@ export function NuevaVentaTab({
       }
 
       if (pendingCharge) {
-        // "walkin-": venta de mostrador enviada a Caja sin turno real de
-        // por medio (rama de arriba) — no hay fila en `appointments` que
-        // actualizar, así que se saltea ese paso y el pago se registra
-        // suelto (sin appointment_id).
-        const isWalkInPending = pendingCharge.id.startsWith("walkin-");
         const professionalNote = getCashRowNote(pendingCharge, pendingCharge.service_name);
 
-        if (!isWalkInPending) {
-          // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
-          // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno.
-          //    .select("id") + chequeo de filas: si ya estaba cobrado (o
-          //    cancelado) por otra acción mientras el modal seguía abierto,
-          //    el .in("status", ...) no matchea nada — sin este chequeo se
-          //    seguía de largo igual y se registraba un pago duplicado.
-          const { data: chargedRows, error: updateError } = await supabase
-            .from("appointments")
-            .update({ status: "charged", notes: professionalNote || null })
-            .eq("id", pendingCharge.id)
-            .in("status", [
-              "pending_payment",
-              "pending",
-              "confirmed",
-              "in_service",
-            ])
-            .select("id");
+        // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
+        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno.
+        //    .select("id") + chequeo de filas: si ya estaba cobrado (o
+        //    cancelado) por otra acción mientras el modal seguía abierto,
+        //    el .in("status", ...) no matchea nada — sin este chequeo se
+        //    seguía de largo igual y se registraba un pago duplicado.
+        const { data: chargedRows, error: updateError } = await supabase
+          .from("appointments")
+          .update({ status: "charged", notes: professionalNote || null })
+          .eq("id", pendingCharge.id)
+          .in("status", ["pending", "confirmed", "in_service"])
+          .select("id");
 
-          if (updateError) throw updateError;
-          if (!chargedRows || chargedRows.length === 0) {
-            toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
-            return;
-          }
+        if (updateError) throw updateError;
+        if (!chargedRows || chargedRows.length === 0) {
+          toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
+          return;
         }
 
-        // 2. Registrar el pago vinculado al appointment existente (o suelto, si es venta de mostrador)
-        const paymentRows = await registerPayment({
+        // 2. Registrar el pago vinculado al appointment existente
+        await registerPayment({
           businessId: data.businessId,
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
@@ -8163,38 +8153,22 @@ export function NuevaVentaTab({
           items,
           method,
           splits: validSplits,
-          appointmentId: isWalkInPending ? null : pendingCharge.id,
+          appointmentId: pendingCharge.id,
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "manual",
           notes: professionalNote || null,
         });
 
-        // 3. Registrar en el historial que el usuario de caja cobró el
+        // 3. Registrar en el historial del turno que el usuario de caja cobró el
         //    pendiente. Persiste en appointments.cobro_events (Supabase).
         const now = new Date();
         const hhmm = now.toTimeString().slice(0, 5);
-        const chargedEvent = {
+        appendHistorialCobro(pendingCharge.id, {
           time: hhmm,
           user: chargedByName || chargedByUsername(userEmail),
           action: "Cobró",
-        };
-        if (isWalkInPending) {
-          // Traspasar "Envió a caja" (y cualquier evento previo) del id
-          // local temporal al id real del pago recién creado — Historial
-          // de ventas busca eventos por el id de `payments` para ventas
-          // directas (sin turno), no por este id sintético que solo
-          // existía en la cola de Pendientes.
-          const newPaymentId = paymentRows?.[0]?.id as string | undefined;
-          if (newPaymentId) {
-            for (const ev of getHistorialCobro(pendingCharge.id)) {
-              await appendHistorialCobro(newPaymentId, ev);
-            }
-            await appendHistorialCobro(newPaymentId, chargedEvent);
-          }
-        } else {
-          appendHistorialCobro(pendingCharge.id, chargedEvent);
-        }
+        });
 
         // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);

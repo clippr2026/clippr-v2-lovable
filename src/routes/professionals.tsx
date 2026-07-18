@@ -1232,11 +1232,16 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
         {dateControl ?? <div />}
         {(canAddTurno || approvalMode !== "disabled") && (
           <div className="flex shrink-0 flex-nowrap gap-1.5 sm:gap-2">
+            {/* + Turno: violeta (identidad Clippr) — crear un turno nuevo.
+                Enviar: celeste (el mismo que antes tenía + Turno) — acción
+                operativa de mandar servicios a caja. + Venta (modo
+                automático, cobra directo) sigue verde, en línea con el
+                resto de la app donde verde = Cobrado. */}
             {canAddTurno && (
               <button
                 type="button"
                 onClick={() => setAddTurnoOpen(true)}
-                className="inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#60A5FA,#3B82F6)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(96,165,250,0.55)] transition hover:brightness-110"
+                className="inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#A78BFA,#7C3AED)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)] transition hover:brightness-110"
               >
                 <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="sm:hidden">+ Turno</span>
@@ -1247,7 +1252,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               <button
                 type="button"
                 onClick={() => setWalkInChargeOpen(true)}
-                className="inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#34D399,#10B981)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)] transition hover:brightness-110"
+                className={cn(
+                  "inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl px-2.5 sm:px-3 text-xs font-semibold text-white transition hover:brightness-110",
+                  approvalMode === "manual"
+                    ? "bg-[linear-gradient(135deg,#60A5FA,#3B82F6)] shadow-[0_0_18px_-4px_rgba(96,165,250,0.55)]"
+                    : "bg-[linear-gradient(135deg,#34D399,#10B981)] shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)]"
+                )}
               >
                 <CreditCard className="h-3.5 w-3.5 shrink-0" />
                 <span className="sm:hidden">{approvalMode === "manual" ? "Enviar" : "+ Venta"}</span>
@@ -2418,7 +2428,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       attributionEvent?.action === "Cobró" ? "text-emerald-300" :
       "text-muted-foreground";
     return (
-      <div key={row.id} className="glass rounded-2xl p-3 space-y-1.5">
+      <div key={row.id} className="glass rounded-2xl p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</div>
@@ -2430,9 +2440,13 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
             <div className="text-xs font-semibold tabular-nums text-cyan-300">Com. ${row.commission.toLocaleString("es-AR")}</div>
           </div>
         </div>
-        <div className="line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
+        {/* mt-0 a propósito (antes heredaba space-y-1.5 del contenedor):
+            pedido explícito de que el nombre del cliente y el servicio
+            queden pegados, un solo bloque — sin tocar la separación hacia
+            la línea de atribución de abajo (mt-1.5, igual que antes). */}
+        <div className="mt-0 line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
         {attributionEvent && (
-          <div className="flex items-baseline gap-1.5 border-t border-white/5 pt-1.5 leading-none">
+          <div className="mt-1.5 flex items-baseline gap-1.5 border-t border-white/5 pt-1.5 leading-none">
             <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{attributionEvent.time}</span>
             <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{attributionEvent.user}</span>
             <span className="text-[10px] text-muted-foreground shrink-0">→</span>
