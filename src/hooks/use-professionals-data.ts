@@ -249,6 +249,12 @@ export function useProfTurnos(
       const toDate = new Date(validTo + "T23:59:59");
       toDate.setDate(toDate.getDate() + 1);
 
+      // Sin .neq("status", "cancelled") a propósito: professionals.tsx separa
+      // activeTurnos (agenda) de cancelledTurnos (contador "Cancelados" +
+      // modal de detalle) a partir de este mismo array — filtrar acá los
+      // turnos cancelados los dejaba afuera del fetch por completo, así que
+      // el contador de Cancelados quedaba en 0 para siempre sin importar
+      // cuántos se cancelaran ni cuántas veces se refetcheara.
       const { data, error } = await supabase
         .from("appointments")
         .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,employee_id")
@@ -256,7 +262,6 @@ export function useProfTurnos(
         .eq("employee_id", empId!)
         .gte("starts_at", fromDate.toISOString())
         .lte("starts_at", toDate.toISOString())
-        .neq("status", "cancelled")
         .order("starts_at", { ascending: true });
       if (error) throw new Error(error.message);
 

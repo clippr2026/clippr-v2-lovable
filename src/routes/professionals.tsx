@@ -853,7 +853,7 @@ function ItemPicker({
           }}
           onFocus={() => setShowDropdown(true)}
           placeholder="Buscar servicio o producto…"
-          className="w-full rounded-xl bg-white/[0.07] ring-1 ring-primary/30 px-3 py-2.5 text-sm font-medium text-white focus:outline-none focus:ring-primary/50 placeholder:font-normal placeholder:text-muted-foreground/60"
+          className="w-full rounded-xl bg-white/[0.07] ring-1 ring-primary/30 px-3 py-2.5 text-base font-medium text-white focus:outline-none focus:ring-primary/50 placeholder:font-normal placeholder:text-muted-foreground/60"
         />
         {query && (
           <button type="button"
@@ -887,7 +887,7 @@ function ItemPicker({
           value={editAmount}
           onChange={e => setEditAmount(e.target.value.replace(/\D/g, ""))}
           placeholder="0"
-          className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 pl-6 pr-3 py-2.5 text-sm tabular-nums text-white focus:outline-none focus:ring-primary/40"
+          className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 pl-6 pr-3 py-2.5 text-base tabular-nums text-white focus:outline-none focus:ring-primary/40"
         />
       </div>
 
@@ -1039,6 +1039,10 @@ function CobroModal({
     splits.length > 0 && splitTotal > 0 && (effectiveIsBalanced || effectiveShowVuelto)
   );
 
+  // Mismo motivo que en AgendaCenteredModal (ver src/components/agenda/
+  // agenda-drawer.tsx): fondo bloqueado mientras el modal está abierto.
+  useBodyScrollLock(true);
+
   // ── Confirm ───────────────────────────────────────────────────────────────
   async function confirm() {
     if (mode === "auto" && !effectiveIsBalanced && !effectiveShowVuelto) {
@@ -1084,9 +1088,21 @@ function CobroModal({
     } finally { setSaving(false); }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/75 -sm" onClick={onClose}>
-      <div className="glass-strong rounded-3xl w-full max-w-md flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+  if (typeof document === "undefined") return null;
+
+  // createPortal a document.body: mismo fix que AgendaCenteredModal (ver
+  // ese componente para la explicación completa) — este modal vivía
+  // dentro del <div className="relative z-10"> que AppShell pone
+  // alrededor del contenido de la página, así que su z-50 nunca llegaba a
+  // competir con la barra inferior "Mi Agenda" (z-40, pero hermana de
+  // <main> en el árbol raíz) y terminaba tapado por ella en iPhone.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-black/75" onClick={onClose}>
+      {/* max-h-[92dvh], no 92vh: 100vh en iOS Safari no descuenta la
+          barra de direcciones visible, así que un 92vh "de sobra" podía
+          seguir siendo más alto que el viewport real y empujar el footer
+          (Cancelar/Confirmar cobro) fuera de pantalla. */}
+      <div className="glass-strong rounded-3xl w-full max-w-md flex flex-col max-h-[92dvh]" onClick={e => e.stopPropagation()}>
 
         {/* ── Scrollable body ── */}
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
@@ -1204,7 +1220,7 @@ function CobroModal({
                       type="text" inputMode="numeric"
                       value={splits[0]?.amount ?? ""}
                       onChange={e => setSplits([{ method: splits[0]?.method ?? "cash", amount: e.target.value.replace(/\D/g, "") }])}
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-sm tabular-nums focus:outline-none focus:border-primary/40"
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-base tabular-nums focus:outline-none focus:border-primary/40"
                     />
                   </div>
                   {/* Balance for single pay */}
@@ -1230,7 +1246,7 @@ function CobroModal({
                         <div className="relative">
                           <select value={entry.method}
                             onChange={e => setSplitMethod(idx, e.target.value as PayMethod)}
-                            className="appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/40 pr-7 cursor-pointer">
+                            className="appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-base text-white focus:outline-none focus:border-primary/40 pr-7 cursor-pointer">
                             {ALL_METHODS.filter(m => !usedMethods.has(m)).map(m => (
                               <option key={m} value={m}>{PAY_LABELS[m]}</option>
                             ))}
@@ -1243,7 +1259,7 @@ function CobroModal({
                             placeholder={idx === splits.length - 1 && remaining > 0 ? String(Math.round(remaining)) : "0"}
                             onFocus={() => !entry.amount && fillRemaining(idx)}
                             onChange={e => setSplitAmount(idx, e.target.value)}
-                            className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-sm tabular-nums focus:outline-none focus:border-primary/40" />
+                            className="w-full rounded-xl border border-white/10 bg-white/[0.04] pl-6 pr-3 py-2.5 text-base tabular-nums focus:outline-none focus:border-primary/40" />
                         </div>
                         {splits.length > 1 && (
                           <button type="button" onClick={() => removeSplit(idx)}
@@ -1277,7 +1293,7 @@ function CobroModal({
 
           {/* Nota */}
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="Nota opcional…"
-            className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none focus:ring-white/30" />
+            className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2.5 text-base focus:outline-none focus:ring-white/30" />
         </div>
 
         {/* ── Footer fijo ── */}
@@ -1294,7 +1310,8 @@ function CobroModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -2609,7 +2626,12 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       const rows: typeof enriched = [];
       const usedPaymentIds = new Set<string>();
 
+      // useProfTurnos ya no filtra "cancelled" en la query (ver el hook:
+      // el contador de Cancelados de TurnosView necesita verlos), así que
+      // acá hay que excluirlos a mano — un turno cancelado no facturó
+      // nada y no debe generar una fila de comisión.
       for (const t of turnos) {
+        if (t.status === "cancelled" || t.status === "blocked") continue;
         const pay = payByAppt.get(t.id);
         if (pay) usedPaymentIds.add(pay.id);
         const localDate = new Date(t.starts_at).toLocaleDateString("sv-SE");
