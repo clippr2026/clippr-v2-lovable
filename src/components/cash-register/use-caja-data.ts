@@ -350,11 +350,20 @@ export function useCajaData() {
     )
       .filter((a) => String(a.notes ?? "").includes("[PENDIENTE_CAJA]"))
       .map((a) => {
-        const events = (Array.isArray(a.cobro_events) ? a.cobro_events : []) as { time: string; user: string; action: string; ts?: string }[];
-        const sendEvent = events.find((e) => e.action === "Envió a caja");
+        const allEvents = (Array.isArray(a.cobro_events) ? a.cobro_events : []) as { time: string; user: string; action: string; ts?: string }[];
+        // El turno puede haber sido enviado, rechazado y reenviado — puede
+        // haber más de un "Envió a caja" en el historial. Sin este .reduce
+        // (por ts, más reciente gana) un .find() se quedaba con el PRIMERO
+        // (el más viejo), mostrando y ordenando por un envío que ya no es
+        // el vigente.
+        const sendEvents = allEvents.filter((e) => e.action === "Envió a caja");
+        const sendEvent = sendEvents.reduce<typeof sendEvents[number] | undefined>(
+          (latest, e) => (!latest || (e.ts ?? "") > (latest.ts ?? "") ? e : latest),
+          undefined,
+        );
         return {
           ...a,
-          events,
+          events: sendEvent ? [sendEvent] : [],
           sentAt: sendEvent?.ts ?? a.starts_at,
         };
       });

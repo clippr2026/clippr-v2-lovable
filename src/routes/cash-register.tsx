@@ -346,6 +346,21 @@ function chargedByUsername(email?: string | null) {
   return raw.includes("@") ? raw.split("@")[0] || "Recepción" : raw;
 }
 
+// "HH:MM" en zona horaria de Argentina, sin importar en qué huso horario
+// esté configurado el dispositivo — usado para el "time" que se muestra en
+// el historial de Pendientes ("11:47hs Alan → Envió a caja"). El ISO
+// (new Date().toISOString(), usado para ordenar) ya es correcto sin
+// conversión: siempre representa el mismo instante UTC más allá del huso
+// del dispositivo, esto es solo para el texto legible.
+function formatArgTime(d: Date = new Date()): string {
+  return d.toLocaleTimeString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function getManualPendingNote(notes?: string | null, serviceName?: string | null) {
   const raw = String(notes ?? "").trim();
   if (!raw) return "";
@@ -8129,7 +8144,7 @@ export function NuevaVentaTab({
         }
 
         await appendHistorialCobro(pendingCharge.id, {
-          time: new Date().toTimeString().slice(0, 5),
+          time: formatArgTime(),
           ts: new Date().toISOString(),
           user: chargedByName || chargedByUsername(userEmail),
           action: "Envió a caja",
@@ -8159,8 +8174,10 @@ export function NuevaVentaTab({
         // localStorage.
         const clientNameFinal = client.trim() || "Cliente del mostrador";
         const walkInId = `walkin-${crypto.randomUUID()}`;
+        const nowIso = new Date().toISOString();
         const sendEvent = {
-          time: new Date().toTimeString().slice(0, 5),
+          time: formatArgTime(),
+          ts: nowIso,
           user: chargedByName || chargedByUsername(userEmail),
           action: "Envió a caja",
         };
@@ -8182,7 +8199,7 @@ export function NuevaVentaTab({
           client_name: clientNameFinal,
           service_name: serviceSummary,
           service_price: total,
-          starts_at: new Date().toISOString(),
+          starts_at: nowIso,
           events: [sendEvent],
         };
         const { error: writeError } = await supabase
@@ -8223,14 +8240,14 @@ export function NuevaVentaTab({
         }
 
         const now = new Date();
-        const hhmm = now.toTimeString().slice(0, 5);
+        const hhmm = formatArgTime(now);
         // Traspasar "Envió a caja" + agregar "Cobró" al mismo historial —
         // se guardan juntos en payments.observations (columna de texto
         // libre ya usada, sin riesgo de constraint) porque no hay
         // appointment.cobro_events al que asociarlos.
         const fullHist: HistorialEvento[] = [
           ...(thisSale.events ?? []),
-          { time: hhmm, user: chargedByName || chargedByUsername(userEmail), action: "Cobró" },
+          { time: hhmm, ts: now.toISOString(), user: chargedByName || chargedByUsername(userEmail), action: "Cobró" },
         ];
 
         await registerPayment({
@@ -8311,9 +8328,10 @@ export function NuevaVentaTab({
         // 3. Registrar en el historial del turno que el usuario de caja cobró el
         //    pendiente. Persiste en appointments.cobro_events (Supabase).
         const now = new Date();
-        const hhmm = now.toTimeString().slice(0, 5);
+        const hhmm = formatArgTime(now);
         appendHistorialCobro(pendingCharge.id, {
           time: hhmm,
+          ts: now.toISOString(),
           user: chargedByName || chargedByUsername(userEmail),
           action: "Cobró",
         });
