@@ -809,8 +809,21 @@ function fmtMoney(n: number) {
   return "$" + Math.round(n).toLocaleString("es-AR");
 }
 
-// ── Inline item editor ─────────────────────────────────────────────────────
-// The item row itself becomes the search field — no separate buscador above.
+// ── Item picker modal ──────────────────────────────────────────────────────
+// Compartido por Cobrar y Enviar a Caja (vía CobroModal), y por "Agregar
+// ítem" y "Editar" un ítem existente — un solo componente, un solo
+// comportamiento en los cuatro casos. Al abrir no activa ningún input ni
+// muestra teclado: arranca en la pestaña "Servicios" mostrando la lista
+// directamente. Recién al tocar "Buscar" aparece el campo y se enfoca.
+type ItemOption = { id: string; name: string; price: number; category: string | null; isService: boolean };
+type ItemPickerTab = "servicios" | "productos" | "bebidas" | "buscar";
+const ITEM_PICKER_TABS: Array<{ key: ItemPickerTab; label: string }> = [
+  { key: "servicios", label: "Servicios" },
+  { key: "productos", label: "Productos" },
+  { key: "bebidas", label: "Bebidas" },
+  { key: "buscar", label: "Buscar" },
+];
+
 function ItemPicker({
   businessId, employeeId, currentName, currentAmount,
   onSelect, onClose,
@@ -821,22 +834,21 @@ function ItemPicker({
   onSelect: (name: string, amount: number) => void;
   onClose: () => void;
 }) {
-  // Start with current name so the field is pre-filled, ready to edit
-  const [query, setQuery] = useState(currentName);
-  const [editAmount, setEditAmount] = useState(currentAmount);
-  const [options, setOptions] = useState<{ id: string; name: string; price: number }[]>([]);
+  const [options, setOptions] = useState<ItemOption[]>([]);
+  const [tab, setTab] = useState<ItemPickerTab>("servicios");
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ name: string; price: number } | null>(
     currentName ? { name: currentName, price: Number(currentAmount) || 0 } : null
   );
-  const [showDropdown, setShowDropdown] = useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [editAmount, setEditAmount] = useState(currentAmount);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!businessId) return;
     (async () => {
       const [{ data: svcs }, { data: prods }, { data: bs }] = await Promise.all([
-        supabase.from("price_catalog").select("id,name,price,duration_min").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null).order("name"),
-        supabase.from("price_catalog").select("id,name,price,duration_min").eq("business_id", businessId).eq("active", true).is("duration_min", null).order("name"),
+        supabase.from("price_catalog").select("id,name,price,duration_min,category").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null).order("name"),
+        supabase.from("price_catalog").select("id,name,price,duration_min,category").eq("business_id", businessId).eq("active", true).is("duration_min", null).order("name"),
         supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
       ]);
       // Mismo resolver que Agenda/Caja/Página Pública: si el profesional
@@ -846,95 +858,156 @@ function ItemPicker({
       const resolvePrice = (item: { id: string; price: number; duration_min: number | null }) =>
         resolveServicePricing(item, employeeId, overrides).price;
       setOptions([
-        ...(svcs ?? []).map(s => ({ id: s.id, name: s.name as string, price: resolvePrice(s as any) })),
-        ...(prods ?? []).map(p => ({ id: p.id, name: p.name as string, price: Number(p.price ?? 0) })),
+        ...(svcs ?? []).map((s: any) => ({ id: s.id, name: s.name as string, price: resolvePrice(s), category: s.category ?? null, isService: true })),
+        ...(prods ?? []).map((p: any) => ({ id: p.id, name: p.name as string, price: Number(p.price ?? 0), category: p.category ?? null, isService: false })),
       ]);
     })();
   }, [businessId, employeeId]);
 
+  useBodyScrollLock(true);
   React.useEffect(() => {
-    // Auto-focus and select all text so user can type immediately
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-  const filtered = query.trim()
-    ? options.filter(o => o.name.toLowerCase().includes(query.toLowerCase()))
-    : options.slice(0, 8);
+  // Foco y teclado SOLO al entrar a la pestaña Buscar — nunca automático
+  // al abrir el modal (pedido explícito: nada de teclado hasta que el
+  // usuario toque Buscar o el campo).
+  React.useEffect(() => {
+    if (tab === "buscar") searchInputRef.current?.focus();
+  }, [tab]);
+
+  const isBebida = (o: ItemOption) => /bebidas?/i.test(o.category ?? "");
+
+  const visibleItems =
+    tab === "servicios" ? options.filter(o => o.isService)
+    : tab === "bebidas" ? options.filter(o => !o.isService && isBebida(o))
+    : tab === "productos" ? options.filter(o => !o.isService && !isBebida(o))
+    : query.trim() ? options.filter(o => o.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : [];
 
   function pick(opt: { name: string; price: number }) {
     setSelected(opt);
-    setQuery(opt.name);
     setEditAmount(String(opt.price));
-    setShowDropdown(false);
   }
 
   const canSave = selected !== null;
 
-  return (
-    <div className="rounded-2xl border border-primary/30 bg-primary/[0.06] p-3 space-y-2">
-      {/* The item name IS the search field */}
-      <div className="relative">
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={e => {
-            setQuery(e.target.value);
-            setSelected(null);        // deselect while typing
-            setShowDropdown(true);
-          }}
-          onFocus={() => setShowDropdown(true)}
-          placeholder="Buscar servicio o producto…"
-          className="w-full rounded-xl bg-white/[0.07] ring-1 ring-primary/30 px-3 py-2.5 text-base font-medium text-white focus:outline-none focus:ring-primary/50 placeholder:font-normal placeholder:text-muted-foreground/60"
-        />
-        {query && (
-          <button type="button"
-            onClick={() => { setQuery(""); setSelected(null); setShowDropdown(true); inputRef.current?.focus(); }}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white text-xs w-5 h-5 flex items-center justify-center rounded-full hover:bg-white/10 transition">
-            ✕
-          </button>
-        )}
-      </div>
+  if (typeof document === "undefined") return null;
 
-      {/* Dropdown — only while searching (no selection yet or explicitly opened) */}
-      {showDropdown && filtered.length > 0 && (
-        <div className="rounded-xl bg-[#0d0d14] border border-white/10 max-h-40 overflow-y-auto divide-y divide-white/[0.05] shadow-xl">
-          {filtered.slice(0, 10).map(opt => (
-            <button key={opt.id} type="button"
-              onMouseDown={e => e.preventDefault()} // prevent blur before click
-              onClick={() => pick(opt)}
-              className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-white/[0.06] transition text-left gap-3">
-              <span className="truncate">{opt.name}</span>
-              <span className="text-xs text-muted-foreground tabular-nums shrink-0">{fmtMoney(opt.price)}</span>
+  // createPortal + max-h con dvh/safe-area: mismo patrón que
+  // CobroModal/AgendaCenteredModal — modal real, centrado, con footer
+  // siempre visible y sin quedar tapado por la barra inferior.
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] bg-black/75"
+      onClick={onClose}
+    >
+      <div
+        className="glass-strong flex w-full max-w-md flex-col overflow-hidden rounded-3xl max-h-[calc(100dvh-3rem)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Tabs de categoría */}
+        <div className="grid shrink-0 grid-cols-4 gap-1.5 border-b border-white/10 p-3">
+          {ITEM_PICKER_TABS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={cn(
+                "truncate rounded-xl py-2 text-xs font-semibold transition",
+                tab === key
+                  ? "bg-primary/20 text-primary ring-1 ring-primary/40"
+                  : "text-muted-foreground hover:bg-white/[0.05] hover:text-white",
+              )}
+            >
+              {label}
             </button>
           ))}
         </div>
-      )}
 
-      {/* Price edit — shown after selection */}
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-        <input
-          type="text" inputMode="numeric"
-          value={editAmount}
-          onChange={e => setEditAmount(e.target.value.replace(/\D/g, ""))}
-          placeholder="0"
-          className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 pl-6 pr-3 py-2.5 text-base tabular-nums text-white focus:outline-none focus:ring-primary/40"
-        />
-      </div>
+        {/* Lista / buscador */}
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {tab === "buscar" && (
+            <div className="relative mb-2">
+              <input
+                ref={searchInputRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar servicio, producto o bebida…"
+                className="w-full rounded-xl bg-white/[0.07] ring-1 ring-primary/30 px-3 py-2.5 text-base font-medium text-white outline-none focus:ring-primary/50 placeholder:font-normal placeholder:text-muted-foreground/60"
+              />
+            </div>
+          )}
+          {visibleItems.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              {tab === "buscar"
+                ? (query.trim() ? "Sin resultados." : "Escribí para buscar.")
+                : "No hay ítems en esta categoría."}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {visibleItems.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => pick(opt)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition",
+                    selected?.name === opt.name
+                      ? "bg-primary/15 ring-1 ring-primary/40"
+                      : "ring-1 ring-transparent hover:bg-white/[0.06]",
+                  )}
+                >
+                  <span className="truncate">{opt.name}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtMoney(opt.price)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-      <div className="flex gap-2">
-        <button type="button" onClick={onClose}
-          className="flex-1 rounded-xl ring-1 ring-white/10 py-2 text-xs text-muted-foreground hover:text-white transition">
-          Cancelar
-        </button>
-        <button type="button" disabled={!canSave}
-          onClick={() => canSave && onSelect(selected!.name, Math.max(0, Number(editAmount) || 0))}
-          className="flex-1 rounded-xl bg-primary/15 ring-1 ring-primary/30 py-2 text-xs font-semibold text-primary hover:bg-primary/25 transition disabled:opacity-40">
-          Listo
-        </button>
+        {/* Ítem seleccionado + precio editable */}
+        {selected && (
+          <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
+            <div className="truncate text-xs text-muted-foreground">
+              Seleccionado: <span className="font-medium text-white">{selected.name}</span>
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={editAmount}
+                onChange={(e) => setEditAmount(e.target.value.replace(/\D/g, ""))}
+                className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 pl-6 pr-3 py-2.5 text-base tabular-nums text-white outline-none focus:ring-primary/40"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Footer fijo */}
+        <div className="flex shrink-0 gap-3 border-t border-white/10 p-4 pt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl py-2.5 text-sm text-muted-foreground ring-1 ring-white/10 transition hover:text-white"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={() => canSave && onSelect(selected!.name, Math.max(0, Number(editAmount) || 0))}
+            className="flex-1 rounded-xl bg-primary/15 py-2.5 text-sm font-semibold text-primary ring-1 ring-primary/30 transition hover:bg-primary/25 disabled:opacity-40"
+          >
+            Listo
+          </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
