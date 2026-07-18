@@ -629,6 +629,23 @@ export function AppointmentDialog({
     ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
     : clientName.trim();
 
+  // Misma validación que corre adentro de submit() (líneas de arriba), pero
+  // acá en modo "lectura" para habilitar/deshabilitar el botón de forma
+  // proactiva en vez de dejar que el usuario lo toque y recién ahí se
+  // entere por un toast de qué le falta.
+  const isFormValid =
+    !!previewClientName &&
+    (!newClientMode || (
+      !!clientFirstName.trim() &&
+      !!clientLastName.trim() &&
+      !!clientEmail.trim() &&
+      !!acquisitionSource &&
+      (!acquisitionChannelRequiresText(acquisitionSource) || !!acquisitionCustom.trim())
+    )) &&
+    !!employeeId &&
+    !!serviceName.trim() &&
+    !!dateValue && !!hourValue && !!minuteValue;
+
   return (
     <>
     <Wrapper
@@ -637,8 +654,8 @@ export function AppointmentDialog({
       title={isEdit ? "Editar reserva" : "Nueva reserva"}
       footer={
         <>
-          <Button variant="ghost" className="h-10" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
-          <Button className="h-10 px-5" onClick={() => submit(false)} disabled={busy}>
+          <Button variant="outline" className="h-11 flex-1" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
+          <Button className="h-11 flex-1 px-5" onClick={() => submit(false)} disabled={busy || !isFormValid}>
             {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
             {isEdit ? "Guardar cambios" : "Guardar reserva"}
           </Button>

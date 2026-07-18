@@ -261,13 +261,20 @@ function SettingsPage() {
   // de donde estaba el scroll y hay que bajar a mano para verlo. En
   // desktop aside/section están lado a lado y ya son visibles juntos, así
   // que ahí no se toca el scroll.
+  // behavior: "instant" (no "smooth"): la sección nueva casi siempre tiene
+  // una altura de contenido distinta a la anterior — combinado con un
+  // scroll animado, ese cambio de alto en pleno movimiento generaba una
+  // sensación de "toda la interfaz se encoge/aleja" en iOS Safari (la
+  // barra de Chrome colapsando durante el scroll suave lo acentuaba
+  // todavía más). Instantáneo: la posición cambia en el mismo frame, sin
+  // ningún tramo animado donde el contenido pueda reflowear a la vista.
   useEffect(() => {
     if (skipNextScrollRef.current) {
       skipNextScrollRef.current = false;
       return;
     }
     if (window.matchMedia("(max-width: 1023px)").matches) {
-      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      sectionRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
     }
   }, [active]);
 

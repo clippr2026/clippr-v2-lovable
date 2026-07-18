@@ -58,8 +58,13 @@ export function AgendaDrawer({
 
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
 
+        {/* pb usa env(safe-area-inset-bottom) — en iPhone con home indicator
+            (sin barra física de "atrás"), un padding fijo de 12px podía
+            quedar justo debajo del gesto de swipe, muy pegado o tapado por
+            esa zona. max(...) asegura al menos 12px en dispositivos sin
+            safe area (Android, desktop) y respeta la real cuando existe. */}
         {footer && (
-          <div className="shrink-0 border-t border-white/10 bg-white/[0.025] px-4 py-3 flex items-center justify-between gap-2">
+          <div className="shrink-0 border-t border-white/10 bg-white/[0.025] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-2">
             {footer}
           </div>
         )}
@@ -139,8 +144,13 @@ export function AgendaCenteredModal({
 
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
 
+        {/* pb usa env(safe-area-inset-bottom) — en iPhone con home indicator
+            (sin barra física de "atrás"), un padding fijo de 12px podía
+            quedar justo debajo del gesto de swipe, muy pegado o tapado por
+            esa zona. max(...) asegura al menos 12px en dispositivos sin
+            safe area (Android, desktop) y respeta la real cuando existe. */}
         {footer && (
-          <div className="shrink-0 border-t border-white/10 bg-white/[0.025] px-4 py-3 flex items-center justify-between gap-2">
+          <div className="shrink-0 border-t border-white/10 bg-white/[0.025] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-2">
             {footer}
           </div>
         )}
