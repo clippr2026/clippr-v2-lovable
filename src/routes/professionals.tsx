@@ -28,7 +28,8 @@ import {
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
 import { resolveDaySchedule } from "@/lib/availability";
-import { type HistorialEvento, readHistorialCobro, appendHistorialCobro, syncHistorialFromDB } from "@/lib/cobro-historial";
+import { getPublicVisibility, normalizePublicBooleanMap } from "@/components/settings/shared";
+import { type HistorialEvento, readHistorialCobro, appendHistorialCobro, syncHistorialFromDB, attributionLabel } from "@/lib/cobro-historial";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { useCajaData } from "@/components/cash-register/use-caja-data";
 import { NuevaVentaTab } from "@/routes/cash-register";
@@ -234,6 +235,10 @@ function ProfessionalsPage() {
   const [employeeCanCancelTurnoMap, setEmployeeCanCancelTurnoMap] = useState<
     Record<string, boolean>
   >({});
+  // Mismo switch "Acepta reservas en línea" que Equipo — no hay un estado
+  // "Activo/Inactivo" separado para esto, es literalmente el mismo dato
+  // (_publicVisibility.employees, con fallback al key legacy _employeeOnline).
+  const [employeeOnlineMap, setEmployeeOnlineMap] = useState<Record<string, boolean>>({});
 
   // Un admin/recepción viendo esta pantalla siempre puede agregar/cancelar
   // turnos; un profesional viendo la suya solo si tiene el switch activado
@@ -278,6 +283,10 @@ function ProfessionalsPage() {
         );
         setEmployeeCanCancelTurnoMap(
           (schedule._employeeAgendaCancel as Record<string, boolean>) ?? {},
+        );
+        const visibility = getPublicVisibility(schedule);
+        setEmployeeOnlineMap(
+          normalizePublicBooleanMap(visibility.employees ?? schedule._employeeOnline),
         );
       });
   }, [businessId]);
@@ -378,8 +387,29 @@ function ProfessionalsPage() {
               <div className="text-2xl md:text-[26px] font-display font-semibold tracking-tight leading-tight">
                 {active.full_name}
               </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                {active.role_label?.trim() || "Profesional"} {active.is_active === false && <span className="ml-2 rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider">Inactivo</span>}
+              <div className="text-sm text-muted-foreground mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-1">
+                <span>{active.role_label?.trim() || "Profesional"}</span>
+                {/* ONLINE/OFFLINE: mismo dato que el switch "Acepta reservas
+                    en línea" de Equipo (_publicVisibility.employees) — no
+                    Activo/Inactivo (is_active), que es un concepto distinto
+                    (si el profesional existe/opera en la barbería, no si
+                    acepta reservas desde la página pública). */}
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
+                    employeeOnlineMap[active.id] !== false
+                      ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
+                      : "bg-white/5 ring-white/10 text-muted-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      employeeOnlineMap[active.id] !== false ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
+                    )}
+                  />
+                  {employeeOnlineMap[active.id] !== false ? "ONLINE" : "OFFLINE"}
+                </span>
               </div>
               {permissions.equipo && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
@@ -959,7 +989,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [canceladosOpen, setCanceladosOpen] = useState(false);
   const [confirmadosOpen, setConfirmadosOpen] = useState(false);
-  useBodyScrollLock(canceladosOpen || confirmadosOpen);
+  const [pendientesOpen, setPendientesOpen] = useState(false);
+  const [cobradosOpen, setCobradosOpen] = useState(false);
+  useBodyScrollLock(canceladosOpen || confirmadosOpen || pendientesOpen || cobradosOpen);
   const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
     if (!businessId) return new Set();
     return new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id));
@@ -1034,14 +1066,31 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     turnos.filter(t => t.status === "confirmed" || t.status === "approved"),
     [turnos]
   );
+  const chargedTurnos = React.useMemo(() =>
+    turnos.filter(t => getTurnoMeta(t).isCharged),
+    [turnos]
+  );
+  // Mismo criterio "todo lo demás" que ya usa counts.pendientes: ni
+  // cancelado, ni cobrado, ni confirmado.
+  const pendingTurnosList = React.useMemo(() =>
+    turnos.filter(t => {
+      const meta = getTurnoMeta(t);
+      return !meta.isCancelled && !meta.isCharged && !meta.isConfirmed;
+    }),
+    [turnos, sentToCajaIds]
+  );
 
   // Style per status
   function getBlockStyle(t: import("@/hooks/use-professionals-data").ProfTurno) {
     const { isPending, isCharged, isConfirmed } = getTurnoMeta(t);
+    // Cobrado se ve claramente verde a simple vista (fondo/ring más
+    // intensos que el resto de los estados) — pedido explícito para poder
+    // identificarlo de un vistazo en la lista de Mi Agenda, no solo por el
+    // label de texto.
     if (isCharged) return {
       border: "border-l-emerald-400",
-      bg: "bg-emerald-500/[0.08]",
-      ring: "ring-emerald-400/15",
+      bg: "bg-emerald-500/[0.16]",
+      ring: "ring-emerald-400/35",
       dot: "bg-emerald-400",
       label: "Cobrado",
       labelColor: "text-emerald-300",
@@ -1079,6 +1128,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       bg: "bg-sky-500/10",
       ring: "ring-sky-400/20",
       dot: "bg-sky-400",
+      onClick: counts.pendientes > 0 ? () => setPendientesOpen(true) : undefined,
     },
     {
       label: "Confirmados",
@@ -1096,6 +1146,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       bg: "bg-emerald-500/10",
       ring: "ring-emerald-400/20",
       dot: "bg-emerald-400",
+      onClick: counts.finalizados > 0 ? () => setCobradosOpen(true) : undefined,
     },
     {
       label: "Cancelados",
@@ -1289,31 +1340,14 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
               const { isSentToCaja } = getTurnoMeta(t);
 
-              // Celda de acción (historial / botón Cobrar-Enviar / "—") — una
-              // sola definición, reusada tal cual en el layout compacto de
-              // mobile y en el grid de desktop. Misma lógica en los dos
-              // tamaños de pantalla, nunca un botón distinto ni duplicado.
-              const actionCell = historialDisplay.length > 0 ? (
-                <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
-                  {historialDisplay.map((ev, ei) => {
-                    const actionColor =
-                      ev.action === "Envió a caja" ? "text-sky-300" :
-                      ev.action === "Cobró"        ? "text-emerald-300" :
-                      ev.action === "Canceló"      ? "text-rose-300" :
-                      ev.action === "Anuló cobro"  ? "text-orange-300" :
-                      ev.action === "Reembolsó"    ? "text-violet-300" :
-                      "text-muted-foreground";
-                    return (
-                      <div key={ei} className="flex items-baseline gap-1.5 leading-none justify-end">
-                        <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                        <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                        <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : showActionBtn ? (
+              // Celda de acción (botón Cobrar-Enviar / "—") — una sola
+              // definición, reusada tal cual en el layout compacto de
+              // mobile y en el grid de desktop. Ya NO muestra quién
+              // cobró/envió acá: esa info vive únicamente en Historial de
+              // ventas (pedido explícito — Mi Agenda queda limpia, solo
+              // información del turno y su estado). historialDisplay solo
+              // se usa para decidir si el botón sigue teniendo sentido.
+              const actionCell = showActionBtn ? (
                 <button
                   onClick={() => setCobroTurno(t)}
                   className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
@@ -1486,6 +1520,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               pendingChargeInitialStep={3}
               pendingChargeExtraItems={parseProfessionalProductsFromNotes(cobroTurno.notes).map((p) => ({ name: p.name, price: p.amount }))}
               turnoChargeMode={approvalMode === "manual" ? "manual" : "auto"}
+              chargedByName={profile?.full_name ?? null}
               onManualSend={async ({ total, items }) => {
                 if (!cobroTurno) return;
                 const itemsStr = items.map((i) => `${i.serviceName} ${fmtMoney(i.amount)}`).join(", ");
@@ -1652,7 +1687,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       {cancelEvent && (
                         <div className="text-right space-y-0.5 shrink-0">
                           <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Cancelado por</div>
-                          <div className="text-xs font-semibold text-rose-300">{cancelEvent.user}</div>
+                          <div className="text-xs font-semibold text-rose-300">{attributionLabel(cancelEvent)}</div>
                           <div className="text-[10px] text-muted-foreground">{cancelEvent.time}</div>
                         </div>
                       )}
@@ -1688,6 +1723,74 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
                         <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 bg-violet-500/10 ring-violet-400/20 text-violet-300">Confirmado</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pendientes modal — mismo patrón. */}
+      {pendientesOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={() => setPendientesOpen(false)}>
+          <div className="glass-strong rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 shrink-0">
+              <div>
+                <div className="font-semibold text-base">Turnos pendientes</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{pendingTurnosList.length} turno{pendingTurnosList.length !== 1 ? "s" : ""} pendiente{pendingTurnosList.length !== 1 ? "s" : ""}</div>
+              </div>
+              <button type="button" onClick={() => setPendientesOpen(false)}
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+              {pendingTurnosList.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Sin turnos pendientes en este período.</p>
+              ) : pendingTurnosList.map((t) => (
+                <div key={t.id} className="rounded-2xl bg-sky-500/[0.06] ring-1 ring-sky-400/15 border-l-[3px] border-l-sky-400 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 bg-sky-500/10 ring-sky-400/20 text-sky-300">Pendiente</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cobrados modal — mismo patrón. */}
+      {cobradosOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={() => setCobradosOpen(false)}>
+          <div className="glass-strong rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 shrink-0">
+              <div>
+                <div className="font-semibold text-base">Turnos cobrados</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{chargedTurnos.length} turno{chargedTurnos.length !== 1 ? "s" : ""} cobrado{chargedTurnos.length !== 1 ? "s" : ""}</div>
+              </div>
+              <button type="button" onClick={() => setCobradosOpen(false)}
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+              {chargedTurnos.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Sin turnos cobrados en este período.</p>
+              ) : chargedTurnos.map((t) => (
+                <div key={t.id} className="rounded-2xl bg-emerald-500/[0.06] ring-1 ring-emerald-400/15 border-l-[3px] border-l-emerald-400 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 bg-emerald-500/10 ring-emerald-400/20 text-emerald-300">Cobrado</span>
                       </div>
                       <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
@@ -2242,7 +2345,15 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
       .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
       .replace(".", "");
+    // Un solo evento relevante (Cobró > Envió a caja), no el historial
+    // completo con horarios — acá lo que importa es "quién", con la
+    // fórmula que pidieron: "Cobrado por X" / "Enviado por X".
     const historialEvents = readHistorialCobro(row.id);
+    const attributionEvent =
+      historialEvents.find((e) => e.action === "Cobró") ??
+      historialEvents.find((e) => e.action === "Envió a caja") ??
+      null;
+    const attributionPrefix = attributionEvent?.action === "Cobró" ? "Cobrado por" : "Enviado por";
     return (
       <div key={row.id} className="glass rounded-2xl p-3 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
@@ -2256,23 +2367,9 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           </div>
         </div>
         <div className="line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
-        {historialEvents.length > 0 && (
-          <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-white/5 pt-1.5">
-            {historialEvents.map((ev, ei) => {
-              const actionColor =
-                ev.action === "Envió a caja" ? "text-sky-300" :
-                ev.action === "Cobró"        ? "text-emerald-300" :
-                ev.action === "Canceló"      ? "text-rose-300" :
-                ev.action === "Anuló cobro"  ? "text-orange-300" :
-                ev.action === "Reembolsó"    ? "text-violet-300" :
-                "text-muted-foreground";
-              return (
-                <div key={ei} className="flex items-baseline gap-1 leading-none">
-                  <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">{ev.time}</span>
-                  <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                </div>
-              );
-            })}
+        {attributionEvent && (
+          <div className="border-t border-white/5 pt-1.5 text-xs text-muted-foreground">
+            {attributionPrefix} <span className="font-semibold text-foreground/85">{attributionEvent.user}</span>
           </div>
         )}
       </div>
@@ -2292,14 +2389,16 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin historial en este período</div>
         ) : (
           <>
-            {/* Desktop (sm+): tabla actual, sin cambios. */}
+            {/* Desktop (sm+): tabla, columna "Historial" reemplazada por una
+                línea de atribución ("Cobrado por X" / "Enviado por X") debajo
+                de Total/Comisión — mismo dato, formato pedido explícito, y
+                ya no compite por su propia columna. */}
             <div className="hidden sm:block glass rounded-2xl overflow-hidden">
               {/* Header — same structure as TurnosView */}
-              <div className="grid grid-cols-[12%_22%_26%_24%_8%_8%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+              <div className="grid grid-cols-[14%_26%_32%_14%_14%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                 <div>Fecha</div>
                 <div>Cliente</div>
                 <div>Servicio / Catálogo</div>
-                <div>Historial</div>
                 <div className="text-right">Total</div>
                 <div className="text-right">Comisión</div>
               </div>
@@ -2312,46 +2411,32 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                   .replace(".", "");
 
                 const historialEvents = readHistorialCobro(row.id);
+                const attributionEvent =
+                  historialEvents.find((e) => e.action === "Cobró") ??
+                  historialEvents.find((e) => e.action === "Envió a caja") ??
+                  null;
+                const attributionPrefix = attributionEvent?.action === "Cobró" ? "Cobrado por" : "Enviado por";
 
                 return (
                   <div
                     key={row.id}
                     className={cn(
-                      "grid grid-cols-[12%_22%_26%_24%_8%_8%] items-start px-5 py-4 text-sm",
+                      "px-5 py-4 text-sm",
                       i < enriched.length - 1 && "border-b border-white/5"
                     )}
                   >
-                    <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
-                    <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
-                    <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
-
-                    {/* Historial — same renderer as TurnosView */}
-                    <div className="space-y-1.5 pr-2">
-                      {historialEvents.length > 0 ? (
-                        historialEvents.map((ev, ei) => {
-                          const actionColor =
-                            ev.action === "Envió a caja" ? "text-sky-300" :
-                            ev.action === "Cobró"        ? "text-emerald-300" :
-                            ev.action === "Canceló"      ? "text-rose-300" :
-                            ev.action === "Anuló cobro"  ? "text-orange-300" :
-                            ev.action === "Reembolsó"    ? "text-violet-300" :
-                            "text-muted-foreground";
-                          return (
-                            <div key={ei} className="flex items-baseline gap-1.5 leading-none">
-                              <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                              <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                              <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                              <span className={cn("text-[10px] font-medium whitespace-nowrap", actionColor)}>{ev.action}</span>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground">—</span>
-                      )}
+                    <div className="grid grid-cols-[14%_26%_32%_14%_14%] items-start">
+                      <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
+                      <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
+                      <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
+                      <div className="text-right font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.total.toLocaleString("es-AR")}</div>
+                      <div className="text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
                     </div>
-
-                    <div className="text-right font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.total.toLocaleString("es-AR")}</div>
-                    <div className="text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs pt-0.5">${row.commission.toLocaleString("es-AR")}</div>
+                    {attributionEvent && (
+                      <div className="mt-1.5 text-right text-[11px] text-muted-foreground">
+                        {attributionPrefix} <span className="font-semibold text-foreground/80">{attributionEvent.user}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}

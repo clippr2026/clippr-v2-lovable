@@ -15,10 +15,21 @@ const HISTORIAL_LS_KEY = "clippr_cobros_historial_v2";
 export type HistorialEvento = {
   ts: string;        // ISO timestamp completo — fuente de verdad
   time: string;      // HH:MM — display
-  user: string;      // nombre visible de la persona (nunca username/email crudo)
-  role: "profesional" | "recepcion" | "sistema";
+  // Nombre visible de la persona (nunca username/email crudo). Cuando
+  // role === "cliente", este campo se ignora en el display — "Cancelado
+  // por cliente" no debe mostrar el nombre del cliente.
+  user: string;
+  role: "profesional" | "recepcion" | "cliente" | "sistema";
   action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó";
 };
+
+// Texto de atribución ("Cancelado por Alan" / "Cancelado por cliente"),
+// centralizado acá para que Agenda web, Mi Agenda y el modal de cancelados
+// lo rendericen exactamente igual — nunca el nombre del cliente cuando fue
+// él quien canceló, siempre el nombre visible en cualquier otro caso.
+export function attributionLabel(ev: Pick<HistorialEvento, "user" | "role">): string {
+  return ev.role === "cliente" ? "cliente" : ev.user;
+}
 
 // ── Lectura: Supabase primero, localStorage como cache ────────────────────────
 function readHistorialLS(appointmentId: string): HistorialEvento[] {

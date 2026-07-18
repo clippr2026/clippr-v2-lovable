@@ -699,7 +699,7 @@ export async function cancelAppointment(
       await appendHistorialCobro(id, {
         time: new Date().toTimeString().slice(0, 5),
         user: by.name,
-        role: by.role === "profesional" ? "profesional" : "recepcion",
+        role: by.role === "profesional" || by.role === "cliente" ? by.role : "recepcion",
         action: "Canceló",
       });
     } catch {

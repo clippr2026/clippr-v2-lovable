@@ -15,7 +15,7 @@ import {
   Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB } from "@/lib/cobro-historial";
+import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB, attributionLabel } from "@/lib/cobro-historial";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -3676,7 +3676,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                         </div>
                         {cancelEvent && (
                           <div className="text-center text-xs text-muted-foreground">
-                            Cancelado por <span className="font-semibold text-foreground/85">{cancelEvent.user}</span>
+                            Cancelado por <span className="font-semibold text-foreground/85">{attributionLabel(cancelEvent)}</span>
                             {" · "}{cancelEvent.time}
                           </div>
                         )}

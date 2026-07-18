@@ -7540,6 +7540,7 @@ export function NuevaVentaTab({
   pendingChargeExtraItems,
   turnoChargeMode,
   onManualSend,
+  chargedByName,
 }: {
   data: ReturnType<typeof useCajaData>;
   pendingCharge?: PendingCharge | null;
@@ -7583,6 +7584,12 @@ export function NuevaVentaTab({
   pendingChargeExtraItems?: { name: string; price: number }[];
   turnoChargeMode?: "auto" | "manual";
   onManualSend?: (args: { total: number; items: { serviceName: string; amount: number }[] }) => void | Promise<void>;
+  // Nombre visible real (ej. profile.full_name) para el evento "Cobró" del
+  // historial. Opcional a propósito: si no viene, sigue cayendo en
+  // chargedByUsername(userEmail) (comportamiento de siempre, usado por la
+  // cola de Pendientes de Caja) — pero ese fallback es username crudo
+  // (ej. "aurostyloadmi"), por eso "Cobrar turno" desde Mi Agenda sí lo pasa.
+  chargedByName?: string | null;
 }) {
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(
     pendingCharge ? (pendingChargeInitialStep ?? 4) : lockedEmployeeId ? 2 : 1,
@@ -8083,7 +8090,7 @@ export function NuevaVentaTab({
         const hhmm = now.toTimeString().slice(0, 5);
         appendHistorialCobro(pendingCharge.id, {
           time: hhmm,
-          user: chargedByUsername(userEmail),
+          user: chargedByName || chargedByUsername(userEmail),
           action: "Cobró",
         });
 
