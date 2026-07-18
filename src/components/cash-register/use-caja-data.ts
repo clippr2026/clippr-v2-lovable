@@ -530,6 +530,21 @@ export function useCajaData() {
     return () => { supabase.removeChannel(channel); };
   }, [businessId, load]);
 
+  // Red de contención además del canal realtime de arriba: que Pendientes
+  // se actualice solo NO puede depender de un ajuste externo (que las
+  // tablas "appointments"/"business_settings" tengan Realtime habilitado
+  // en el panel de Supabase — Database → Replication — algo que esta app
+  // no controla ni puede verificar por código, y que si está apagado hace
+  // fallar el canal de arriba en silencio, sin ningún error visible). Con
+  // este poll, aunque el canal realtime nunca llegue a disparar, Caja igual
+  // se pone al día sola en como mucho unos segundos, sin recargar la
+  // página a mano.
+  React.useEffect(() => {
+    if (!businessId) return;
+    const interval = setInterval(() => load(), 5000);
+    return () => clearInterval(interval);
+  }, [businessId, load]);
+
   // Auto-close at midnight if session is still open
   React.useEffect(() => {
     if (!businessId) return;
