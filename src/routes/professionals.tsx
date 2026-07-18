@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import React, { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
 import {
@@ -2016,7 +2017,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       {/* Nueva venta — el mismo NuevaVentaTab que usa Caja → Nueva
           venta (mismo flujo de cobro/envío a caja), con el profesional
           bloqueado en el paso 1. */}
-      {approvalMode !== "disabled" && walkInChargeOpen && businessId && empId && (
+      {approvalMode !== "disabled" && walkInChargeOpen && businessId && empId && typeof document !== "undefined" && createPortal(
         <div
           // overflow-y-auto + items-start acá (no solo items-center): la
           // tarjeta interna mide su alto en base a 100vh, que en iOS no se
@@ -2026,6 +2027,17 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           // env(safe-area-inset-bottom): el mismo cálculo se replica en el
           // style de NuevaVentaTab (variant="modal") para que su alto
           // encaje exacto con lo que este padding realmente consume.
+          //
+          // createPortal a document.body: este div vivía dentro del
+          // <div className="relative z-10"> que AppShell pone alrededor
+          // del contenido de la página — eso crea su propio stacking
+          // context, y ahí adentro el z-50 de este modal nunca llega a
+          // competir con la barra inferior "Mi Agenda" (fixed, z-40, pero
+          // hermana de <main> en el árbol raíz). Resultado real en
+          // iPhone: la barra de abajo pintaba encima del footer del
+          // modal. Portalear a document.body lo saca de ese contenedor,
+          // así compite en el stacking context raíz donde z-50 sí le
+          // gana a la barra.
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:items-center bg-black/80"
           onClick={() => setWalkInChargeOpen(false)}
         >
@@ -2050,7 +2062,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               }}
             />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {notaTurno && (

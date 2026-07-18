@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
@@ -126,12 +127,27 @@ export function AgendaCenteredModal({
   useBodyScrollLock(open);
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
   // Mismo lenguaje visual que el modal de Nueva venta / Cobro de Mi Agenda
   // (glass-strong, rounded-3xl, max-w-md, centrado con items-center) para
   // que los dos se sientan parte del mismo sistema — solo el layout de
   // header/contenido/footer es propio de este wrapper, no la lógica.
-  return (
+  //
+  // createPortal a document.body: este div vive en el árbol de React
+  // dentro de <AppShell>, que envuelve el contenido de la página en un
+  // <div className="relative z-10"> (para el header sticky). Sin portal,
+  // ese wrapper crea su PROPIO stacking context — el z-50 de este modal
+  // solo compite contra hermanos DENTRO de ese contexto, nunca contra la
+  // barra inferior "Mi Agenda" (fixed, z-40, pero hermana de <main> en el
+  // árbol raíz). Resultado real en iPhone: la barra de abajo pintaba
+  // encima de todo este modal, tapando el footer, aunque 50 > 40 en el
+  // papel. Portalear a document.body saca este modal de ese contenedor
+  // por completo — ahí sí compite en el stacking context raíz, donde
+  // z-50 le gana a la barra sin ambigüedad. AgendaDrawer (el otro
+  // wrapper) no tenía este problema porque Radix ya portalea el Sheet
+  // por su cuenta.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-black/75"
       onClick={() => !lockOutside && onOpenChange(false)}
@@ -171,6 +187,7 @@ export function AgendaCenteredModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
