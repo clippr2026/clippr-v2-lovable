@@ -2560,7 +2560,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
               <span className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</span>
               <SaleStatusBadge status={row.status} />
             </div>
-            <div className="truncate text-sm font-semibold text-foreground">{row.client_name ?? "Sin cliente"}</div>
+            <div className="truncate text-sm font-semibold leading-tight text-foreground">{row.client_name ?? "Sin cliente"}</div>
           </div>
           <div className="shrink-0 text-right">
             <div className="text-[11px] text-muted-foreground">{methodsSummary(row.methods)}</div>
@@ -2568,10 +2568,11 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
             <div className="text-xs font-semibold tabular-nums text-cyan-300">Com. ${row.commission.toLocaleString("es-AR")}</div>
           </div>
         </div>
-        {/* mt-1 (4px) a propósito — pedido explícito de un margen chico
-            (4-6px) entre el nombre del cliente y el servicio, sin tocar la
-            separación hacia la línea de atribución de abajo (mt-1.5). */}
-        <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
+        {/* mt-0 + leading-tight en ambas líneas a propósito — pedido
+            explícito de eliminar el margen entre el nombre del cliente y el
+            servicio en mobile, que quede pegado. No toca la separación
+            hacia el historial de abajo (mt-1.5, sin cambios). */}
+        <div className="mt-0 line-clamp-2 leading-tight text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
         {historialEvents.length > 0 && (
           <div className="mt-1.5 space-y-0.5 border-t border-white/5 pt-1.5">
             {historialEvents.map((ev, i) => (
