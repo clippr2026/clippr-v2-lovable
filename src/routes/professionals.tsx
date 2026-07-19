@@ -2271,9 +2271,6 @@ function methodsSummary(methods: string[]): string {
   return methods.map((m) => PAY_METHOD_LABEL[m as PayMethod] ?? methodLabel(m)).join(" • ");
 }
 
-// Badge de estado del ciclo de vida de la venta en Historial de ventas —
-// null (turno nunca enviado ni cobrado) no muestra nada, para no ensuciar
-// filas que ya se veían así antes de este cambio.
 // Borde lateral + contorno + glow suave según estado — mismo criterio de
 // colores que ya usa Mi Agenda (getBlockStyle: sky=pendiente, emerald=
 // cobrado), sumando rose para rechazado. Pedido explícito: nada de badges
@@ -2296,6 +2293,27 @@ function saleCardStyle(status: "pendiente" | "cobrado" | "rechazado" | null) {
     glow: "shadow-[0_0_16px_-6px_rgba(251,113,133,0.4)]",
   };
   return { border: "border-l-transparent", ring: "ring-white/10", glow: "" };
+}
+
+// Día calendario (YYYY-MM-DD) de un timestamp real, siempre en horario de
+// Argentina — nunca el del dispositivo/navegador. Sin timeZone explícito,
+// toLocaleDateString usa la zona del sistema; una venta hecha después de
+// las ~21hs (ya pasada la medianoche UTC) podía mostrarse un día
+// adelantada si el dispositivo no tenía la zona horaria bien seteada.
+const BA_TZ = "America/Argentina/Buenos_Aires";
+function argDateKey(iso: string): string {
+  return new Date(iso).toLocaleDateString("sv-SE", { timeZone: BA_TZ });
+}
+
+// Muestra un YYYY-MM-DD ya resuelto (argDateKey) como "Dom 19-07". Arma la
+// fecha con Date.UTC + timeZone:"UTC" a propósito — el día calendario ya es
+// correcto, así que re-derivar weekday/día/mes pasando de nuevo por la zona
+// horaria del dispositivo podía volver a correr el día (mismo bug de raíz).
+function formatFechaCorta(fechaYMD: string): string {
+  const [y, m, d] = fechaYMD.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d))
+    .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" })
+    .replace(".", "");
 }
 
 function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
@@ -2462,7 +2480,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         if (t.status === "cancelled" || t.status === "blocked") continue;
         const pay = payByAppt.get(t.id);
         if (pay) usedPaymentIds.add(pay.id);
-        const localDate = new Date(t.starts_at).toLocaleDateString("sv-SE");
+        const localDate = argDateKey(t.starts_at);
         if (localDate < from || localDate > to) continue;
         const events = readHistorialCobro(t.id);
         rows.push({
@@ -2483,7 +2501,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       for (const p of payments ?? []) {
         if (usedPaymentIds.has(p.id)) continue;
         if (p.appointment_id && payByAppt.has(p.appointment_id)) continue;
-        const localDate = new Date(p.created_at).toLocaleDateString("sv-SE");
+        const localDate = argDateKey(p.created_at);
         if (localDate < from || localDate > to) continue;
         const events = decodePayHistNotes(p.observations);
         rows.push({
@@ -2519,7 +2537,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         }>;
         for (const w of walkIns) {
           if (w.employee_id !== empId) continue;
-          const localDate = new Date(w.starts_at).toLocaleDateString("sv-SE");
+          const localDate = argDateKey(w.starts_at);
           if (localDate < from || localDate > to) continue;
           const events = w.events ?? [];
           rows.push({
@@ -2566,10 +2584,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   const mobileRows = showPreviewGate ? enriched.slice(0, 3) : enriched;
 
   const renderMobileCard = (row: (typeof enriched)[number]) => {
-    const [y, m, d] = row.fecha.split("-");
-    const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
-      .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
-      .replace(".", "");
+    const fechaDisplay = formatFechaCorta(row.fecha);
     // Todos los eventos (Envió a caja / Cobró), uno debajo del otro en
     // orden cronológico — mismo formato "HH:MM Nombre → Acción" que ya
     // tenía Mi Agenda, misma posición de siempre (donde antes decía
@@ -2643,10 +2658,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
 
               {enriched.map((row, i) => {
                 void historialVersion;
-                const [y, m, d] = row.fecha.split("-");
-                const fechaDisplay = new Date(Number(y), Number(m) - 1, Number(d))
-                  .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" })
-                  .replace(".", "");
+                const fechaDisplay = formatFechaCorta(row.fecha);
 
                 const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
                 const cardStyle = saleCardStyle(row.status);
