@@ -2274,19 +2274,28 @@ function methodsSummary(methods: string[]): string {
 // Badge de estado del ciclo de vida de la venta en Historial de ventas —
 // null (turno nunca enviado ni cobrado) no muestra nada, para no ensuciar
 // filas que ya se veían así antes de este cambio.
-function SaleStatusBadge({ status }: { status: "pendiente" | "cobrado" | "rechazado" | null }) {
-  // "rechazado" no repite badge acá arriba — pedido explícito: la palabra
-  // "Rechazó" ya se ve en rojo en la línea de historial de abajo, alcanza.
-  if (!status || status === "rechazado") return null;
-  const meta = {
-    pendiente: { dot: "🟡", label: "Enviado a Caja", cls: "bg-sky-500/10 ring-sky-400/25 text-sky-300" },
-    cobrado: { dot: "🟢", label: "Cobrado", cls: "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300" },
-  }[status];
-  return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 whitespace-nowrap", meta.cls)}>
-      {meta.dot} {meta.label}
-    </span>
-  );
+// Borde lateral + contorno + glow suave según estado — mismo criterio de
+// colores que ya usa Mi Agenda (getBlockStyle: sky=pendiente, emerald=
+// cobrado), sumando rose para rechazado. Pedido explícito: nada de badges
+// de texto — el estado se entiende por el color del borde y por la línea
+// de historial de abajo ("→ Envió a caja" / "→ Cobró" / "→ Rechazó").
+function saleCardStyle(status: "pendiente" | "cobrado" | "rechazado" | null) {
+  if (status === "pendiente") return {
+    border: "border-l-sky-400",
+    ring: "ring-sky-400/20",
+    glow: "shadow-[0_0_16px_-6px_rgba(56,189,248,0.4)]",
+  };
+  if (status === "cobrado") return {
+    border: "border-l-emerald-400",
+    ring: "ring-emerald-400/20",
+    glow: "shadow-[0_0_16px_-6px_rgba(52,211,153,0.4)]",
+  };
+  if (status === "rechazado") return {
+    border: "border-l-rose-400",
+    ring: "ring-rose-400/20",
+    glow: "shadow-[0_0_16px_-6px_rgba(251,113,133,0.4)]",
+  };
+  return { border: "border-l-transparent", ring: "ring-white/10", glow: "" };
 }
 
 function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
@@ -2323,6 +2332,15 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     status: "pendiente" | "cobrado" | "rechazado" | null;
   }[]>([]);
   const [enrichLoading, setEnrichLoading] = React.useState(false);
+  // Numera cada corrida del efecto de abajo para poder descartar resultados
+  // desactualizados — turnos (con su propio canal realtime) Y refreshTick
+  // (otro canal realtime acá mismo) pueden disparar este efecto casi al
+  // mismo tiempo tras un envío/cobro/rechazo; sin esto, una corrida más
+  // vieja que tarda más en volver (trae una consulta extra a
+  // business_settings) podía pisar el resultado ya actualizado de una
+  // corrida más nueva que respondió antes — un envío recién hecho podía
+  // aparecer solo, sin los anteriores, o viceversa.
+  const enrichSeqRef = React.useRef(0);
 
   // Sync historial from Supabase (same as TurnosView)
   const [historialVersion, setHistorialVersion] = React.useState(0);
@@ -2371,6 +2389,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   React.useEffect(() => {
     if (!businessId || !empId || turnosLoading) return;
 
+    const mySeq = ++enrichSeqRef.current;
     setEnrichLoading(true);
     (async () => {
       const fromDate = new Date(from + "T00:00:00");
@@ -2522,6 +2541,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         .map(r => ({ ...r, commission: Math.round(r.total * commissionPct / 100) }))
         .sort((a, b) => a.fecha < b.fecha ? 1 : -1);
 
+      // Si ya se lanzó una corrida más nueva mientras esta esperaba sus
+      // consultas, esta respuesta quedó vieja — se descarta entera para no
+      // pisar el resultado correcto ya aplicado.
+      if (enrichSeqRef.current !== mySeq) return;
       setEnriched(final);
       setEnrichLoading(false);
     })();
@@ -2552,8 +2575,9 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     // tenía Mi Agenda, misma posición de siempre (donde antes decía
     // "Cobrado por X"), sin moverla.
     const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
+    const cardStyle = saleCardStyle(row.status);
     return (
-      <div key={row.id} className="glass rounded-2xl p-3">
+      <div key={row.id} className={cn("glass rounded-2xl border-l-[3px] p-3 ring-1", cardStyle.border, cardStyle.ring, cardStyle.glow)}>
         <div className="flex items-start justify-between gap-2">
           {/* Cliente + servicio agrupados en el MISMO contenedor (antes el
               servicio era un div aparte, hermano de esta fila completa —
@@ -2565,10 +2589,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
               depender de la altura de la columna derecha). flex-col gap-0,
               sin justify-between/min-height/space-y acá adentro. */}
           <div className="flex min-w-0 flex-1 flex-col gap-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</span>
-              <SaleStatusBadge status={row.status} />
-            </div>
+            <div className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</div>
             <div className="truncate text-sm font-semibold leading-tight text-foreground">{row.client_name ?? "Sin cliente"}</div>
             <div className="line-clamp-2 leading-tight text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
           </div>
@@ -2628,20 +2649,19 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                   .replace(".", "");
 
                 const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
+                const cardStyle = saleCardStyle(row.status);
 
                 return (
                   <div
                     key={row.id}
                     className={cn(
-                      "px-5 py-4 text-sm",
+                      "border-l-[3px] px-5 py-4 text-sm",
+                      cardStyle.border, cardStyle.glow,
                       i < enriched.length - 1 && "border-b border-white/5"
                     )}
                   >
                     <div className="grid grid-cols-[14%_24%_34%_28%] items-start">
-                      <div className="space-y-1 pt-0.5">
-                        <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap capitalize">{fechaDisplay}</div>
-                        <SaleStatusBadge status={row.status} />
-                      </div>
+                      <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
                       <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
                       <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
                       {/* Columna derecha: método(s) de pago, Total, Comisión
