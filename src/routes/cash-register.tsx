@@ -6257,6 +6257,17 @@ function getChargedByLabel(
     payment.charged_by_name ?? payment.cashier_name ?? payment.user_name ?? "",
   ).trim();
   if (raw && !/^[0-9a-f]{8}-[0-9a-f-]{13,}$/i.test(raw)) return raw;
+
+  // Antes de caer en el genérico "Recepción": si ya sabemos quién cobró
+  // realmente (cobro_events, resuelto por useCajaData desde la base — no
+  // un cache local), usar ese nombre. Cubre el mismo caso que
+  // buildPaidHistorialEvents pero como red de seguridad extra acá, para
+  // que ningún llamador de esta función pueda terminar mostrando
+  // "Recepción" cuando la cuenta real ya se conoce.
+  const resolvedEvents = (payment.cobro_events as { action: string; user: string }[] | undefined) ?? [];
+  const lastCobro = [...resolvedEvents].reverse().find((e) => e.action === "Cobró");
+  if (lastCobro?.user) return lastCobro.user;
+
   if (chargeType === "auto") return professionalName ?? "Profesional";
   if (chargeType === "manual") return "Recepción";
   return "Caja";
@@ -7453,8 +7464,21 @@ function History({
                           : "—";
                         const amount = Number(p.total ?? p.amount ?? 0);
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
-                        const responsible = displayCashActor(p);
                         const paymentNote = getCashRowNote(p, p.service_name);
+                        // Misma lógica que "Últimos ingresos" (no el genérico
+                        // displayCashActor + "→ Cobró" fijo que tenía esta
+                        // modal antes) — línea de tiempo completa con el
+                        // nombre real de cada acción, no solo el último
+                        // evento.
+                        const paymentRecord = p as Record<string, unknown>;
+                        const empNameForHist = (p.employee_name ?? p.professional_name ?? null) as string | null;
+                        const chargeType = getChargeType(paymentRecord);
+                        const chargedByName = getChargedByLabel(paymentRecord, empNameForHist, chargeType);
+                        const historialEvents = buildPaidHistorialEvents(paymentRecord, {
+                          time,
+                          user: chargedByName,
+                          action: "Cobró",
+                        });
 
                         return (
                           <div
@@ -7497,10 +7521,8 @@ function History({
                               ${amount.toLocaleString("es-AR")}
                             </div>
                             <div className="truncate text-muted-foreground">{methodLabel}</div>
-                            <div className="truncate text-muted-foreground">
-                              <span>{time}</span>{" "}
-                              <span className="font-semibold text-foreground">{responsible}</span>{" "}
-                              <span className={incomeTheme.amount}>→ Cobró</span>
+                            <div>
+                              <HistorialCell events={historialEvents} />
                             </div>
                           </div>
                         );
@@ -7628,8 +7650,16 @@ function History({
                           : "—";
                         const amount = Number(p.total ?? p.amount ?? 0);
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
-                        const responsible = displayCashActor(p);
                         const paymentNote = getCashRowNote(p, p.service_name);
+                        const paymentRecord = p as Record<string, unknown>;
+                        const empNameForHist = (p.employee_name ?? p.professional_name ?? null) as string | null;
+                        const chargeType = getChargeType(paymentRecord);
+                        const chargedByName = getChargedByLabel(paymentRecord, empNameForHist, chargeType);
+                        const historialEvents = buildPaidHistorialEvents(paymentRecord, {
+                          time,
+                          user: chargedByName,
+                          action: "Cobró",
+                        });
 
                         return (
                           <button
@@ -7695,11 +7725,7 @@ function History({
                               <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
                                 Historial
                               </div>
-                              <div className="whitespace-nowrap">
-                                <span className="text-muted-foreground">{time}</span>{" "}
-                                <span className="font-semibold text-foreground/90">{responsible}</span>{" "}
-                                <span className={incomeTheme.amount}>→ Cobró</span>
-                              </div>
+                              <HistorialCell events={historialEvents} />
                             </div>
                           </button>
                         );

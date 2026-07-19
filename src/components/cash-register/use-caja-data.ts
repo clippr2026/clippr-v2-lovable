@@ -448,6 +448,7 @@ export function useCajaData() {
       const { data: apptHistRows } = await supabase
         .from("appointments")
         .select("id,cobro_events")
+        .eq("business_id", businessId)
         .in("id", paymentApptIds);
       for (const row of apptHistRows ?? []) {
         const events = (Array.isArray(row.cobro_events) ? row.cobro_events : []) as HistorialEvento[];
