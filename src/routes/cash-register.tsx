@@ -266,7 +266,7 @@ function HistorialCell({ events }: { events: HistorialEvento[] }) {
           <span className="text-muted-foreground">→</span>{" "}
           <span
             className={cn(
-              event.action === "Cobró" ? "text-emerald-300" : "text-sky-300",
+              event.action === "Cobró" ? "text-emerald-300" : event.action === "Rechazó" ? "text-rose-300" : "text-sky-300",
             )}
           >
             {event.action}
@@ -6556,12 +6556,10 @@ function History({
       const now = new Date();
       const rejectEvent = { time: formatArgTime(now), ts: now.toISOString(), user: rejectedByName, action: "Rechazó" };
       if (p.id.startsWith("walkin-")) {
-        // No se saca del todo de _pendingWalkInSales — se marca
-        // status:"rechazado" y se le agrega el evento, para que quede
-        // trazabilidad en Historial de ventas del Panel Profesional (no hay
-        // appointment ni payments row para una venta de mostrador rechazada,
-        // así que este es el único lugar donde puede persistir esa historia).
-        // use-caja-data.ts ya filtra estas entradas fuera de Pendientes.
+        // No se saca de _pendingWalkInSales — se marca status:"rechazado" y
+        // se le agrega el evento. Pedido explícito: un pendiente rechazado
+        // sigue apareciendo en Caja → Pendientes como registro histórico
+        // (sin botones de acción), no desaparece solo.
         const { data: existingRow, error: readError } = await supabase
           .from("business_settings")
           .select("schedule")
@@ -6583,12 +6581,11 @@ function History({
           );
         if (writeError) throw writeError;
       } else {
-        const cleanNote = getCashRowNote(p, p.service_name);
-        const { error: updateError } = await supabase
-          .from("appointments")
-          .update({ notes: cleanNote || null })
-          .eq("id", p.id);
-        if (updateError) throw updateError;
+        // No se toca la nota (el marcador "[PENDIENTE_CAJA]" se deja tal
+        // cual) — si se limpiara, la consulta de Pendientes dejaría de
+        // encontrar este turno y desaparecería solo de la lista, que es
+        // justo lo que no se quiere. Queda visible como registro histórico
+        // gracias al evento "Rechazó" (sin botones de acción, ver render).
         await appendHistorialCobro(p.id, rejectEvent);
       }
       toast.success("Cobro pendiente rechazado");
@@ -6753,7 +6750,10 @@ function History({
                   const yaCobro = historialEvents.some(
                     (e) => e.action === "Cobró",
                   );
-                  const showCobrarBtn = !yaCobro;
+                  const yaRechazado = historialEvents.some(
+                    (e) => e.action === "Rechazó",
+                  );
+                  const showCobrarBtn = !yaCobro && !yaRechazado;
 
                   return (
                     <div
@@ -6808,15 +6808,17 @@ function History({
                             Cobrar
                           </button>
                         )}
-                        <button
-                          type="button"
-                          title="Rechazar"
-                          disabled={rejectingId === p.id}
-                          onClick={() => handleRechazarPendiente(p)}
-                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-rose-400/70 ring-1 ring-rose-400/20 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40"
-                        >
-                          ✕
-                        </button>
+                        {!yaCobro && !yaRechazado && (
+                          <button
+                            type="button"
+                            title="Rechazar"
+                            disabled={rejectingId === p.id}
+                            onClick={() => handleRechazarPendiente(p)}
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-rose-400/70 ring-1 ring-rose-400/20 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -7101,7 +7103,10 @@ function History({
                   const yaCobro = historialEvents.some(
                     (e) => e.action === "Cobró",
                   );
-                  const showCobrarBtn = !yaCobro;
+                  const yaRechazado = historialEvents.some(
+                    (e) => e.action === "Rechazó",
+                  );
+                  const showCobrarBtn = !yaCobro && !yaRechazado;
 
                   return (
                     <div
@@ -7167,15 +7172,17 @@ function History({
                             Cobrar
                           </button>
                         )}
-                        <button
-                          type="button"
-                          title="Rechazar"
-                          disabled={rejectingId === p.id}
-                          onClick={() => handleRechazarPendiente(p)}
-                          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
-                        >
-                          ✕
-                        </button>
+                        {!yaCobro && !yaRechazado && (
+                          <button
+                            type="button"
+                            title="Rechazar"
+                            disabled={rejectingId === p.id}
+                            onClick={() => handleRechazarPendiente(p)}
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -7281,6 +7288,7 @@ function History({
                 const empName = data.employees.find((e) => e.id === p.employee_id)?.name ?? "—";
                 const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
                 const yaCobro = historialEvents.some((e) => e.action === "Cobró");
+                const yaRechazado = historialEvents.some((e) => e.action === "Rechazó");
                 return (
                   <div key={`prev-${p.id}`} className="w-full rounded-2xl border border-amber-400/15 bg-amber-500/[0.03] px-3.5 py-3 text-xs">
                     <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
@@ -7310,7 +7318,7 @@ function History({
                       <HistorialCell events={historialEvents} />
                     </div>
                     <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5">
-                      {!yaCobro && (
+                      {!yaCobro && !yaRechazado && (
                         <button
                           type="button"
                           onClick={() => { setPreviousPendingOpen(false); onCobrarPendiente(p); }}
@@ -7319,15 +7327,17 @@ function History({
                           Cobrar
                         </button>
                       )}
-                      <button
-                        type="button"
-                        title="Rechazar"
-                        disabled={rejectingId === p.id}
-                        onClick={() => handleRechazarPendiente(p)}
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
-                      >
-                        ✕
-                      </button>
+                      {!yaCobro && !yaRechazado && (
+                        <button
+                          type="button"
+                          title="Rechazar"
+                          disabled={rejectingId === p.id}
+                          onClick={() => handleRechazarPendiente(p)}
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -7498,6 +7508,7 @@ function History({
                       const pendingNote = getCashRowNote(p, p.service_name);
                       const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
                       const yaCobro = historialEvents.some((e: HistorialEvento) => e.action === "Cobró");
+                      const yaRechazado = historialEvents.some((e: HistorialEvento) => e.action === "Rechazó");
 
                       return (
                         <div
@@ -7542,7 +7553,7 @@ function History({
                             <HistorialCell events={historialEvents} />
                           </div>
                           <div className="flex items-center justify-end gap-1.5">
-                            {!yaCobro && (
+                            {!yaCobro && !yaRechazado && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -7554,15 +7565,17 @@ function History({
                                 Cobrar
                               </button>
                             )}
-                            <button
-                              type="button"
-                              title="Rechazar"
-                              disabled={rejectingId === p.id}
-                              onClick={() => handleRechazarPendiente(p)}
-                              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-rose-400/70 ring-1 ring-rose-400/20 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40"
-                            >
-                              ✕
-                            </button>
+                            {!yaCobro && !yaRechazado && (
+                              <button
+                                type="button"
+                                title="Rechazar"
+                                disabled={rejectingId === p.id}
+                                onClick={() => handleRechazarPendiente(p)}
+                                className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-rose-400/70 ring-1 ring-rose-400/20 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -7703,6 +7716,7 @@ function History({
                         const pendingNote = getCashRowNote(p, p.service_name);
                         const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
                         const yaCobro = historialEvents.some((e: HistorialEvento) => e.action === "Cobró");
+                        const yaRechazado = historialEvents.some((e: HistorialEvento) => e.action === "Rechazó");
 
                         return (
                           <div
@@ -7762,7 +7776,7 @@ function History({
                               <HistorialCell events={historialEvents} />
                             </div>
                             <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5">
-                              {!yaCobro && (
+                              {!yaCobro && !yaRechazado && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -7774,15 +7788,17 @@ function History({
                                   Cobrar
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                title="Rechazar"
-                                disabled={rejectingId === p.id}
-                                onClick={() => handleRechazarPendiente(p)}
-                                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
-                              >
-                                ✕
-                              </button>
+                              {!yaCobro && !yaRechazado && (
+                                <button
+                                  type="button"
+                                  title="Rechazar"
+                                  disabled={rejectingId === p.id}
+                                  onClick={() => handleRechazarPendiente(p)}
+                                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
+                                >
+                                  ✕
+                                </button>
+                              )}
                             </div>
                           </div>
                         );

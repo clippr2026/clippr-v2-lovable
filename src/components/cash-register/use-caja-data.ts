@@ -473,15 +473,13 @@ export function useCajaData() {
     // Venta de mostrador enviada a Caja en modo "Enviar" sin partir de un
     // turno: no existe un appointment de por medio (no debe ocuparse un
     // horario en la agenda), así que se guarda acá, en el mismo JSONB de
-    // settings que ya usan _employeeServiceOverrides/_catalogImages.
-    // Las rechazadas se quedan en el JSONB (marcadas status:"rechazado", con
-    // su evento "Rechazó") para que Historial de ventas las pueda mostrar —
-    // pero acá, para la cola de Pendientes de Caja, se excluyen: ya no
-    // están pendientes de nada.
+    // settings que ya usan _employeeServiceOverrides/_catalogImages. Las
+    // rechazadas se quedan visibles en Pendientes (status:"rechazado", con
+    // su evento "Rechazó") como registro histórico pendiente de revisión —
+    // pedido explícito: no deben desaparecer solas, sin acción disponible.
     const pendingFromWalkIn: PendingCharge[] = (
       Array.isArray(bsSchedule._pendingWalkInSales) ? (bsSchedule._pendingWalkInSales as Array<Record<string, unknown>>) : []
     )
-      .filter((w) => w.status !== "rechazado")
       .map((w) => ({
         id: String(w.id ?? ""),
         client_name: (w.client_name as string | null) ?? null,
@@ -490,7 +488,7 @@ export function useCajaData() {
         employee_id: (w.employee_id as string | null) ?? null,
         starts_at: String(w.starts_at ?? new Date().toISOString()),
         notes: null,
-        status: "pending",
+        status: (w.status as string | undefined) ?? "pending",
         events: (Array.isArray(w.events) ? w.events : []) as { time: string; user: string; action: string }[],
         sentAt: String(w.starts_at ?? new Date().toISOString()),
       })).filter((w) => w.id);

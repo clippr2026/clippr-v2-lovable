@@ -2275,11 +2275,12 @@ function methodsSummary(methods: string[]): string {
 // null (turno nunca enviado ni cobrado) no muestra nada, para no ensuciar
 // filas que ya se veían así antes de este cambio.
 function SaleStatusBadge({ status }: { status: "pendiente" | "cobrado" | "rechazado" | null }) {
-  if (!status) return null;
+  // "rechazado" no repite badge acá arriba — pedido explícito: la palabra
+  // "Rechazó" ya se ve en rojo en la línea de historial de abajo, alcanza.
+  if (!status || status === "rechazado") return null;
   const meta = {
     pendiente: { dot: "🟡", label: "Enviado a Caja", cls: "bg-sky-500/10 ring-sky-400/25 text-sky-300" },
     cobrado: { dot: "🟢", label: "Cobrado", cls: "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300" },
-    rechazado: { dot: "🔴", label: "Rechazado", cls: "bg-rose-500/10 ring-rose-400/25 text-rose-300" },
   }[status];
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 whitespace-nowrap", meta.cls)}>
@@ -2567,11 +2568,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
             <div className="text-xs font-semibold tabular-nums text-cyan-300">Com. ${row.commission.toLocaleString("es-AR")}</div>
           </div>
         </div>
-        {/* mt-0 a propósito (antes heredaba space-y-1.5 del contenedor):
-            pedido explícito de que el nombre del cliente y el servicio
-            queden pegados, un solo bloque — sin tocar la separación hacia
-            la línea de atribución de abajo (mt-1.5, igual que antes). */}
-        <div className="mt-0 line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
+        {/* mt-1 (4px) a propósito — pedido explícito de un margen chico
+            (4-6px) entre el nombre del cliente y el servicio, sin tocar la
+            separación hacia la línea de atribución de abajo (mt-1.5). */}
+        <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
         {historialEvents.length > 0 && (
           <div className="mt-1.5 space-y-0.5 border-t border-white/5 pt-1.5">
             {historialEvents.map((ev, i) => (
@@ -2579,7 +2579,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                 <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
                 <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
                 <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : "text-muted-foreground")}>{ev.action}</span>
+                <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : ev.action === "Rechazó" ? "text-rose-300" : "text-muted-foreground")}>{ev.action}</span>
               </div>
             ))}
           </div>
@@ -2658,7 +2658,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                             <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
                             <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
                             <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                            <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : "text-muted-foreground")}>{ev.action}</span>
+                            <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : ev.action === "Rechazó" ? "text-rose-300" : "text-muted-foreground")}>{ev.action}</span>
                           </div>
                         ))}
                       </div>
