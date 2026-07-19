@@ -21,9 +21,9 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { registerPayment, type PayMethod, PAY_METHOD_LABEL } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  useProfessionals, useProfStats, useProfPayments,
-  useProfSales, useProfTurnos,
-  type ProfTurno,
+  useProfessionals, useProfPayments,
+  useProfTurnos,
+  type ProfTurno, type ProfSale,
 } from "@/hooks/use-professionals-data";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
@@ -1870,10 +1870,36 @@ function StatsView({
 }) {
   const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
   const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
-  const { data: stats } = useProfStats(businessId, empId, validFrom, validTo);
-  const { data: sales = [] } = useProfSales(businessId, empId, validFrom, validTo);
+  // Misma fuente de datos que Historial de ventas (turnos + ventas directas
+  // + ventas de mostrador, no solo `payments`) — antes Rendimiento salía de
+  // useProfStats/useProfSales (solo `payments`), así que apenas había una
+  // venta "Enviada a caja" o "Rechazada" sin cobrar todavía, mostraba $0 en
+  // Comisión/Pagado/Pendiente aunque Historial de ventas ya la mostrara.
+  const { enriched, loading } = useProfSalesEnriched(businessId, empId, validFrom, validTo, commissionPct);
 
-  const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+  // Rechazadas no generaron ingreso real, así que quedan afuera de los 3
+  // montos — pero si se las quisiera contar en "cantidad de ventas" para
+  // que coincida 1 a 1 con Historial de ventas, sería enriched.length.
+  const cobradas = enriched.filter(r => r.status === "cobrado");
+  const pendientes = enriched.filter(r => r.status === "pendiente");
+  const pagado = cobradas.reduce((s, r) => s + r.commission, 0);
+  const pendienteMonto = pendientes.reduce((s, r) => s + r.commission, 0);
+  const comision = pagado + pendienteMonto;
+  const ventasCount = enriched.length;
+
+  const salesForDesglose: ProfSale[] = React.useMemo(
+    () => [...cobradas, ...pendientes].map(r => ({
+      id: r.id,
+      client_name: r.client_name,
+      service_name: r.service_name,
+      total: r.total,
+      created_at: r.fecha,
+      method: null,
+      splits: null,
+    })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enriched],
+  );
 
   return (
     <div className="space-y-4 animate-fade-up">
@@ -1886,9 +1912,9 @@ function StatsView({
           </div>
           <div className="mt-1.5 flex items-baseline gap-1">
             <span className="text-muted-foreground text-sm">$</span>
-            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.comision.toLocaleString("es-AR") : "—"}</span>
+            <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : comision.toLocaleString("es-AR")}</span>
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">{stats?.ventasCount ?? 0} ventas</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{ventasCount} venta{ventasCount !== 1 ? "s" : ""}</div>
         </div>
         <div className="glass rounded-2xl p-3.5 ring-1 ring-emerald-400/30 relative overflow-hidden">
           <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-emerald-400/10 blur-3xl" />
@@ -1897,7 +1923,7 @@ function StatsView({
           </div>
           <div className="mt-1.5 flex items-baseline gap-1">
             <span className="text-muted-foreground text-sm">$</span>
-            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.pagado.toLocaleString("es-AR") : "—"}</span>
+            <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : pagado.toLocaleString("es-AR")}</span>
           </div>
         </div>
         <div className="glass rounded-2xl p-3.5 ring-1 ring-cyan-300/20 relative overflow-hidden">
@@ -1907,19 +1933,17 @@ function StatsView({
           </div>
           <div className="mt-1.5 flex items-baseline gap-1">
             <span className="text-muted-foreground text-sm">$</span>
-            <span className="text-3xl font-display font-light tracking-tight">{stats ? stats.pendiente.toLocaleString("es-AR") : "—"}</span>
+            <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : pendienteMonto.toLocaleString("es-AR")}</span>
           </div>
-          <div className="mt-1 text-[11px] text-emerald-300">{stats && stats.pendiente === 0 ? "✓ al día" : ""}</div>
+          <div className="mt-1 text-[11px] text-emerald-300">{!loading && pendienteMonto === 0 ? "✓ al día" : ""}</div>
         </div>
       </div>
 
       {/* Servicios Desglose */}
-      <ServiciosDesglose sales={sales} businessId={businessId} commissionPct={commissionPct} commissionFixed={commissionFixed} />
+      <ServiciosDesglose sales={salesForDesglose} businessId={businessId} commissionPct={commissionPct} commissionFixed={commissionFixed} />
     </div>
   );
 }
-
-type ProfSale = ReturnType<typeof useProfSales> extends { data: (infer T)[] | undefined } ? T : never;
 
 const PIE_COLORS = [
   "oklch(0.72 0.22 300)",  // violet
@@ -2324,39 +2348,50 @@ function formatFechaCorta(fechaYMD: string): string {
     .replace(".", "");
 }
 
-function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
+type EnrichedSaleRow = {
+  id: string;
+  fecha: string;       // YYYY-MM-DD local
+  client_name: string | null;
+  service_name: string | null;
+  total: number;
+  commission: number;
+  sourceType: "turno" | "venta-directa";
+  // Método(s) de pago usados — varios si fue pago múltiple (ej. Efectivo +
+  // Transferencia). Sin importes acá a propósito: eso es para el detalle
+  // de la venta, no para este listado.
+  methods: string[];
+  // Historial completo (Envió a caja / Cobró / Rechazó), en orden
+  // cronológico — para turnos sale de appointments.cobro_events
+  // (readHistorialCobro); para ventas directas sin turno, del marcador en
+  // payments.observations (no hay appointment al que asociar cobro_events
+  // en ese caso).
+  histEvents: { time: string; user: string; action: string }[];
+  // Estado del ciclo de vida de la venta, derivado del último evento del
+  // historial (o de la existencia de un pago) — null cuando el turno
+  // nunca se envió ni se cobró (no hay nada que mostrar como estado).
+  status: "pendiente" | "cobrado" | "rechazado" | null;
+};
+
+// Fuente única de ventas del profesional (turnos cobrados, ventas directas
+// y ventas de mostrador enviadas a caja) — usada tanto por Historial de
+// ventas como por Rendimiento, para que los dos módulos muestren siempre
+// los mismos números. Antes Rendimiento salía de `payments` únicamente
+// (useProfStats/useProfSales), así que en cuanto una venta quedaba
+// "Enviada a caja" o "Rechazada" — sin fila en `payments` todavía — no
+// aparecía en Rendimiento aunque sí se viera en Historial de ventas,
+// mostrando $0 en Comisión/Pagado/Pendiente pese a haber ventas reales.
+function useProfSalesEnriched(
+  businessId: string | null,
+  empId: string | null,
+  from: string,
+  to: string,
+  commissionPct: number,
+) {
   // ── Cargar turnos del período (misma fuente que TurnosView) ─────────────
   const { data: turnos = [], isLoading: turnosLoading } = useProfTurnos(businessId, empId, from, to);
 
-  // ── Cargar payments del mismo período para enriquecer con total ──────────
-  const { data: sales = [], isLoading: salesLoading } = useProfSales(businessId, empId, from, to);
-
-  const isLoading = turnosLoading || salesLoading;
-
   // ── Datos enriquecidos ───────────────────────────────────────────────────
-  const [enriched, setEnriched] = React.useState<{
-    id: string;
-    fecha: string;       // YYYY-MM-DD local
-    client_name: string | null;
-    service_name: string | null;
-    total: number;
-    commission: number;
-    sourceType: "turno" | "venta-directa";
-    // Método(s) de pago usados — varios si fue pago múltiple (ej. Efectivo +
-    // Transferencia). Sin importes acá a propósito: eso es para el detalle
-    // de la venta, no para este listado.
-    methods: string[];
-    // Historial completo (Envió a caja / Cobró / Rechazó), en orden
-    // cronológico — para turnos sale de appointments.cobro_events
-    // (readHistorialCobro); para ventas directas sin turno, del marcador en
-    // payments.observations (no hay appointment al que asociar cobro_events
-    // en ese caso).
-    histEvents: { time: string; user: string; action: string }[];
-    // Estado del ciclo de vida de la venta, derivado del último evento del
-    // historial (o de la existencia de un pago) — null cuando el turno
-    // nunca se envió ni se cobró (no hay nada que mostrar como estado).
-    status: "pendiente" | "cobrado" | "rechazado" | null;
-  }[]>([]);
+  const [enriched, setEnriched] = React.useState<EnrichedSaleRow[]>([]);
   const [enrichLoading, setEnrichLoading] = React.useState(false);
   // Numera cada corrida del efecto de abajo para poder descartar resultados
   // desactualizados — turnos (con su propio canal realtime) Y refreshTick
@@ -2386,10 +2421,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   }, []);
 
   // Refresco en tiempo real: cuando el profesional envía/cobra/rechaza una
-  // venta (desde acá mismo o desde Caja, en otro dispositivo), este
-  // historial tiene que reflejarlo sin recargar la página. El aviso local
-  // (mismo navegador) llega por evento custom; el canal realtime cubre
-  // otros dispositivos/sesiones.
+  // venta (desde acá mismo o desde Caja, en otro dispositivo), tanto
+  // Historial de ventas como Rendimiento tienen que reflejarlo sin recargar
+  // la página. El aviso local (mismo navegador) llega por evento custom; el
+  // canal realtime cubre otros dispositivos/sesiones.
   const [refreshTick, setRefreshTick] = React.useState(0);
   React.useEffect(() => {
     const bump = () => setRefreshTick((v) => v + 1);
@@ -2404,7 +2439,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     if (!businessId) return;
     const bump = () => setRefreshTick((v) => v + 1);
     const channel = supabase
-      .channel(`historial-ventas-${businessId}-${empId ?? "none"}`)
+      .channel(`prof-sales-enriched-${businessId}-${empId ?? "none"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` }, bump)
       .on("postgres_changes", { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` }, bump)
       .on("postgres_changes", { event: "*", schema: "public", table: "payments", filter: `business_id=eq.${businessId}` }, bump)
@@ -2477,7 +2512,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         return null;
       };
 
-      const rows: typeof enriched = [];
+      const rows: EnrichedSaleRow[] = [];
       const usedPaymentIds = new Set<string>();
 
       // useProfTurnos ya no filtra "cancelled" en la query (ver el hook:
@@ -2576,7 +2611,11 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     })();
   }, [businessId, empId, from, to, turnos, turnosLoading, commissionPct, refreshTick, historialVersion]);
 
-  const loading = isLoading || enrichLoading;
+  return { enriched, loading: turnosLoading || enrichLoading };
+}
+
+function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
+  const { enriched, loading } = useProfSalesEnriched(businessId, empId, from, to, commissionPct);
 
   const totalFacturado = enriched.reduce((s, r) => s + r.total, 0);
   const totalComisiones = enriched.reduce((s, r) => s + r.commission, 0);
@@ -2666,7 +2705,6 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
               </div>
 
               {enriched.map((row, i) => {
-                void historialVersion;
                 const fechaDisplay = formatFechaCorta(row.fecha);
 
                 const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
@@ -2722,7 +2760,6 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                 web. Al entrar se ve solo una vista previa (últimas 2-3
                 ventas) con botón para revelar el resto — ver showPreviewGate. */}
             <div className="sm:hidden space-y-2">
-              {void historialVersion}
               {mobileRows.map(renderMobileCard)}
               {showPreviewGate && (
                 <button
