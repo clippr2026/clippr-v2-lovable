@@ -383,6 +383,14 @@ function getManualPendingNote(notes?: string | null, serviceName?: string | null
   const raw = String(notes ?? "").trim();
   if (!raw) return "";
 
+  // [[HIST]]... es el historial interno de una venta de mostrador
+  // (Envió a caja/Cobró/Rechazó, ver PAY_HIST_MARKER) guardado en
+  // payments.observations — nunca una nota real del profesional/cliente.
+  // Sin este chequeo, ese JSON se colaba acá como si fuera texto de nota,
+  // así que "Ver nota" aparecía en TODAS las ventas de mostrador cobradas,
+  // aunque nadie hubiera escrito ninguna nota.
+  if (raw.startsWith(PAY_HIST_MARKER)) return "";
+
   let value = raw
     .replace("[PENDIENTE_CAJA]", "")
     .replace("[MANUAL_PENDING]", "")
