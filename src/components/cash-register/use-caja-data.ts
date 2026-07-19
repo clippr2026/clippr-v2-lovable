@@ -234,6 +234,13 @@ export function useCajaData() {
   const [pendingCount, setPendingCount] = React.useState(0);
   const [pendingAmount, setPendingAmount] = React.useState(0);
   const [pendingCharges, setPendingCharges] = React.useState<PendingCharge[]>([]);
+  // Pendientes que ya existían ANTES del último cierre de caja — se separan
+  // de pendingCharges para que un pendiente de un día anterior no se mezcle
+  // con los de hoy en la vista principal (pedido explícito), pero sin
+  // perderlo: sigue siendo cobrable/rechazable desde acá.
+  const [pendingCountPrevious, setPendingCountPrevious] = React.useState(0);
+  const [pendingAmountPrevious, setPendingAmountPrevious] = React.useState(0);
+  const [pendingChargesPrevious, setPendingChargesPrevious] = React.useState<PendingCharge[]>([]);
   // Precio personalizado por profesional-servicio (Equipo → Editar
   // profesional → Comisiones). Único mapa que consume el resolver
   // compartido `resolveServicePricing` — ver src/lib/service-pricing.ts.
@@ -270,7 +277,7 @@ export function useCajaData() {
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
     const dateStr = new Date().toISOString().slice(0, 10);
 
-    const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes] = await Promise.allSettled([
+    const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes] = await Promise.allSettled([
       supabase
         .from("price_catalog")
         .select("id,name,price,duration_min,category,active,stock")
@@ -321,6 +328,16 @@ export function useCajaData() {
         .ilike("notes", "%[PENDIENTE_CAJA]%")
         .not("status", "in", "(charged,cancelled,blocked)")
         .order("starts_at", { ascending: true }),
+      // Últimos cierres — para saber desde cuándo son los Pendientes "de
+      // hoy" (ver lastCierreAt más abajo). Trae varias filas, no solo la
+      // última, porque una fila de caja_cierres es por día pero puede tener
+      // más de un evento "cierre" adentro (cerrar/reabrir/cerrar de nuevo).
+      supabase
+        .from("caja_cierres" as any)
+        .select("fecha,eventos")
+        .eq("business_id", businessId)
+        .order("fecha", { ascending: false })
+        .limit(5),
     ]);
 
     // Con el canal realtime (INSERT/UPDATE/DELETE sobre appointments y
@@ -486,9 +503,39 @@ export function useCajaData() {
       (a, b) => new Date(b.sentAt ?? b.starts_at).getTime() - new Date(a.sentAt ?? a.starts_at).getTime(),
     );
 
-    setPendingCharges(allPending);
-    setPendingCount(allPending.length);
-    setPendingAmount(allPending.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
+    // Último cierre real — el más reciente evento "tipo:cierre" dentro de
+    // las últimas filas de caja_cierres (una fila es por día, pero puede
+    // tener más de un evento de cierre si se reabrió y se volvió a cerrar).
+    // Los pendientes enviados DESPUÉS de ese momento son "de hoy"; los de
+    // antes son "de días anteriores" — separados en pendingChargesPrevious,
+    // sin perderlos ni sacarlos de la cola de cobro/rechazo.
+    const lastCierreAt = ((): number => {
+      const rows = cierresRes.status === "fulfilled" && !cierresRes.value.error ? ((cierresRes.value.data ?? []) as Array<{ eventos: unknown }>) : [];
+      let latest = 0;
+      for (const row of rows) {
+        const eventos = Array.isArray(row.eventos) ? (row.eventos as Array<{ tipo?: string; fecha_hora?: string }>) : [];
+        for (const ev of eventos) {
+          if (ev.tipo !== "cierre" || !ev.fecha_hora) continue;
+          const t = new Date(ev.fecha_hora).getTime();
+          if (t > latest) latest = t;
+        }
+      }
+      return latest;
+    })();
+
+    const pendingToday = lastCierreAt
+      ? allPending.filter((p) => new Date(p.sentAt ?? p.starts_at).getTime() > lastCierreAt)
+      : allPending;
+    const pendingPrevious = lastCierreAt
+      ? allPending.filter((p) => new Date(p.sentAt ?? p.starts_at).getTime() <= lastCierreAt)
+      : [];
+
+    setPendingCharges(pendingToday);
+    setPendingCount(pendingToday.length);
+    setPendingAmount(pendingToday.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
+    setPendingChargesPrevious(pendingPrevious);
+    setPendingCountPrevious(pendingPrevious.length);
+    setPendingAmountPrevious(pendingPrevious.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
 
     // Settings
     if (bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data) {
@@ -658,6 +705,7 @@ export function useCajaData() {
     cajaStatus,
     revHoy, cobros, ticket, totalGastos,
     pendingCount, pendingAmount, pendingCharges,
+    pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,
     employeeServiceOverrides,
     refresh: (reason?: string) => load(reason ?? "manual refresh() call"),
   };

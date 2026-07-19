@@ -735,6 +735,7 @@ function CashRegisterPage() {
               cajaCerrada={cajaCerrada}
               paymentsToday={data.paymentsToday}
               expensesToday={data.expensesToday}
+              pendingCharges={data.pendingCharges}
               userEmail={session.user.email ?? null}
               onCajaCerrada={() => {
                 setCajaCerrada(true);
@@ -861,6 +862,7 @@ function CashRegisterPage() {
               cajaCerrada={cajaCerrada}
               paymentsToday={data.paymentsToday}
               expensesToday={data.expensesToday}
+              pendingCharges={data.pendingCharges}
               userEmail={session.user.email ?? null}
               onCajaCerrada={() => {
                 setCajaCerrada(true);
@@ -4969,6 +4971,43 @@ async function buildCierreSnapshotForDate(businessId: string, dateStr: string) {
     usuario: e.user_name ?? e.created_by ?? null,
   }));
 
+  // Pendientes no tienen una fecha de "creado ese día" reconstruible con
+  // precisión (no hay columna de fecha en la cola de Pendientes, ver
+  // useCajaData) — este snapshot es del estado ACTUAL al momento del
+  // cierre automático (que corre al otro día, al volver a abrir Caja), no
+  // una reconstrucción histórica exacta de cómo estaba a medianoche.
+  const [apptRes, bsRes] = await Promise.allSettled([
+    supabase
+      .from("appointments")
+      .select("id,client_name,service_name,service_price,starts_at,notes,status")
+      .eq("business_id", businessId)
+      .ilike("notes", "%[PENDIENTE_CAJA]%")
+      .not("status", "in", "(charged,cancelled,blocked)"),
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
+  ]);
+  const pendingAppts = apptRes.status === "fulfilled" && !apptRes.value.error ? ((apptRes.value.data ?? []) as any[]) : [];
+  const bsSchedule = (bsRes.status === "fulfilled" && !bsRes.value.error ? (bsRes.value.data?.schedule ?? {}) : {}) as Record<string, unknown>;
+  const walkInPending = (Array.isArray(bsSchedule._pendingWalkInSales) ? (bsSchedule._pendingWalkInSales as any[]) : [])
+    .filter((w) => w.status !== "rechazado");
+
+  const pendientesDetalle = [
+    ...pendingAppts.map((a) => ({
+      id: a.id,
+      cliente: a.client_name ?? null,
+      servicio: a.service_name ?? null,
+      monto: Number(a.service_price ?? 0),
+      hora_envio: a.starts_at ? new Date(a.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : null,
+    })),
+    ...walkInPending.map((w) => ({
+      id: w.id,
+      cliente: w.client_name ?? null,
+      servicio: w.service_name ?? null,
+      monto: Number(w.service_price ?? 0),
+      hora_envio: w.starts_at ? new Date(w.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : null,
+    })),
+  ];
+  const pendientesMonto = pendientesDetalle.reduce((s, p) => s + p.monto, 0);
+
   return {
     totalCobrado,
     totalGastos,
@@ -4978,6 +5017,9 @@ async function buildCierreSnapshotForDate(businessId: string, dateStr: string) {
     gastosSnapshot,
     cantidadCobros: payments.length,
     hadActivity: payments.length > 0 || expenses.length > 0,
+    pendientesCount: pendientesDetalle.length,
+    pendientesMonto,
+    pendientesDetalle,
   };
 }
 
@@ -5070,6 +5112,9 @@ async function autoCloseExpiredCajaSession({
         hora: "00:00hs",
         usuario: "Automático",
         observacion: "Cierre automático de fin de día.",
+        pendientes_count: snapshot.pendientesCount,
+        pendientes_monto: snapshot.pendientesMonto,
+        pendientes_detalle: snapshot.pendientesDetalle,
       };
       const payload = {
         business_id: businessId,
@@ -5121,12 +5166,14 @@ function paymentMethodLabel(method: string) {
 function CierreCajaBtn({
   paymentsToday,
   expensesToday,
+  pendingCharges,
   businessId,
   userEmail,
   onCajaCerrada,
 }: {
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
+  pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"];
   businessId: string | null;
   userEmail: string | null;
   onCajaCerrada: () => void;
@@ -5215,6 +5262,20 @@ function CierreCajaBtn({
     usuario: e.user_name ?? e.created_by ?? null,
   }));
 
+  // Snapshot de lo que quedó sin cobrar al momento del cierre — no existe
+  // (todavía) una columna dedicada en caja_cierres para esto, así que viaja
+  // dentro del propio evento de cierre en "eventos" (mismo JSONB flexible
+  // que ya usa total_cobrado/total_gastos ahí adentro), sin arriesgar un
+  // ALTER TABLE a ciegas.
+  const pendientesSnapshot = pendingCharges.map((p) => ({
+    id: p.id,
+    cliente: p.client_name ?? null,
+    servicio: p.service_name ?? null,
+    monto: Number(p.service_price ?? 0),
+    hora_envio: p.sentAt ? cajaTimeLabel(new Date(p.sentAt)) : null,
+  }));
+  const pendientesMonto = pendingCharges.reduce((s, p) => s + Number(p.service_price ?? 0), 0);
+
   async function confirmar() {
     if (saving || !businessId) return;
     setSaving(true);
@@ -5231,6 +5292,9 @@ function CierreCajaBtn({
         total_cobrado: totalCobrado,
         total_gastos: totalGastos,
         utilidad,
+        pendientes_count: pendingCharges.length,
+        pendientes_monto: pendientesMonto,
+        pendientes_detalle: pendientesSnapshot,
       };
 
       const { data: existing } = await supabase
@@ -5439,6 +5503,7 @@ function CierresTab({
   cajaCerrada,
   paymentsToday,
   expensesToday,
+  pendingCharges,
   userEmail,
   onCajaCerrada,
   onCajaReopened,
@@ -5447,6 +5512,7 @@ function CierresTab({
   cajaCerrada: boolean;
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
+  pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"];
   userEmail: string | null;
   onCajaCerrada: () => void;
   onCajaReopened: () => void;
@@ -5763,6 +5829,7 @@ function CierresTab({
                   <CierreCajaBtn
                     paymentsToday={paymentsToday}
                     expensesToday={expensesToday}
+                    pendingCharges={pendingCharges}
                     businessId={businessId}
                     userEmail={userEmail}
                     onCajaCerrada={() => {
@@ -6474,6 +6541,7 @@ function History({
   const rows = panel === "ingresos" ? data.paymentsToday : [];
   const pendingRows = panel === "pendientes" ? data.pendingCharges : [];
   const [rejectingId, setRejectingId] = React.useState<string | null>(null);
+  const [previousPendingOpen, setPreviousPendingOpen] = React.useState(false);
 
   // Rechazar un pendiente ("✕" en Acción): saca la venta de la cola sin
   // cobrarla. Turno: solo se limpia el marcador "[PENDIENTE_CAJA]" de sus
@@ -6613,6 +6681,24 @@ function History({
             {title}
           </h3>
         </div>
+
+        {/* Pendientes de días anteriores (antes del último cierre de caja):
+            no se mezclan con la lista de hoy, pero siguen siendo cobrables/
+            rechazables desde este banner + modal. */}
+        {panel === "pendientes" && data.pendingCountPrevious > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-400/15 bg-amber-500/[0.06] px-5 py-2.5 text-xs">
+            <span className="text-amber-200">
+              ⚠️ {data.pendingCountPrevious} pendiente{data.pendingCountPrevious === 1 ? "" : "s"} de días anteriores · ${data.pendingAmountPrevious.toLocaleString("es-AR")}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPreviousPendingOpen(true)}
+              className="rounded-full bg-amber-400/15 px-3 py-1 text-[11px] font-semibold text-amber-200 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25"
+            >
+              Ver pendientes anteriores
+            </button>
+          </div>
+        )}
 
         {/* Table header — en mobile, ambos paneles ("ingresos" y
             "pendientes") usan tarjetas verticales en su lugar (ver bloques
@@ -7158,6 +7244,97 @@ function History({
                   {pendingNoteModal.note}
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pendientes de días anteriores — mismos datos (data.pendingChargesPrevious)
+          y mismas acciones (Cobrar/Rechazar) que la lista de hoy, separados
+          nada más para no mezclarlos en la vista principal. */}
+      {previousPendingOpen && (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setPreviousPendingOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 shrink-0">
+              <div>
+                <h3 className="text-sm font-semibold">Pendientes de días anteriores</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Enviados antes del último cierre de caja — todavía sin cobrar ni rechazar.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviousPendingOpen(false)}
+                className="rounded-lg bg-white/5 px-3 py-1.5 text-xs transition hover:bg-white/10"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+              {data.pendingChargesPrevious.map((p) => {
+                const empName = data.employees.find((e) => e.id === p.employee_id)?.name ?? "—";
+                const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
+                const yaCobro = historialEvents.some((e) => e.action === "Cobró");
+                return (
+                  <div key={`prev-${p.id}`} className="w-full rounded-2xl border border-amber-400/15 bg-amber-500/[0.03] px-3.5 py-3 text-xs">
+                    <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                        {new Date(p.starts_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                      </span>
+                      <span className="text-sm font-bold tabular-nums text-amber-200">
+                        ${Number(p.service_price ?? 0).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="shrink-0 text-muted-foreground/70">Cliente</span>
+                        <span className="truncate text-right text-foreground">{p.client_name ?? "—"}</span>
+                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+                        <span className="truncate text-right text-muted-foreground">{empName}</span>
+                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="shrink-0 text-muted-foreground/70">Servicio/Catálogo</span>
+                        <span className="truncate text-right text-muted-foreground">{p.service_name ?? "—"}</span>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Historial</div>
+                      <HistorialCell events={historialEvents} />
+                    </div>
+                    <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5">
+                      {!yaCobro && (
+                        <button
+                          type="button"
+                          onClick={() => { setPreviousPendingOpen(false); onCobrarPendiente(p); }}
+                          className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-emerald-300/45 bg-emerald-400/18 px-3.5 py-2 text-[11px] font-extrabold text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.18)] transition active:brightness-110"
+                        >
+                          Cobrar
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        title="Rechazar"
+                        disabled={rejectingId === p.id}
+                        onClick={() => handleRechazarPendiente(p)}
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-rose-400/70 ring-1 ring-rose-400/20 transition active:bg-rose-500/10 disabled:opacity-40"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {data.pendingChargesPrevious.length === 0 && (
+                <div className="px-4 py-10 text-center text-sm text-muted-foreground">Sin pendientes anteriores.</div>
+              )}
             </div>
           </div>
         </div>
