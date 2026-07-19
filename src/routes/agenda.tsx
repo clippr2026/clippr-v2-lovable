@@ -2385,10 +2385,10 @@ const DayView = React.memo(function DayView({
             const chargeEnabled = data.employeeApprovalEnabled[e.id] === true;
             const chargeMode = data.employeeApprovalMode[e.id] === "manual" ? "manual" : "auto";
             const chargeBadge = !chargeEnabled
-              ? { emoji: "⚪", label: "No cobra servicios" }
+              ? { emoji: "⚪", label: "No cobra servicios", cls: "text-muted-foreground/85" }
               : chargeMode === "manual"
-                ? { emoji: "🟡", label: "Requiere aprobación" }
-                : { emoji: "🟢", label: "Cobra directamente" };
+                ? { emoji: "🔵", label: "Envía servicios", cls: "text-sky-300/85" }
+                : { emoji: "🟢", label: "Cobra servicios", cls: "text-emerald-300/85" };
             return (
               <div
                 key={e.id}
@@ -2429,7 +2429,7 @@ const DayView = React.memo(function DayView({
                     {total} turno{total === 1 ? "" : "s"}
                   </div>
                   <div
-                    className="mt-0.5 truncate text-[9px] leading-none text-muted-foreground/85"
+                    className={cn("mt-0.5 truncate text-[9px] leading-none", chargeBadge.cls)}
                     title={chargeBadge.label}
                   >
                     {chargeBadge.emoji} {chargeBadge.label}

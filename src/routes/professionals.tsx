@@ -436,11 +436,11 @@ function ProfessionalsPage() {
               {(permissions.equipo || isProfessionalAccess) && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
                 approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
-                approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
+                approvalMode === "manual" && "bg-sky-500/10 ring-sky-400/30 text-sky-300",
                 approvalMode === "disabled" && "bg-white/5 ring-white/15 text-muted-foreground",
               )}>
-                {approvalMode === "auto" && <>🟢 Cobra directamente</>}
-                {approvalMode === "manual" && <>🟡 Requiere aprobación</>}
+                {approvalMode === "auto" && <>🟢 Cobra servicios</>}
+                {approvalMode === "manual" && <>🔵 Envía servicios</>}
                 {approvalMode === "disabled" && <>⚪ No cobra servicios</>}
               </div>}
             </div>
