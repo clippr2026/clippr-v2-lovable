@@ -125,6 +125,8 @@ export type ClientLite = {
   birth_date?: string | null;
 };
 
+export type HistorialEvento = { time: string; user: string; action: string; ts?: string };
+
 export type Payment = {
   id: string;
   total: number | null;
@@ -141,6 +143,19 @@ export type Payment = {
   charge_type?: "auto" | "manual" | "caja" | string | null;
   status?: string | null;
   observations?: string | null;
+  // Historial completo ("Envió a caja"/"Cobró"/"Rechazó", con el usuario
+  // real de cada acción) — para turnos sale de appointments.cobro_events
+  // (traído acá con una consulta aparte, ver load()); para ventas de
+  // mostrador sin turno, del marcador [[HIST]] en observations. Resuelto
+  // acá, en la capa de datos compartida, para que ningún consumidor tenga
+  // que reconstruirlo por su cuenta desde un cache local que puede no
+  // tener el evento (ej. "Envió a caja" escrito desde el dispositivo del
+  // profesional, nunca sincronizado en el dispositivo de Caja).
+  cobro_events?: HistorialEvento[];
+  // Instante ISO real de "Envió a caja" si existe, si no `created_at` —
+  // para ordenar por cuándo se originó la venta, no por cuándo se cobró
+  // (cobrar un pendiente no debe correrlo de lugar en las listas).
+  sort_ts?: string;
 };
 
 export type PendingCharge = {
@@ -416,8 +431,45 @@ export function useCajaData() {
     });
     setCajaStatus(status);
 
-    // Payments
-    setPaymentsToday(payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : []);
+    // Payments — se completa cobro_events/sort_ts abajo (ver enrichPayments).
+    const paymentsRaw = payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : [];
+
+    // `payments` no tiene cobro_events (esa columna vive en `appointments`),
+    // así que se trae acá aparte, solo para los appointment_id presentes
+    // hoy — sin esto, "Últimos ingresos"/"Historial completo" mostraban
+    // solo "Cobró" (con el nombre genérico "Recepción") porque reconstruían
+    // el historial desde un cache local por dispositivo que podía no tener
+    // el "Envió a caja" que escribió el profesional en otro aparato.
+    const paymentApptIds = Array.from(
+      new Set(paymentsRaw.map((p) => p.appointment_id).filter((id): id is string => !!id)),
+    );
+    const apptHistMap: Record<string, HistorialEvento[]> = {};
+    if (paymentApptIds.length > 0) {
+      const { data: apptHistRows } = await supabase
+        .from("appointments")
+        .select("id,cobro_events")
+        .in("id", paymentApptIds);
+      for (const row of apptHistRows ?? []) {
+        const events = (Array.isArray(row.cobro_events) ? row.cobro_events : []) as HistorialEvento[];
+        if (events.length) apptHistMap[row.id as string] = events;
+      }
+    }
+    const PAY_HIST_MARKER = "[[HIST]]";
+    const paymentsEnriched: Payment[] = paymentsRaw.map((p) => {
+      let events: HistorialEvento[] = [];
+      const rawObs = String(p.observations ?? "");
+      if (rawObs.startsWith(PAY_HIST_MARKER)) {
+        try { events = JSON.parse(rawObs.slice(PAY_HIST_MARKER.length)); } catch { events = []; }
+      } else if (p.appointment_id && apptHistMap[p.appointment_id]) {
+        events = apptHistMap[p.appointment_id];
+      }
+      const sendEvent = events.find((e) => e.action === "Envió a caja");
+      return { ...p, cobro_events: events, sort_ts: sendEvent?.ts ?? p.created_at };
+    });
+    // Orden por sort_ts (momento real de envío/creación) — nunca por cuándo
+    // se cobró: cobrar o rechazar un pendiente no debe correrlo de lugar.
+    paymentsEnriched.sort((a, b) => (b.sort_ts ?? "").localeCompare(a.sort_ts ?? ""));
+    setPaymentsToday(paymentsEnriched);
     setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
 
     // Pending charges — el query ya filtra por el marcador en notas; este

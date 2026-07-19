@@ -223,6 +223,23 @@ function buildPaidHistorialEvents(
   payment: Record<string, unknown>,
   fallbackCobroEvent: HistorialEvento,
 ): HistorialEvento[] {
+  // Prioridad 1: cobro_events ya resuelto por useCajaData (appointments.
+  // cobro_events para turnos, o el marcador [[HIST]] en observations para
+  // ventas de mostrador), con el usuario real de cada acción — no depende
+  // de ningún cache local por dispositivo. Antes esta función SOLO miraba
+  // localStorage (getHistorialCobroByIds), así que si "Envió a caja" se
+  // había escrito desde el dispositivo del profesional y este dispositivo
+  // de Caja nunca lo cacheó, se perdía esa línea entera y el nombre caía al
+  // genérico "Recepción" del fallback.
+  const resolved = (payment.cobro_events as HistorialEvento[] | undefined) ?? [];
+  if (resolved.length > 0) {
+    const alreadyHasCobro = resolved.some((event) => event.action === "Cobró");
+    return alreadyHasCobro ? resolved : uniqueHistorialEvents([...resolved, fallbackCobroEvent]);
+  }
+
+  // Fallback: reconstrucción desde localStorage — solo para pagos que por
+  // algún motivo no trajeron cobro_events resuelto (ej. columna todavía sin
+  // datos en un registro muy viejo).
   const savedEvents = getHistorialCobroByIds([
     payment.appointment_id,
     payment.appointmentId,
@@ -8543,9 +8560,14 @@ export function NuevaVentaTab({
 
         // 3. Registrar en el historial del turno que el usuario de caja cobró el
         //    pendiente. Persiste en appointments.cobro_events (Supabase).
+        //    Awaited a propósito: data.refresh() (al final de esta función)
+        //    vuelve a traer cobro_events fresco de la base para mostrarlo en
+        //    "Últimos ingresos" — sin esperar acá, esa relectura podía
+        //    ganarle a este UPDATE y traer el historial todavía sin el
+        //    "Cobró" recién escrito, cayendo al nombre genérico de fallback.
         const now = new Date();
         const hhmm = formatArgTime(now);
-        appendHistorialCobro(pendingCharge.id, {
+        await appendHistorialCobro(pendingCharge.id, {
           time: hhmm,
           ts: now.toISOString(),
           user: chargedByName || chargedByUsername(userEmail),

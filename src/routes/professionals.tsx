@@ -115,7 +115,7 @@ const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 // directo en payments.observations, con este marcador al principio —
 // mismo mecanismo/constante que usa cash-register.tsx al escribirlo.
 const PAY_HIST_MARKER = "[[HIST]]";
-function decodePayHistNotes(observations: string | null | undefined): { time: string; user: string; action: string }[] {
+function decodePayHistNotes(observations: string | null | undefined): { time: string; user: string; action: string; ts?: string }[] {
   const raw = String(observations ?? "");
   if (!raw.startsWith(PAY_HIST_MARKER)) return [];
   try {
@@ -2358,6 +2358,11 @@ function formatFechaCorta(fechaYMD: string): string {
 type EnrichedSaleRow = {
   id: string;
   fecha: string;       // YYYY-MM-DD local
+  // Instante ISO real de creación/envío de la venta (turno.starts_at,
+  // "Envió a caja" original, o created_at si nunca pasó por Pendientes) —
+  // define el ORDEN de la tarjeta. Nunca la hora de cobro/rechazo: cobrar
+  // una venta pendiente no debe correrla de lugar en la lista.
+  sortTs: string;
   client_name: string | null;
   service_name: string | null;
   total: number;
@@ -2536,6 +2541,7 @@ function useProfSalesEnriched(
         rows.push({
           id: t.id,
           fecha: localDate,
+          sortTs: t.starts_at,
           client_name: t.client_name,
           service_name: t.service_name,
           total: pay ? Number(pay.total ?? pay.amount ?? t.service_price ?? 0) : Number(t.service_price ?? 0),
@@ -2554,9 +2560,16 @@ function useProfSalesEnriched(
         const localDate = argDateKey(p.created_at);
         if (localDate < from || localDate > to) continue;
         const events = decodePayHistNotes(p.observations);
+        // El orden de la tarjeta tiene que quedar fijo en el momento en que
+        // se ENVIÓ, no en el momento en que se cobró — si esta venta pasó
+        // por Pendientes (mostrador), el marcador [[HIST]] en observations
+        // ya trae el ts real de "Envió a caja"; p.created_at acá es cuándo
+        // se creó la FILA DE PAGO (el cobro), no la venta original.
+        const sentEvent = events.find(e => e.action === "Envió a caja");
         rows.push({
           id: p.id,
           fecha: localDate,
+          sortTs: sentEvent?.ts ?? p.created_at,
           client_name: p.client_name,
           service_name: p.service_name,
           total: Number(p.total ?? p.amount ?? 0),
@@ -2593,6 +2606,7 @@ function useProfSalesEnriched(
           rows.push({
             id: w.id,
             fecha: localDate,
+            sortTs: w.starts_at,
             client_name: w.client_name,
             service_name: w.service_name,
             total: Number(w.service_price ?? 0),
@@ -2605,9 +2619,14 @@ function useProfSalesEnriched(
         }
       }
 
+      // Orden por sortTs (instante real de envío/creación), no por `fecha`
+      // (solo día, sin hora — dejaba el orden dentro de un mismo día a
+      // merced de en qué loop se haya insertado cada fila) ni por cuándo se
+      // cobró — cobrar o rechazar una pendiente nunca debe correrla de
+      // lugar en la lista.
       const final = rows
         .map(r => ({ ...r, commission: Math.round(r.total * commissionPct / 100) }))
-        .sort((a, b) => a.fecha < b.fecha ? 1 : -1);
+        .sort((a, b) => b.sortTs.localeCompare(a.sortTs));
 
       // Si ya se lanzó una corrida más nueva mientras esta esperaba sus
       // consultas, esta respuesta quedó vieja — se descarta entera para no
