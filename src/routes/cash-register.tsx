@@ -6451,6 +6451,12 @@ function History({
     panelBg: string;
   };
 }) {
+  // Nombre real de quien rechaza un pendiente ("Alan Melgar → Rechazó"),
+  // para el mismo historial que ya usan "Envió a caja"/"Cobró" — nunca el
+  // username/email crudo.
+  const { profile: rejectProfile, session: rejectSession } = useAuth();
+  const rejectedByName = rejectProfile?.full_name || chargedByUsername(rejectSession?.user?.email);
+
   const incomeTheme = theme ?? {
     border: "border-emerald-400/24",
     glow: "shadow-[0_24px_90px_-45px_rgba(16,185,129,0.42)]",
@@ -6479,7 +6485,15 @@ function History({
     if (!window.confirm("¿Rechazar este cobro pendiente? No se va a cobrar.")) return;
     setRejectingId(p.id);
     try {
+      const now = new Date();
+      const rejectEvent = { time: formatArgTime(now), ts: now.toISOString(), user: rejectedByName, action: "Rechazó" };
       if (p.id.startsWith("walkin-")) {
+        // No se saca del todo de _pendingWalkInSales — se marca
+        // status:"rechazado" y se le agrega el evento, para que quede
+        // trazabilidad en Historial de ventas del Panel Profesional (no hay
+        // appointment ni payments row para una venta de mostrador rechazada,
+        // así que este es el único lugar donde puede persistir esa historia).
+        // use-caja-data.ts ya filtra estas entradas fuera de Pendientes.
         const { data: existingRow, error: readError } = await supabase
           .from("business_settings")
           .select("schedule")
@@ -6488,12 +6502,15 @@ function History({
         if (readError) throw readError;
         const schedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
         const currentPending = Array.isArray((schedule as Record<string, unknown>)._pendingWalkInSales)
-          ? ((schedule as Record<string, unknown>)._pendingWalkInSales as Array<{ id: string }>)
+          ? ((schedule as Record<string, unknown>)._pendingWalkInSales as Array<{ id: string; events?: HistorialEvento[] }>)
           : [];
+        const nextPending = currentPending.map((s) =>
+          s.id === p.id ? { ...s, status: "rechazado", events: [...(s.events ?? []), rejectEvent] } : s,
+        );
         const { error: writeError } = await supabase
           .from("business_settings")
           .upsert(
-            { business_id: data.businessId, schedule: { ...schedule, _pendingWalkInSales: currentPending.filter((s) => s.id !== p.id) } },
+            { business_id: data.businessId, schedule: { ...schedule, _pendingWalkInSales: nextPending } },
             { onConflict: "business_id" },
           );
         if (writeError) throw writeError;
@@ -6504,6 +6521,7 @@ function History({
           .update({ notes: cleanNote || null })
           .eq("id", p.id);
         if (updateError) throw updateError;
+        await appendHistorialCobro(p.id, rejectEvent);
       }
       toast.success("Cobro pendiente rechazado");
       await data.refresh();

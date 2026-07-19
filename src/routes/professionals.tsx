@@ -426,7 +426,14 @@ function ProfessionalsPage() {
                   {employeeOnlineMap[active.id] !== false ? "ONLINE" : "OFFLINE"}
                 </span>
               </div>
-              {permissions.equipo && <div className={cn(
+              {/* Antes solo se mostraba con permissions.equipo (Admin/Dueño) —
+                  un profesional viendo su PROPIA ficha (típicamente desde Mi
+                  Agenda en el celular) nunca tiene ese permiso, así que este
+                  badge nunca le aparecía a él mismo aunque el diseño no
+                  tuviera nada de "solo desktop". isProfessionalAccess cubre
+                  ese caso: puede ver su propio modo de cobro sin necesitar
+                  permiso de gestión de equipo. */}
+              {(permissions.equipo || isProfessionalAccess) && <div className={cn(
                 "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
                 approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
                 approvalMode === "manual" && "bg-amber-500/10 ring-amber-400/30 text-amber-300",
@@ -2264,6 +2271,23 @@ function methodsSummary(methods: string[]): string {
   return methods.map((m) => PAY_METHOD_LABEL[m as PayMethod] ?? methodLabel(m)).join(" • ");
 }
 
+// Badge de estado del ciclo de vida de la venta en Historial de ventas —
+// null (turno nunca enviado ni cobrado) no muestra nada, para no ensuciar
+// filas que ya se veían así antes de este cambio.
+function SaleStatusBadge({ status }: { status: "pendiente" | "cobrado" | "rechazado" | null }) {
+  if (!status) return null;
+  const meta = {
+    pendiente: { dot: "🟡", label: "Enviado a Caja", cls: "bg-sky-500/10 ring-sky-400/25 text-sky-300" },
+    cobrado: { dot: "🟢", label: "Cobrado", cls: "bg-emerald-500/10 ring-emerald-400/25 text-emerald-300" },
+    rechazado: { dot: "🔴", label: "Rechazado", cls: "bg-rose-500/10 ring-rose-400/25 text-rose-300" },
+  }[status];
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 whitespace-nowrap", meta.cls)}>
+      {meta.dot} {meta.label}
+    </span>
+  );
+}
+
 function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
   // ── Cargar turnos del período (misma fuente que TurnosView) ─────────────
   const { data: turnos = [], isLoading: turnosLoading } = useProfTurnos(businessId, empId, from, to);
@@ -2286,11 +2310,16 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     // Transferencia). Sin importes acá a propósito: eso es para el detalle
     // de la venta, no para este listado.
     methods: string[];
-    // Historial completo (Envió a caja / Cobró), en orden cronológico —
-    // para turnos sale de appointments.cobro_events (readHistorialCobro);
-    // para ventas directas sin turno, del marcador en payments.observations
-    // (no hay appointment al que asociar cobro_events en ese caso).
+    // Historial completo (Envió a caja / Cobró / Rechazó), en orden
+    // cronológico — para turnos sale de appointments.cobro_events
+    // (readHistorialCobro); para ventas directas sin turno, del marcador en
+    // payments.observations (no hay appointment al que asociar cobro_events
+    // en ese caso).
     histEvents: { time: string; user: string; action: string }[];
+    // Estado del ciclo de vida de la venta, derivado del último evento del
+    // historial (o de la existencia de un pago) — null cuando el turno
+    // nunca se envió ni se cobró (no hay nada que mostrar como estado).
+    status: "pendiente" | "cobrado" | "rechazado" | null;
   }[]>([]);
   const [enrichLoading, setEnrichLoading] = React.useState(false);
 
@@ -2311,9 +2340,35 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     };
   }, []);
 
+  // Refresco en tiempo real: cuando el profesional envía/cobra/rechaza una
+  // venta (desde acá mismo o desde Caja, en otro dispositivo), este
+  // historial tiene que reflejarlo sin recargar la página. El aviso local
+  // (mismo navegador) llega por evento custom; el canal realtime cubre
+  // otros dispositivos/sesiones.
+  const [refreshTick, setRefreshTick] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => setRefreshTick((v) => v + 1);
+    window.addEventListener("clippr:manual-pending-updated", bump);
+    window.addEventListener("storage", bump);
+    return () => {
+      window.removeEventListener("clippr:manual-pending-updated", bump);
+      window.removeEventListener("storage", bump);
+    };
+  }, []);
+  React.useEffect(() => {
+    if (!businessId) return;
+    const bump = () => setRefreshTick((v) => v + 1);
+    const channel = supabase
+      .channel(`historial-ventas-${businessId}-${empId ?? "none"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "payments", filter: `business_id=eq.${businessId}` }, bump)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [businessId, empId]);
+
   React.useEffect(() => {
     if (!businessId || !empId || turnosLoading) return;
-    if (turnos.length === 0 && sales.length === 0) { setEnriched([]); return; }
 
     setEnrichLoading(true);
     (async () => {
@@ -2363,6 +2418,19 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         if (p.appointment_id) payByAppt.set(p.appointment_id, p);
       }
 
+      // Estado (🟡 Enviado a Caja / 🟢 Cobrado / 🔴 Rechazado) según el
+      // último evento del historial — un pago ya registrado siempre gana
+      // (más confiable que el historial, que podría no haberse persistido).
+      const deriveStatus = (events: { action: string }[], hasPay: boolean): "pendiente" | "cobrado" | "rechazado" | null => {
+        if (hasPay) return "cobrado";
+        const latest = events[events.length - 1];
+        if (!latest) return null;
+        if (latest.action === "Cobró") return "cobrado";
+        if (latest.action === "Rechazó") return "rechazado";
+        if (latest.action === "Envió a caja") return "pendiente";
+        return null;
+      };
+
       const rows: typeof enriched = [];
       const usedPaymentIds = new Set<string>();
 
@@ -2376,6 +2444,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         if (pay) usedPaymentIds.add(pay.id);
         const localDate = new Date(t.starts_at).toLocaleDateString("sv-SE");
         if (localDate < from || localDate > to) continue;
+        const events = readHistorialCobro(t.id);
         rows.push({
           id: t.id,
           fecha: localDate,
@@ -2385,7 +2454,8 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           commission: 0,
           sourceType: "turno",
           methods: pay ? methodsOf(pay) : [],
-          histEvents: readHistorialCobro(t.id),
+          histEvents: events,
+          status: deriveStatus(events, !!pay),
         });
       }
 
@@ -2395,6 +2465,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
         if (p.appointment_id && payByAppt.has(p.appointment_id)) continue;
         const localDate = new Date(p.created_at).toLocaleDateString("sv-SE");
         if (localDate < from || localDate > to) continue;
+        const events = decodePayHistNotes(p.observations);
         rows.push({
           id: p.id,
           fecha: localDate,
@@ -2404,8 +2475,46 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
           commission: 0,
           sourceType: "venta-directa",
           methods: methodsOf(p),
-          histEvents: decodePayHistNotes(p.observations),
+          histEvents: events,
+          status: deriveStatus(events, true),
         });
+      }
+
+      // Ventas de mostrador enviadas a caja sin turno, todavía sin cobrar o
+      // rechazadas — viven en business_settings.schedule._pendingWalkInSales
+      // (nunca en `payments`/`appointments` mientras no se cobren; ver
+      // handleCobrar en cash-register.tsx). Sin esto, el profesional no veía
+      // acá nada de lo que envió hasta que Caja lo cobraba.
+      {
+        const { data: bsRow } = await supabase
+          .from("business_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle();
+        const schedule = (bsRow?.schedule ?? {}) as Record<string, unknown>;
+        const walkIns = (Array.isArray(schedule._pendingWalkInSales) ? schedule._pendingWalkInSales : []) as Array<{
+          id: string; employee_id: string | null; client_name: string | null; service_name: string | null;
+          service_price: number | null; starts_at: string; status?: string;
+          events?: { time: string; user: string; action: string }[];
+        }>;
+        for (const w of walkIns) {
+          if (w.employee_id !== empId) continue;
+          const localDate = new Date(w.starts_at).toLocaleDateString("sv-SE");
+          if (localDate < from || localDate > to) continue;
+          const events = w.events ?? [];
+          rows.push({
+            id: w.id,
+            fecha: localDate,
+            client_name: w.client_name,
+            service_name: w.service_name,
+            total: Number(w.service_price ?? 0),
+            commission: 0,
+            sourceType: "venta-directa",
+            methods: [],
+            histEvents: events,
+            status: deriveStatus(events, false),
+          });
+        }
       }
 
       const final = rows
@@ -2415,7 +2524,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       setEnriched(final);
       setEnrichLoading(false);
     })();
-  }, [businessId, empId, from, to, turnos, turnosLoading, commissionPct]);
+  }, [businessId, empId, from, to, turnos, turnosLoading, commissionPct, refreshTick]);
 
   const loading = isLoading || enrichLoading;
 
@@ -2446,7 +2555,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       <div key={row.id} className="glass rounded-2xl p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</span>
+              <SaleStatusBadge status={row.status} />
+            </div>
             <div className="truncate text-sm font-semibold text-foreground">{row.client_name ?? "Sin cliente"}</div>
           </div>
           <div className="shrink-0 text-right">
@@ -2520,7 +2632,10 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                     )}
                   >
                     <div className="grid grid-cols-[14%_24%_34%_28%] items-start">
-                      <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
+                      <div className="space-y-1 pt-0.5">
+                        <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap capitalize">{fechaDisplay}</div>
+                        <SaleStatusBadge status={row.status} />
+                      </div>
                       <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
                       <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
                       {/* Columna derecha: método(s) de pago, Total, Comisión

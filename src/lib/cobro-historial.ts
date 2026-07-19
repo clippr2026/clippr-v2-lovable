@@ -20,7 +20,7 @@ export type HistorialEvento = {
   // por cliente" no debe mostrar el nombre del cliente.
   user: string;
   role: "profesional" | "recepcion" | "cliente" | "sistema";
-  action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó";
+  action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó" | "Rechazó";
 };
 
 // Texto de atribución ("Cancelado por Alan" / "Cancelado por cliente"),
