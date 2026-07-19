@@ -2555,12 +2555,22 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     return (
       <div key={row.id} className="glass rounded-2xl p-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
+          {/* Cliente + servicio agrupados en el MISMO contenedor (antes el
+              servicio era un div aparte, hermano de esta fila completa —
+              con items-start en la fila y la columna derecha más alta
+              (3 líneas: método/total/comisión) contra esta de 2, la fila
+              tomaba la altura de la derecha y el servicio quedaba
+              "empujado" abajo, no pegado al cliente. Ahora está adentro de
+              esta columna, así se apila directo debajo del cliente sin
+              depender de la altura de la columna derecha). flex-col gap-0,
+              sin justify-between/min-height/space-y acá adentro. */}
+          <div className="flex min-w-0 flex-1 flex-col gap-0">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</span>
               <SaleStatusBadge status={row.status} />
             </div>
             <div className="truncate text-sm font-semibold leading-tight text-foreground">{row.client_name ?? "Sin cliente"}</div>
+            <div className="line-clamp-2 leading-tight text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
           </div>
           <div className="shrink-0 text-right">
             <div className="text-[11px] text-muted-foreground">{methodsSummary(row.methods)}</div>
@@ -2568,11 +2578,6 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
             <div className="text-xs font-semibold tabular-nums text-cyan-300">Com. ${row.commission.toLocaleString("es-AR")}</div>
           </div>
         </div>
-        {/* mt-0 + leading-tight en ambas líneas a propósito — pedido
-            explícito de eliminar el margen entre el nombre del cliente y el
-            servicio en mobile, que quede pegado. No toca la separación
-            hacia el historial de abajo (mt-1.5, sin cambios). */}
-        <div className="mt-0 line-clamp-2 leading-tight text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
         {historialEvents.length > 0 && (
           <div className="mt-1.5 space-y-0.5 border-t border-white/5 pt-1.5">
             {historialEvents.map((ev, i) => (
