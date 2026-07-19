@@ -1871,24 +1871,31 @@ function StatsView({
   const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
   const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
   // Misma fuente de datos que Historial de ventas (turnos + ventas directas
-  // + ventas de mostrador, no solo `payments`) — antes Rendimiento salía de
-  // useProfStats/useProfSales (solo `payments`), así que apenas había una
-  // venta "Enviada a caja" o "Rechazada" sin cobrar todavía, mostraba $0 en
-  // Comisión/Pagado/Pendiente aunque Historial de ventas ya la mostrara.
-  const { enriched, loading } = useProfSalesEnriched(businessId, empId, validFrom, validTo, commissionPct);
-
-  // Rechazadas no generaron ingreso real, así que quedan afuera de los 3
-  // montos — pero si se las quisiera contar en "cantidad de ventas" para
-  // que coincida 1 a 1 con Historial de ventas, sería enriched.length.
+  // + ventas de mostrador, no solo `payments`) para que el estado de cada
+  // venta esté siempre sincronizado entre los dos módulos — pero la
+  // Comisión se calcula EXCLUSIVAMENTE sobre status "cobrado". Antes
+  // (versión previa de este fix) también sumaba la comisión de ventas
+  // "pendiente" (enviada a caja, sin cobrar todavía) como comisión
+  // "provisional" — pedido explícito en contra: comisión sobre plata que el
+  // negocio todavía no cobró del cliente es incorrecta contablemente, así
+  // que enviado_a_caja/pendiente_aprobacion/rechazado/cancelado nunca
+  // generan comisión, solo cobrado/pagado.
+  const { enriched, loading: enrichedLoading } = useProfSalesEnriched(businessId, empId, validFrom, validTo, commissionPct);
   const cobradas = enriched.filter(r => r.status === "cobrado");
-  const pendientes = enriched.filter(r => r.status === "pendiente");
-  const pagado = cobradas.reduce((s, r) => s + r.commission, 0);
-  const pendienteMonto = pendientes.reduce((s, r) => s + r.commission, 0);
-  const comision = pagado + pendienteMonto;
-  const ventasCount = enriched.length;
+  const comision = cobradas.reduce((s, r) => s + r.commission, 0);
+  const ventasCount = cobradas.length;
+
+  // Pagado/Pendiente son sobre LIQUIDACIÓN (plata que el negocio ya le pagó
+  // al profesional por su comisión ganada, vs. lo que todavía le debe) — no
+  // sobre el estado de la venta. Esa es la fuente real: professional_payouts
+  // (mismos datos que "Historial de pagos"), no el array de ventas.
+  const { data: payouts = [], isLoading: payoutsLoading } = useProfPayments(businessId, empId, validFrom, validTo);
+  const loading = enrichedLoading || payoutsLoading;
+  const pagado = payouts.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const pendienteMonto = Math.max(0, comision - pagado);
 
   const salesForDesglose: ProfSale[] = React.useMemo(
-    () => [...cobradas, ...pendientes].map(r => ({
+    () => cobradas.map(r => ({
       id: r.id,
       client_name: r.client_name,
       service_name: r.service_name,
