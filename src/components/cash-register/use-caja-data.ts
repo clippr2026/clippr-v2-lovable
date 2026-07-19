@@ -300,11 +300,18 @@ export function useCajaData() {
         .eq("active", true)
         .order("category")
         .order("name"),
+      // Sin .eq("is_active", true): esa columna nunca se edita desde ningún
+      // lugar de la app (Equipo no tiene un toggle para ella — ver el
+      // comentario de toggleOnline en equipo-section.tsx; "Acepta reservas
+      // en línea" es un campo totalmente distinto, guardado en
+      // business_settings). Filtrar por acá dejaba afuera de "Nueva venta"
+      // a cualquier profesional cuyo is_active fuera false/null por algún
+      // motivo ajeno al negocio, aunque apareciera normal en Equipo/Agenda
+      // — ninguna otra consulta de employees del proyecto filtra por esto.
       supabase
         .from("employees")
         .select("id,full_name,avatar_url,is_active,commission_pct")
         .eq("business_id", businessId)
-        .eq("is_active", true)
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")

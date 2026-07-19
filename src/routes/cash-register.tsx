@@ -516,7 +516,7 @@ type Tab =
   | "cierres";
 
 function CashRegisterPage() {
-  const { session, loading: authLoading, permissions } = useAuth();
+  const { session, profile, loading: authLoading, permissions } = useAuth();
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
@@ -852,6 +852,7 @@ function CashRegisterPage() {
               data={data}
               pendingCharge={activePendingCharge}
               userEmail={session.user.email ?? null}
+              chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               onPendingDone={() => {
                 setPendingToCharge(null);
                 setTab("resumen");
@@ -8616,6 +8617,20 @@ export function NuevaVentaTab({
         notifyCajaPendientesChanged();
       } else {
         // ── FLUJO NORMAL: nueva venta desde cero ──
+        // Sin esto, el historial quedaba vacío (nunca pasó por Pendientes,
+        // no hay appointment_id ni marcador [[HIST]] previo) y
+        // buildPaidHistorialEvents caía en getChargedByLabel, que devuelve
+        // el genérico "Caja" para chargeOrigin "caja" — nunca la cuenta
+        // real que confirmó el cobro. chargedByName ya viene resuelto
+        // desde el profile del usuario autenticado (ver CashRegisterPage);
+        // si no hay nombre cargado, chargedByUsername cae al email.
+        const now = new Date();
+        const chargeEvent: HistorialEvento = {
+          time: formatArgTime(now),
+          ts: now.toISOString(),
+          user: chargedByName || chargedByUsername(userEmail),
+          action: "Cobró",
+        };
         await registerPayment({
           businessId: data.businessId,
           employeeId: employeeId || null,
@@ -8629,6 +8644,7 @@ export function NuevaVentaTab({
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "caja",
+          notes: `${PAY_HIST_MARKER}${JSON.stringify([chargeEvent])}`,
         });
 
         toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
