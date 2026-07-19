@@ -34,10 +34,44 @@ export function AppShell({ children, fullWidth = false }: { children: React.Reac
 
   if ((loading || !session) && !hasSessionRef.current) {
     return (
-      <div className="min-h-dvh grid place-items-center">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <div className="h-10 w-10 rounded-xl animate-pulse bg-gradient-to-br from-primary/40 to-accent/40 ring-1 ring-white/10" />
-          <div className="text-sm">Cargando…</div>
+      <div className="min-h-dvh grid place-items-center bg-background">
+        <style>{`
+          @keyframes clipprBootPulse {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.02) rotate(-2deg); }
+            50% { transform: scale(1.05) rotate(0deg); }
+            75% { transform: scale(1.02) rotate(2deg); }
+          }
+          @keyframes clipprBootGlow {
+            0%, 100% { opacity: .28; transform: scale(.9); }
+            50% { opacity: .55; transform: scale(1.12); }
+          }
+          @keyframes clipprBootFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
+        <div
+          className="relative grid place-items-center"
+          style={{ animation: "clipprBootFadeIn 420ms ease-out" }}
+        >
+          {/* Glow violeta sutil — no debe leerse como un elemento aparte,
+              solo un halo detrás del logo. */}
+          <div
+            className="pointer-events-none absolute h-28 w-28 rounded-full blur-3xl"
+            style={{
+              background: "radial-gradient(circle, oklch(0.65 0.24 290 / 0.35), transparent 70%)",
+              animation: "clipprBootGlow 2.6s ease-in-out infinite",
+            }}
+          />
+          <img
+            src="/clippr-powered-logo.webp"
+            alt="Clippr"
+            loading="eager"
+            decoding="async"
+            className="relative z-10 h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10"
+            style={{ animation: "clipprBootPulse 2.4s ease-in-out infinite" }}
+          />
         </div>
       </div>
     );
