@@ -1518,7 +1518,7 @@ function ResumenTab({
                         <div
                           key={e.id}
                           className={cn(
-                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200",
+                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.09] odd:bg-white/[0.022] last:border-0 transition-all duration-200",
                             panelTheme.gastos.rowHover,
                           )}
                         >
@@ -1558,7 +1558,7 @@ function ResumenTab({
                   Sin gastos registrados.
                 </div>
               ) : (
-                <div className="flex flex-col gap-2.5 p-3">
+                <div className="flex flex-col gap-3 p-3">
                   {data.expensesToday.slice(0, 5).map((e: any) => {
                     const createdDate = e.created_at ? new Date(e.created_at) : null;
                     const date = e.date
@@ -6787,7 +6787,7 @@ function History({
                     <div
                       key={`pending-${p.id}`}
                       className={cn(
-                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] bg-white/[0.018] transition-all duration-200",
+                        "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.09] odd:bg-white/[0.022] transition-all duration-200 last:border-0",
                         incomeTheme.rowHover,
                       )}
                     >
@@ -6884,7 +6884,7 @@ function History({
                   return (
                     <div
                       key={p.id}
-                      className={cn("grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-2 text-xs border-b border-white/[0.055] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
+                      className={cn("grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.09] odd:bg-white/[0.022] last:border-0 transition-all duration-200 group cursor-pointer", incomeTheme.rowHover)}
                       onClick={() => setDetailPayment(p)}
                     >
                       <div className="text-muted-foreground whitespace-nowrap">
@@ -6945,7 +6945,7 @@ function History({
               // datos, sección de historial) en gris neutro — antes era
               // solo un "Cargando…" y la tarjeta completa aparecía de
               // golpe con los datos, incluido el monto en verde.
-              <div className="flex flex-col gap-2.5 p-3">
+              <div className="flex flex-col gap-3 p-3">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
@@ -6971,7 +6971,7 @@ function History({
                 Sin cobros
               </div>
             ) : (
-              <div className="flex flex-col gap-2.5 p-3">
+              <div className="flex flex-col gap-3 p-3">
                 {mobileRows.map((p) => {
                   const dt = new Date(p.created_at);
                   const fecha = dt.toLocaleDateString("es-AR", {
@@ -7086,7 +7086,7 @@ function History({
               // Misma tarjeta real + una fila extra para el botón "Cobrar"
               // (shadow-[0_0_20px_rgba(16,185,129,0.18)] verde) que antes
               // aparecía recién con los datos, sin placeholder.
-              <div className="flex flex-col gap-2.5 p-3">
+              <div className="flex flex-col gap-3 p-3">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
@@ -7115,7 +7115,7 @@ function History({
                 Sin pendientes.
               </div>
             ) : (
-              <div className="flex flex-col gap-2.5 p-3">
+              <div className="flex flex-col gap-3 p-3">
                 {pendingRows.map((p) => {
                   const dt = new Date(p.starts_at);
                   const fecha = dt.toLocaleDateString("es-AR", {
@@ -7485,7 +7485,7 @@ function History({
                             key={`historial-ingreso-${p.id}`}
                             onClick={() => setDetailPayment(p)}
                             className={cn(
-                              "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 border-b border-white/[0.055] px-6 py-2 text-xs transition-all duration-200 last:border-0 cursor-pointer",
+                              "grid grid-cols-[80px_minmax(150px,0.85fr)_minmax(150px,0.85fr)_minmax(280px,1.35fr)_120px_140px_minmax(260px,1fr)] items-center gap-x-3 border-b border-white/[0.09] odd:bg-white/[0.022] px-6 py-3 text-xs transition-all duration-200 last:border-0 cursor-pointer",
                               incomeTheme.rowHover,
                             )}
                           >
@@ -7553,7 +7553,7 @@ function History({
                         <div
                           key={`historial-pendiente-${p.id}`}
                           className={cn(
-                            "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 border-b border-white/[0.055] px-6 py-2 text-xs transition-all duration-200 last:border-0",
+                            "grid grid-cols-[80px_minmax(130px,0.75fr)_minmax(130px,0.75fr)_minmax(240px,1.15fr)_110px_120px_minmax(230px,1fr)_140px] items-center gap-x-3 border-b border-white/[0.09] odd:bg-white/[0.022] px-6 py-3 text-xs transition-all duration-200 last:border-0",
                             incomeTheme.rowHover,
                           )}
                         >
@@ -7632,7 +7632,7 @@ function History({
                       Sin cobros.
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2.5 p-3">
+                    <div className="flex flex-col gap-3 p-3">
                       {rows.map((p: any) => {
                         const date = p.created_at
                           ? new Date(p.created_at).toLocaleDateString("es-AR", {
@@ -7745,7 +7745,7 @@ function History({
                       Sin pendientes.
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2.5 p-3">
+                    <div className="flex flex-col gap-3 p-3">
                       {pendingRows.map((p: any) => {
                         const created = p.created_at ? new Date(p.created_at) : null;
                         const date = created

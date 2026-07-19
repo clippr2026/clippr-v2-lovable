@@ -273,7 +273,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
           rows.map((g) => (
             <div
               key={g.id}
-              className="flex items-center gap-3 px-5 py-3 border-b border-white/5 last:border-0"
+              className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.09] odd:bg-white/[0.022] transition-colors duration-200 last:border-0 hover:bg-white/[0.03]"
             >
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-foreground">{g.name}</div>
