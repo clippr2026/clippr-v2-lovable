@@ -98,7 +98,12 @@ function Brand() {
 
 function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { permissions, profile } = useAuth();
+  const { permissions, profile, loading } = useAuth();
+  // Mientras loading es true, profile todavía es null — isOwner de abajo
+  // (`!profile?.role || ...`) lo trataría como dueño/admin y mostraría el
+  // nav completo por un instante hasta que el rol real (ej. profesional)
+  // se resuelva. No renderizar nada hasta conocer el rol evita ese flash.
+  if (loading) return null;
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
   const nav = ALL_NAV.filter((item) => {
     if (!item.permKey) return true; // Configuración always visible
@@ -567,9 +572,40 @@ type MobileNavEntry = {
   permKey: PermKey;
 };
 
+// Mismo alto/posición que la nav real (evita salto de layout cuando el rol
+// se resuelve), pero sin ningún label ni ícono real — nada que insinúe qué
+// rol tiene la cuenta mientras todavía no se sabe.
+function MobileBottomNavSkeleton() {
+  return (
+    <nav
+      className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
+      <div className="grid h-16 grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex flex-col items-center justify-center gap-1.5">
+            <div className="h-5 w-5 rounded-full bg-white/[0.06] animate-pulse" />
+            <div className="h-2 w-7 rounded-full bg-white/[0.06] animate-pulse" />
+          </div>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 function MobileBottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { permissions, profile } = useAuth();
+  const { permissions, profile, loading } = useAuth();
+
+  // Mientras se resuelve la sesión/rol (F5, primera carga), profile todavía
+  // es null. isOwner de abajo (`!profile?.role || ...`) lo trataría como
+  // dueño/admin y `order` caería en MOBILE_NAV_ORDER_DEFAULT (nav de
+  // Admin: Inicio/Agenda/Caja/Clientes) por un instante — el "flash" del
+  // menú de administración en cuentas Profesional al recargar. Un
+  // skeleton neutro (mismo alto, sin items reales) evita mostrar cualquier
+  // navegación hasta conocer el rol real.
+  if (loading) return <MobileBottomNavSkeleton />;
+
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
   const isProfessional = profile?.role === "profesional";
 

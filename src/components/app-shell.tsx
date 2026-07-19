@@ -15,8 +15,18 @@ export function AppShell({ children, fullWidth = false }: { children: React.Reac
   // gate reemplazaba todo el árbol por la pantalla de "Cargando…" y al
   // volver a montar, useAgendaData arrancaba de cero (loader + refetch).
   // Ahora solo mostramos "Cargando…" antes del primer ingreso real.
+  //
+  // El latch tiene que esperar a `!loading`, no alcanza con `session`: en
+  // useAuth, hydrate() hace setSession(s) ANTES del await que resuelve el
+  // profile (setProfile/setLoading(false) llegan recién después, en un
+  // render aparte). Con solo `session`, este ref se ponía en true en ese
+  // render intermedio — session ya truthy pero profile todavía null — y
+  // el gate de abajo dejaba pasar a AppSidebar con el rol todavía sin
+  // resolver. Eso era el "flash" del menú de Admin en cuentas Profesional
+  // al hacer F5: por un instante isOwner/permissions default a "todo
+  // visible" porque profile.role todavía no existía.
   const hasSessionRef = React.useRef(false);
-  if (session) hasSessionRef.current = true;
+  if (!loading && session) hasSessionRef.current = true;
 
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
