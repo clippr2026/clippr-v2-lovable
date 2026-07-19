@@ -2646,15 +2646,18 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
   const totalFacturado = enriched.reduce((s, r) => s + r.total, 0);
   const totalComisiones = enriched.reduce((s, r) => s + r.commission, 0);
 
-  // Vista previa mobile: al entrar a "Historial de ventas" se muestran solo
-  // las últimas 2-3 ventas (mismo `enriched`, ya ordenado por fecha
-  // descendente) con un botón "Ver historial completo" que revela el resto.
-  // Se resetea sola cada vez que se re-entra a esta pestaña porque el
-  // componente se desmonta/monta con el tab (ver ProfessionalsPage). No
-  // afecta a desktop, que siempre muestra la tabla completa.
+  // Vista resumida: al entrar a "Historial de ventas" se muestran como
+  // máximo las últimas 10 ventas (mismo `enriched`, ya ordenado por
+  // sortTs descendente — la más reciente primero) con un botón "Ver
+  // historial completo" que revela el resto sin volver a pedir datos ni
+  // cambiar los filtros (from/to) ya aplicados. Se resetea sola cada vez
+  // que se re-entra a esta pestaña porque el componente se desmonta/monta
+  // con el tab (ver ProfessionalsPage). Mismo criterio en mobile y en
+  // desktop — antes solo mobile truncaba (a 3) y desktop mostraba siempre
+  // todo sin límite ni botón.
   const [showFull, setShowFull] = React.useState(false);
-  const showPreviewGate = !showFull && enriched.length > 3;
-  const mobileRows = showPreviewGate ? enriched.slice(0, 3) : enriched;
+  const showPreviewGate = !showFull && enriched.length > 10;
+  const visibleRows = showPreviewGate ? enriched.slice(0, 10) : enriched;
 
   const renderMobileCard = (row: (typeof enriched)[number]) => {
     const fechaDisplay = formatFechaCorta(row.fecha);
@@ -2730,7 +2733,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                 <div className="text-right">Pago / Total / Comisión</div>
               </div>
 
-              {enriched.map((row, i) => {
+              {visibleRows.map((row, i) => {
                 const fechaDisplay = formatFechaCorta(row.fecha);
 
                 const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
@@ -2742,7 +2745,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                     className={cn(
                       "relative overflow-hidden px-5 py-4 text-sm",
                       cardStyle.glow,
-                      i < enriched.length - 1 && "border-b border-white/5"
+                      i < visibleRows.length - 1 && "border-b border-white/5"
                     )}
                   >
                     <span className={cn("absolute inset-y-0 left-0 w-1.5", cardStyle.bar)} />
@@ -2783,20 +2786,24 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
             {/* Mobile (<sm): misma info que la tabla, en tarjetas verticales
                 — nada de columnas comprimidas ni texto/importes superpuestos.
                 Mismos datos, mismo `enriched`, ningún dato distinto al de
-                web. Al entrar se ve solo una vista previa (últimas 2-3
+                web. Al entrar se ve solo una vista resumida (últimas 10
                 ventas) con botón para revelar el resto — ver showPreviewGate. */}
             <div className="sm:hidden space-y-2">
-              {mobileRows.map(renderMobileCard)}
-              {showPreviewGate && (
-                <button
-                  type="button"
-                  onClick={() => setShowFull(true)}
-                  className="w-full rounded-xl px-3 py-2.5 text-center text-xs font-semibold text-violet-300 transition hover:text-violet-200"
-                >
-                  Ver historial completo →
-                </button>
-              )}
+              {visibleRows.map(renderMobileCard)}
             </div>
+
+            {/* Botón compartido: mismo criterio y mismo estado (showFull)
+                para mobile y desktop — no hay dos historiales distintos,
+                solo se revela el resto del mismo `enriched` ya filtrado. */}
+            {showPreviewGate && (
+              <button
+                type="button"
+                onClick={() => setShowFull(true)}
+                className="w-full rounded-xl px-3 py-2.5 text-center text-xs font-semibold text-violet-300 transition hover:text-violet-200"
+              >
+                Ver historial completo →
+              </button>
+            )}
           </>
         )}
       </div>
