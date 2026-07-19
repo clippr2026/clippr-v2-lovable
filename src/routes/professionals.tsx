@@ -2276,23 +2276,31 @@ function methodsSummary(methods: string[]): string {
 // cobrado), sumando rose para rechazado. Pedido explícito: nada de badges
 // de texto — el estado se entiende por el color del borde y por la línea
 // de historial de abajo ("→ Envió a caja" / "→ Cobró" / "→ Rechazó").
+// `bar` es un <span> absoluto (no border-left) a propósito: la tarjeta usa
+// la clase "glass", que trae su propio shorthand `border: 1px solid ...`
+// (ver .glass en styles.css) — ese shorthand fija border-color en los 4
+// lados, y al tener la misma especificidad que "border-l-sky-400" pero
+// aparecer después en el CSS compilado, GANABA y anulaba en silencio el
+// color del borde izquierdo (comprobado comparando el orden real en el
+// bundle de producción). Un <span> con background-color no compite con
+// ninguna propiedad de border, así que no puede ser tapado de la misma forma.
 function saleCardStyle(status: "pendiente" | "cobrado" | "rechazado" | null) {
   if (status === "pendiente") return {
-    border: "border-l-sky-400",
+    bar: "bg-sky-400",
     ring: "ring-sky-400/20",
     glow: "shadow-[0_0_16px_-6px_rgba(56,189,248,0.4)]",
   };
   if (status === "cobrado") return {
-    border: "border-l-emerald-400",
+    bar: "bg-emerald-400",
     ring: "ring-emerald-400/20",
     glow: "shadow-[0_0_16px_-6px_rgba(52,211,153,0.4)]",
   };
   if (status === "rechazado") return {
-    border: "border-l-rose-400",
+    bar: "bg-rose-400",
     ring: "ring-rose-400/20",
     glow: "shadow-[0_0_16px_-6px_rgba(251,113,133,0.4)]",
   };
-  return { border: "border-l-transparent", ring: "ring-white/10", glow: "" };
+  return { bar: "bg-transparent", ring: "ring-white/10", glow: "" };
 }
 
 // Día calendario (YYYY-MM-DD) de un timestamp real, siempre en horario de
@@ -2566,7 +2574,7 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
       setEnriched(final);
       setEnrichLoading(false);
     })();
-  }, [businessId, empId, from, to, turnos, turnosLoading, commissionPct, refreshTick]);
+  }, [businessId, empId, from, to, turnos, turnosLoading, commissionPct, refreshTick, historialVersion]);
 
   const loading = isLoading || enrichLoading;
 
@@ -2592,7 +2600,8 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
     const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
     const cardStyle = saleCardStyle(row.status);
     return (
-      <div key={row.id} className={cn("glass rounded-2xl border-l-[3px] p-3 ring-1", cardStyle.border, cardStyle.ring, cardStyle.glow)}>
+      <div key={row.id} className={cn("glass relative overflow-hidden rounded-2xl p-3 ring-1", cardStyle.ring, cardStyle.glow)}>
+        <span className={cn("absolute inset-y-0 left-0 w-1.5 rounded-l-2xl", cardStyle.bar)} />
         <div className="flex items-start justify-between gap-2">
           {/* Cliente + servicio agrupados en el MISMO contenedor (antes el
               servicio era un div aparte, hermano de esta fila completa —
@@ -2667,11 +2676,12 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                   <div
                     key={row.id}
                     className={cn(
-                      "border-l-[3px] px-5 py-4 text-sm",
-                      cardStyle.border, cardStyle.glow,
+                      "relative overflow-hidden px-5 py-4 text-sm",
+                      cardStyle.glow,
                       i < enriched.length - 1 && "border-b border-white/5"
                     )}
                   >
+                    <span className={cn("absolute inset-y-0 left-0 w-1.5", cardStyle.bar)} />
                     <div className="grid grid-cols-[14%_24%_34%_28%] items-start">
                       <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
                       <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
