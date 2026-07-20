@@ -1357,7 +1357,16 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
           </button>
         </div>
 
-        <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        {/* pb con safe-area propio: el padding-bottom normal (py-5) no
+            alcanzaba para que el último bloque (la tarjeta roja) quedara
+            totalmente visible al llegar al final del scroll — sobre todo
+            con el home indicator de iPhone, que le come espacio real al
+            final del scroll interno aunque el overlay de afuera ya tenga
+            su propio padding de safe-area. */}
+        <div
+          ref={scrollRef}
+          className="relative min-h-0 flex-1 overflow-y-auto px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-5"
+        >
             <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/25 bg-violet-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200">
               <CircleHelp className="h-3.5 w-3.5" />
               Cómo funciona
