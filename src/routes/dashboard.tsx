@@ -66,7 +66,11 @@ function DashboardRoute() {
 
   return (
     <AppShell>
-      <h1 className="mb-2 font-display text-[1.65rem] leading-tight sm:text-3xl font-semibold tracking-tight">
+      {/* Oculto en mobile: el banner de sección debajo del header ya dice
+          "Dashboard" (ver MobileSectionBanner) — repetirlo acá era
+          redundante y le sacaba alto útil a la pantalla. En desktop no hay
+          banner, así que el título sigue siendo la única referencia. */}
+      <h1 className="mb-2 hidden font-display text-[1.65rem] leading-tight sm:text-3xl font-semibold tracking-tight lg:block">
         Resumen del negocio
       </h1>
       <DashboardContent businessId={businessId} />

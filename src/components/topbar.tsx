@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Plus } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
+import { MOBILE_BANNER_ROUTES } from "@/components/app-sidebar";
 
 // Page-specific CTA mapping (kept consistent with previous behavior).
 const ACTION_BY_PATH: Record<string, { label: string; to: string }> = {
@@ -21,10 +23,36 @@ export function Topbar({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const defaultAction = ACTION_BY_PATH[pathname];
+  const actionEl = action ?? (defaultAction ? (
+    <Link
+      to={defaultAction.to}
+      className="h-10 w-full justify-center px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition sm:w-auto"
+      style={{
+        background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
+        boxShadow:
+          "0 10px 26px -10px oklch(0.6 0.28 290 / 0.65), inset 0 1px 0 oklch(1 0 0 / 0.2)",
+      }}
+    >
+      <Plus className="h-4 w-4" />
+      <span>{defaultAction.label}</span>
+    </Link>
+  ) : null);
+  // El banner de sección (MobileSectionBanner) ya dice el nombre de la
+  // sección en mobile para estas rutas — repetirlo acá como título grande
+  // era redundante. Rutas sin banner (ej. /reports, /inventory) mantienen
+  // el título siempre visible, en cualquier tamaño.
+  const hasMobileBanner = MOBILE_BANNER_ROUTES.includes(pathname);
+  // Si además no hay ninguna acción (ej. Configuración pasa action={null}),
+  // el header queda completamente vacío en mobile — se oculta entero para
+  // no dejar el espacio de su propio margen inferior sin usar.
+  const hideHeaderOnMobile = hasMobileBanner && !actionEl;
 
   return (
-    <header className="mb-4 flex flex-col gap-3 sm:mb-6 md:mb-7 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0 w-full sm:w-auto">
+    <header className={cn(
+      "mb-4 gap-3 sm:mb-6 md:mb-7 sm:flex-row sm:items-end sm:justify-between",
+      hideHeaderOnMobile ? "hidden lg:flex" : "flex flex-col",
+    )}>
+      <div className={cn("min-w-0 w-full sm:w-auto", hasMobileBanner && "hidden lg:block")}>
         <h1 className="font-display text-[1.65rem] leading-tight sm:text-3xl font-semibold tracking-tight">
           {title}
         </h1>
@@ -36,20 +64,7 @@ export function Topbar({
       </div>
 
       <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
-        {action ?? (defaultAction ? (
-          <Link
-            to={defaultAction.to}
-            className="h-10 w-full justify-center px-4 rounded-xl text-white font-medium text-sm flex items-center gap-2 hover:brightness-110 transition sm:w-auto"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
-              boxShadow:
-                "0 10px 26px -10px oklch(0.6 0.28 290 / 0.65), inset 0 1px 0 oklch(1 0 0 / 0.2)",
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            <span>{defaultAction.label}</span>
-          </Link>
-        ) : null)}
+        {actionEl}
       </div>
     </header>
   );

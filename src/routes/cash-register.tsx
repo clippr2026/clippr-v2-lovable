@@ -935,13 +935,14 @@ function Header({
   const QuickIcon = isGastos ? Wallet : Plus;
   return (
     <div className="flex items-center justify-between gap-4 flex-wrap">
-      <div className="mt-1 sm:mt-0">
+      {/* Oculto en mobile: el banner de sección debajo del header ya dice
+          "Caja" (ver MobileSectionBanner) — repetirlo acá era redundante.
+          En desktop no hay banner, sigue siendo la única referencia. */}
+      <div className="mt-1 hidden sm:mt-0 lg:block">
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
           Caja
         </h1>
-        {/* Subtítulo solo en web — en mobile la cabecera queda más compacta
-            (Caja + botón de acción rápida, ver botón al lado). */}
-        <p className="mt-2 hidden text-sm text-muted-foreground sm:block md:text-base">
+        <p className="mt-2 text-sm text-muted-foreground md:text-base">
           Cobros, gastos y liquidaciones
         </p>
       </div>

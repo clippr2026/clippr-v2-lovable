@@ -47,6 +47,13 @@ const ALL_NAV: Array<{
   { label: "Configuración", to: "/settings", icon: Settings, permKey: "configuracion" },
 ];
 
+// Rutas que ya muestran su propio banner de sección en mobile (ver
+// MobileSectionBanner) — Topbar (topbar.tsx) lo usa para no repetir el
+// mismo nombre como título grande debajo. Cualquier ruta que NO esté acá
+// (ej. /reports, /inventory) no tiene banner, así que su Topbar mantiene el
+// título siempre visible, en cualquier tamaño de pantalla.
+export const MOBILE_BANNER_ROUTES: string[] = ALL_NAV.map((item) => item.to);
+
 // Orden de prioridad de la barra inferior móvil, por rol — no es una lista
 // única: cada rol usa la app distinto (un profesional entra a su agenda
 // primero, un recepcionista a Agenda/Caja/Clientes, un dueño a todo). El
