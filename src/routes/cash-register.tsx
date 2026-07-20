@@ -1097,6 +1097,33 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
   );
 }
 
+// Definido a nivel de módulo (no adentro de PreciosTab/InventarioTab): un
+// componente declarado DENTRO de otro componente se vuelve a crear con una
+// identidad nueva en cada render de ese padre. React lo trata entonces
+// como un tipo distinto, desmonta el <input> viejo y monta uno nuevo — el
+// input pierde el foco (y el teclado se cierra en iPhone) después de cada
+// letra, porque escribir dispara el setState que causa ese re-render.
+// Con el componente fijo en el módulo, su identidad no cambia nunca y el
+// mismo <input> del DOM se reutiliza entre renders.
+const SearchBox = ({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) => (
+  <div className="relative w-full">
+    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-base text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+    />
+  </div>
+);
 
 // ───────────────────────────── RESUMEN
 function ResumenTab({
@@ -1976,26 +2003,6 @@ function PreciosTab({
     />
   );
 
-  const SearchBox = ({
-    value,
-    onChange,
-    placeholder,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-    placeholder: string;
-  }) => (
-    <div className="relative w-full">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-base text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-      />
-    </div>
-  );
-
   // Placeholder mientras `data.loading` es true — mismo fondo/tamaño de fila
   // que el contenido real, para no mostrar "Sin servicios/artículos" por un
   // instante en la primera carga real de Caja. Versión desktop: sin tarjeta
@@ -2654,26 +2661,6 @@ function InventarioTab({
       className="size-10 rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
       fallback={<span>□</span>}
     />
-  );
-
-  const SearchBox = ({
-    value,
-    onChange,
-    placeholder,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-    placeholder: string;
-  }) => (
-    <div className="relative w-full">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-base text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-      />
-    </div>
   );
 
   function openStockAdjustment(item: any, direction: "in" | "out") {

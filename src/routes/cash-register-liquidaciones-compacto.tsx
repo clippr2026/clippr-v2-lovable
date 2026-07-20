@@ -637,6 +637,34 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
   );
 }
 
+// Definido a nivel de módulo (no adentro de PreciosTab/InventarioTab): un
+// componente declarado DENTRO de otro componente se recrea con una
+// identidad nueva en cada render de ese padre, y React lo trata como un
+// tipo distinto — desmonta el <input> viejo y monta uno nuevo, perdiendo
+// el foco (y cerrando el teclado en iPhone) después de cada letra, porque
+// escribir dispara el setState que causa ese re-render. Con el componente
+// fijo en el módulo, su identidad no cambia y el input del DOM se
+// reutiliza entre renders.
+const SearchBox = ({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) => (
+  <div className="relative w-full">
+    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+    />
+  </div>
+);
+
 // ───────────────────────────── RESUMEN
 function ResumenTab({
   data,
@@ -961,18 +989,6 @@ function PreciosTab({ businessId: _businessId }: { businessId: string | null }) 
     />
   );
 
-  const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) => (
-    <div className="relative w-full">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-      />
-    </div>
-  );
-
   const ServiceRow = ({ item }: { item: any }) => (
     <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-white/[0.055] px-4 py-4 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
@@ -1194,18 +1210,6 @@ function InventarioTab({ businessId: _businessId, userEmail }: { businessId: str
       className="size-12 rounded-2xl border border-violet-300/12 bg-violet-500/10 text-xl text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
       fallback={<span>□</span>}
     />
-  );
-
-  const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) => (
-    <div className="relative w-full">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-      />
-    </div>
   );
 
   function openStockAdjustment(item: any, direction: "in" | "out") {
