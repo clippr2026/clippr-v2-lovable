@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Topbar } from "@/components/topbar";
@@ -1323,9 +1324,23 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
+  // Portal a document.body: el árbol de la página vive dentro de
+  // `<div className="relative z-10">` en AppShell — como ese div SÍ tiene
+  // position:relative + z-index propio, crea su propio contexto de
+  // apilamiento en la raíz del documento, y ese contexto completo (con
+  // z-10) queda por DEBAJO del header/bottom-nav mobile de AppSidebar
+  // (z-40, ambos fixed/sticky, hermanos de <main> a nivel raíz). Ningún
+  // z-index interno de este modal podía "escapar" ese contexto — por más
+  // alto que fuera, seguía compitiendo puertas adentro de un contenedor
+  // que ya perdía contra el header/nav. Por eso la X y el final del
+  // contenido quedaban tapados por la barra inferior pase lo que pase.
+  // Con createPortal a document.body el modal sale de ese árbol por
+  // completo y su z-index sí compite en la raíz del documento.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] backdrop-blur-md sm:items-center"
+      className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 px-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] backdrop-blur-md sm:items-center"
       onClick={onClose}
     >
       <div
@@ -1343,29 +1358,33 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
             abajo. Antes el título Y la descripción completa vivían en el
             header fijo, lo que en mobile podía ocupar media pantalla de
             contenido estático. */}
-        <div className="relative flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-3.5">
+        <div className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-3.5">
           <h2 className="min-w-0 truncate font-display text-base font-bold tracking-tight text-white">
             {content.title}
           </h2>
+          {/* size-11 = 44×44px: área táctil mínima recomendada en iOS. */}
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white/60 transition hover:bg-white/[0.10] hover:text-white"
+            className="grid size-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white/60 transition hover:bg-white/[0.10] hover:text-white active:bg-white/[0.14]"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* pb con safe-area propio: el padding-bottom normal (py-5) no
-            alcanzaba para que el último bloque (la tarjeta roja) quedara
-            totalmente visible al llegar al final del scroll — sobre todo
-            con el home indicator de iPhone, que le come espacio real al
-            final del scroll interno aunque el overlay de afuera ya tenga
-            su propio padding de safe-area. */}
+        {/* pb grande con safe-area propio (120px + safe-area, no unos
+            pocos px): el padding-bottom chico no alcanzaba para que el
+            último bloque (la tarjeta roja) quedara totalmente visible al
+            llegar al final del scroll en iPhone — entre el home indicator
+            y la barra de Safari le comen espacio real al final del scroll
+            interno aunque el overlay de afuera ya tenga su propio padding
+            de safe-area. overscroll-contain: el scroll de este contenedor
+            nunca se lo pasa al fondo (además del bloqueo de body ya
+            aplicado con useBodyScrollLock). */}
         <div
           ref={scrollRef}
-          className="relative min-h-0 flex-1 overflow-y-auto px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-5"
+          className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-[calc(120px+env(safe-area-inset-bottom,0px))] pt-5"
         >
             <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/25 bg-violet-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200">
               <CircleHelp className="h-3.5 w-3.5" />
@@ -1444,7 +1463,8 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
             </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
