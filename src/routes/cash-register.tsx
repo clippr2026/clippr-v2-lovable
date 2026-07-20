@@ -2492,34 +2492,27 @@ function InventarioTab({
     </>
   );
 
-  // Versión mobile del skeleton de Stock: reproduce las MISMAS 2 filas que
-  // la tarjeta real (thumb+nombre, badges de stock/estado + botones +/-)
-  // — antes solo tenía la primera fila, y los badges de color y el botón
-  // "+" con glow (shadow-[0_0_22px_rgba(16,185,129,0.18)]) aparecían recién
-  // con los datos reales, lo que se veía como "prende la luz".
+  // Versión mobile del skeleton de Stock: reproduce la MISMA fila única de
+  // la tarjeta real (thumb+nombre, badge de stock + botones +/-) — antes
+  // tenía una segunda fila que ya no existe, y el botón "+" con glow
+  // (shadow-[0_0_18px_rgba(16,185,129,0.16)]) aparecía recién con los
+  // datos reales, lo que se veía como "prende la luz".
   const InventoryRowSkeletonMobile = () => (
     <div className="flex flex-col gap-2.5">
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
+          className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-2.5"
         >
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-white/[0.06]" />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="h-3.5 w-1/2 animate-pulse rounded bg-white/[0.06]" />
-              <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
-            </div>
+          <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-white/[0.06]" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3.5 w-1/2 animate-pulse rounded bg-white/[0.06]" />
+            <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="flex gap-2">
-              <div className="h-6 w-20 animate-pulse rounded-full bg-white/[0.045]" />
-              <div className="h-6 w-16 animate-pulse rounded-full bg-white/[0.045]" />
-            </div>
-            <div className="flex gap-2">
-              <div className="size-9 shrink-0 animate-pulse rounded-full bg-white/[0.045]" />
-              <div className="size-9 shrink-0 animate-pulse rounded-full bg-white/[0.045]" />
-            </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="h-6 w-16 animate-pulse rounded-full bg-white/[0.045]" />
+            <div className="size-8 shrink-0 animate-pulse rounded-full bg-white/[0.045]" />
+            <div className="size-8 shrink-0 animate-pulse rounded-full bg-white/[0.045]" />
           </div>
         </div>
       ))}
@@ -2637,52 +2630,19 @@ function InventarioTab({
       .includes(normalizedStockQuery);
   });
 
-  const statusLabel = (item: any) => {
-    const configured =
-      item.stock_status ??
-      item.inventory_status ??
-      item.status_label ??
-      item.estado_stock ??
-      item.estado ??
-      null;
-    if (configured) return String(configured);
-    const stock = stockNumber(item);
-    if (stock <= 0) return "Sin stock";
-    if (stock <= 2) return "Crítico";
-    if (stock <= 5) return "Bajo";
-    return "Disponible";
-  };
-
-  const statusClass = (item: any) => {
-    const label = statusLabel(item).toLowerCase();
-    const stock = stockNumber(item);
-    if (
-      label.includes("sin") ||
-      label.includes("crítico") ||
-      label.includes("critico") ||
-      stock <= 2
-    )
-      return "bg-rose-500/12 text-rose-300 ring-rose-400/24";
-    if (label.includes("bajo") || label.includes("medio") || stock <= 5)
-      return "bg-amber-400/12 text-amber-300 ring-amber-400/24";
-    return "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24";
-  };
-
+  // El color del badge ya comunica el estado (verde = hay stock, rojo =
+  // sin stock) — no hace falta un texto "Disponible"/"Sin stock" aparte.
   const StockBadge = ({ stock }: { stock: number }) => (
-    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/12 px-3.5 py-1.5 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/24">
-      <span className="size-2 rounded-full bg-current" />
-      Stock {stock}
-    </span>
-  );
-
-  const StatusBadge = ({ item }: { item: any }) => (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ring-1",
-        statusClass(item),
+        "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1",
+        stock > 0
+          ? "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24"
+          : "bg-rose-500/12 text-rose-300 ring-rose-400/24",
       )}
     >
-      {statusLabel(item)}
+      <span className="size-2 rounded-full bg-current" />
+      Stock {stock}
     </span>
   );
 
@@ -2937,10 +2897,10 @@ function InventarioTab({
           {/* Desktop: tabla. En mobile, tarjetas verticales debajo — mismos
               datos y mismas acciones de ajustar stock. */}
           <div className="hidden overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018] sm:block">
-            <div className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+            <div className="grid grid-cols-[minmax(190px,1fr)_140px_140px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Artículo</div>
               <div>Stock</div>
-<div className="text-right">Ajustar</div>
+              <div className="text-right">Ajustar</div>
             </div>
             {data.loading ? (
               <InventoryRowSkeleton />
@@ -2956,7 +2916,7 @@ function InventarioTab({
                 return (
                   <div
                     key={id}
-                    className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-2.5 text-sm last:border-0 hover:bg-white/[0.026]"
+                    className="grid grid-cols-[minmax(190px,1fr)_140px_140px] items-center gap-4 border-b border-white/[0.055] px-4 py-2.5 text-sm last:border-0 hover:bg-white/[0.026]"
                   >
                     <div className="flex min-w-0 items-center gap-4">
                       <Thumb item={item} />
@@ -2970,7 +2930,6 @@ function InventarioTab({
                       </div>
                     </div>
                     <StockBadge stock={stock} />
-                    <StatusBadge item={item} />
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
@@ -3011,29 +2970,24 @@ function InventarioTab({
                   return (
                     <div
                       key={`mobile-${id}`}
-                      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3"
+                      className="flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-2.5"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Thumb item={item} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-bold text-white">
-                            {item.name ?? "Producto"}
-                          </div>
-                          <div className="mt-0.5 text-xs text-white/50">
-                            {catalogCategory(item)}
-                          </div>
+                      <Thumb item={item} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-bold text-white">
+                          {item.name ?? "Producto"}
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
-                          <StockBadge stock={stock} />
-                          <StatusBadge item={item} />
+                        <div className="mt-0.5 text-xs text-white/50">
+                          {catalogCategory(item)}
                         </div>
                       </div>
-                      <div className="mt-2 flex justify-end gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
+                        <StockBadge stock={stock} />
                         <button
                           type="button"
                           onClick={() => openStockAdjustment(item, "out")}
                           disabled={loading}
-                          className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition active:bg-rose-500/12 active:text-rose-200 disabled:opacity-50"
+                          className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition active:bg-rose-500/12 active:text-rose-200 disabled:opacity-50"
                         >
                           <Minus className="size-4" />
                         </button>
@@ -3041,7 +2995,7 @@ function InventarioTab({
                           type="button"
                           onClick={() => openStockAdjustment(item, "in")}
                           disabled={loading}
-                          className="grid size-9 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.18)] transition active:bg-emerald-400/18 disabled:opacity-50"
+                          className="grid size-8 shrink-0 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.16)] transition active:bg-emerald-400/18 disabled:opacity-50"
                         >
                           <Plus className="size-4" />
                         </button>
