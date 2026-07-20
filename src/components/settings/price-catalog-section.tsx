@@ -2471,67 +2471,73 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10"
                   fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
                 />
-                <div className="flex-1 min-w-0">
+                {/* min-w-0 + flex-1: antes este bloque competía por ancho
+                    con el badge "Online", el precio del catálogo y los dos
+                    botones, todos en la misma fila — con poco espacio el
+                    nombre se truncaba enseguida. Ahora es el único elemento
+                    flexible de la fila (Online y precio pasan a la
+                    segunda línea, Activo/Editar se apilan en una columna
+                    angosta a la derecha), así se lleva todo el ancho
+                    disponible. line-clamp-2 en vez de truncate de una sola
+                    línea: dos líneas antes de cortar con "…". */}
+                <div className="min-w-0 flex-1">
                   <div
-                    className="font-medium text-sm truncate"
+                    className="text-sm font-medium leading-snug [-webkit-box-orient:vertical] [display:-webkit-box] [-webkit-line-clamp:2] overflow-hidden"
                     title={row.name}
                     onDoubleClick={() => openItemRename(row)}
                   >
                     {row.name}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {isService
-                      ? // Duración primero, precio después — mismo orden que
-                        // Equipo → Comisiones, para que los dos datos
-                        // principales del servicio se lean juntos.
-                        `${row.duration_min ? `${row.duration_min} min` : "—"} · $${Number(row.price ?? 0).toLocaleString("es-AR")}`
-                      : typeof row.stock === "number"
-                        ? `Stock: ${row.stock}`
-                        : ""}
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                    <span>
+                      {isService
+                        ? // Duración primero, precio después — mismo orden que
+                          // Equipo → Comisiones, para que los dos datos
+                          // principales del servicio se lean juntos.
+                          `${row.duration_min ? `${row.duration_min} min` : "—"} · $${Number(row.price ?? 0).toLocaleString("es-AR")}`
+                        : `${typeof row.stock === "number" ? `Stock: ${row.stock} · ` : ""}$${Number(row.price ?? 0).toLocaleString("es-AR")}`}
+                    </span>
+                    {!isService && bookingConfig[row.id]?.show && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 ring-1 ring-violet-400/25">
+                        <Star className="h-3 w-3 fill-current" />
+                        Online
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {!isService && bookingConfig[row.id]?.show && (
-                  <span className="mx-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 ring-1 ring-violet-400/25">
-                    <Star className="h-3 w-3 fill-current" />
-                    Online
-                  </span>
-                )}
-
-                {!isService && (
-                  <div className="text-right shrink-0">
-                    <div className="font-display text-sm font-semibold text-[oklch(0.82_0.14_75)]">
-                      ${Number(row.price).toLocaleString("es-AR")}
-                    </div>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => toggle(row)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110",
-                    row.active !== false
-                      ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-                      : "bg-white/5 ring-white/10 text-muted-foreground hover:bg-white/10",
-                  )}
-                  title={row.active !== false ? "Desactivar" : "Activar"}
-                >
-                  <span
+                {/* Activo/Editar apilados en columna, alineados a la
+                    derecha — antes iban uno al lado del otro compitiendo
+                    por ancho con el nombre. */}
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => toggle(row)}
                     className={cn(
-                      "h-1.5 w-1.5 rounded-full",
+                      "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110",
                       row.active !== false
-                        ? "bg-[oklch(0.78_0.17_140)]"
-                        : "bg-muted-foreground",
+                        ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
+                        : "bg-white/5 ring-white/10 text-muted-foreground hover:bg-white/10",
                     )}
-                  />{" "}
-                  {row.active !== false ? "Activo" : "Inactivo"}
-                </button>
-                <button
-                  onClick={() => openEdit(row)}
-                  className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
-                >
-                  Editar
-                </button>
+                    title={row.active !== false ? "Desactivar" : "Activar"}
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        row.active !== false
+                          ? "bg-[oklch(0.78_0.17_140)]"
+                          : "bg-muted-foreground",
+                      )}
+                    />{" "}
+                    {row.active !== false ? "Activo" : "Inactivo"}
+                  </button>
+                  <button
+                    onClick={() => openEdit(row)}
+                    className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
+                  >
+                    Editar
+                  </button>
+                </div>
               </div>
             ))}
           </div>
