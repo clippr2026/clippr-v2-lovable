@@ -12,6 +12,9 @@ import {
   ChevronRight,
   CalendarPlus,
   CreditCard,
+  HandCoins,
+  BadgeCheck,
+  Clock3,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -1406,8 +1409,20 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 <span className="text-[11px] text-muted-foreground">—</span>
               );
 
+              // Una vez enviado a caja, la decisión (cobrar/rechazar) pasa a
+              // depender exclusivamente de Caja — el profesional ya no debe
+              // poder cancelarlo desde acá. Se mira el ÚLTIMO evento del
+              // historial (no solo "¿existe el marcador?"): si Caja lo
+              // rechazó, el turno vuelve a estar disponible y el profesional
+              // puede cancelarlo de nuevo; "Cobró" ya excluye por t.status
+              // === "charged" más abajo.
+              const sortedHistForDelete = [...historialDisplay].sort(
+                (a, b) => (a.ts ?? a.time).localeCompare(b.ts ?? b.time),
+              );
+              const isBlockedByCaja =
+                sortedHistForDelete[sortedHistForDelete.length - 1]?.action === "Envió a caja";
               const canDeleteThisTurno =
-                canDeleteTurno && !["cancelled", "charged"].includes(t.status);
+                canDeleteTurno && !["cancelled", "charged"].includes(t.status) && !isBlockedByCaja;
               const deleteCell = canDeleteThisTurno ? (
                 <button
                   type="button"
@@ -1912,10 +1927,10 @@ function StatsView({
     <div className="space-y-4 animate-fade-up">
       {/* KPI cards: Comisión / Pagado / Pendiente */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="glass rounded-2xl p-3.5 ring-1 ring-cyan-400/20 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-violet-400/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-violet-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
-            <span>💸</span> Comisión
+            <HandCoins className="h-[21px] w-[21px] text-violet-300 drop-shadow-[0_0_6px_rgba(167,139,250,0.45)]" /> Comisión
           </div>
           <div className="mt-1.5 flex items-baseline gap-1">
             <span className="text-muted-foreground text-sm">$</span>
@@ -1926,17 +1941,17 @@ function StatsView({
         <div className="glass rounded-2xl p-3.5 ring-1 ring-emerald-400/30 relative overflow-hidden">
           <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-emerald-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
-            <span>✅</span> Pagado
+            <BadgeCheck className="h-[21px] w-[21px] text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.45)]" /> Pagado
           </div>
           <div className="mt-1.5 flex items-baseline gap-1">
             <span className="text-muted-foreground text-sm">$</span>
             <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : pagado.toLocaleString("es-AR")}</span>
           </div>
         </div>
-        <div className="glass rounded-2xl p-3.5 ring-1 ring-cyan-300/20 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-cyan-300/10 blur-3xl" />
+        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-400/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-400/10 blur-3xl" />
           <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
-            <span>⏳</span> Pendiente
+            <Clock3 className="h-[21px] w-[21px] text-amber-300 drop-shadow-[0_0_6px_rgba(252,211,77,0.45)]" /> Pendiente
           </div>
           <div className="mt-1.5 flex items-baseline gap-1">
             <span className="text-muted-foreground text-sm">$</span>
@@ -2295,11 +2310,8 @@ function methodLabel(method?: string | null) {
   return METHOD_LABELS[method] ?? METHOD_LABELS[method.toLowerCase()] ?? method;
 }
 
-// "Efectivo" o, si fue pago múltiple, "Efectivo • Transferencia" — sin
-// importes por método (eso es del detalle de la venta, no de este listado).
-function methodsSummary(methods: string[]): string {
-  if (methods.length === 0) return "—";
-  return methods.map((m) => PAY_METHOD_LABEL[m as PayMethod] ?? methodLabel(m)).join(" • ");
+function methodDisplayLabel(m: string): string {
+  return PAY_METHOD_LABEL[m as PayMethod] ?? methodLabel(m);
 }
 
 // Borde lateral + contorno + glow suave según estado — mismo criterio de
@@ -2372,6 +2384,10 @@ type EnrichedSaleRow = {
   // Transferencia). Sin importes acá a propósito: eso es para el detalle
   // de la venta, no para este listado.
   methods: string[];
+  // Mismo dato que `methods`, pero con el importe real de cada uno — pago
+  // múltiple sí necesita desglosarse con su importe en Historial de ventas
+  // (pedido explícito), methodsSummary por sí solo no alcanza para eso.
+  methodBreakdown: { method: string; amount: number }[];
   // Historial completo (Envió a caja / Cobró / Rechazó), en orden
   // cronológico — para turnos sale de appointments.cobro_events
   // (readHistorialCobro); para ventas directas sin turno, del marcador en
@@ -2506,6 +2522,18 @@ function useProfSalesEnriched(
         return single ? [single] : [];
       };
 
+      // Mismo criterio que methodsOf, pero con el importe real de cada
+      // método — Historial de ventas necesita desglosar pago múltiple con
+      // su importe, no solo listar los nombres.
+      const methodBreakdownOf = (p: { method?: string | null; payment_method?: string | null; splits?: unknown; total?: number | null; amount?: number | null }): { method: string; amount: number }[] => {
+        const splits = p.splits as { method: string; amount: number }[] | null | undefined;
+        if (Array.isArray(splits) && splits.length > 0) {
+          return splits.filter((s) => s.method).map((s) => ({ method: s.method, amount: Number(s.amount ?? 0) }));
+        }
+        const single = p.method ?? p.payment_method ?? null;
+        return single ? [{ method: single, amount: Number(p.total ?? p.amount ?? 0) }] : [];
+      };
+
       const payByAppt = new Map<string, { id: string; total: number | null; amount: number | null; method?: string | null; payment_method?: string | null; splits?: unknown }>();
       for (const p of payments ?? []) {
         if (p.appointment_id) payByAppt.set(p.appointment_id, p);
@@ -2548,6 +2576,7 @@ function useProfSalesEnriched(
           commission: 0,
           sourceType: "turno",
           methods: pay ? methodsOf(pay) : [],
+          methodBreakdown: pay ? methodBreakdownOf(pay) : [],
           histEvents: events,
           status: deriveStatus(events, !!pay),
         });
@@ -2576,6 +2605,7 @@ function useProfSalesEnriched(
           commission: 0,
           sourceType: "venta-directa",
           methods: methodsOf(p),
+          methodBreakdown: methodBreakdownOf(p),
           histEvents: events,
           status: deriveStatus(events, true),
         });
@@ -2613,6 +2643,7 @@ function useProfSalesEnriched(
             commission: 0,
             sourceType: "venta-directa",
             methods: [],
+            methodBreakdown: [],
             histEvents: events,
             status: deriveStatus(events, false),
           });
@@ -2682,13 +2713,31 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
               sin justify-between/min-height/space-y acá adentro. */}
           <div className="flex min-w-0 flex-1 flex-col gap-0">
             <div className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</div>
-            <div className="truncate text-sm font-semibold leading-tight text-foreground">{row.client_name ?? "Sin cliente"}</div>
+            {/* Gris, igual que fecha y servicio — el nombre del cliente es
+                info secundaria acá; el foco debe ser monto/estado/historial,
+                no quién es el cliente. */}
+            <div className="truncate text-sm font-semibold leading-tight text-muted-foreground">{row.client_name ?? "Sin cliente"}</div>
             <div className="line-clamp-2 leading-tight text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
           </div>
           <div className="shrink-0 text-right">
-            <div className="text-[11px] text-muted-foreground">{methodsSummary(row.methods)}</div>
-            <div className="text-sm font-semibold tabular-nums text-foreground">${row.total.toLocaleString("es-AR")}</div>
-            <div className="text-xs font-semibold tabular-nums text-cyan-300">Com. ${row.commission.toLocaleString("es-AR")}</div>
+            {row.methodBreakdown.length === 0 ? (
+              <div className="text-[11px] text-muted-foreground">—</div>
+            ) : row.methodBreakdown.length === 1 ? (
+              <>
+                <div className="text-[11px] text-foreground/85">{methodDisplayLabel(row.methodBreakdown[0].method)}</div>
+                <div className="text-sm font-semibold tabular-nums text-foreground">${row.total.toLocaleString("es-AR")}</div>
+              </>
+            ) : (
+              row.methodBreakdown.map((mb, i) => (
+                <div key={i} className={i > 0 ? "mt-1" : undefined}>
+                  <div className="text-[11px] text-foreground/85">{methodDisplayLabel(mb.method)}</div>
+                  <div className="text-sm font-semibold tabular-nums text-foreground">${mb.amount.toLocaleString("es-AR")}</div>
+                </div>
+              ))
+            )}
+            {/* Violeta, no celeste — celeste ya es el color del estado
+                "Enviado a caja" y competía visualmente. */}
+            <div className="mt-1 text-xs font-semibold tabular-nums text-violet-300">Comisión ${row.commission.toLocaleString("es-AR")}</div>
           </div>
         </div>
         {historialEvents.length > 0 && (
@@ -2751,15 +2800,28 @@ function HistorialView({ businessId, empId, commissionPct, from, to }: { busines
                     <span className={cn("absolute inset-y-0 left-0 w-1.5", cardStyle.bar)} />
                     <div className="grid grid-cols-[14%_24%_34%_28%] items-start">
                       <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
-                      <div className="font-medium truncate pr-2 pt-0.5">{row.client_name ?? "Sin cliente"}</div>
+                      {/* Gris, igual que fecha y servicio — ver mismo criterio en renderMobileCard. */}
+                      <div className="truncate pr-2 pt-0.5 font-medium text-muted-foreground">{row.client_name ?? "Sin cliente"}</div>
                       <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
-                      {/* Columna derecha: método(s) de pago, Total, Comisión
-                          — apilados, sin importe por método (eso es del
-                          detalle de la venta). */}
+                      {/* Columna derecha: método(s) de pago (desglosado con
+                          importe si fue pago múltiple), Total, Comisión. */}
                       <div className="text-right pt-0.5">
-                        <div className="text-[11px] text-muted-foreground truncate">{methodsSummary(row.methods)}</div>
-                        <div className="font-semibold tabular-nums whitespace-nowrap text-xs">${row.total.toLocaleString("es-AR")}</div>
-                        <div className="text-cyan-300 font-semibold tabular-nums whitespace-nowrap text-xs">Comisión ${row.commission.toLocaleString("es-AR")}</div>
+                        {row.methodBreakdown.length === 0 ? (
+                          <div className="text-[11px] text-muted-foreground">—</div>
+                        ) : row.methodBreakdown.length === 1 ? (
+                          <>
+                            <div className="text-[11px] text-foreground/85 truncate">{methodDisplayLabel(row.methodBreakdown[0].method)}</div>
+                            <div className="font-semibold tabular-nums whitespace-nowrap text-xs">${row.total.toLocaleString("es-AR")}</div>
+                          </>
+                        ) : (
+                          row.methodBreakdown.map((mb, i) => (
+                            <div key={i} className={i > 0 ? "mt-1" : undefined}>
+                              <div className="text-[11px] text-foreground/85 truncate">{methodDisplayLabel(mb.method)}</div>
+                              <div className="font-semibold tabular-nums whitespace-nowrap text-xs">${mb.amount.toLocaleString("es-AR")}</div>
+                            </div>
+                          ))
+                        )}
+                        <div className="mt-1 text-violet-300 font-semibold tabular-nums whitespace-nowrap text-xs">Comisión ${row.commission.toLocaleString("es-AR")}</div>
                       </div>
                     </div>
                     {/* Línea(s) inferior(es): mismo lugar y formato que ya

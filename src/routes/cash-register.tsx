@@ -8718,7 +8718,17 @@ export function NuevaVentaTab({
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
-        <div className={cn("grid gap-1.5 sm:gap-2", lockedEmployeeId ? "grid-cols-3" : "grid-cols-4")}>
+        {/* Columnas = cantidad real de pasos visibles, no un fijo 3/4 según
+            lockedEmployeeId — con Profesional Y Pago ocultos a la vez (ej.
+            "Enviar" desde Mi Agenda) solo quedan Cliente+Servicios, pero el
+            grid seguía reservando una 3ra columna fantasma vacía, corriendo
+            todo hacia la izquierda con espacio libre a la derecha. */}
+        <div className={cn(
+          "grid gap-1.5 sm:gap-2",
+          visibleStepItems.length === 2 && "grid-cols-2",
+          visibleStepItems.length === 3 && "grid-cols-3",
+          visibleStepItems.length === 4 && "grid-cols-4",
+        )}>
           {visibleStepItems.map((s, index) => {
             const active = step === s.n;
             const done = step > s.n;
@@ -9552,8 +9562,8 @@ function ClientAutocomplete({
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Buscar por nombre, teléfono o email..."
-          className="flex-1 bg-transparent outline-none text-base placeholder:text-muted-foreground"
+          placeholder="Buscar por nombre, teléfono o email"
+          className="flex-1 bg-transparent outline-none text-base placeholder:text-sm placeholder:text-muted-foreground"
         />
         {value && (
           <button
