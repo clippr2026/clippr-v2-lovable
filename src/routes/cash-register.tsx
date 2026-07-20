@@ -9187,16 +9187,18 @@ export function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3.5 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
-          {/* Franja fina, "techo" del módulo — antes era una tarjeta alta
-              con mucho padding vertical propio, ahora es solo el selector. */}
-          <div className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-black/35 border border-white/[0.07] p-0.5 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
+        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3.5 pt-0 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+          {/* Barra de punta a punta pegada al borde superior del módulo
+              (márgenes negativos cancelan el padding del Card) — recta,
+              sin puntas redondeadas propias salvo las que hacen juego con
+              las esquinas superiores del Card, bien fina. */}
+          <div className="sticky top-0 z-10 -mx-3.5 grid shrink-0 grid-cols-2 rounded-t-3xl border-b border-white/[0.07] bg-black/50 backdrop-blur-sm">
             <button
               onClick={() => setPaymentMode("simple")}
               className={cn(
-                "rounded-lg py-1.5 text-sm font-semibold",
+                "py-2 text-sm font-semibold first:rounded-tl-3xl",
                 paymentMode === "simple"
-                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
+                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -9205,9 +9207,9 @@ export function NuevaVentaTab({
             <button
               onClick={() => setPaymentMode("multiple")}
               className={cn(
-                "rounded-lg py-1.5 text-sm font-semibold",
+                "py-2 text-sm font-semibold last:rounded-tr-3xl",
                 paymentMode === "multiple"
-                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
+                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -9233,7 +9235,7 @@ export function NuevaVentaTab({
                         key={m.id}
                         onClick={() => setMethod(m.id as PayMethod)}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
+                          "flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
                           active
                             ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
                             : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
@@ -9249,13 +9251,13 @@ export function NuevaVentaTab({
                 </div>
               </div>
               {method === "cash" && (
-                <div className="rounded-3xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-4 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                <div className="rounded-2xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-3 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
                   <label className="block">
-                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-blue-200/85">
+                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.18em] text-blue-200/85">
                       Monto recibido
                     </span>
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-white/55">
+                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-white/55">
                         $
                       </span>
                       <input
@@ -9263,31 +9265,28 @@ export function NuevaVentaTab({
                         onChange={(e) => setReceived(e.target.value)}
                         inputMode="numeric"
                         placeholder="0"
-                        className="h-14 w-full rounded-2xl border border-blue-300/30 bg-black/45 pl-9 pr-4 text-2xl font-extrabold tabular-nums text-white outline-none placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
+                        className="h-12 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-9 pr-4 text-xl font-extrabold tabular-nums text-white outline-none placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
                       />
                     </div>
                   </label>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-                    <p className="text-white/45">Ingresá con cuánto dinero pagó el cliente.</p>
-                    {receivedNumber > 0 && (
-                      <div className="text-right">
-                        {/* "Entregado" era redundante — el monto recibido ya
-                            se lee arriba en el campo. Lo útil acá es el
-                            resultado: cuánto vuelto dar, o cuánto falta si
-                            no alcanza (y en ese caso no se deja confirmar el
-                            cobro, ver el botón de abajo). */}
-                        {cashShortfall > 0 ? (
-                          <p className="font-bold text-red-300">
-                            Faltan: ${cashShortfall.toLocaleString("es-AR")}
-                          </p>
-                        ) : (
-                          <p className="font-bold text-emerald-300">
-                            Vuelto: ${change.toLocaleString("es-AR")}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {receivedNumber > 0 && (
+                    <div className="mt-2 flex items-center justify-end">
+                      {/* "Entregado" y el texto explicativo eran
+                          redundantes — el monto recibido ya se lee arriba.
+                          Lo único útil acá es el resultado, bien visible:
+                          cuánto vuelto dar, o cuánto falta si no alcanza
+                          (y en ese caso no se deja confirmar el cobro). */}
+                      {cashShortfall > 0 ? (
+                        <p className="text-base font-bold text-red-300">
+                          Faltan: ${cashShortfall.toLocaleString("es-AR")}
+                        </p>
+                      ) : (
+                        <p className="text-base font-bold text-emerald-300">
+                          Vuelto: ${change.toLocaleString("es-AR")}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -9369,7 +9368,7 @@ export function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="relative z-20 mt-auto shrink-0 space-y-2 pt-3 pb-4">
+      <div className="relative z-20 mt-auto shrink-0 space-y-3 pt-3 pb-4">
         {/* Resumen — solo en el paso 4 (Pago), como última verificación
             antes de cobrar. En los pasos 1-3 no se muestra nada acá, solo
             Volver/Continuar. Profesional y Cliente comparten la primera
@@ -9379,16 +9378,20 @@ export function NuevaVentaTab({
             blanco y con más jerarquía. Sin truncate: si el nombre es largo
             se acomoda en varias líneas antes que cortarse. */}
         {step === 4 && (
-          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
+          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-2 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
+            {/* Fila Profesional/Cliente: misma altura/padding que las filas
+                de ítems de abajo (texto chico, sin py propio) — antes se
+                sentía como un bloque grande aparte en vez de una fila más
+                del resumen. */}
             <div className="flex flex-wrap gap-x-3 gap-y-0.5">
               {!lockedEmployeeId && (
-                <p className="min-w-0 flex-1 break-words text-sm font-semibold text-white">
+                <p className="min-w-0 flex-1 break-words text-xs font-semibold text-white">
                   Profesional: {selectedEmployee?.name ?? "—"}
                 </p>
               )}
               <p
                 className={cn(
-                  "min-w-0 flex-1 break-words text-sm font-semibold text-white",
+                  "min-w-0 flex-1 break-words text-xs font-semibold text-white",
                   !lockedEmployeeId && "text-right",
                 )}
               >
@@ -9397,8 +9400,11 @@ export function NuevaVentaTab({
             </div>
 
             {cartItems.length > 0 && (
-              <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
-                {cartItems.slice(0, 4).map(({ svc, qty }) => (
+              <div className="mt-1.5 space-y-1 border-t border-white/10 pt-1.5">
+                {/* Máximo 2 ítems visibles — con muchos servicios/productos
+                    el resumen no debe seguir creciendo y empujando todo lo
+                    demás fuera de pantalla. */}
+                {cartItems.slice(0, 2).map(({ svc, qty }) => (
                   <div key={svc.id} className="flex items-start justify-between gap-3">
                     <span className="min-w-0 break-words text-xs text-white/65">
                       {svc.name}
@@ -9409,13 +9415,13 @@ export function NuevaVentaTab({
                     </span>
                   </div>
                 ))}
-                {cartItems.length > 4 && (
-                  <div className="text-xs text-white/40">+{cartItems.length - 4} ítems</div>
+                {cartItems.length > 2 && (
+                  <div className="text-xs text-white/40">+{cartItems.length - 2} ítems</div>
                 )}
               </div>
             )}
 
-            <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/10 pt-2">
+            <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5">
               <span className="text-base font-extrabold text-white">Total</span>
               <span className="tabular-nums text-base font-extrabold text-white">
                 ${total.toLocaleString("es-AR")}
@@ -9434,14 +9440,14 @@ export function NuevaVentaTab({
             step === minStep ? (
               <button
                 onClick={onCancel}
-                className="flex-1 rounded-2xl px-4 py-3 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                className="flex-1 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
                 Cancelar
               </button>
             ) : (
               <button
                 onClick={() => setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
                 <ArrowLeft className="size-4" /> Volver
               </button>
@@ -9452,7 +9458,7 @@ export function NuevaVentaTab({
                 setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))
               }
               disabled={step <= minStep}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-35 disabled:cursor-not-allowed transition-all"
             >
               <ArrowLeft className="size-4" /> Volver
             </button>
@@ -9462,7 +9468,7 @@ export function NuevaVentaTab({
             <button
               onClick={goNext}
               disabled={!canContinue}
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white bg-[linear-gradient(135deg,#60A5FA,#8B5CF6)] shadow-[0_0_34px_rgba(96,165,250,0.24)] hover:-translate-y-0.5 hover:shadow-[0_0_46px_rgba(139,92,246,0.36)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-2.5 text-sm font-bold text-white bg-[linear-gradient(135deg,#60A5FA,#8B5CF6)] shadow-[0_0_34px_rgba(96,165,250,0.24)] hover:-translate-y-0.5 hover:shadow-[0_0_46px_rgba(139,92,246,0.36)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               Continuar <ArrowRight className="size-4" />
             </button>
@@ -9477,7 +9483,7 @@ export function NuevaVentaTab({
                 (!isManualFlow && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
               onClick={handleCobrar}
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
             >
               {submitting ? (
                 <>
