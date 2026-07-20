@@ -807,12 +807,12 @@ function CashRegisterPage() {
             setTab("nuevo-gasto");
           }}
         />
-        {/* Oculto mientras Nueva venta está activa — el formulario de los
-            pasos sube y aprovecha ese espacio. El resto de las secciones
-            (Resumen/Precios/Inventario/Liquidaciones/Cierre de caja) siguen
-            existiendo tal cual, solo se ocultan momentáneamente; vuelven a
-            aparecer apenas se sale de Nueva venta. */}
-        {tab !== "nueva" && (
+        {/* Oculto mientras Nueva venta o Nuevo gasto están activos — el
+            formulario sube y aprovecha ese espacio. El resto de las
+            secciones (Resumen/Precios/Inventario/Liquidaciones/Cierre de
+            caja) siguen existiendo tal cual, solo se ocultan
+            momentáneamente; vuelven a aparecer apenas se sale. */}
+        {tab !== "nueva" && tab !== "nuevo-gasto" && (
           <Tabs
             tab={tab}
             onChange={(t) => {
@@ -4603,16 +4603,28 @@ function NuevoGastoTab({
   onCancel: () => void;
   onSaved: () => void;
 }) {
+  const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = React.useState({
     name: "",
     amount: "",
-    type: "",
+    date: today,
+    category: "",
+    categoryCustom: "",
     method: "",
     note: "",
   });
   const [saving, setSaving] = React.useState(false);
-  const today = new Date().toISOString().slice(0, 10);
-  const GTYPES = ["fijo", "variable", "ocasional", "marketing"];
+  const GCATEGORIES = [
+    "Alquiler",
+    "Impuestos y servicios",
+    "Insumos",
+    "Mercadería",
+    "Profesionales",
+    "Mantenimiento",
+    "Marketing",
+    "Equipamiento",
+    "Otros",
+  ];
   const GMETHODS = [
     "efectivo",
     "transferencia",
@@ -4624,18 +4636,26 @@ function NuevoGastoTab({
   async function saveGasto() {
     const name = form.name.trim();
     const amount = parseFloat(form.amount);
-    if (!name) return toast.error("El nombre del gasto es obligatorio.");
+    if (!name) return toast.error("La descripción del gasto es obligatoria.");
     if (!amount || amount <= 0)
       return toast.error("El monto debe ser mayor a 0.");
+    if (!form.category) return toast.error("Elegí la categoría del gasto.");
+    if (form.category === "Otros" && !form.categoryCustom.trim())
+      return toast.error("Contanos qué gasto fue.");
     if (!form.method) return toast.error("Seleccioná el método de pago.");
     setSaving(true);
+    // El usuario que registra el gasto se sigue guardando internamente
+    // (user_name/created_by) para historial y auditoría, aunque ya no se
+    // muestre como campo en el formulario — no hace falta pedirlo, ya se
+    // sabe quién está cargando.
     const { error } = await supabase.from("expenses").insert({
       business_id: data.businessId,
       name,
       amount,
-      type: form.type || null,
+      category:
+        form.category === "Otros" ? form.categoryCustom.trim() : form.category,
       payment_method: form.method || null,
-      date: today,
+      date: form.date || today,
       note: form.note.trim() || null,
       user_name: userEmail ?? "Caja",
       created_by: userEmail ?? "Caja",
@@ -4650,49 +4670,50 @@ function NuevoGastoTab({
   return (
     <div className="animate-fade-up">
       <Card className="mx-auto w-full max-w-3xl p-3 md:p-3.5">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">
-              Nuevo gasto
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Registrá un egreso de caja.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground transition hover:bg-white/[0.07] hover:text-foreground"
-          >
-            Cancelar
-          </button>
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-foreground">
+            Nuevo gasto
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Registrá un egreso de caja.
+          </p>
         </div>
 
         <div className="space-y-3">
           <input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Nombre del gasto *"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
-          />
-          <input
-            value={form.amount}
-            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-            placeholder="Monto *"
-            type="number"
-            min={0}
+            placeholder="Descripción del gasto *"
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input
+              value={form.amount}
+              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+              placeholder="Monto *"
+              type="number"
+              min={0}
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
+            />
+            <input
+              value={form.date}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              type="date"
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground outline-none focus:border-blue-300/50"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <select
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+              value={form.category}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, category: e.target.value }))
+              }
               className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground outline-none focus:border-blue-300/50"
             >
-              <option value="">Tipo</option>
-              {GTYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
+              <option value="">Categoría del gasto *</option>
+              {GCATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
                 </option>
               ))}
             </select>
@@ -4711,25 +4732,45 @@ function NuevoGastoTab({
               ))}
             </select>
           </div>
+          {form.category === "Otros" && (
+            <input
+              value={form.categoryCustom}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, categoryCustom: e.target.value }))
+              }
+              placeholder="Escribí qué tipo de gasto fue"
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
+            />
+          )}
           <input
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             placeholder="Nota (opcional)"
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
-          <button
-            type="button"
-            onClick={saveGasto}
-            disabled={saving}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
-          >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
-            Registrar gasto
-          </button>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-muted-foreground transition hover:bg-white/[0.07] hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" /> Atrás
+            </button>
+            <button
+              type="button"
+              onClick={saveGasto}
+              disabled={saving}
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+            >
+              {saving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Plus className="size-4" />
+              )}
+              Registrar gasto
+            </button>
+          </div>
         </div>
       </Card>
     </div>
