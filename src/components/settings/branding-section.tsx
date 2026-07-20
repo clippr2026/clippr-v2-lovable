@@ -1148,7 +1148,10 @@ export function BrandingSection() {
                 texto aparte ni "Vista previa": lo que el usuario toca y
                 escribe acá es exactamente lo que van a ver sus clientes. */}
             <div className="flex justify-center py-3">
-              <div className="relative w-fit min-w-[150px] max-w-[176px] rounded-2xl bg-white px-2.5 py-1.5 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-violet-400/50 sm:min-w-[190px] sm:max-w-[224px]">
+              <div
+                onClick={() => announcementRef.current?.focus()}
+                className="relative flex w-fit min-w-[150px] max-w-[176px] cursor-text flex-col items-center justify-center rounded-2xl bg-white px-2.5 py-2 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-violet-400/50 sm:min-w-[190px] sm:max-w-[224px]"
+              >
                 <textarea
                   ref={announcementRef}
                   rows={1}
@@ -1161,7 +1164,7 @@ export function BrandingSection() {
                   }
                   maxLength={50}
                   placeholder="🔥 Todos los Miercoles 20% OFF EN EFECTIVO"
-                  className="block w-full resize-none whitespace-normal break-words border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-snug text-zinc-950 outline-none [word-break:normal] placeholder:text-zinc-400"
+                  className="block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-snug text-zinc-950 outline-none [word-break:normal] placeholder:text-zinc-400"
                 />
                 <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
               </div>

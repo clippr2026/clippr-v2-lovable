@@ -676,8 +676,8 @@ function PublicProfilePage() {
                   chicos en vez de más ancho. min-w evita que un texto corto
                   quede angosto y vertical. */}
               {profileNote ? (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-fit min-w-[150px] max-w-[176px] rounded-2xl bg-white px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-zinc-950 shadow-xl ring-1 ring-black/5 sm:min-w-[190px] sm:max-w-[224px]">
-                  <span className="block text-center whitespace-normal break-words [word-break:normal]">{profileNote}</span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex w-fit min-w-[150px] max-w-[176px] flex-col items-center justify-center rounded-2xl bg-white px-2.5 py-2 text-[11px] font-semibold leading-snug text-zinc-950 shadow-xl ring-1 ring-black/5 sm:min-w-[190px] sm:max-w-[224px]">
+                  <span className="block text-center whitespace-pre-line break-words [word-break:normal]">{profileNote}</span>
                   <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
                 </div>
               ) : null}
