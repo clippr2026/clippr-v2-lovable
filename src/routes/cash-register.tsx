@@ -795,19 +795,7 @@ function CashRegisterPage() {
             más fuertes que en cualquier otra sección. */}
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
 
-        <Header
-          data={data}
-          tab={tab}
-          resumenPanel={resumenPanel}
-          onNuevaVenta={() => {
-            setPendingToCharge(null);
-            setTab("nueva");
-          }}
-          onNuevoGasto={() => {
-            setPendingToCharge(null);
-            setTab("nuevo-gasto");
-          }}
-        />
+        <Header data={data} />
         {/* Oculto mientras Nueva venta o Nuevo gasto están activos — el
             formulario sube y aprovecha ese espacio. El resto de las
             secciones (Resumen/Precios/Inventario/Liquidaciones/Cierre de
@@ -822,11 +810,6 @@ function CashRegisterPage() {
             }}
             data={data}
             userEmail={session.user.email ?? null}
-            resumenPanel={resumenPanel}
-            onNuevoGasto={() => {
-              setPendingToCharge(null);
-              setTab("nuevo-gasto");
-            }}
             onCajaCerrada={() => {
               setCajaCerrada(true);
               setShowClosedHistory(false);
@@ -844,6 +827,14 @@ function CashRegisterPage() {
               initialPanel={resumenPanel}
               onPanelChange={setResumenPanel}
               onCobrarPendiente={handleCobrarPendiente}
+              onNuevaVenta={() => {
+                setPendingToCharge(null);
+                setTab("nueva");
+              }}
+              onNuevoGasto={() => {
+                setPendingToCharge(null);
+                setTab("nuevo-gasto");
+              }}
             />
           )}
           {tab === "nuevo-gasto" && (
@@ -926,63 +917,22 @@ function CashRegisterPage() {
 
 function Header({
   data: _data,
-  tab,
-  resumenPanel,
-  onNuevaVenta,
-  onNuevoGasto,
 }: {
   data: ReturnType<typeof useCajaData>;
-  tab: Tab;
-  resumenPanel: "ingresos" | "pendientes" | "gastos";
-  onNuevaVenta: () => void;
-  onNuevoGasto: () => void;
 }) {
-  // Único botón de acción rápida en mobile: cambia de texto/color/acción
-  // según la sección activa. Reemplaza al botón grande "Nuevo gasto" que
-  // antes vivía debajo de las pestañas (ver Tabs, sin cambios en desktop).
-  const isGastos = tab === "resumen" && resumenPanel === "gastos";
-  const isPendientes = tab === "resumen" && resumenPanel === "pendientes";
-  // Solo se muestra dentro de Resumen (Ingresos/Gastos). Se oculta en
-  // Pendientes (no hay "nueva venta"/"nuevo gasto" que ofrecer ahí) y en
-  // cualquier otra pestaña — Precios, Inventario, Liquidaciones, Cierre de
-  // caja, Nuevo gasto, Nueva venta — donde ese botón no corresponde.
-  const showQuickAction = tab === "resumen" && !isPendientes;
-  const QuickIcon = isGastos ? Wallet : Plus;
+  // El acceso rápido "Nueva venta"/"Nuevo gasto" ya no vive acá — ahora es
+  // un solo botón centrado dentro de ResumenTab, arriba de la tarjeta
+  // Ingresos, igual en mobile y desktop (ver ResumenTab). Acá solo queda
+  // el título, que además ya está oculto en mobile (el banner de sección
+  // debajo del header ya dice "Caja" — ver MobileSectionBanner).
   return (
-    <div className="flex items-center justify-between gap-4 flex-wrap">
-      {/* Oculto en mobile: el banner de sección debajo del header ya dice
-          "Caja" (ver MobileSectionBanner) — repetirlo acá era redundante.
-          En desktop no hay banner, sigue siendo la única referencia. */}
-      <div className="mt-1 hidden sm:mt-0 lg:block">
-        <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-          Caja
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground md:text-base">
-          Cobros, gastos y liquidaciones
-        </p>
-      </div>
-      {/* Acceso rápido desde la cabecera, solo mobile. En desktop los
-          botones grandes originales siguen viviendo al lado de las pestañas
-          (sin cambios ahí). Mismos handlers que esos botones: no agrega
-          lógica nueva. mt-2.5 lo baja un poco más que el título para que
-          quede centrado en el espacio libre entre "Caja" y las pestañas.
-          Oculto en Pendientes y en el formulario de Nuevo gasto (ver
-          showQuickAction). */}
-      {showQuickAction && (
-        <button
-          type="button"
-          onClick={isGastos ? onNuevoGasto : onNuevaVenta}
-          className={cn(
-            "group mt-2.5 inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all duration-200 active:scale-95 sm:hidden sm:mt-0",
-            isGastos
-              ? "border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 shadow-[0_0_20px_rgba(244,63,94,0.28),0_1px_0_rgba(255,255,255,0.16)_inset]"
-              : "border-emerald-300/38 bg-[linear-gradient(135deg,rgba(16,185,129,0.28),rgba(6,95,70,0.58))] text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.28),0_1px_0_rgba(255,255,255,0.16)_inset]",
-          )}
-        >
-          <QuickIcon className="size-3.5" />
-          {isGastos ? "Nuevo gasto" : "Nueva venta"}
-        </button>
-      )}
+    <div className="hidden lg:block">
+      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
+        Caja
+      </h1>
+      <p className="mt-2 text-sm text-muted-foreground md:text-base">
+        Cobros, gastos y liquidaciones
+      </p>
     </div>
   );
 }
@@ -1048,22 +998,17 @@ function Tabs({
   onChange,
   data,
   userEmail: _userEmail,
-  resumenPanel,
-  onNuevoGasto,
   onCajaCerrada: _onCajaCerrada,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
   data: ReturnType<typeof useCajaData>;
   userEmail: string | null;
-  resumenPanel: "ingresos" | "pendientes" | "gastos";
-  onNuevoGasto: () => void;
   onCajaCerrada: () => void;
 }) {
-  const nuevaActive = tab === "nueva";
   const [firstTab, ...restTabs] = TABS;
   return (
-    <div className="mt-5 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-9 sm:pb-2">
+    <div className="mt-2 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-3 sm:pb-2">
       {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
           resto se reparte en una fila 2 de 4 columnas parejas. */}
       <div className="relative flex w-full flex-col gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:hidden">
@@ -1106,49 +1051,6 @@ function Tabs({
           );
         })}
       </div>
-      {tab === "resumen" && (
-        // Contenedor de ancho fijo: los dos botones (Nuevo gasto / Nueva
-        // venta) se apilan en la misma celda de grid, así el track siempre
-        // mide el ancho del más grande ("Nueva venta") sin importar cuál
-        // esté visible. Alternar con opacity (no montar/desmontar) evita que
-        // el contenedor cambie de ancho y la barra de pestañas se
-        // desplace/recentre al pasar entre Ingresos/Pendientes/Gastos. En
-        // Pendientes ambos quedan en opacity-0: mismo espacio, sin botón.
-        <div className="mb-3 hidden sm:grid sm:w-auto sm:shrink-0 sm:place-items-end">
-          <button
-            onClick={onNuevoGasto}
-            tabIndex={resumenPanel === "gastos" ? 0 : -1}
-            aria-hidden={resumenPanel !== "gastos"}
-            className={cn(
-              "col-start-1 row-start-1 inline-flex group relative overflow-hidden justify-center items-center gap-2.5 rounded-2xl px-6 py-3.5 text-sm font-extrabold transition-all duration-200 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] text-rose-50 border border-rose-300/38 ring-1 ring-rose-400/30 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
-              resumenPanel === "gastos"
-                ? "opacity-100 pointer-events-auto"
-                : "opacity-0 pointer-events-none",
-            )}
-          >
-            <Wallet className="size-4 transition-transform group-hover:scale-110" />
-            Nuevo gasto
-          </button>
-
-          <button
-            onClick={() => onChange("nueva")}
-            tabIndex={resumenPanel === "ingresos" ? 0 : -1}
-            aria-hidden={resumenPanel !== "ingresos"}
-            className={cn(
-              "col-start-1 row-start-1 inline-flex group relative overflow-hidden justify-center items-center gap-3 rounded-2xl px-9 py-3.5 text-base font-bold transition-all duration-200 border before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_58%)]",
-              nuevaActive
-                ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.30),rgba(6,95,70,0.62))] text-emerald-50 border-emerald-300/42 ring-1 ring-emerald-400/32 shadow-[0_0_44px_rgba(16,185,129,0.40),0_0_90px_rgba(16,185,129,0.16),0_1px_0_rgba(255,255,255,0.18)_inset]"
-                : "bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] text-emerald-50 border-emerald-300/36 ring-1 ring-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]",
-              resumenPanel === "ingresos"
-                ? "opacity-100 pointer-events-auto"
-                : "opacity-0 pointer-events-none",
-            )}
-          >
-            <Plus className="size-5 transition-transform group-hover:rotate-90" />
-            Nueva venta
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1202,6 +1104,8 @@ function ResumenTab({
   initialPanel = "ingresos",
   onPanelChange,
   onCobrarPendiente,
+  onNuevaVenta,
+  onNuevoGasto,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
@@ -1210,6 +1114,8 @@ function ResumenTab({
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
+  onNuevaVenta: () => void;
+  onNuevoGasto: () => void;
 }) {
   type ActivePanel = "ingresos" | "pendientes" | "gastos";
   const [activePanel, setActivePanel] =
@@ -1383,6 +1289,33 @@ function ResumenTab({
   const activeTheme = panelTheme[activePanel];
 
   return (
+    <>
+      {/* Único acceso "Nueva venta"/"Nuevo gasto", igual en mobile y
+          desktop — antes vivía partido entre un botón chico en el Header
+          (solo mobile) y uno grande al lado de las pestañas (solo
+          desktop, con demasiado espacio vacío alrededor en mobile). Ahora
+          es un solo botón centrado, justo antes de la tarjeta Ingresos. */}
+      <div className="mb-4 flex justify-center">
+        {activePanel === "gastos" ? (
+          <button
+            type="button"
+            onClick={onNuevoGasto}
+            className="group inline-flex items-center justify-center gap-2.5 rounded-2xl border border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] px-6 py-3 text-sm font-extrabold text-rose-50 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)]"
+          >
+            <Wallet className="size-4 transition-transform group-hover:scale-110" />
+            Nuevo gasto
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onNuevaVenta}
+            className="group inline-flex items-center justify-center gap-3 rounded-2xl border border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] px-9 py-3.5 text-base font-bold text-emerald-50 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]"
+          >
+            <Plus className="size-5 transition-transform group-hover:rotate-90" />
+            Nueva venta
+          </button>
+        )}
+      </div>
     <div className="relative space-y-6 pt-0 pb-2 sm:py-2">
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
@@ -1858,6 +1791,7 @@ function ResumenTab({
       )}
 
     </div>
+    </>
   );
 }
 
