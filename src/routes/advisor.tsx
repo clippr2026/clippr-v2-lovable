@@ -1905,6 +1905,14 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
   const amount = s.moneyRecoverable > 0 ? s.moneyRecoverable : totalOpportunity;
   const keyMetric = s.moneyLost > 0 ? fmtAR(s.moneyLost) : rec.score;
   const keyLabel = s.moneyLost > 0 ? "pérdida estimada detectada" : "score de prioridad";
+  // "Ver estrategia" apuntaba con scrollIntoView a un id
+  // (`strategy-${rec.key}`) que solo existía para las recomendaciones
+  // secundarias — la principal (esta, la que muestra ManagerHero) nunca
+  // tuvo ese id ni tampoco el detalle expandible (pasos, clientes,
+  // mensaje) en ningún lado de la página, así que el botón no hacía
+  // nada. Ahora el detalle se expande acá mismo, con el mismo contenido
+  // que ya usa GrowthRecCard para las demás recomendaciones.
+  const [open, setOpen] = React.useState(false);
 
   return (
     <section className="relative overflow-hidden rounded-[34px] border border-violet-300/20 bg-[#090b18]/82 p-6 shadow-[0_36px_120px_-58px_rgba(139,92,246,0.95)] ring-1 ring-white/10 backdrop-blur-2xl sm:p-8 lg:p-10">
@@ -1931,14 +1939,11 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
           </div>
           <button
             type="button"
-            onClick={() => {
-              document
-                .getElementById(`strategy-${rec.key}`)
-                ?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }}
+            onClick={() => setOpen((v) => !v)}
             className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_-22px_rgba(168,85,247,0.9)] ring-1 ring-white/15 transition hover:brightness-110"
           >
-            Ver estrategia <ArrowRight className="h-4 w-4" />
+            {open ? "Ocultar estrategia" : "Ver estrategia"}
+            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
           </button>
         </div>
 
@@ -1946,12 +1951,19 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_22%,rgba(168,85,247,0.22),transparent_42%)]" />
           <div className="relative flex h-full flex-col justify-between gap-6">
             <ManagerTrendSparkline />
-            <div className="ml-auto w-full max-w-[330px] rounded-3xl border border-fuchsia-300/28 bg-fuchsia-500/[0.09] p-5 ring-1 ring-fuchsia-300/20">
-              <div className="flex items-end gap-4">
-                <div className="font-display text-5xl font-black tracking-[-0.06em] text-white">
+            {/* w-full sin tope fijo en mobile (el max-w-[330px] recién
+                entra desde sm, con más aire): antes el monto grande y su
+                etiqueta iban siempre en fila (flex items-end), y en
+                pantallas angostas eso se salía del ancho de la tarjeta —
+                como la sección padre tiene overflow-hidden, no se veía
+                como scroll sino como texto cortado/ilegible. En mobile
+                pasan a columna. */}
+            <div className="ml-auto w-full rounded-3xl border border-fuchsia-300/28 bg-fuchsia-500/[0.09] p-5 ring-1 ring-fuchsia-300/20 sm:max-w-[330px]">
+              <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:gap-4">
+                <div className="font-display text-4xl font-black tracking-[-0.06em] text-white sm:text-5xl">
                   {keyMetric}
                 </div>
-                <div className="pb-1 text-sm font-semibold leading-snug text-white/70">
+                <div className="text-sm font-semibold leading-snug text-white/70 sm:pb-1">
                   {keyLabel}
                 </div>
               </div>
@@ -1959,6 +1971,35 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
           </div>
         </div>
       </div>
+
+      {open ? (
+        <div className="relative mt-8 space-y-3 border-t border-white/10 pt-8">
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+              Estrategia recomendada
+            </div>
+            <p className="mt-1.5 text-base font-bold leading-snug text-white/90">{s.action}</p>
+            <ol className="mt-3 space-y-2">
+              {s.steps.map((step, i) => (
+                <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-white/68">
+                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">
+                    {i + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <GrowthContactsBlock contacts={s.contacts} />
+          <GrowthMessageBlock message={s.message} />
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+              Cómo medir si funcionó
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-white/60">{s.measure}</p>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
