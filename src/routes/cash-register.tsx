@@ -1929,14 +1929,17 @@ function PreciosTab({
     label,
     value,
     tone = "violet",
+    compact = false,
   }: {
     label: string;
     value: number;
     tone?: "violet" | "green";
+    compact?: boolean;
   }) => (
     <div
       className={cn(
-        "min-w-[90px] rounded-xl border px-3 py-2 text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
+        "rounded-xl border text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
+        compact ? "min-w-[62px] px-2 py-1.5" : "min-w-[90px] px-3 py-2",
         tone === "green"
           ? "border-emerald-400/22 bg-emerald-400/[0.045]"
           : "border-violet-300/18 bg-violet-400/[0.055]",
@@ -1944,13 +1947,19 @@ function PreciosTab({
     >
       <div
         className={cn(
-          "text-[9px] font-bold uppercase tracking-[0.14em]",
+          "font-bold uppercase tracking-[0.14em]",
+          compact ? "text-[8px]" : "text-[9px]",
           tone === "green" ? "text-emerald-300" : "text-violet-200",
         )}
       >
         {label}
       </div>
-      <div className="mt-0.5 text-sm font-bold tabular-nums text-white">
+      <div
+        className={cn(
+          "mt-0.5 font-bold tabular-nums text-white",
+          compact ? "text-xs" : "text-sm",
+        )}
+      >
         {money(value)}
       </div>
     </div>
@@ -2039,7 +2048,7 @@ function PreciosTab({
   // Fila de escritorio: estilo original, línea divisoria dentro de una caja
   // continua (sin cambios respecto de la versión web de siempre).
   const ServiceRow = ({ item }: { item: any }) => (
-    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2.5 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
         <Thumb item={item} fallback="✂" />
         <div className="min-w-0">
@@ -2052,13 +2061,13 @@ function PreciosTab({
           </div>
         </div>
       </div>
-      <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
+      <PriceBadge label="Lista" value={Number(item.price ?? 0)} />
       <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
     </div>
   );
 
   const CatalogRow = ({ item }: { item: any }) => (
-    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2.5 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
         <Thumb item={item} fallback="□" />
         <div className="min-w-0">
@@ -2070,7 +2079,7 @@ function PreciosTab({
           </div>
         </div>
       </div>
-      <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
+      <PriceBadge label="Lista" value={Number(item.price ?? 0)} />
       <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
     </div>
   );
@@ -2080,42 +2089,38 @@ function PreciosTab({
   // continua con líneas divisorias — SOLO mobile, la versión de escritorio
   // (ServiceRow/CatalogRow de arriba) no cambia.
   const ServiceRowMobile = ({ item }: { item: any }) => (
-    <div className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3 active:bg-white/[0.045]">
-      <div className="flex min-w-0 items-center gap-4">
-        <Thumb item={item} fallback="✂" />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-bold text-white">
-            {item.name ?? "Servicio"}
-          </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
-            <Clock className="size-3.5" />
-            {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
-          </div>
+    <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 active:bg-white/[0.045]">
+      <Thumb item={item} fallback="✂" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-bold text-white">
+          {item.name ?? "Servicio"}
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
+          <Clock className="size-3.5" />
+          {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
         </div>
       </div>
-      <div className="flex gap-2">
-        <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
-        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
+      <div className="flex shrink-0 items-center gap-1.5">
+        <PriceBadge label="Lista" value={Number(item.price ?? 0)} compact />
+        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" compact />
       </div>
     </div>
   );
 
   const CatalogRowMobile = ({ item }: { item: any }) => (
-    <div className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3 active:bg-white/[0.045]">
-      <div className="flex min-w-0 items-center gap-4">
-        <Thumb item={item} fallback="□" />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-bold text-white">
-            {item.name ?? "Producto"}
-          </div>
-          <div className="mt-0.5 text-[11px] text-white/50">
-            {catalogCategory(item)}
-          </div>
+    <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 active:bg-white/[0.045]">
+      <Thumb item={item} fallback="□" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-bold text-white">
+          {item.name ?? "Producto"}
+        </div>
+        <div className="mt-0.5 text-[11px] text-white/50">
+          {catalogCategory(item)}
         </div>
       </div>
-      <div className="flex gap-2">
-        <PriceBadge label="Precio lista" value={Number(item.price ?? 0)} />
-        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
+      <div className="flex shrink-0 items-center gap-1.5">
+        <PriceBadge label="Lista" value={Number(item.price ?? 0)} compact />
+        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" compact />
       </div>
     </div>
   );
@@ -2124,25 +2129,28 @@ function PreciosTab({
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       {/* Mobile: pestañas para ver una sección a la vez. Desktop no cambia:
           las dos secciones siguen lado a lado (ver sm:grid abajo). */}
-      <div className="mb-3 flex gap-1.5 rounded-2xl border border-white/[0.085] bg-black/25 p-1.5 sm:hidden">
+      <div className="mb-3 flex gap-2 sm:hidden">
         {(
           [
-            ["servicios", "Servicios"],
-            ["catalogo", "Catálogo"],
+            ["servicios", "Servicios", <Scissors key="i" className="size-4" />],
+            ["catalogo", "Catálogo", <span key="i" className="text-sm leading-none">▣</span>],
           ] as const
-        ).map(([id, label]) => (
+        ).map(([id, label, icon]) => (
           <button
             key={id}
             type="button"
             onClick={() => setMobileSection(id)}
             className={cn(
-              "flex-1 rounded-xl px-3.5 py-2.5 text-sm font-bold transition-all",
+              "flex h-14 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border transition-all",
               mobileSection === id
-                ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
-                : "text-white/50 active:bg-white/[0.045]",
+                ? "border-violet-300/28 bg-violet-500/18 text-white ring-1 ring-violet-300/24"
+                : "border-white/[0.085] bg-black/25 text-white/50 active:bg-white/[0.045]",
             )}
           >
-            {label}
+            {icon}
+            <span className="text-[9px] font-bold uppercase tracking-wide">
+              {label}
+            </span>
           </button>
         ))}
       </div>
@@ -2167,23 +2175,7 @@ function PreciosTab({
           )}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[100dvh] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] sm:hidden" />
-          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
-                  <Scissors className="size-5" />
-                </div>
-                <div className="text-lg font-bold text-white">
-                  Servicios disponibles <span className="text-white/35">·</span>{" "}
-                  <span className="text-white/55">{serviceItems.length}</span>
-                </div>
-              </div>
-            </div>
-            <SearchBox
-              value={serviceQuery}
-              onChange={setServiceQuery}
-              placeholder="Buscar servicio"
-            />
+          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-3">
             {/* self-start + max-w-full: antes este contenedor se estiraba
                 al 100% del ancho (comportamiento por defecto de un hijo
                 dentro de un flex-column) sin importar cuántas categorías
@@ -2246,6 +2238,11 @@ function PreciosTab({
                 )}
               </div>
             </div>
+            <SearchBox
+              value={serviceQuery}
+              onChange={setServiceQuery}
+              placeholder="Buscar servicio"
+            />
           </div>
           <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             {/* Desktop: caja continua de siempre, sin cambios. */}
@@ -2297,21 +2294,7 @@ function PreciosTab({
           )}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[100dvh] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] sm:hidden" />
-          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-4">
-            <div className="flex items-center gap-4">
-              <div className="grid size-10 place-items-center rounded-2xl bg-violet-500/12 text-2xl text-violet-200 ring-1 ring-violet-300/18">
-                ▣
-              </div>
-              <div className="text-lg font-bold text-white">
-                Catálogo <span className="text-white/35">·</span>{" "}
-                <span className="text-white/55">{catalogItems.length}</span>
-              </div>
-            </div>
-            <SearchBox
-              value={catalogQuery}
-              onChange={setCatalogQuery}
-              placeholder="Buscar producto"
-            />
+          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-3">
             {/* Ver comentario detallado en la lista de Servicios: mismo
                 bug de WebKit (fondo translúcido + overflow-x-auto en el
                 mismo elemento cambia de composición según si hay scroll o
@@ -2348,6 +2331,11 @@ function PreciosTab({
                 )}
               </div>
             </div>
+            <SearchBox
+              value={catalogQuery}
+              onChange={setCatalogQuery}
+              placeholder="Buscar producto"
+            />
           </div>
           <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             {/* Desktop: caja continua de siempre, sin cambios. */}
