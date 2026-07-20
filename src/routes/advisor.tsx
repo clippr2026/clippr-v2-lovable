@@ -401,17 +401,24 @@ function AdvisorContent({
       {advisorTab === "analisis" && (
         <>
           {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-          <div className="relative rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4">
+          <div className="relative overflow-visible rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 pt-14 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4 sm:pt-16">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
             {/* "Cómo funciona" una sola vez por sección, en la esquina
                 superior derecha del bloque completo — antes vivía adentro
                 de la tarjeta "Estado actual" (absolute) y podía superponerse
                 al contenido en pantallas angostas. Acá nunca compite con el
-                dato principal porque no hay nada más en esta esquina. */}
+                dato principal porque no hay nada más en esta esquina.
+                pt-14/16 en el contenedor le reserva su propia fila arriba
+                (antes el botón flotaba con position:absolute sobre el
+                borde redondeado de 2rem con apenas 12px de margen — con un
+                radio tan grande, ese margen quedaba dentro de la curva y
+                el botón se veía "colgando" fuera del borde visible de la
+                tarjeta, como recortado). overflow-visible explícito: nunca
+                debe quedar tapado por el propio contenedor. */}
             <button
               type="button"
               onClick={() => setInfoModal(INFO_CONTENT.health)}
-              className="absolute right-3 top-3 z-10 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 text-[11px] font-bold text-emerald-200 shadow-[0_0_22px_rgba(45,212,191,0.14)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 hover:text-white sm:h-7 sm:px-2.5"
+              className="absolute right-4 top-4 z-20 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 text-[11px] font-bold text-emerald-200 shadow-[0_0_22px_rgba(45,212,191,0.14)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 hover:text-white sm:right-5 sm:top-5 sm:h-7 sm:px-2.5"
               aria-label="Cómo funciona estado actual"
             >
               <CircleHelp className="h-3 w-3" />
@@ -602,16 +609,19 @@ function AdvisorContent({
           {/* /Salud */}
 
           {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-          <div className="relative rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3">
+          <div className="relative overflow-visible rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-14 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-16">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
             {/* Ver mismo comentario en Salud del negocio: "Cómo funciona"
                 una sola vez por sección, en la esquina superior derecha del
                 bloque completo — antes vivía adentro del bloque de
-                "Crecimiento mensual" y podía superponerse al porcentaje. */}
+                "Crecimiento mensual" y podía superponerse al porcentaje.
+                pt-14/16 + más margen del borde: mismo fix que Salud del
+                negocio (el botón quedaba dentro de la curva del borde
+                redondeado grande y se veía cortado/colgando). */}
             <button
               type="button"
               onClick={() => setInfoModal(INFO_CONTENT.growth)}
-              className="absolute right-2.5 top-2.5 z-10 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-300/10 px-2 text-[11px] font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white sm:right-3 sm:top-3 sm:h-7 sm:px-2.5"
+              className="absolute right-4 top-4 z-20 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-300/10 px-2 text-[11px] font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white sm:right-5 sm:top-5 sm:h-7 sm:px-2.5"
               aria-label="Cómo funciona crecimiento"
             >
               <CircleHelp className="h-3 w-3" />
