@@ -9398,25 +9398,59 @@ export function NuevaVentaTab({
         </div>
       )}
 
-      <div className="relative z-20 mt-auto shrink-0 pt-3 pb-4">
+      <div className="relative z-20 mt-auto shrink-0 space-y-2 pt-3 pb-4">
+        {/* Resumen — tarjeta propia e independiente, arriba de Volver/
+            Continuar. Sin truncate en ningún lado a propósito: con varios
+            servicios/catálogo el texto ocupa las líneas que necesite y la
+            tarjeta crece en alto — el stepper de arriba y el contenido del
+            paso activo (que ya tienen su propio scroll interno) son los
+            que ceden espacio, nunca este resumen. Orden fijo: Profesional
+            (se oculta con profesional bloqueado desde Mi Agenda), Cliente,
+            Servicios, Total. */}
+        <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-2.5 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
+          <div className="space-y-0.5">
+            {!lockedEmployeeId && (
+              <p className="break-words text-sm font-semibold text-white">
+                {employeeId
+                  ? `Profesional: ${selectedEmployee?.name ?? ""}`
+                  : "Sin profesional"}
+              </p>
+            )}
+            <p className="break-words text-sm font-semibold text-white">
+              {clientId ? `Cliente: ${client || "Cliente seleccionado"}` : "Sin cliente"}
+            </p>
+            <p className="break-words text-xs text-white/55">
+              {cartServiceNames ? `Servicio: ${cartServiceNames}` : "Sin servicio"}
+            </p>
+            {cartCatalogNames && (
+              <p className="break-words text-xs text-white/55">
+                Catálogo: {cartCatalogNames}
+              </p>
+            )}
+            <p className="text-base font-extrabold text-white">
+              Total: ${total.toLocaleString("es-AR")}
+            </p>
+          </div>
+        </Card>
+
         <div className="flex items-stretch gap-2">
           {/* Volver/Cancelar — siempre montado (nunca se saca del DOM) para
-              que el resumen y Continuar no se corran de lugar al llegar al
-              primer paso: en variant="page" queda deshabilitado; en
-              variant="modal" el primer paso visible usa Cancelar (cierra
-              el modal, sigue siempre habilitado) y los siguientes Volver. */}
+              que Continuar no se corra de lugar al llegar al primer paso:
+              en variant="page" queda deshabilitado; en variant="modal" el
+              primer paso visible usa Cancelar (cierra el modal, sigue
+              siempre habilitado) y los siguientes Volver. */}
           {variant === "modal" ? (
             step === minStep ? (
               <button
                 onClick={onCancel}
-                className="shrink-0 rounded-2xl px-4 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                className="flex-1 rounded-2xl px-4 py-3 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
                 Cancelar
               </button>
             ) : (
               <button
                 onClick={() => setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
-                className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
                 <ArrowLeft className="size-4" /> Volver
               </button>
@@ -9427,46 +9461,17 @@ export function NuevaVentaTab({
                 setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))
               }
               disabled={step <= minStep}
-              className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-35 disabled:cursor-not-allowed transition-all"
             >
               <ArrowLeft className="size-4" /> Volver
             </button>
           )}
 
-          {/* Resumen — tarjeta propia e independiente, ya no metida adentro
-              del botón Continuar. Sin truncate en ningún lado a propósito:
-              con varios servicios/catálogo el texto ocupa las líneas que
-              necesite y la tarjeta crece en alto — el stepper de arriba y
-              el contenido del paso activo (que ya tienen su propio scroll
-              interno) son los que ceden espacio, nunca este resumen. */}
-          <Card className="flex min-h-[52px] min-w-0 flex-1 flex-col justify-center rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-2 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
-            <div className="space-y-0.5">
-              {!lockedEmployeeId && (
-                <p className="break-words text-sm font-semibold text-white">
-                  {employeeId
-                    ? `Profesional: ${selectedEmployee?.name ?? ""}`
-                    : "Sin profesional"}
-                </p>
-              )}
-              <p className="break-words text-xs text-white/55">
-                {cartServiceNames ? `Servicio: ${cartServiceNames}` : "Sin servicio"}
-              </p>
-              {cartCatalogNames && (
-                <p className="break-words text-xs text-white/55">
-                  Catálogo: {cartCatalogNames}
-                </p>
-              )}
-              <p className="text-base font-extrabold text-white">
-                Total: ${total.toLocaleString("es-AR")}
-              </p>
-            </div>
-          </Card>
-
           {step < finalStep ? (
             <button
               onClick={goNext}
               disabled={!canContinue}
-              className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl px-6 text-sm font-bold text-white bg-[linear-gradient(135deg,#60A5FA,#8B5CF6)] shadow-[0_0_34px_rgba(96,165,250,0.24)] hover:-translate-y-0.5 hover:shadow-[0_0_46px_rgba(139,92,246,0.36)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white bg-[linear-gradient(135deg,#60A5FA,#8B5CF6)] shadow-[0_0_34px_rgba(96,165,250,0.24)] hover:-translate-y-0.5 hover:shadow-[0_0_46px_rgba(139,92,246,0.36)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               Continuar <ArrowRight className="size-4" />
             </button>
@@ -9481,7 +9486,7 @@ export function NuevaVentaTab({
                 (!isManualFlow && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
               onClick={handleCobrar}
-              className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl px-7 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
             >
               {submitting ? (
                 <>
