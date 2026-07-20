@@ -2073,7 +2073,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   return (
     <>
-      <div>
+      {/* Oculto en mobile: el drill-down de Configuración ya muestra "←
+          Servicios"/"← Catálogo" arriba — repetirlo acá era redundante.
+          Desktop no tiene ese header, sigue siendo la única referencia. */}
+      <div className="hidden lg:block">
         <h2 className="text-xl font-display font-semibold">
           {isService ? "Servicios" : "Catálogo"}
         </h2>

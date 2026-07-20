@@ -120,7 +120,10 @@ export function CajaSection() {
 
   return (
     <>
-      <div>
+      {/* Oculto en mobile: el drill-down de Configuración ya muestra "←
+          Caja" arriba — repetirlo acá era redundante. Desktop no tiene ese
+          header, sigue siendo la única referencia. */}
+      <div className="hidden lg:block">
         <h2 className="text-xl font-display font-semibold">Caja</h2>
         <p className="text-sm text-muted-foreground mt-1">
           Cobros y medios de pago.

@@ -239,7 +239,11 @@ export function HorariosSection() {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
+      {/* Oculto en mobile: la pantalla de Configuración ya muestra "←
+          Horarios" arriba (drill-down tipo iOS, ver settings.tsx) —
+          repetir el mismo título acá era redundante. En desktop no hay
+          ese header de vuelta, así que sigue siendo la única referencia. */}
+      <div className="hidden items-start justify-between gap-4 lg:flex">
         <div>
           <h2 className="text-xl font-display font-semibold">
             Horarios de atención

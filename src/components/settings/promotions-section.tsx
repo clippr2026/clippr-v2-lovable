@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   Plus,
   Trash2,
@@ -167,6 +168,11 @@ export function PromotionsSection() {
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  // Sin esto, el scroll de la pantalla de atrás seguía moviéndose (rubber-
+  // band de iOS Safari) mientras el modal estaba abierto y al final del
+  // formulario arrastraba todo el fondo. Restaura la posición exacta al
+  // cerrar.
+  useBodyScrollLock(modalOpen);
   const [editing, setEditing] = useState<Promotion | null>(null);
   const [form, setForm] = useState<PromoForm>(emptyForm([], []));
   const [saving, setSaving] = useState(false);
@@ -216,10 +222,6 @@ export function PromotionsSection() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const categories = Array.from(
-    new Set(services.map((s) => s.category?.trim() || "Otro")),
-  ).sort((a, b) => a.localeCompare(b, "es"));
 
   async function persist(next: Promotion[]): Promise<boolean> {
     if (!businessId) return false;
@@ -369,13 +371,8 @@ export function PromotionsSection() {
     <div className="space-y-4">
       <SectionCard label="Promociones">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold">
-              Promociones y códigos de descuento
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              Se administran todas acá y se aplican en la Página Pública.
-            </div>
+          <div className="text-sm font-semibold">
+            Promociones y códigos de descuento
           </div>
           <button
             type="button"
@@ -444,11 +441,15 @@ export function PromotionsSection() {
 
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[4vh]"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[4vh] [overscroll-behavior:contain]"
           onClick={() => !saving && setModalOpen(false)}
         >
+          {/* dvh, no vh: en Safari móvil vh se calcula sobre el viewport
+              "grande" (sin descontar la barra de direcciones), así que con
+              vh el modal podía terminar más alto que el espacio realmente
+              visible y el footer quedaba tapado por la nav inferior. */}
           <div
-            className="relative flex h-[86vh] max-h-[820px] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
+            className="relative flex h-[86dvh] max-h-[820px] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header fijo: solo título + subtítulo — el estado, el
@@ -568,30 +569,6 @@ export function PromotionsSection() {
                       ))}
                     </div>
                   </div>
-                  {categories.length > 0 && (
-                    <div>
-                      <div className="mb-1.5 text-xs font-semibold text-muted-foreground">
-                        Categorías ({form.categoryNames.length})
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {categories.map((c) => (
-                          <button
-                            key={c}
-                            type="button"
-                            onClick={() => toggleInArray("categoryNames", c)}
-                            className={cn(
-                              "rounded-full px-3 py-1 text-xs ring-1 transition",
-                              form.categoryNames.includes(c)
-                                ? "bg-primary/20 text-white ring-primary/40"
-                                : "bg-white/5 text-muted-foreground ring-white/10",
-                            )}
-                          >
-                            {c}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   <div>
                     <div className="mb-1.5 text-xs font-semibold text-muted-foreground">
                       Profesionales ({form.employeeIds.length})
@@ -826,7 +803,10 @@ export function PromotionsSection() {
               </SectionCard>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 border-t border-white/5 px-5 py-4">
+            <div
+              className="flex shrink-0 items-center gap-2 border-t border-white/5 px-5 pt-4"
+              style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            >
               {editing && (
                 <button
                   type="button"

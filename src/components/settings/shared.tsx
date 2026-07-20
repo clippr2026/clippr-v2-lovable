@@ -109,9 +109,20 @@ export function Toggle({
 }) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={on}
       onClick={() => onChange(!on)}
       className={cn(
-        "relative h-6 w-11 rounded-full transition-colors ring-1",
+        // shrink-0: sin esto, dentro de una fila flex angosta (ej. un modal
+        // en mobile con label largo al lado) el track de 44px podía
+        // comprimirse por flexbox mientras el circulito seguía
+        // desplazándose translate-x-[22px] fijo, pensado para el ancho
+        // completo — el resultado era el circulito saliéndose del track ya
+        // achicado. overflow-hidden es una segunda garantía: aunque algo
+        // más algún día empuje el circulito de más, nunca se va a ver
+        // sobresaliendo del pill redondeado.
+        "relative h-6 w-11 shrink-0 overflow-hidden rounded-full transition-colors duration-200 ring-1",
         on
           ? "bg-gradient-to-r from-sky-400 to-violet-500 ring-violet-400/45"
           : "bg-white/5 ring-white/10",
@@ -119,8 +130,8 @@ export function Toggle({
     >
       <span
         className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-          on ? "translate-x-[22px]" : "translate-x-0.5",
+          "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200",
+          on ? "translate-x-[20px]" : "translate-x-0",
         )}
       />
     </button>
