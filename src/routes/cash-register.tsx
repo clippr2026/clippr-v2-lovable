@@ -521,9 +521,9 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
-  // Caja arranca directo en Nueva venta — es el foco de la pantalla ahora,
-  // ya no hace falta pasar por Resumen primero para llegar ahí.
-  const [tab, setTab] = useState<Tab>("nueva");
+  const [tab, setTab] = useState<Tab>(
+    search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen",
+  );
   const [pendingToCharge, setPendingToCharge] = useState<
     ReturnType<typeof useCajaData>["pendingCharges"][number] | null
   >(null);
@@ -805,27 +805,34 @@ function CashRegisterPage() {
             setTab("nuevo-gasto");
           }}
         />
-        <Tabs
-          tab={tab}
-          onChange={(t) => {
-            if (t !== "nueva") setPendingToCharge(null);
-            setTab(t);
-          }}
-          data={data}
-          userEmail={session.user.email ?? null}
-          resumenPanel={resumenPanel}
-          onNuevoGasto={() => {
-            setPendingToCharge(null);
-            setTab("nuevo-gasto");
-          }}
-          onCajaCerrada={() => {
-            setCajaCerrada(true);
-            setShowClosedHistory(false);
-            setPendingToCharge(null);
-            setResumenPanel("ingresos");
-            setTab("resumen");
-          }}
-        />
+        {/* Oculto mientras Nueva venta está activa — el formulario de los
+            pasos sube y aprovecha ese espacio. El resto de las secciones
+            (Resumen/Precios/Inventario/Liquidaciones/Cierre de caja) siguen
+            existiendo tal cual, solo se ocultan momentáneamente; vuelven a
+            aparecer apenas se sale de Nueva venta. */}
+        {tab !== "nueva" && (
+          <Tabs
+            tab={tab}
+            onChange={(t) => {
+              if (t !== "nueva") setPendingToCharge(null);
+              setTab(t);
+            }}
+            data={data}
+            userEmail={session.user.email ?? null}
+            resumenPanel={resumenPanel}
+            onNuevoGasto={() => {
+              setPendingToCharge(null);
+              setTab("nuevo-gasto");
+            }}
+            onCajaCerrada={() => {
+              setCajaCerrada(true);
+              setShowClosedHistory(false);
+              setPendingToCharge(null);
+              setResumenPanel("ingresos");
+              setTab("resumen");
+            }}
+          />
+        )}
         <div className="mt-1 sm:mt-3">
           {tab === "resumen" && (
             <ResumenTab
@@ -1047,26 +1054,25 @@ function Tabs({
   onCajaCerrada: () => void;
 }) {
   const nuevaActive = tab === "nueva";
-  // Caja se enfoca en el flujo de venta: se saca el bloque de navegación
-  // grande (Resumen/Precios/Inventario/Liquidaciones/Cierre de caja) y
-  // queda solo este toggle chico entre Nueva venta e Historial (Historial
-  // sigue siendo la pestaña "resumen" por dentro — recientes/pendientes/
-  // gastos — solo cambia cómo se llega). Precios, Inventario, Liquidaciones
-  // y Cierre de caja dejan de ser accesibles desde acá; su código queda
-  // intacto por si se reubican en otra sección más adelante.
-  const COMPACT_TABS: {
-    id: Tab;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }[] = [
-    { id: "nueva", label: "Nueva venta", icon: Plus },
-    { id: "resumen", label: "Historial", icon: ClipboardList },
-  ];
+  const [firstTab, ...restTabs] = TABS;
   return (
     <div className="mt-5 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-9 sm:pb-2">
-      <div className="relative flex gap-1.5 rounded-2xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset]">
-        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
-        {COMPACT_TABS.map((t) => {
+      {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
+          resto se reparte en una fila 2 de 4 columnas parejas. */}
+      <div className="relative flex w-full flex-col gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:hidden">
+        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
+        <TabButton t={firstTab} tab={tab} onChange={onChange} className="w-full" />
+        <div className="grid grid-cols-4 gap-1">
+          {restTabs.map((t) => (
+            <TabButton key={t.id} t={t} tab={tab} onChange={onChange} compact />
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop/tablet: fila única, sin cambios visuales. */}
+      <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:flex-none">
+        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
+        {TABS.map((t) => {
           const active = t.id === tab;
           const Icon = t.icon;
           return (
@@ -1074,7 +1080,7 @@ function Tabs({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "group relative inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                "group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
                 active
                   ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
                   : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
