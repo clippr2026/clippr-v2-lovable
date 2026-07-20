@@ -521,9 +521,9 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
-  const [tab, setTab] = useState<Tab>(
-    search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen",
-  );
+  // Caja arranca directo en Nueva venta — es el foco de la pantalla ahora,
+  // ya no hace falta pasar por Resumen primero para llegar ahí.
+  const [tab, setTab] = useState<Tab>("nueva");
   const [pendingToCharge, setPendingToCharge] = useState<
     ReturnType<typeof useCajaData>["pendingCharges"][number] | null
   >(null);
@@ -1047,25 +1047,26 @@ function Tabs({
   onCajaCerrada: () => void;
 }) {
   const nuevaActive = tab === "nueva";
-  const [firstTab, ...restTabs] = TABS;
+  // Caja se enfoca en el flujo de venta: se saca el bloque de navegación
+  // grande (Resumen/Precios/Inventario/Liquidaciones/Cierre de caja) y
+  // queda solo este toggle chico entre Nueva venta e Historial (Historial
+  // sigue siendo la pestaña "resumen" por dentro — recientes/pendientes/
+  // gastos — solo cambia cómo se llega). Precios, Inventario, Liquidaciones
+  // y Cierre de caja dejan de ser accesibles desde acá; su código queda
+  // intacto por si se reubican en otra sección más adelante.
+  const COMPACT_TABS: {
+    id: Tab;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
+    { id: "nueva", label: "Nueva venta", icon: Plus },
+    { id: "resumen", label: "Historial", icon: ClipboardList },
+  ];
   return (
     <div className="mt-5 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-9 sm:pb-2">
-      {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
-          resto se reparte en una fila 2 de 4 columnas parejas. */}
-      <div className="relative flex w-full flex-col gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:hidden">
-        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
-        <TabButton t={firstTab} tab={tab} onChange={onChange} className="w-full" />
-        <div className="grid grid-cols-4 gap-1">
-          {restTabs.map((t) => (
-            <TabButton key={t.id} t={t} tab={tab} onChange={onChange} compact />
-          ))}
-        </div>
-      </div>
-
-      {/* Desktop/tablet: fila única, sin cambios visuales. */}
-      <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:flex-none">
-        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
-        {TABS.map((t) => {
+      <div className="relative flex gap-1.5 rounded-2xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset]">
+        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
+        {COMPACT_TABS.map((t) => {
           const active = t.id === tab;
           const Icon = t.icon;
           return (
@@ -1073,7 +1074,7 @@ function Tabs({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
+                "group relative inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-200",
                 active
                   ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
                   : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
@@ -8213,18 +8214,6 @@ export function NuevaVentaTab({
           .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
           .join(" + ")
       : "Sin servicios";
-  // Igual que serviceSummary pero separando servicios de catálogo — el
-  // resumen fijo de abajo los muestra en líneas distintas ("Servicio: …" /
-  // "Catálogo: …"), a diferencia de service_name (guardado en el pago)
-  // que sigue combinando todo en una sola cadena.
-  const cartServiceNames = cartItems
-    .filter(({ svc }) => !svc.is_catalog)
-    .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
-    .join("/");
-  const cartCatalogNames = cartItems
-    .filter(({ svc }) => svc.is_catalog)
-    .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
-    .join("/");
   const canContinue =
     step === 1
       ? Boolean(employeeId)
@@ -9366,72 +9355,60 @@ export function NuevaVentaTab({
         </Card>
       )}
 
-      {/* Resumen compacto del cobro — solo en el paso Pago, siempre pegado
-          justo encima de Volver/Confirmar cobro. No es una Card grande
-          como el resto de las secciones a propósito: es una última
-          verificación visual antes de confirmar, no otro bloque más que
-          compita por atención. Sale directo de cartItems/total (mismo
-          estado que ya arma el carrito), así que se actualiza solo apenas
-          se agrega, edita o saca un ítem — no hay nada que sincronizar a
-          mano. */}
-      {step === 4 && cartItems.length > 0 && (
-        <div className="shrink-0 space-y-1.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2.5 text-xs">
-          {cartItems.slice(0, 4).map(({ svc, qty }) => (
-            <div key={svc.id} className="flex items-center justify-between gap-3">
-              <span className="truncate text-white/65">
-                {svc.name}
-                {qty > 1 ? ` ×${qty}` : ""}
-              </span>
-              <span className="shrink-0 tabular-nums text-white/65">
-                ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+      <div className="relative z-20 mt-auto shrink-0 space-y-2 pt-3 pb-4">
+        {/* Resumen — solo en el paso 4 (Pago), como última verificación
+            antes de cobrar. En los pasos 1-3 no se muestra nada acá, solo
+            Volver/Continuar. Profesional y Cliente comparten la primera
+            fila; cada servicio/producto tiene su propia fila con precio a
+            la derecha (nunca agrupados con "/"), con "+N ítems" si hay más
+            de los que entran cómodo; Total separado por una línea, en
+            blanco y con más jerarquía. Sin truncate: si el nombre es largo
+            se acomoda en varias líneas antes que cortarse. */}
+        {step === 4 && (
+          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              {!lockedEmployeeId && (
+                <p className="min-w-0 flex-1 break-words text-sm font-semibold text-white">
+                  Profesional: {selectedEmployee?.name ?? "—"}
+                </p>
+              )}
+              <p
+                className={cn(
+                  "min-w-0 flex-1 break-words text-sm font-semibold text-white",
+                  !lockedEmployeeId && "text-right",
+                )}
+              >
+                Cliente: {client || "Cliente seleccionado"}
+              </p>
+            </div>
+
+            {cartItems.length > 0 && (
+              <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
+                {cartItems.slice(0, 4).map(({ svc, qty }) => (
+                  <div key={svc.id} className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 break-words text-xs text-white/65">
+                      {svc.name}
+                      {qty > 1 ? ` ×${qty}` : ""}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-xs text-white/65">
+                      ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                ))}
+                {cartItems.length > 4 && (
+                  <div className="text-xs text-white/40">+{cartItems.length - 4} ítems</div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/10 pt-2">
+              <span className="text-base font-extrabold text-white">Total</span>
+              <span className="tabular-nums text-base font-extrabold text-white">
+                ${total.toLocaleString("es-AR")}
               </span>
             </div>
-          ))}
-          {cartItems.length > 4 && (
-            <div className="text-white/40">+{cartItems.length - 4} ítems</div>
-          )}
-          <div className="h-px bg-white/10" />
-          <div className="flex items-center justify-between gap-3 text-sm font-semibold text-white">
-            <span>Total</span>
-            <span className="tabular-nums">${total.toLocaleString("es-AR")}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="relative z-20 mt-auto shrink-0 space-y-2 pt-3 pb-4">
-        {/* Resumen — tarjeta propia e independiente, arriba de Volver/
-            Continuar. Sin truncate en ningún lado a propósito: con varios
-            servicios/catálogo el texto ocupa las líneas que necesite y la
-            tarjeta crece en alto — el stepper de arriba y el contenido del
-            paso activo (que ya tienen su propio scroll interno) son los
-            que ceden espacio, nunca este resumen. Orden fijo: Profesional
-            (se oculta con profesional bloqueado desde Mi Agenda), Cliente,
-            Servicios, Total. */}
-        <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-2.5 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
-          <div className="space-y-0.5">
-            {!lockedEmployeeId && (
-              <p className="break-words text-sm font-semibold text-white">
-                {employeeId
-                  ? `Profesional: ${selectedEmployee?.name ?? ""}`
-                  : "Sin profesional"}
-              </p>
-            )}
-            <p className="break-words text-sm font-semibold text-white">
-              {clientId ? `Cliente: ${client || "Cliente seleccionado"}` : "Sin cliente"}
-            </p>
-            <p className="break-words text-xs text-white/55">
-              {cartServiceNames ? `Servicio: ${cartServiceNames}` : "Sin servicio"}
-            </p>
-            {cartCatalogNames && (
-              <p className="break-words text-xs text-white/55">
-                Catálogo: {cartCatalogNames}
-              </p>
-            )}
-            <p className="text-base font-extrabold text-white">
-              Total: ${total.toLocaleString("es-AR")}
-            </p>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <div className="flex items-stretch gap-2">
           {/* Volver/Cancelar — siempre montado (nunca se saca del DOM) para
@@ -9498,7 +9475,7 @@ export function NuevaVentaTab({
                 </>
               ) : (
                 <>
-                  Confirmar cobro <Check className="size-4" />
+                  COBRAR <Check className="size-4" />
                 </>
               )}
             </button>
